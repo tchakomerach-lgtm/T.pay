@@ -1,21 +1,50 @@
-MIT License
+T.Pay Proprietary Software License v1.0
 
-Copyright (c) 2026 tchakomerach-lgtm
+Copyright (c) 2026 Ree Raa. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+1. Ownership
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+The T.Pay software, including its source code, documentation, databases, designs, trademarks, logos, and related intellectual property, is the exclusive property of the copyright owner.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+2. Limited Permission
+
+Viewing this repository and submitting contributions through GitHub Pull Requests are permitted.
+
+No other rights are granted unless expressly authorized in writing by the copyright owner.
+
+3. Restrictions
+
+Without prior written authorization, you may not:
+
+- Copy all or part of the software for commercial purposes.
+- Modify and distribute modified versions.
+- Sell, sublicense, rent, lease, or transfer the software.
+- Create competing products based on T.Pay.
+- Remove copyright notices.
+- Use the T.Pay name, logo, or branding.
+- Train artificial intelligence models using the source code or proprietary datasets.
+- Reverse engineer proprietary components where prohibited by law.
+
+4. Contributions
+
+Any contribution submitted to this repository may be reviewed before acceptance.
+
+By submitting a contribution, the contributor grants the project owner a perpetual, worldwide, royalty-free license to use, modify, distribute, and incorporate the contribution into T.Pay.
+
+5. Commercial Licensing
+
+Commercial use requires a separate written agreement with the copyright owner.
+
+6. Warranty Disclaimer
+
+The software is provided "AS IS", without warranties of any kind.
+
+7. Limitation of Liability
+
+The copyright owner shall not be liable for any damages arising from the use of this software.
+
+8. Governing Law
+
+This license shall be governed by the laws of the jurisdiction chosen by the copyright owner.
+
+For commercial licensing or partnership requests, contact the copyright owner directly.
