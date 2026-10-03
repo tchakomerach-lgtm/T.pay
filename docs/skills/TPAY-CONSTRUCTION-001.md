@@ -187,3 +187,7 @@ Notifications are an untrusted delivery surface and are not proof of financial s
 - Scope idempotency and retry state to the notification intent identity.
 - Provider success is delivery evidence, not financial confirmation.
 - A notification worker MUST NOT mutate Ledger, payment, contribution or credit state.
+
+
+## Reconciliation exception gate
+A reconciliation mismatch is evidence requiring investigation, not permission to mutate financial state. The database must own exception deduplication and concurrent ownership. Any later financial correction must pass through the canonical financial state machine, authorization and idempotency boundary.
