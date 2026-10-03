@@ -41,19 +41,19 @@ Contribution intent → payment intent → provider adapter → signed callback 
 **Sub-steps:**
 1. Payment intent and identity propagation.
 2. Durable Financial Settlement UoW — implemented as the S-02 orchestration boundary.
-3. **S-02.5 Real PostgreSQL transaction adapter + transactional persistence schema — implemented at adapter/schema level.**
-4. Live PostgreSQL integration test and migration runner.
-5. Provider adapter registry.
-6. Signed callback parser/verification.
-7. Event uniqueness and transactional claim.
-8. Atomic ledger + fee + contribution settlement.
+3. **S-02.5 Real PostgreSQL transaction adapter + transactional persistence schema — implemented.**
+4. **S-02.5.1 Live PostgreSQL integration test + migration runner — implemented and verified in CI.**
+5. **S-03.1 Provider Adapter Registry + Provider Contract Boundary — implemented.**
+6. S-03.2 Signed callback parser/verification.
+7. Event uniqueness and transactional claim hardening.
+8. Atomic ledger + fee + contribution settlement integration.
 9. Receipt/e-carnet evidence.
 10. Outbox/event publication.
 11. Notification after commit.
 12. Reconciliation exception queue.
 13. Security/concurrency/duplicate-provider tests.
 
-**Current implementation:** S-02 provides the durable settlement contract; S-02.5 provides executable PostgreSQL transaction lifecycle, row-lock SQL, idempotency/uniqueness constraints, exact monetary storage, receipt and outbox persistence schema. A live-PostgreSQL integration test and production migration runner remain before provider integrations are treated as production-ready.
+**Current implementation:** S-02/S-02.5/S-02.5.1 establish the durable financial transaction boundary. S-03.1 now provides a provider-neutral registry, normalized provider contract, TMoney/Flooz/microfinance contract adapters, bounded retry and circuit-breaker primitives. No live provider credentials or network calls are connected yet. S-03.2 remains the next gate.
 
 ### Layer 6 — Field/offline execution
 Signed offline envelopes, device binding, route reassignment, sync conflict resolution, local encrypted queue, idempotent replay, field receipts.
