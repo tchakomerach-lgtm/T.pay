@@ -96,7 +96,7 @@ test("S-02.5 does not retry persistent validation failures", async () => {
   let beginCount = 0;
   const client: PostgresClient = {
     async query<Row extends Record<string, unknown> = Record<string, unknown>>(text: string): Promise<{ rows: readonly Row[]; rowCount: number }> {
-      if (text.startsWith("BEGIN")) beginCount += 1;
+      if (text.startsWith("BEGIN")) { beginCount += 1; return { rows: [], rowCount: 0 }; }
       if (text.includes("txid_current")) return { rows: [{ transaction_id: "1" } as unknown as Row], rowCount: 1 };
       if (text === "COMMIT" || text === "ROLLBACK") return { rows: [], rowCount: 0 };
       throw new Error("UNEXPECTED_SQL:" + text);
