@@ -20,15 +20,20 @@ T.Pay Financial Core remains the authoritative source of posted financial state.
 - governance proposals and member voting where configured
 - dispute/exception path through reconciliation rather than silent correction
 
+## Contribution minimum policy
+The tontine creator/operator defines `minimumAmountMinor` for each group. There is **no hard-coded 500 XOF floor** in the domain.
+
+This is deliberate: T.Pay's product engine must support local groups, campaigns and partner policies with different minimums. A regulatory, partner, risk or campaign floor may still be imposed, but it must enter through an explicit policy/configuration layer and must never be hidden inside the core domain validator.
+
+The configured minimum is immutable for an already-posted contribution. If a group changes its minimum for future contributions, that change must be versioned, authorized and auditable; it must not retroactively rewrite historical contributions.
+
 ## Financial safety
 Contributions are idempotent. External callbacks are never treated as ledger truth without provider verification, replay protection and reconciliation. Posted ledger entries are never edited; corrections use compensating transactions.
-
-Daily contribution minimum remains 500 XOF for the predefined daily field model. This is a product rule, not a claim about regulatory requirements.
 
 Beneficiary payout can require KYC and explicit human approval. The rules engine controls this per tontine. High-risk payout must not be auto-confirmed merely because an external provider reports completion.
 
 ## Continuity
-If an agent is unavailable, the planned client queue can be reassigned without losing the contribution identity. Geolocation is evidence for collection context, never the sole authentication factor.
+If an agent is unavailable, the planned client queue can be reassigned without losing the contribution identity. Geolocation is evidence, never the sole authentication factor.
 
 ## Security construction gate
 - tenant/group authorization on every read/write
@@ -41,9 +46,13 @@ If an agent is unavailable, the planned client queue can be reassigned without l
 - payout state is explicit and auditable
 - a mismatch creates an exception for reconciliation; it never self-heals
 - pause/kill-switch capability exists at provider and group boundaries
+- configurable minimums are policy data, not frontend-only validation
 
 ## Acceptance criteria
-- A group can be created with predefined daily/weekly/monthly rules.
+- A group can be created with daily/weekly/monthly rules.
+- A group can define its own positive contribution minimum.
+- A minimum below or above 500 XOF is accepted when policy permits it.
+- Contributions below the configured minimum are rejected.
 - Members can join and select a partner microfinance without transferring legal administration of the group.
 - A contribution can be initiated once and safely replayed.
 - A provider completion cannot silently post twice.
