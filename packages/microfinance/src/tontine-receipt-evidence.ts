@@ -66,7 +66,8 @@ export function deriveDeterministicReceiptId(input: {
     .digest("hex");
   const uuid = digest.slice(0, 32).split("");
   uuid[12] = "5";
-  uuid[16] = ["8", "9", "a", "b"][parseInt(uuid[16], 16) % 4];
+  const variantNibble = uuid[16] ?? "0";
+  uuid[16] = ["8", "9", "a", "b"][parseInt(variantNibble, 16) % 4] ?? "8";
   return `${uuid.slice(0, 8).join("")}-${uuid.slice(8, 12).join("")}-${uuid.slice(12, 16).join("")}-${uuid.slice(16, 20).join("")}-${uuid.slice(20).join("")}` as UUID;
 }
 
