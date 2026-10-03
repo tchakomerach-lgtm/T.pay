@@ -17,7 +17,7 @@ test("organization logo is sanitized before activation and versioned", async () 
       findActive: async () => active,
       archiveActive: async (_org, at) => { calls.push("archive:"+at); active = undefined; },
       insert: async x => { calls.push("insert:"+x.status); active = x; },
-      activate: async (_org, id) => calls.push("activate:"+id)
+      activate: async (_org, id) => { calls.push("activate:"+id); }
     },
     branding: { save: async x => { savedBranding = x; calls.push("branding"); } },
     scanner: {
