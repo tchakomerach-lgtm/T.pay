@@ -92,12 +92,6 @@ export interface DurableSettlementInput {
   now: string;
 }
 
-/**
- * Provider evidence is validated against server-side payment state before the
- * durable replay claim. A mismatch is rejected without consuming the event
- * identity, allowing investigation/reconciliation without creating a false
- * "already processed" state.
- */
 export function validateProviderEventAgainstPayment(input: {
   organizationId: UUID;
   paymentIntent: TontinePaymentIntent;
@@ -168,8 +162,7 @@ export async function executeDurableTontineSettlement(
       const payment = await tx.payments.getForUpdate(input.organizationId, input.paymentIntent.id);
       const contribution = await tx.contributions.getForUpdate(input.organizationId, input.contribution.id);
 
-      if (payment.organizationId !== input.organizationId ||
-          contribution.organizationId !== input.organizationId) {
+      if (payment.organizationId !== input.organizationId) {
         throw new Error("SETTLEMENT_PERSISTED_ORGANIZATION_MISMATCH");
       }
 
