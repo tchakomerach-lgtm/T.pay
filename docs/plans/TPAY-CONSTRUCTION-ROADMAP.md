@@ -40,7 +40,8 @@ Contribution intent → payment intent → provider adapter → signed callback 
 
 **Sub-steps:**
 1. Payment intent and identity propagation.
-2. Provider adapter registry.
+2. Durable Financial Settlement UoW — **implemented as the S-02 orchestration boundary**: serializable transaction contract, row-lock ports, provider-event claim, ledger idempotency, fee/receipt/outbox atomic commit.
+3. Provider adapter registry.
 3. Signed callback parser/verification.
 4. Event uniqueness and transactional claim.
 5. Atomic ledger + fee + contribution settlement.
@@ -50,7 +51,7 @@ Contribution intent → payment intent → provider adapter → signed callback 
 9. Reconciliation exception queue.
 10. Security/concurrency/duplicate-provider tests.
 
-**Current implementation:** domain orchestration contracts, fee snapshot, signed callback gate and atomic settlement port are implemented. Concrete DB transaction, provider adapters and durable outbox remain next.
+**Current implementation:** domain orchestration contracts, signed callback gate, fee snapshot and S-02 durable settlement UoW boundary are implemented and tested. The concrete DB driver/schema, provider adapters, durable provider-event store and production outbox dispatcher remain next.
 
 ### Layer 6 — Field/offline execution
 Signed offline envelopes, device binding, route reassignment, sync conflict resolution, local encrypted queue, idempotent replay, field receipts.

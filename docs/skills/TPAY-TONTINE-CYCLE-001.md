@@ -70,3 +70,7 @@ At minimum:
 
 ## Settlement Orchestrator gate
 The settlement layer is now required to preserve one identity across contribution, payment intent and ledger idempotency. Signed provider callbacks must be freshness-checked and validated before financial work. The durable settlement adapter must atomically claim provider events, post the balanced ledger transaction, persist the immutable fee snapshot, transition contribution/payment state, issue receipt/e-carnet evidence and enqueue the post-commit event. Notification is post-commit only. Concrete TMoney/Flooz/microfinance adapters, durable provider-event uniqueness and DB-backed settlement UoW remain required before this layer is considered production-complete.
+
+
+## S-02 durable Financial Core gate
+A settlement implementation must never rely on process memory for atomicity. The repository adapter must provide one database transaction containing provider-event claim, contribution/payment locking, ledger idempotency, balanced ledger append, fee snapshot, state transitions, receipt and outbox enqueue. Provider network calls are outside the transaction. The persistence layer must handle serialization/deadlock retry with bounded attempts and preserve the original idempotency key.
