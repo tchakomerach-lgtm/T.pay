@@ -340,8 +340,8 @@ export interface PostgresOutboxStore {
     payload: string;
     attempts: number;
   } | null>;
-  markPublished(id: string, publishedAt: string): Promise<void>;
-  markAttemptFailed(id: string, now: string, nextAttemptAt: string): Promise<void>;
+  markPublished(id: string, workerId: string, publishedAt: string): Promise<void>;
+  markAttemptFailed(id: string, workerId: string, nextAttemptAt: string): Promise<void>;
 }
 
 export class TransactionalPostgresOutboxStore implements PostgresOutboxStore {
@@ -388,20 +388,20 @@ export class TransactionalPostgresOutboxStore implements PostgresOutboxStore {
     }
   }
 
-  async markPublished(id: string, publishedAt: string): Promise<void> {
+  async markPublished(id: string, workerId: string, publishedAt: string): Promise<void> {
     const result = await this.client.query(
       "UPDATE outbox_events SET published_at=$2::timestamptz, claimed_by=NULL, claimed_at=NULL " +
-      "WHERE id=$1 AND published_at IS NULL",
-      [id, publishedAt]
+      "WHERE id=$1 AND claimed_by=$2 AND published_at IS NULL",
+      [id, workerId, publishedAt]
     );
     if (result.rowCount !== 1) throw new Error("OUTBOX_MARK_PUBLISHED_REJECTED");
   }
 
-  async markAttemptFailed(id: string, now: string, nextAttemptAt: string): Promise<void> {
+  async markAttemptFailed(id: string, workerId: string, nextAttemptAt: string): Promise<void> {
     const result = await this.client.query(
       "UPDATE outbox_events SET claimed_by=NULL, claimed_at=NULL, next_attempt_at=$3::timestamptz " +
-      "WHERE id=$1 AND published_at IS NULL AND (claimed_at IS NULL OR claimed_at <= $2::timestamptz)",
-      [id, now, nextAttemptAt]
+      "WHERE id=$1 AND claimed_by=$2 AND published_at IS NULL",
+      [id, workerId, nextAttemptAt]
     );
     if (result.rowCount !== 1) throw new Error("OUTBOX_MARK_FAILURE_REJECTED");
   }
