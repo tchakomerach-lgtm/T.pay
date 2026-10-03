@@ -54,7 +54,9 @@ The executable role registry is maintained in `docs/agents/registry.yaml`. Speci
 
 ## Current construction state
 
-Foundation is implemented for domain types, security sessions/policies, risk controls, audit/telemetry, ledger invariants, wallet/payment/commission primitives, identity/passkey contracts, organization creation, KYC contracts and ledger idempotency. Next bounded work: persistent account/ledger adapters, payment provider adapters, tontine/microfinance workflows, education finance, then marketplace/social/opportunity/investment and AI Core.
+Foundation is implemented for domain types, security sessions/policies, risk controls, audit/telemetry, ledger invariants, wallet/payment/commission primitives, identity/passkey contracts, organization creation, KYC contracts and ledger idempotency. Next bounded work: persistent account/ledger adapters, payment provider adapters, then deepen tontine/microfinance workflows and education finance, followed by marketplace/social/opportunity/investment and AI Core.
+
+Community Tontine is now modeled as an independent interoperable domain: daily/weekly/monthly cycles, fixed/variable/goal contributions, membership/roles, beneficiary rotation, governance, partner microfinance selection, multi-channel collection, provider reconciliation, KYC/human payout gates, field continuity and idempotent contribution intents. It never creates a second ledger; T.Pay Financial Core remains authoritative.
 
 ## Definition of Done
 Code + tests + security controls + observability + documentation + migration/rollback plan when stateful + CI green.
