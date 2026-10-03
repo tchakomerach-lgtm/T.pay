@@ -48,7 +48,24 @@ function repository(options?:{existingLedger?:boolean;claim?:boolean;failAt?:str
     receipts:{async insert(){state.actions.push("receipt.insert");}},
     outbox:{async enqueue(){state.actions.push("outbox.enqueue");}}
   };
-  const repo:DurableTontineSettlementRepository={async runAtomic(_input,operation){state.actions.push("tx.begin");try{return await operation({...({organizationId:org,transactionId:"tx-1",isolation:"serializable" as const}),...tx});}catch(e){state.actions.push("tx.rollback");throw e;}finally{state.actions.push("tx.end");}};
+  const repo: DurableTontineSettlementRepository = {
+    async runAtomic(_input, operation) {
+      state.actions.push("tx.begin");
+      try {
+        return await operation({
+          organizationId: org,
+          transactionId: "tx-1",
+          isolation: "serializable",
+          ...tx
+        });
+      } catch (e) {
+        state.actions.push("tx.rollback");
+        throw e;
+      } finally {
+        state.actions.push("tx.end");
+      }
+    }
+  };
   return {repo,state};
 }
 
