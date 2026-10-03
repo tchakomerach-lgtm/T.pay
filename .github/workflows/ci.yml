@@ -1,8 +1,7 @@
 name: T.Pay CI
 on:
   # Every pushed commit receives the same authoritative quality check.
-  # This keeps individual commit history visibly validated, not only the
-  # latest pull-request head.
+  # This keeps individual commit history visibly validated, not only the latest pull-request head.
   push:
     branches:
       - "**"
@@ -10,7 +9,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: tpay-ci-\${{ github.ref }}
+  group: tpay-ci-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   quality:
