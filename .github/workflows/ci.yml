@@ -4,18 +4,22 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: tpay-ci-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm install
+          cache: false
+      - run: npm install --no-audit --no-fund
       - run: npm run check
       - run: npm audit --omit=dev --audit-level=high
