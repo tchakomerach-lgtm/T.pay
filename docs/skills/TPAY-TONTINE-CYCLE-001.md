@@ -66,3 +66,7 @@ At minimum:
 - payout KYC/human gates;
 - refund compensation;
 - cycle closure rejection while unresolved work exists.
+
+
+## Settlement Orchestrator gate
+The settlement layer is now required to preserve one identity across contribution, payment intent and ledger idempotency. Signed provider callbacks must be freshness-checked and validated before financial work. The durable settlement adapter must atomically claim provider events, post the balanced ledger transaction, persist the immutable fee snapshot, transition contribution/payment state, issue receipt/e-carnet evidence and enqueue the post-commit event. Notification is post-commit only. Concrete TMoney/Flooz/microfinance adapters, durable provider-event uniqueness and DB-backed settlement UoW remain required before this layer is considered production-complete.

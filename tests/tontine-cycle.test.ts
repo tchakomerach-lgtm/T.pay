@@ -21,14 +21,14 @@ test("member schedules are generated only for active members",()=>{
   const schedules=buildMemberSchedules(cycle,group,[member,{...member,id:"m2" as never,status:"exited" as const}]);
   assert.equal(schedules.length,3);
   assert.deepEqual(schedules.map(x=>x.scheduledFor),["2026-10-03","2026-10-04","2026-10-05"]);
-  assert.equal(schedules[0].expectedAmountMinor,1000n);
+  assert.equal(schedules[0]!.expectedAmountMinor,1000n);
 });
 
 test("due transition is deterministic and does not mutate future schedules",()=>{
   const cycle=createTontineCycle(group,{id:"cycle-3" as never,startsOn:"2026-10-03",periods:2,rulesVersion:"rules-7",createdAt:"2026-10-03T00:00:00Z"});
   const [past,future]=buildMemberSchedules(cycle,group,[member]);
-  assert.equal(markScheduleDue(past,"2026-10-03").dueStatus,"due");
-  assert.equal(markScheduleDue(future,"2026-10-03").dueStatus,"scheduled");
+  assert.equal(markScheduleDue(past!,"2026-10-03").dueStatus,"due");
+  assert.equal(markScheduleDue(future!,"2026-10-03").dueStatus,"scheduled");
 });
 
 test("attendance is computed with integer basis points",()=>{
@@ -40,6 +40,6 @@ test("attendance is computed with integer basis points",()=>{
 
 test("cycle cannot close while money or beneficiary work is unresolved",()=>{
   const cycle=createTontineCycle(group,{id:"cycle-5" as never,startsOn:"2026-10-03",periods:1,rulesVersion:"rules-7",createdAt:"2026-10-03T00:00:00Z"});
-  const schedule=buildMemberSchedules(cycle,group,[member])[0];
+  const schedule=buildMemberSchedules(cycle,group,[member])[0]!;
   assert.throws(()=>closeCycle(cycle,[{...schedule,dueStatus:"due"}],[]),/TONTINE_CYCLE_UNSETTLED_CONTRIBUTIONS/);
 });
