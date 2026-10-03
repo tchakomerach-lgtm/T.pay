@@ -71,7 +71,7 @@ test("S-02.5 retries serialization failures from the whole transaction boundary"
   let beginCount = 0;
   const client: PostgresClient = {
     async query<Row extends Record<string, unknown> = Record<string, unknown>>(text: string): Promise<{ rows: readonly Row[]; rowCount: number }> {
-      if (text.startsWith("BEGIN")) beginCount += 1;
+      if (text.startsWith("BEGIN")) { beginCount += 1; return { rows: [], rowCount: 0 }; }
       if (text.includes("txid_current")) return { rows: [{ transaction_id: String(beginCount) } as unknown as Row], rowCount: 1 };
       if (text === "ROLLBACK") return { rows: [], rowCount: 0 };
       if (text === "COMMIT") {
