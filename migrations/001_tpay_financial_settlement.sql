@@ -1,5 +1,3 @@
-BEGIN;
-
 CREATE TABLE IF NOT EXISTS organizations (
   id uuid PRIMARY KEY,
   name text NOT NULL,
@@ -140,5 +138,3 @@ CREATE INDEX IF NOT EXISTS idx_provider_events_org_received
 CREATE INDEX IF NOT EXISTS idx_outbox_unpublished
   ON outbox_events (occurred_at)
   WHERE published_at IS NULL;
-
-COMMIT;
