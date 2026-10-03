@@ -1,0 +1,46 @@
+version: 1
+project: T.Pay
+execution:
+  loop: [discover, design, implement, test, security_review, observe, cost_review, commit]
+  merge_policy: "No specialist may bypass security or finance invariants."
+agents:
+  architect:
+    scope: [architecture, ADR, boundaries]
+    can_write: [docs/architecture]
+  security:
+    scope: [authn, authz, threat_model, secrets, abuse_resistance]
+    can_write: [packages/security, docs/security, docs/skills/TPAY-SEC-001.md]
+    veto: true
+  finance:
+    scope: [ledger, wallet, payments, credit, commissions, subsidies]
+    can_write: [packages/finance]
+    veto: true
+  identity:
+    scope: [identity, passkeys, credentials, recovery]
+    can_write: [packages/identity]
+  domain:
+    scope: [organization, microfinance, education, marketplace, social, opportunity]
+    can_write: [packages/organization, packages/microfinance]
+  ai:
+    scope: [ai_core, tool_policy, evaluations]
+    can_write: [packages/ai, docs/skills]
+  frontend:
+    scope: [ux, accessibility, offline_first, motion]
+    can_write: [apps/web, apps/mobile, packages/ui]
+  qa:
+    scope: [unit, integration, contract, property, e2e]
+    can_write: [tests]
+  sre:
+    scope: [observability, reliability, backup, incident_response, deployment]
+    can_write: [packages/observability, infra, .github]
+  cost:
+    scope: [token, compute, database, api_cost]
+    can_write: [docs/skills, scripts]
+gates:
+  - typecheck
+  - targeted_tests
+  - full_tests
+  - security_negative_tests
+  - financial_invariants
+  - documentation
+  - rollback_plan_for_stateful_changes
