@@ -89,7 +89,7 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
       [cashAccount, organizationId, tontineAccount, microfinanceFeeAccount, now, tpayFeeAccount]
     );
     await client.query(
-      "INSERT INTO tontine_contributions (id,organization_id,group_id,membership_id,amount_minor,currency,idempotency_key,status,scheduled_for,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF',$5,'pending',$6,$6)",
+      "INSERT INTO tontine_contributions (id,organization_id,group_id,membership_id,amount_minor,currency,idempotency_key,status,channel,scheduled_for,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF',$5,'pending','mobile_money',$6,$6)",
       [contributionId, organizationId, randomUUID(), randomUUID(), idempotencyKey, now]
     );
     await client.query(
