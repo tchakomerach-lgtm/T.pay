@@ -14,7 +14,7 @@ export interface WebhookReplayStore {
 }
 
 export function signWebhook(secret: string, timestamp: number, payload: string): string {
-  return createHmac("sha256", secret).update(`${timestamp}.${payload`).digest("hex");
+  return createHmac("sha256", secret).update(`${timestamp}.${payload}`).digest("hex");
 }
 
 export function verifyWebhookSignature(
