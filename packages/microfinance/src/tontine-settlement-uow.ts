@@ -12,11 +12,6 @@ export interface SettlementTransactionContext {
 }
 
 export interface DurableTontineSettlementRepository {
-  /**
-   * The implementation MUST execute the whole callback in one DB transaction.
-   * Provider event uniqueness, ledger idempotency and state transitions are
-   * database-enforced invariants, not process-local locks.
-   */
   runAtomic<T>(
     input: {
       organizationId: UUID;
@@ -29,10 +24,6 @@ export interface DurableTontineSettlementRepository {
 
 export interface DurableSettlementTx {
   providerEvents: {
-    /**
-     * Returns false when another transaction already claimed this provider
-     * event. Claim and settlement must share the same transaction.
-     */
     claim(provider: string, eventId: string, receivedAt: string): Promise<boolean>;
   };
   ledger: {
@@ -101,6 +92,43 @@ export interface DurableSettlementInput {
   now: string;
 }
 
+/**
+ * Provider evidence is validated against server-side payment state before the
+ * durable replay claim. A mismatch is rejected without consuming the event
+ * identity, allowing investigation/reconciliation without creating a false
+ * "already processed" state.
+ */
+export function validateProviderEventAgainstPayment(input: {
+  organizationId: UUID;
+  paymentIntent: TontinePaymentIntent;
+  providerEvent: TontineProviderEvent;
+}): void {
+  if (input.organizationId !== input.paymentIntent.organizationId) {
+    throw new Error("PROVIDER_EVENT_ORGANIZATION_MISMATCH");
+  }
+  if (!input.providerEvent.provider || !input.providerEvent.eventId) {
+    throw new Error("PROVIDER_EVENT_IDENTITY_INVALID");
+  }
+  if (input.providerEvent.provider !== input.paymentIntent.provider) {
+    throw new Error("PROVIDER_EVENT_PROVIDER_MISMATCH");
+  }
+  if (input.providerEvent.paymentId !== input.paymentIntent.id) {
+    throw new Error("PAYMENT_INTENT_MISMATCH");
+  }
+  if (input.providerEvent.providerReference !== input.paymentIntent.providerReference) {
+    throw new Error("PROVIDER_REFERENCE_MISMATCH");
+  }
+  if (
+    input.providerEvent.amountMinor !== input.paymentIntent.amountMinor ||
+    input.providerEvent.currency !== input.paymentIntent.currency
+  ) {
+    throw new Error("PROVIDER_AMOUNT_OR_CURRENCY_MISMATCH");
+  }
+  if (input.providerEvent.status !== "accepted") {
+    throw new Error("SETTLEMENT_PROVIDER_NOT_ACCEPTED");
+  }
+}
+
 export interface DurableSettlementResult {
   replay: boolean;
   receipt: TontineReceipt;
@@ -124,19 +152,11 @@ export async function executeDurableTontineSettlement(
     throw new Error("SETTLEMENT_IDEMPOTENCY_MISMATCH");
   }
 
-  if (input.providerEvent.paymentId !== input.paymentIntent.id ||
-      input.providerEvent.providerReference !== input.paymentIntent.providerReference) {
-    throw new Error("SETTLEMENT_PROVIDER_REFERENCE_MISMATCH");
-  }
-
-  if (input.providerEvent.amountMinor !== input.paymentIntent.amountMinor ||
-      input.providerEvent.currency !== input.paymentIntent.currency) {
-    throw new Error("SETTLEMENT_AMOUNT_OR_CURRENCY_MISMATCH");
-  }
-
-  if (input.providerEvent.status !== "accepted") {
-    throw new Error("SETTLEMENT_PROVIDER_NOT_ACCEPTED");
-  }
+  validateProviderEventAgainstPayment({
+    organizationId: input.organizationId,
+    paymentIntent: input.paymentIntent,
+    providerEvent: input.providerEvent
+  });
 
   return repository.runAtomic(
     {
@@ -148,8 +168,22 @@ export async function executeDurableTontineSettlement(
       const payment = await tx.payments.getForUpdate(input.organizationId, input.paymentIntent.id);
       const contribution = await tx.contributions.getForUpdate(input.organizationId, input.contribution.id);
 
+      if (payment.organizationId !== input.organizationId ||
+          contribution.organizationId !== input.organizationId) {
+        throw new Error("SETTLEMENT_PERSISTED_ORGANIZATION_MISMATCH");
+      }
+
+      if (payment.provider !== input.providerEvent.provider) {
+        throw new Error("SETTLEMENT_PERSISTED_PROVIDER_MISMATCH");
+      }
+
       if (payment.contributionId !== contribution.id) {
         throw new Error("SETTLEMENT_PERSISTED_CONTEXT_MISMATCH");
+      }
+
+      if (payment.idempotencyKey !== input.paymentIntent.idempotencyKey ||
+          contribution.idempotencyKey !== input.paymentIntent.idempotencyKey) {
+        throw new Error("SETTLEMENT_PERSISTED_IDEMPOTENCY_MISMATCH");
       }
 
       const existing = await tx.ledger.findByIdempotencyKey(
