@@ -174,6 +174,7 @@ export async function initiateTontineSettlement(
     contributionId: UUID;
     paymentIntentId: UUID;
     provider: string;
+    group: CommunityTontineGroup;
     now: string;
   },
   deps: {
@@ -185,6 +186,9 @@ export async function initiateTontineSettlement(
   if (!contribution) throw new Error("TONTINE_CONTRIBUTION_NOT_FOUND");
 
   const groupProvider = deps.providers.resolve(input.provider);
+  if (input.group.id !== contribution.groupId || input.group.currency !== contribution.currency) {
+    throw new Error("TONTINE_CONTEXT_INVALID");
+  }
   const existing = await deps.repository.findPaymentIntentByIdempotency(input.organizationId, contribution.idempotencyKey);
   if (existing) return existing;
 
@@ -197,20 +201,7 @@ export async function initiateTontineSettlement(
   });
 
   await deps.repository.insertPaymentIntent(intent);
-  const result = await groupProvider.initiate({ paymentIntent: intent, contribution, group: {
-    id: contribution.groupId,
-    name: "resolved-by-provider-context",
-    countryCode: "TG",
-    currency: contribution.currency,
-    frequency: "daily",
-    contributionMode: "variable",
-    minimumAmountMinor: contribution.amountMinor,
-    cycleNumber: 0,
-    governance: "founder_managed",
-    status: "active",
-    createdBy: contribution.membershipId,
-    createdAt: input.now
-  } as CommunityTontineGroup });
+  const result = await groupProvider.initiate({ paymentIntent: intent, contribution, group: input.group });
 
   if (result.status === "rejected") throw new Error("PAYMENT_PROVIDER_REJECTED");
 
