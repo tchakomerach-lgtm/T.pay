@@ -160,6 +160,7 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
     const rollbackLedger = randomUUID();
     const rollbackReceipt = randomUUID();
     const rollbackOutbox = randomUUID();
+    const rollbackEventId = "evt-" + randomUUID();
     const rollbackKey = "live-s03.4-rollback-" + randomUUID();
     await client.query(
       "INSERT INTO tontine_contributions (id,organization_id,group_id,membership_id,amount_minor,currency,idempotency_key,status,scheduled_for,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF',$5,'pending',$6,$6)",
@@ -174,7 +175,7 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
         ...base,
         paymentIntent: { ...base.paymentIntent, id: rollbackPayment as never, contributionId: rollbackContribution as never, idempotencyKey: rollbackKey, providerReference: "TM-ROLLBACK" },
         contribution: { ...base.contribution, id: rollbackContribution as never, idempotencyKey: rollbackKey },
-        providerEvent: { ...base.providerEvent, eventId: "evt-" + randomUUID(), paymentId: rollbackPayment as never, providerReference: "TM-ROLLBACK" },
+        providerEvent: { ...base.providerEvent, eventId: rollbackEventId, paymentId: rollbackPayment as never, providerReference: "TM-ROLLBACK" },
         feeSnapshot: { ...base.feeSnapshot, contributionId: rollbackContribution as never },
         ledgerTransaction: { ...base.ledgerTransaction, id: rollbackLedger, idempotencyKey: rollbackKey },
         receipt: { ...base.receipt, receiptId: rollbackReceipt as never, contributionId: rollbackContribution as never, paymentIntentId: rollbackPayment as never, ledgerTransactionId: rollbackLedger },
@@ -191,7 +192,7 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
       "(SELECT count(*) FROM outbox_events WHERE id=$5)::int AS outbox, " +
       "(SELECT status FROM tontine_contributions WHERE id=$3) AS contribution_status, " +
       "(SELECT status FROM tontine_payment_intents WHERE id=$6) AS payment_status",
-      [rollbackLedger, base.providerEvent.eventId, rollbackContribution, rollbackReceipt, rollbackOutbox, rollbackPayment]
+      [rollbackLedger, rollbackEventId, rollbackContribution, rollbackReceipt, rollbackOutbox, rollbackPayment]
     );
     assert.deepEqual(rolled.rows[0], { ledger: 0, event: 0, fee: 0, receipt: 0, outbox: 0, contribution_status: "pending", payment_status: "provider_confirmed" });
   } finally {
