@@ -38,7 +38,7 @@ const baseInput=()=>({
 });
 
 function repository(options?:{existingLedger?:boolean;claim?:boolean;failAt?:string}){
-  const state={ledger:options?.existingLedger??false,claimed:false,actions:string[]};
+  const state:{ledger:boolean;claimed:boolean;actions:string[]}={ledger:options?.existingLedger??false,claimed:false,actions:[]};
   const tx:DurableSettlementTx={
     providerEvents:{async claim(){state.actions.push("claim");if(options?.claim===false)return false;state.claimed=true;return true;}},
     ledger:{async findByIdempotencyKey(){state.actions.push("ledger.find");return state.ledger?{id:"ledger-1"}:undefined;},async append(){state.actions.push("ledger.append");if(options?.failAt==="ledger")throw new Error("DB_FAIL");state.ledger=true;}},
