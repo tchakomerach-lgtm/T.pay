@@ -46,6 +46,7 @@ Contribution intent → payment intent → provider adapter → signed callback 
 5. **S-03.1 Provider Adapter Registry + Provider Contract Boundary — implemented.**
 6. **S-03.2 Signed callback parser/verification — implemented at security-contract level.**
 7. **S-03.3 Provider event validation + durable replay claim hardening — implemented.**
+8. **S-03.4 Atomic Ledger + fee + contribution settlement integration — implemented.**
 8. Atomic ledger + fee + contribution settlement integration.
 9. Receipt/e-carnet evidence.
 10. Outbox/event publication.
