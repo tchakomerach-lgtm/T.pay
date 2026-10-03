@@ -131,3 +131,48 @@ Each substantial brick should leave an auditable record containing:
 - CI result
 - commit SHA
 - remaining risks
+
+
+## Mandatory problem-resolution gate
+
+A construction brick MUST NOT be declared complete while a material problem remains unexplained or unresolved.
+
+For every failure or anomaly:
+1. Capture the exact symptom, operation, commit/run identifier and affected boundary.
+2. Classify root cause: code, test, schema/migration, CI, provider, infrastructure, permissions, tooling/API, or transient transport.
+3. Reproduce when safe.
+4. Correct the root cause rather than masking the symptom.
+5. Add a regression test, validation, guardrail, or operational control when applicable.
+6. Re-run the smallest relevant check, then the full required CI.
+7. Record the incident, root cause, fix and verification in the construction record.
+8. Only then continue or close the brick.
+
+### GitHub/API timeout recovery
+
+A GitHub ReadTimeout is NOT evidence that a mutation failed or succeeded.
+
+After a timeout:
+- do not blindly repeat a mutating operation;
+- query the authoritative object/state first;
+- for a PR merge, verify merged state, merge_commit_sha, PR state and main head;
+- for a file mutation, verify the resulting commit/blob before retrying;
+- for workflow operations, query the run/job state before retrying;
+- retry only when authoritative state proves the intended mutation did not occur;
+- never report success from absence of an error alone.
+
+### CI failure recovery
+
+- identify the failing job and exact error;
+- patch the cause;
+- never disable a check merely to obtain green CI;
+- rerun the narrow failed check before full CI where possible;
+- require final green CI for the exact merge head;
+- proven recurring infrastructure flakiness becomes an engineering issue to fix.
+
+### Stateful-change gate
+
+Every schema/stateful change requires a forward migration, rollback/compatibility strategy, idempotency or uniqueness barrier, transaction/concurrency analysis, and real-persistence integration coverage where practical.
+
+### Stop condition
+
+Stop only when acceptance criteria are met, material anomalies are resolved or explicitly bounded, security/tests pass, CI is green, and the construction record is updated.
