@@ -48,5 +48,13 @@ Never claim a feature complete without tests and acceptance criteria.
 ## Security baseline
 OWASP ASVS 5.0 is the stable baseline for application verification; bleeding-edge requirements may be tracked separately. WebAuthn Level 3 is a current W3C Recommendation. OpenTelemetry semantic conventions are mandatory for telemetry naming. These external standards must be rechecked when release-critical changes are made.
 
+## Agent registry
+
+The executable role registry is maintained in `docs/agents/registry.yaml`. Specialist agents are bounded by path and veto rules; the integrator must satisfy every gate before merge.
+
+## Current construction state
+
+Foundation is implemented for domain types, security sessions/policies, risk controls, audit/telemetry, ledger invariants, wallet/payment/commission primitives, identity/passkey contracts, organization creation, KYC contracts and ledger idempotency. Next bounded work: persistent account/ledger adapters, payment provider adapters, tontine/microfinance workflows, education finance, then marketplace/social/opportunity/investment and AI Core.
+
 ## Definition of Done
 Code + tests + security controls + observability + documentation + migration/rollback plan when stateful + CI green.
