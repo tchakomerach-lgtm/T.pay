@@ -16,8 +16,14 @@ export interface LogoAssetScanner {
   }): Promise<{ sanitizedAssetRef: string; sha256: string }>;
 }
 
+export interface OrganizationBrandingTransaction {
+  archiveActive(organizationId: UUID, archivedAt: string): Promise<void>;
+  insert(logo: OrganizationLogo): Promise<void>;
+  activate(organizationId: UUID, logoId: UUID, activatedAt: string): Promise<void>;
+  saveBranding(input: { organizationId: UUID; activeLogoId: UUID; logoVersion: number; updatedAt: string }): Promise<void>;
+}
 export interface OrganizationBrandingUnitOfWork {
-  run<T>(work: (tx: { archiveActive(organizationId: UUID; archivedAt: string): Promise<void>; insert(logo: OrganizationLogo): Promise<void>; activate(organizationId: UUID; logoId: UUID; activatedAt: string): Promise<void>; saveBranding(input: { organizationId: UUID; activeLogoId: UUID; logoVersion: number; updatedAt: string }): Promise<void> }) => Promise<T>): Promise<T>;
+  run<T>(work: (tx: OrganizationBrandingTransaction) => Promise<T>): Promise<T>;
 }
 
 export interface OrganizationBrandingRepository {
@@ -66,7 +72,7 @@ export async function registerOrganizationLogo(
     createdAt: now,
     activatedAt: now
   };
-  const write = async (tx: { archiveActive(organizationId: UUID; archivedAt: string): Promise<void>; insert(logo: OrganizationLogo): Promise<void>; activate(organizationId: UUID; logoId: UUID; activatedAt: string): Promise<void>; saveBranding(input: { organizationId: UUID; activeLogoId: UUID; logoVersion: number; updatedAt: string }): Promise<void> }) => {
+  const write = async (tx: OrganizationBrandingTransaction) => {
     if (active) await tx.archiveActive(input.organizationId, now);
     await tx.insert(logo);
     await tx.activate(input.organizationId, logo.id, now);
