@@ -1,8 +1,8 @@
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import type pg from "pg";
+import type { Client } from "pg";
 
-export async function applyMigrations(client: pg.Client, migrationDirectory: URL): Promise<void> {
+export async function applyMigrations(client: Client, migrationDirectory: URL): Promise<void> {
   await client.query("CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())");
   const files = (await readdir(migrationDirectory)).filter(file => /^\d+_.+\.sql$/.test(file)).sort();
   for (const file of files) {
