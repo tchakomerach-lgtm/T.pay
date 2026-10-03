@@ -390,7 +390,7 @@ export class TransactionalPostgresOutboxStore implements PostgresOutboxStore {
 
   async markPublished(id: string, workerId: string, publishedAt: string): Promise<void> {
     const result = await this.client.query(
-      "UPDATE outbox_events SET published_at=$2::timestamptz, claimed_by=NULL, claimed_at=NULL " +
+      "UPDATE outbox_events SET published_at=$3::timestamptz, claimed_by=NULL, claimed_at=NULL " +
       "WHERE id=$1 AND claimed_by=$2 AND published_at IS NULL",
       [id, workerId, publishedAt]
     );
