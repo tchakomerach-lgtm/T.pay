@@ -1,4 +1,4 @@
-import type { LedgerLine } from "./ledger.js";
+import { assertBalanced, type LedgerLine } from "./ledger.js";
 import type {
   DurableSettlementTx,
   DurableTontineSettlementRepository,
@@ -143,6 +143,10 @@ export class PostgresDurableTontineSettlementRepository
           return row ? { id: stringValue(row.id, "ledger_transaction_id") } : undefined;
         },
         append: async (input) => {
+          if (input.organizationId !== organizationId) {
+            throw new Error("LEDGER_ORGANIZATION_MISMATCH");
+          }
+          assertBalanced(input.lines);
           const result = await this.client.query(
             "INSERT INTO ledger_transactions " +
             "(id, organization_id, idempotency_key, occurred_at, posted_at) " +
@@ -155,9 +159,17 @@ export class PostgresDurableTontineSettlementRepository
             if (line.amount.minor <= 0n) throw new Error("LEDGER_AMOUNT_INVALID");
             await this.client.query(
               "INSERT INTO ledger_lines " +
-              "(transaction_id, line_no, account_id, direction, amount_minor, currency) " +
-              "VALUES ($1, $2, $3, $4, $5::numeric, $6)",
-              [input.id, index + 1, line.accountId, line.direction, line.amount.minor.toString(), line.amount.currency]
+              "(organization_id, transaction_id, line_no, account_id, direction, amount_minor, currency) " +
+              "VALUES ($1, $2, $3, $4, $5, $6::numeric, $7)",
+              [
+                input.organizationId,
+                input.id,
+                index + 1,
+                line.accountId,
+                line.direction,
+                line.amount.minor.toString(),
+                line.amount.currency
+              ]
             );
           }
         }
@@ -168,16 +180,16 @@ export class PostgresDurableTontineSettlementRepository
             id: string;
             organization_id: string;
             group_id: string;
-            member_id: string;
+            membership_id: string;
             amount_minor: string | bigint;
             currency: string;
             idempotency_key: string;
             status: TontineContribution["status"];
-            due_at: string;
+            scheduled_for: string;
             collected_at?: string | null;
           }>(
-            "SELECT id, organization_id, group_id, member_id, amount_minor, currency, " +
-            "idempotency_key, status, due_at, collected_at " +
+            "SELECT id, organization_id, group_id, membership_id, amount_minor, currency, " +
+            "idempotency_key, status, scheduled_for, collected_at " +
             "FROM tontine_contributions WHERE organization_id = $1 AND id = $2 FOR UPDATE",
             [orgId, contributionId]
           );
@@ -186,12 +198,12 @@ export class PostgresDurableTontineSettlementRepository
             id: row.id as UUID,
             organizationId: row.organization_id as UUID,
             groupId: row.group_id as UUID,
-            memberId: row.member_id as UUID,
+            membershipId: row.membership_id as UUID,
             amountMinor: bigintValue(row.amount_minor, "amount_minor"),
             currency: stringValue(row.currency, "currency"),
             idempotencyKey: stringValue(row.idempotency_key, "idempotency_key"),
             status: row.status,
-            dueAt: row.due_at,
+            scheduledFor: row.scheduled_for,
             collectedAt: row.collected_at ?? undefined
           };
         },
@@ -199,7 +211,7 @@ export class PostgresDurableTontineSettlementRepository
           const result = await this.client.query(
             "UPDATE tontine_contributions SET status = 'confirmed', payment_intent_id = $3, " +
             "provider_reference = $4, collected_at = $5::timestamptz, updated_at = $5::timestamptz " +
-            "WHERE organization_id = $1 AND id = $2 AND status IN ('scheduled', 'pending', 'due')",
+            "WHERE organization_id = $1 AND id = $2 AND status IN ('scheduled', 'pending')",
             [orgId, contributionId, paymentIntentId, providerReference, confirmedAt]
           );
           if (result.rowCount !== 1) throw new Error("TONTINE_CONTRIBUTION_CONFIRM_REJECTED");
