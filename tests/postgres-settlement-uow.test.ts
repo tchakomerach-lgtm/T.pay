@@ -20,7 +20,7 @@ class FakeClient implements PostgresClient {
       return { rows: [], rowCount: 0 };
     }
     if (text.includes("txid_current")) {
-      return { rows: [{ transaction_id: String(this.attempt) } as Row], rowCount: 1 };
+      return { rows: [{ transaction_id: String(this.attempt) } as unknown as Row], rowCount: 1 };
     }
     if (text === "COMMIT" || text === "ROLLBACK") {
       return { rows: [], rowCount: 0 };
