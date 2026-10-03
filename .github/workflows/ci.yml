@@ -1,16 +1,16 @@
 name: T.Pay CI
 on:
+  # Every pushed commit receives the same authoritative quality check.
+  # This keeps individual commit history visibly validated, not only the
+  # latest pull-request head.
   push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
+    branches:
+      - "**"
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: tpay-ci-${{ github.ref }}
-  # Queue newer commits instead of cancelling an active validation run.
-  # A cancelled run is an orchestration outcome, not a compilation result.
+  group: tpay-ci-\${{ github.ref }}
   cancel-in-progress: false
 jobs:
   quality:
