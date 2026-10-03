@@ -18,6 +18,11 @@ export interface CommunityTontineGroup {
   contributionMode: TontineContributionMode;
   targetMinor?: bigint;
   fixedAmountMinor?: bigint;
+  /**
+   * Configured by the tontine creator/operator.
+   * There is intentionally no hard-coded product minimum here.
+   * Any regulatory, partner or campaign floor must be supplied as a separate policy.
+   */
   minimumAmountMinor: bigint;
   cycleNumber: number;
   maxMembers?: number;
@@ -79,9 +84,6 @@ export interface TontineFeeSnapshot {
 export function validateCommunityTontine(group: CommunityTontineGroup): void {
   if (!group.name.trim() || group.name.length > 160) throw new Error("TONTINE_GROUP_NAME_INVALID");
   if (group.minimumAmountMinor <= 0n) throw new Error("TONTINE_MINIMUM_INVALID");
-  if (group.frequency === "daily" && group.minimumAmountMinor < 500n) {
-    throw new Error("TONTINE_DAILY_MINIMUM_TOO_LOW");
-  }
   if (group.contributionMode === "fixed" && (!group.fixedAmountMinor || group.fixedAmountMinor < group.minimumAmountMinor)) {
     throw new Error("TONTINE_FIXED_AMOUNT_INVALID");
   }
