@@ -178,7 +178,7 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
         providerEvent: { ...base.providerEvent, eventId: rollbackEventId, paymentId: rollbackPayment as never, providerReference: "TM-ROLLBACK" },
         feeSnapshot: { ...base.feeSnapshot, contributionId: rollbackContribution as never },
         ledgerTransaction: { ...base.ledgerTransaction, id: rollbackLedger, idempotencyKey: rollbackKey },
-        receipt: { ...base.receipt, receiptId: rollbackReceipt as never, contributionId: rollbackContribution as never, paymentIntentId: rollbackPayment as never, ledgerTransactionId: rollbackLedger },
+        receipt: { ...base.receipt, receiptId: rollbackReceipt as never, contributionId: rollbackContribution as never, paymentIntentId: rollbackPayment as never, providerReference: "TM-ROLLBACK", ledgerTransactionId: rollbackLedger },
         outboxEvent: { id: rollbackOutbox, eventType: "tontine.contribution_settled", payload: "{invalid-json" }
       }, repository),
       /Unexpected token|invalid input syntax|JSON/
