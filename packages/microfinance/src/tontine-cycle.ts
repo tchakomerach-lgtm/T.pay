@@ -118,7 +118,9 @@ export function buildMemberSchedules(
         dueStatus: "scheduled",
       });
       sequence += 1;
-      cursor.setUTCDate(cursor.getUTCDate() + (group.frequency === "daily" ? 1 : group.frequency === "weekly" ? 7 : 30));
+      if (group.frequency === "daily") cursor.setUTCDate(cursor.getUTCDate() + 1);
+      else if (group.frequency === "weekly") cursor.setUTCDate(cursor.getUTCDate() + 7);
+      else cursor.setUTCMonth(cursor.getUTCMonth() + 1);
     }
   }
   return schedules;
@@ -139,9 +141,8 @@ export function applyContributionToSchedule(
 ): TontineMemberSchedule {
   if (contribution.membershipId !== schedule.membershipId) throw new Error("TONTINE_SCHEDULE_MEMBER_MISMATCH");
   if (contribution.status !== "confirmed") return schedule;
-  if (contribution.amountMinor < schedule.expectedAmountMinor && contribution.amountMinor < 1n) {
-    throw new Error("TONTINE_CONTRIBUTION_INVALID");
-  }
+  if (contribution.amountMinor <= 0n) throw new Error("TONTINE_CONTRIBUTION_INVALID");
+  if (contribution.scheduledFor !== schedule.scheduledFor) throw new Error("TONTINE_SCHEDULE_DATE_MISMATCH");
   return {
     ...schedule,
     dueStatus: "confirmed",
