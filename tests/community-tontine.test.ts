@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { validateCommunityTontine } from "../packages/microfinance/src/community-tontine.js";
 import { scheduleContribution, assertPayoutAllowed } from "../packages/microfinance/src/tontine-rules.js";
 import { reconcileTontinePayment } from "../packages/microfinance/src/tontine-reconciliation.js";
-import { createContributionIntent } from "../packages/microfinance/src/community-tontine-service.js";
+import { createContributionIntent, initiateContributionPayment } from "../packages/microfinance/src/community-tontine-service.js";
 
 const group = {
   id:"g" as never, name:"Tontine Solidarité", countryCode:"TG", currency:"XOF",
@@ -12,11 +12,39 @@ const group = {
   status:"active" as const, createdBy:"u" as never, createdAt:"2026-10-03T00:00:00Z"
 };
 
-test("community tontine supports daily fixed contributions at the field minimum", () => {
+test("community tontine accepts a creator-defined minimum instead of a hard-coded 500 floor", () => {
   assert.doesNotThrow(() => validateCommunityTontine(group));
+  const lowMinimum = { ...group, fixedAmountMinor: 125n, minimumAmountMinor: 125n };
+  assert.doesNotThrow(() => validateCommunityTontine(lowMinimum));
+  const customMinimum = { ...group, fixedAmountMinor: 2750n, minimumAmountMinor: 2750n };
+  assert.doesNotThrow(() => validateCommunityTontine(customMinimum));
   assert.deepEqual(scheduleContribution(group,"2026-10-03",3).map(x=>x.scheduledFor),[
     "2026-10-03","2026-10-04","2026-10-05"
   ]);
+});
+
+test("configured minimum is enforced for contribution intents", async () => {
+  const customGroup = { ...group, fixedAmountMinor: 2750n, minimumAmountMinor: 2750n };
+  const repository = {
+    findGroup: async()=>customGroup,
+    findMembership: async()=>({id:"m" as never,groupId:customGroup.id,clientId:"c" as never,role:"member" as const,status:"active" as const,joinedAt:"2026-10-01"}),
+    findContributionByIdempotency: async()=>undefined,
+    insertContribution: async()=>{},
+    findBeneficiarySlot: async()=>undefined,
+    markBeneficiaryPaid: async()=>{}
+  };
+  await assert.rejects(
+    createContributionIntent({
+      id:"c1" as never, groupId:customGroup.id, membershipId:"m" as never, scheduledFor:"2026-10-03",
+      amountMinor:2749n, currency:"XOF", channel:"wallet", idempotencyKey:"idem-123456789012"
+    }, {repository}),
+    /TONTINE_BELOW_MINIMUM/
+  );
+  const accepted = await createContributionIntent({
+    id:"c2" as never, groupId:customGroup.id, membershipId:"m" as never, scheduledFor:"2026-10-03",
+    amountMinor:2750n, currency:"XOF", channel:"wallet", idempotencyKey:"idem-accepted-12345"
+  }, {repository});
+  assert.equal(accepted.amountMinor,2750n);
 });
 
 test("contribution intent is tenant/group scoped and idempotent", async () => {
@@ -36,6 +64,21 @@ test("contribution intent is tenant/group scoped and idempotent", async () => {
   }});
   assert.equal(result.id,"c0");
   assert.equal(inserted,0);
+});
+
+test("payment notification is bound to the membership client, never the contribution id", async () => {
+  const notifications: Array<{memberId?: string}> = [];
+  const membership = {id:"m" as never,groupId:group.id,clientId:"client-1" as never,role:"member" as const,status:"active" as const,joinedAt:"2026-10-01"};
+  const result = await initiateContributionPayment(
+    {id:"c9" as never,groupId:group.id,membershipId:membership.id,scheduledFor:"2026-10-03",amountMinor:500n,currency:"XOF",status:"pending",channel:"wallet",idempotencyKey:"idem-payment-12345"},
+    {
+      provider:{initiate:async()=>({providerReference:"provider-1",status:"pending" as const})},
+      repository:{findMembership:async()=>membership},
+      notifications:{notify:async(input)=>{notifications.push({memberId:input.memberId as string})}}
+    }
+  );
+  assert.equal(result.providerReference,"provider-1");
+  assert.deepEqual(notifications,[{memberId:"client-1"}]);
 });
 
 test("payout requires explicit security gates when configured", () => {
