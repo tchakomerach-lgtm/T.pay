@@ -32,6 +32,8 @@ export async function createContributionIntent(
   assertMembershipCanContribute(membership);
   if (input.currency !== group.currency) throw new Error("TONTINE_CURRENCY_MISMATCH");
   if (input.amountMinor < group.minimumAmountMinor) throw new Error("TONTINE_BELOW_MINIMUM");
+  if (group.contributionMode === "fixed" && input.amountMinor !== group.fixedAmountMinor) throw new Error("TONTINE_FIXED_AMOUNT_REQUIRED");
+  if (group.contributionMode === "goal" && group.targetMinor !== undefined && input.amountMinor > group.targetMinor) throw new Error("TONTINE_GOAL_CONTRIBUTION_EXCEEDS_TARGET");
   const existing = await deps.repository.findContributionByIdempotency(input.idempotencyKey);
   if (existing) return existing;
   const contribution: TontineContribution = { ...input, status: "pending" };
@@ -46,7 +48,7 @@ export async function initiateContributionPayment(
   const result = await deps.provider.initiate({ contribution });
   await deps.notifications.notify({
     groupId: contribution.groupId,
-    memberId: contribution.membershipId,
+    memberId: contribution.id as never,
     type: result.status === "completed" ? "tontine.contribution.confirmed" : "tontine.contribution.pending",
     referenceId: contribution.id
   });
