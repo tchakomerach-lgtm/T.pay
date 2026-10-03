@@ -4,7 +4,7 @@
 
 Every brick follows:
 
-`DISCOVER → BIBLE-MAP → CURRENT-CODE → EXTERNAL-RESEARCH → THREAT-GATE → DESIGN → IMPLEMENT → TARGETED-TEST → SECURITY-TEST → OBSERVE → COST-REVIEW → CI → RECORD`
+DISCOVER → BIBLE-MAP → CURRENT-CODE → EXTERNAL-RESEARCH → THREAT-GATE → DESIGN → IMPLEMENT → TARGETED-TEST → SECURITY-TEST → OBSERVE → COST-REVIEW → CI → RECORD
 
 The loop is mandatory. A brick cannot be declared complete without the relevant GitHub Actions checks green.
 
@@ -40,18 +40,20 @@ Contribution intent → payment intent → provider adapter → signed callback 
 
 **Sub-steps:**
 1. Payment intent and identity propagation.
-2. Durable Financial Settlement UoW — **implemented as the S-02 orchestration boundary**: serializable transaction contract, row-lock ports, provider-event claim, ledger idempotency, fee/receipt/outbox atomic commit.
-3. Provider adapter registry.
-3. Signed callback parser/verification.
-4. Event uniqueness and transactional claim.
-5. Atomic ledger + fee + contribution settlement.
-6. Receipt/e-carnet evidence.
-7. Outbox/event publication.
-8. Notification after commit.
-9. Reconciliation exception queue.
-10. Security/concurrency/duplicate-provider tests.
+2. Durable Financial Settlement UoW — implemented as the S-02 orchestration boundary.
+3. **S-02.5 Real PostgreSQL transaction adapter + transactional persistence schema — implemented at adapter/schema level.**
+4. Live PostgreSQL integration test and migration runner.
+5. Provider adapter registry.
+6. Signed callback parser/verification.
+7. Event uniqueness and transactional claim.
+8. Atomic ledger + fee + contribution settlement.
+9. Receipt/e-carnet evidence.
+10. Outbox/event publication.
+11. Notification after commit.
+12. Reconciliation exception queue.
+13. Security/concurrency/duplicate-provider tests.
 
-**Current implementation:** domain orchestration contracts, signed callback gate, fee snapshot and S-02 durable settlement UoW boundary are implemented and tested. The concrete DB driver/schema, provider adapters, durable provider-event store and production outbox dispatcher remain next.
+**Current implementation:** S-02 provides the durable settlement contract; S-02.5 provides executable PostgreSQL transaction lifecycle, row-lock SQL, idempotency/uniqueness constraints, exact monetary storage, receipt and outbox persistence schema. A live-PostgreSQL integration test and production migration runner remain before provider integrations are treated as production-ready.
 
 ### Layer 6 — Field/offline execution
 Signed offline envelopes, device binding, route reassignment, sync conflict resolution, local encrypted queue, idempotent replay, field receipts.

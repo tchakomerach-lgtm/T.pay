@@ -17,15 +17,15 @@ Construire T.Pay de façon incrémentale, testable, sécurisée et exploitable s
 Each agent must touch only its domain, document cross-domain changes, and never bypass security or ledger invariants.
 
 ## Construction loop
-Every brick MUST execute and respect `docs/skills/TPAY-CONSTRUCTION-001.md`:
+Every brick MUST execute and respect docs/skills/TPAY-CONSTRUCTION-001.md:
 
-DISCOVER -> BIBLE-MAP -> CURRENT-CODE -> EXTERNAL-RESEARCH -> THREAT-GATE -> DESIGN -> IMPLEMENT -> TARGETED-TEST -> SECURITY-TEST -> OBSERVE -> COST-REVIEW -> CI -> RECORD.
+DISCOVER -> BIBLE-MAP -> CURRENT-CODE -> EXTERNAL-RESEARCH -> THREAT-GATE -> DESIGN -> IMPLEMENT -> TEST -> SECURITY REVIEW -> OBSERVE -> COST REVIEW -> CI -> RECORD.
 
 The loop is iterative. A failed test, security gate, CI check, material Bible change, provider-contract change or unresolved high-risk exception sends the brick back to the appropriate earlier stage.
 
-Before every brick, consult `docs/bibles/TPAY-BIBLE-CONSULTATION-REGISTRY.md` and the mandatory domain Bibles/skills mapped there. Do not rely on memory when the repository contains the authoritative rule.
+Before every brick, consult docs/bibles/TPAY-BIBLE-CONSULTATION-REGISTRY.md and the mandatory domain Bibles/skills mapped there. Do not rely on memory when the repository contains the authoritative rule.
 
-External research is evidence-driven, not decorative. Use primary standards and authoritative documentation when a design decision depends on current guidance. Record only the decision-relevant findings, not private chain-of-thought.
+External research is evidence-driven, not decorative. Use primary standards and authoritative documentation when a design decision depends on current security, protocol, regulatory, infrastructure or interoperability guidance. Record only the decision-relevant findings, not private chain-of-thought.
 
 ## Coding rules
 - Strict TypeScript.
@@ -57,17 +57,13 @@ External research is evidence-driven, not decorative. Use primary standards and 
 ## Security baseline
 OWASP ASVS 5.0 is the stable application-security baseline. NIST SSDF is used as a secure-development lifecycle reference. WebAuthn Level 3 is a current W3C Recommendation. OpenTelemetry semantic conventions are mandatory for telemetry naming. Recheck release-critical external standards when the relevant source/version changes.
 
-## Agent registry
-The executable role registry is maintained in `docs/agents/registry.yaml`. Specialist agents are bounded by path and veto rules; the integrator must satisfy every gate before merge.
-
 ## Current construction state
-Foundation is implemented for domain types, security sessions/policies, risk controls, audit/telemetry, ledger invariants, wallet/payment/commission primitives, identity/passkey contracts, organization creation, KYC contracts and ledger idempotency. Next bounded work: persistent account/ledger adapters, payment provider adapters, then deepen tontine/microfinance workflows and education finance, followed by marketplace/social/opportunity/investment and AI Core.
+Foundation is implemented for domain types, security sessions/policies, risk controls, audit/telemetry, ledger invariants, wallet/payment/commission primitives, identity/passkey contracts, organization creation, KYC contracts and ledger idempotency. S-02 durable settlement is merged. S-02.5 adds the concrete PostgreSQL transaction adapter and transactional settlement schema. Remaining persistence hardening is a live-PostgreSQL integration test and migration runner; provider adapters and durable outbox dispatcher follow only after this persistence boundary is verified.
 
-Community Tontine is modeled as an independent interoperable domain: daily/weekly/monthly cycles, fixed/variable/goal contributions, membership/roles, beneficiary rotation, governance, partner microfinance selection, multi-channel collection, provider reconciliation, KYC/human payout gates, field continuity and idempotent contribution intents. The cycle engine now snapshots the configured minimum/rules version and generates individual schedules with due/confirmed/missed states and attendance calculation. Its contribution minimum is configurable per group; there is no hard-coded 500 XOF floor. It never creates a second ledger; T.Pay Financial Core remains authoritative. Next construction depth: durable settlement UoW, concrete TMoney/Flooz/microfinance adapters, provider-event uniqueness, receipts/e-carnet persistence, outbox, offline envelopes, incident/dispute workflows and payout settlement.
+Community Tontine remains an independent interoperable domain: daily/weekly/monthly cycles, fixed/variable/goal contributions, membership/roles, beneficiary rotation, governance, partner microfinance selection, multi-channel collection, provider reconciliation, KYC/human payout gates, field continuity and idempotent contribution intents. It never creates a second ledger; T.Pay Financial Core remains authoritative.
 
 ## Definition of Done
 Code + tests + security controls + observability + documentation + migration/rollback plan when stateful + CI green.
 
-
 ## Settlement Orchestrator state
-The settlement construction gate is now explicit: contribution idempotency → payment intent → provider adapter → signed callback → freshness/anti-replay → provider validation → atomic financial settlement → versioned fee snapshot → contribution confirmation → receipt/e-carnet → post-commit event/notification → reconciliation. Current code provides the orchestration contract and security gates; concrete database atomicity, provider adapters and durable outbox remain mandatory before production completion.
+The settlement construction gate is explicit: contribution idempotency → payment intent → provider adapter → signed callback → freshness/anti-replay → provider validation → atomic financial settlement → versioned fee snapshot → contribution confirmation → receipt/e-carnet → post-commit event/notification → reconciliation. S-02 defines the durable transaction contract; S-02.5 implements the PostgreSQL transaction lifecycle and schema. Provider adapters and production outbox remain outside this brick.
