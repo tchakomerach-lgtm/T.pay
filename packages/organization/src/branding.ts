@@ -16,6 +16,10 @@ export interface LogoAssetScanner {
   }): Promise<{ sanitizedAssetRef: string; sha256: string }>;
 }
 
+export interface OrganizationBrandingUnitOfWork {
+  run<T>(work: (tx: { archiveActive(organizationId: UUID; archivedAt: string): Promise<void>; insert(logo: OrganizationLogo): Promise<void>; activate(organizationId: UUID; logoId: UUID; activatedAt: string): Promise<void>; saveBranding(input: { organizationId: UUID; activeLogoId: UUID; logoVersion: number; updatedAt: string }): Promise<void> }) => Promise<T>): Promise<T>;
+}
+
 export interface OrganizationBrandingRepository {
   save(input: { organizationId: UUID; activeLogoId: UUID; logoVersion: number; updatedAt: string }): Promise<void>;
 }
@@ -34,6 +38,7 @@ export async function registerOrganizationLogo(
   deps: {
     logos: OrganizationLogoRepository;
     branding: OrganizationBrandingRepository;
+    unitOfWork?: OrganizationBrandingUnitOfWork;
     scanner: LogoAssetScanner;
     ids: BrandingIdGenerator;
     clock: BrandingClock;
@@ -46,7 +51,7 @@ export async function registerOrganizationLogo(
   const sanitized = await deps.scanner.sanitizeAndScan(input);
   if (!sanitized.sanitizedAssetRef || !sanitized.sha256) throw new Error("LOGO_SANITIZATION_REQUIRED");
 
-  if (active) await deps.logos.archiveActive(input.organizationId, now);
+
 
   const logo: OrganizationLogo = {
     id: deps.ids.next(),
@@ -61,13 +66,13 @@ export async function registerOrganizationLogo(
     createdAt: now,
     activatedAt: now
   };
-  await deps.logos.insert(logo);
-  await deps.logos.activate(input.organizationId, logo.id, now);
-  await deps.branding.save({
-    organizationId: input.organizationId,
-    activeLogoId: logo.id,
-    logoVersion: logo.version,
-    updatedAt: now
-  });
+  const write = async (tx: { archiveActive(organizationId: UUID; archivedAt: string): Promise<void>; insert(logo: OrganizationLogo): Promise<void>; activate(organizationId: UUID; logoId: UUID; activatedAt: string): Promise<void>; saveBranding(input: { organizationId: UUID; activeLogoId: UUID; logoVersion: number; updatedAt: string }): Promise<void> }) => {
+    if (active) await tx.archiveActive(input.organizationId, now);
+    await tx.insert(logo);
+    await tx.activate(input.organizationId, logo.id, now);
+    await tx.saveBranding({ organizationId: input.organizationId, activeLogoId: logo.id, logoVersion: logo.version, updatedAt: now });
+  };
+  if (deps.unitOfWork) await deps.unitOfWork.run(write);
+  else await write({ archiveActive: deps.logos.archiveActive, insert: deps.logos.insert, activate: deps.logos.activate, saveBranding: deps.branding.save });
   return logo;
 }
