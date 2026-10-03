@@ -45,7 +45,7 @@ Contribution intent → payment intent → provider adapter → signed callback 
 4. **S-02.5.1 Live PostgreSQL integration test + migration runner — implemented and verified in CI.**
 5. **S-03.1 Provider Adapter Registry + Provider Contract Boundary — implemented.**
 6. **S-03.2 Signed callback parser/verification — implemented at security-contract level.**
-7. Event uniqueness and transactional claim hardening.
+7. **S-03.3 Provider event validation + durable replay claim hardening — implemented.**
 8. Atomic ledger + fee + contribution settlement integration.
 9. Receipt/e-carnet evidence.
 10. Outbox/event publication.
@@ -53,7 +53,7 @@ Contribution intent → payment intent → provider adapter → signed callback 
 12. Reconciliation exception queue.
 13. Security/concurrency/duplicate-provider tests.
 
-**Current implementation:** S-02/S-02.5/S-02.5.1 establish the durable financial transaction boundary. S-03.1 provides the provider-neutral registry, normalized provider contract, TMoney/Flooz/microfinance contract adapters, bounded retry and circuit-breaker primitives. S-03.2 now provides strict signed-callback parsing, exact raw-body HMAC verification, freshness and atomic replay-claim contracts. No live provider credentials or network calls are connected yet. Provider-specific schemas and durable replay persistence remain before live provider integration.
+**Current implementation:** S-02/S-02.5/S-02.5.1 establish the durable financial transaction boundary. S-03.1 provides the provider-neutral registry, normalized provider contract, TMoney/Flooz/microfinance contract adapters, bounded retry and circuit-breaker primitives. S-03.2 provides strict signed-callback parsing, exact raw-body HMAC verification, freshness and atomic replay-claim contracts. **S-03.3 now validates provider identity, payment identity, reference, amount, currency, organization and state before the durable replay claim, and revalidates persisted organization/provider/idempotency context after row locks.** The PostgreSQL unique `(provider,event_id)` barrier remains authoritative. No live provider credentials or network calls are connected yet. Explicit quarantine persistence and provider-specific schemas remain before live provider integration.
 
 ### Layer 6 — Field/offline execution
 Signed offline envelopes, device binding, route reassignment, sync conflict resolution, local encrypted queue, idempotent replay, field receipts.
