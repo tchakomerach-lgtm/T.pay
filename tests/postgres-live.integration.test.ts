@@ -254,3 +254,46 @@ test("S-03.6 live PostgreSQL claims outbox exactly once per lease and enforces w
     await client.end();
   }
 });
+
+
+test("S-03.7 live PostgreSQL persists notification intent with tenant-scoped idempotency and claim ownership", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const client = new pg.Client({ connectionString: databaseUrl });
+  await client.connect();
+  const organizationId = randomUUID();
+  const eventId = randomUUID();
+  const userId = randomUUID();
+  const notificationId = randomUUID();
+  const createdAt = "2026-10-03T22:35:00.000Z";
+  try {
+    await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await client.query("INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',$3)", [organizationId, "S-03.7 live", createdAt]);
+    await client.query(
+      "INSERT INTO notification_intents (id,organization_id,recipient_user_id,channel,template,event_id,event_type,sensitivity,created_at) VALUES ($1,$2,$3,'in_app','payment_completed',$4,'payment.completed','generic',$5::timestamptz)",
+      [notificationId, organizationId, userId, eventId, createdAt]
+    );
+    await assert.rejects(
+      () => client.query(
+        "INSERT INTO notification_intents (id,organization_id,recipient_user_id,channel,template,event_id,event_type,sensitivity,created_at) VALUES ($1,$2,$3,'in_app','payment_completed',$4,'payment.completed','generic',$5::timestamptz)",
+        [randomUUID(), organizationId, userId, eventId, createdAt]
+      )
+    );
+    await client.query(
+      "UPDATE notification_intents SET claimed_by='worker-a',claimed_at=$2::timestamptz,attempts=attempts+1 WHERE id=$1",
+      [notificationId, createdAt]
+    );
+    const wrongWorker = await client.query(
+      "UPDATE notification_intents SET sent_at=$3::timestamptz,claimed_by=NULL,claimed_at=NULL WHERE id=$1 AND claimed_by=$2 AND sent_at IS NULL",
+      [notificationId, "worker-b", "2026-10-03T22:36:00.000Z"]
+    );
+    assert.equal(wrongWorker.rowCount, 0);
+    const rightWorker = await client.query(
+      "UPDATE notification_intents SET sent_at=$3::timestamptz,claimed_by=NULL,claimed_at=NULL WHERE id=$1 AND claimed_by=$2 AND sent_at IS NULL",
+      [notificationId, "worker-a", "2026-10-03T22:37:00.000Z"]
+    );
+    assert.equal(rightWorker.rowCount, 1);
+  } finally {
+    await client.query("DELETE FROM notification_intents WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM organizations WHERE id=$1", [organizationId]);
+    await client.end();
+  }
+});
