@@ -48,8 +48,8 @@ Contribution intent → payment intent → provider adapter → signed callback 
 7. **S-03.3 Provider event validation + durable replay claim hardening — implemented.**
 8. **S-03.4 Atomic Ledger + fee + contribution settlement integration — merged to main.**
 9. **S-03.5 Receipt/e-carnet evidence hardening — merged to main.**
-10. **S-03.6 Durable Outbox / Event Publication — implemented on construction branch; CI/merge pending.**
-11. Notification after commit.
+10. **S-03.6 Durable Outbox / Event Publication — merged to main.**
+11. **S-03.7 Post-commit Notification — implemented on construction branch; CI/merge pending.**
 12. Reconciliation exception queue.
 13. Security/concurrency/duplicate-provider tests.
 

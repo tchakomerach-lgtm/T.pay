@@ -176,3 +176,14 @@ Every schema/stateful change requires a forward migration, rollback/compatibilit
 ### Stop condition
 
 Stop only when acceptance criteria are met, material anomalies are resolved or explicitly bounded, security/tests pass, CI is green, and the construction record is updated.
+
+
+## Notification security gate
+
+Notifications are an untrusted delivery surface and are not proof of financial state.
+- Default to generic user-visible content.
+- Never place OTPs, credentials, full account identifiers, balances, raw KYC data or payment secrets in push/SMS/email previews.
+- Bind notification work to organization/tenant context and recipient identity.
+- Scope idempotency and retry state to the notification intent identity.
+- Provider success is delivery evidence, not financial confirmation.
+- A notification worker MUST NOT mutate Ledger, payment, contribution or credit state.
