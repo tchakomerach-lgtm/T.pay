@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import pg from "pg";
 import { applyMigrations } from "../packages/finance/src/postgres-migrations.js";
 import { PostgresDurableTontineSettlementRepository } from "../packages/finance/src/postgres-settlement-uow.js";
@@ -15,8 +17,8 @@ test("S-02.5 live PostgreSQL migration is idempotent and enforces financial inva
   const accountB = randomUUID();
   const transactionId = randomUUID();
   try {
-    await applyMigrations(client, new URL("../migrations/", import.meta.url));
-    await applyMigrations(client, new URL("../migrations/", import.meta.url));
+    await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
     const migrationCount = await client.query("SELECT count(*)::int AS count FROM schema_migrations WHERE version = $1", ["001"]);
     assert.equal(migrationCount.rows[0]?.count, 1);
 
