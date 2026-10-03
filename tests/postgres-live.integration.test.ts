@@ -297,3 +297,36 @@ test("S-03.7 live PostgreSQL persists notification intent with tenant-scoped ide
     await client.end();
   }
 });
+
+
+test("S-03.8 live PostgreSQL deduplicates exceptions and isolates organizations", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const client = new pg.Client({ connectionString: databaseUrl });
+  await client.connect();
+  const organizationId = randomUUID();
+  const otherOrganizationId = randomUUID();
+  const exceptionId = randomUUID();
+  const evidenceHash = "b".repeat(64);
+  const detectedAt = "2026-10-03T22:45:00.000Z";
+  try {
+    await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await client.query("INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',$3),($4,$5,'active',$3)", [organizationId,"S-03.8 A",detectedAt,otherOrganizationId,"S-03.8 B"]);
+    await client.query(
+      "INSERT INTO reconciliation_exceptions (id,organization_id,kind,severity,status,evidence_hash,detected_at) VALUES ($1,$2,'amount_mismatch','critical','open',$3,$4::timestamptz)",
+      [exceptionId,organizationId,evidenceHash,detectedAt]
+    );
+    await assert.rejects(() => client.query(
+      "INSERT INTO reconciliation_exceptions (id,organization_id,kind,severity,status,evidence_hash,detected_at) VALUES ($1,$2,'amount_mismatch','critical','open',$3,$4::timestamptz)",
+      [randomUUID(),organizationId,evidenceHash,detectedAt]
+    ));
+    await client.query(
+      "INSERT INTO reconciliation_exceptions (id,organization_id,kind,severity,status,evidence_hash,detected_at) VALUES ($1,$2,'amount_mismatch','critical','open',$3,$4::timestamptz)",
+      [randomUUID(),otherOrganizationId,evidenceHash,detectedAt]
+    );
+    const scoped = await client.query("SELECT count(*)::int AS count FROM reconciliation_exceptions WHERE organization_id=$1", [organizationId]);
+    assert.equal(scoped.rows[0]?.count, 1);
+  } finally {
+    await client.query("DELETE FROM reconciliation_exceptions WHERE organization_id IN ($1,$2)", [organizationId,otherOrganizationId]);
+    await client.query("DELETE FROM organizations WHERE id IN ($1,$2)", [organizationId,otherOrganizationId]);
+    await client.end();
+  }
+});

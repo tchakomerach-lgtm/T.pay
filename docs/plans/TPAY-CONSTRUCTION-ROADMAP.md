@@ -50,7 +50,7 @@ Contribution intent → payment intent → provider adapter → signed callback 
 9. **S-03.5 Receipt/e-carnet evidence hardening — merged to main.**
 10. **S-03.6 Durable Outbox / Event Publication — merged to main.**
 11. **S-03.7 Post-commit Notification — implemented on construction branch; CI/merge pending.**
-12. Reconciliation exception queue.
+12. **S-03.8 Reconciliation exception queue — implemented on construction branch; CI/merge pending.**
 13. Security/concurrency/duplicate-provider tests.
 
 **Current implementation:** S-02/S-02.5/S-02.5.1 establish the durable financial transaction boundary. S-03.1 provides the provider-neutral registry, normalized provider contract, TMoney/Flooz/microfinance contract adapters, bounded retry and circuit-breaker primitives. S-03.2 provides strict signed-callback parsing, exact raw-body HMAC verification, freshness and atomic replay-claim contracts. S-03.3 validates provider identity, payment identity, reference, amount, currency, organization and state before the durable replay claim, and revalidates persisted organization/provider/idempotency context after row locks. S-03.4 adds atomic accounting/evidence consistency gates across the Ledger, fee snapshot, contribution, payment, receipt and outbox. S-03.5 adds cryptographic receipt evidence, deterministic binding, privacy-minimized verification payloads and a DB uniqueness barrier. No live provider credentials or network calls are connected yet. Explicit quarantine persistence and provider-specific schemas remain before live provider integration.
