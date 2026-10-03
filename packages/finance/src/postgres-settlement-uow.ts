@@ -185,11 +185,12 @@ export class PostgresDurableTontineSettlementRepository
             currency: string;
             idempotency_key: string;
             status: TontineContribution["status"];
+            channel: TontineContribution["channel"];
             scheduled_for: string;
             collected_at?: string | null;
           }>(
             "SELECT id, organization_id, group_id, membership_id, amount_minor, currency, " +
-            "idempotency_key, status, scheduled_for, collected_at " +
+            "idempotency_key, status, channel, scheduled_for, collected_at " +
             "FROM tontine_contributions WHERE organization_id = $1 AND id = $2 FOR UPDATE",
             [orgId, contributionId]
           );
@@ -203,8 +204,9 @@ export class PostgresDurableTontineSettlementRepository
             currency: stringValue(row.currency, "currency"),
             idempotencyKey: stringValue(row.idempotency_key, "idempotency_key"),
             status: row.status,
+            channel: row.channel,
             scheduledFor: row.scheduled_for,
-            collectedAt: row.collected_at ?? undefined
+            ...(row.collected_at ? { collectedAt: row.collected_at } : {})
           };
         },
         confirm: async (orgId, contributionId, paymentIntentId, providerReference, confirmedAt) => {
@@ -246,7 +248,7 @@ export class PostgresDurableTontineSettlementRepository
             amountMinor: bigintValue(row.amount_minor, "amount_minor"),
             currency: row.currency,
             provider: row.provider,
-            providerReference: row.provider_reference ?? undefined,
+            ...(row.provider_reference ? { providerReference: row.provider_reference } : {}),
             status: row.status,
             createdAt: row.created_at,
             updatedAt: row.updated_at
