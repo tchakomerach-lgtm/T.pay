@@ -209,3 +209,48 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
     await client.end();
   }
 });
+
+
+test("S-03.6 live PostgreSQL claims outbox exactly once per lease and enforces worker ownership", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const client = new pg.Client({ connectionString: databaseUrl });
+  await client.connect();
+  const organizationId = randomUUID();
+  const outboxId = randomUUID();
+  const aggregateId = randomUUID();
+  const occurredAt = "2026-10-03T22:10:00.000Z";
+  try {
+    await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await client.query("INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',$3)", [organizationId, "S-03.6 live", occurredAt]);
+    await client.query(
+      "INSERT INTO outbox_events (id,organization_id,event_type,aggregate_id,occurred_at,payload) VALUES ($1,$2,$3,$4,$5::timestamptz,$6::jsonb)",
+      [outboxId, organizationId, "tontine.contribution_settled", aggregateId, occurredAt, JSON.stringify({ aggregateId })]
+    );
+
+    const { TransactionalPostgresOutboxStore } = await import("../packages/finance/src/postgres-settlement-uow.js");
+    const store = new TransactionalPostgresOutboxStore(client);
+    const claimed = await store.claimNext("worker-a", occurredAt, "2026-10-03T22:20:00.000Z");
+    assert.equal(claimed?.id, outboxId);
+    assert.equal(claimed?.attempts, 1);
+
+    await assert.rejects(
+      () => store.markPublished(outboxId, "worker-b", "2026-10-03T22:11:00.000Z"),
+      /OUTBOX_MARK_PUBLISHED_REJECTED/
+    );
+
+    await store.markAttemptFailed(outboxId, "worker-a", "2026-10-03T22:12:00.000Z");
+    const reclaimed = await store.claimNext("worker-b", "2026-10-03T22:13:00.000Z", "2026-10-03T22:23:00.000Z");
+    assert.equal(reclaimed?.id, outboxId);
+    assert.equal(reclaimed?.attempts, 2);
+
+    await store.markPublished(outboxId, "worker-b", "2026-10-03T22:14:00.000Z");
+    const after = await client.query("SELECT published_at, claimed_by, claimed_at, attempts FROM outbox_events WHERE id=$1", [outboxId]);
+    assert.equal(after.rows[0]?.published_at?.toISOString?.() ?? String(after.rows[0]?.published_at), "2026-10-03T22:14:00.000Z");
+    assert.equal(after.rows[0]?.claimed_by, null);
+    assert.equal(after.rows[0]?.claimed_at, null);
+    assert.equal(after.rows[0]?.attempts, 2);
+  } finally {
+    await client.query("DELETE FROM outbox_events WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM organizations WHERE id=$1", [organizationId]);
+    await client.end();
+  }
+});
