@@ -27,17 +27,41 @@ CREATE TABLE IF NOT EXISTS ledger_transactions (
   idempotency_key text NOT NULL,
   occurred_at timestamptz NOT NULL,
   posted_at timestamptz NOT NULL,
-  UNIQUE (organization_id, idempotency_key)
+  UNIQUE (organization_id, idempotency_key),
+  UNIQUE (organization_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS ledger_lines (
-  transaction_id uuid NOT NULL REFERENCES ledger_transactions(id),
+  organization_id uuid NOT NULL,
+  transaction_id uuid NOT NULL,
   line_no integer NOT NULL CHECK (line_no > 0),
-  account_id uuid NOT NULL REFERENCES financial_accounts(id),
+  account_id uuid NOT NULL,
   direction text NOT NULL CHECK (direction IN ('debit','credit')),
   amount_minor numeric(38,0) NOT NULL CHECK (amount_minor > 0),
   currency char(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
-  PRIMARY KEY (transaction_id, line_no)
+  PRIMARY KEY (transaction_id, line_no),
+  FOREIGN KEY (organization_id, transaction_id)
+    REFERENCES ledger_transactions(organization_id, id),
+  FOREIGN KEY (organization_id, account_id)
+    REFERENCES financial_accounts(organization_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS tontine_contributions (
+  id uuid PRIMARY KEY,
+  organization_id uuid NOT NULL REFERENCES organizations(id),
+  group_id uuid NOT NULL,
+  membership_id uuid NOT NULL,
+  amount_minor numeric(38,0) NOT NULL CHECK (amount_minor > 0),
+  currency char(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+  idempotency_key text NOT NULL,
+  status text NOT NULL CHECK (status IN ('scheduled','pending','confirmed','missed','reversed')),
+  scheduled_for timestamptz NOT NULL,
+  collected_at timestamptz,
+  payment_intent_id uuid,
+  provider_reference text,
+  updated_at timestamptz NOT NULL,
+  UNIQUE (organization_id, idempotency_key),
+  UNIQUE (organization_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS tontine_payment_intents (
@@ -53,25 +77,9 @@ CREATE TABLE IF NOT EXISTS tontine_payment_intents (
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
   UNIQUE (organization_id, idempotency_key),
-  UNIQUE (organization_id, id)
-);
-
-CREATE TABLE IF NOT EXISTS tontine_contributions (
-  id uuid PRIMARY KEY,
-  organization_id uuid NOT NULL REFERENCES organizations(id),
-  group_id uuid NOT NULL,
-  member_id uuid NOT NULL,
-  amount_minor numeric(38,0) NOT NULL CHECK (amount_minor > 0),
-  currency char(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
-  idempotency_key text NOT NULL,
-  status text NOT NULL CHECK (status IN ('scheduled','pending','due','confirmed','missed','reversed')),
-  due_at timestamptz NOT NULL,
-  collected_at timestamptz,
-  payment_intent_id uuid,
-  provider_reference text,
-  updated_at timestamptz NOT NULL,
-  UNIQUE (organization_id, idempotency_key),
-  UNIQUE (organization_id, id)
+  UNIQUE (organization_id, id),
+  FOREIGN KEY (organization_id, contribution_id)
+    REFERENCES tontine_contributions(organization_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS provider_events (
@@ -95,15 +103,21 @@ CREATE TABLE IF NOT EXISTS tontine_fee_snapshots (
 CREATE TABLE IF NOT EXISTS tontine_receipts (
   receipt_id uuid PRIMARY KEY,
   organization_id uuid NOT NULL REFERENCES organizations(id),
-  contribution_id uuid NOT NULL REFERENCES tontine_contributions(id),
-  payment_intent_id uuid NOT NULL REFERENCES tontine_payment_intents(id),
+  contribution_id uuid NOT NULL,
+  payment_intent_id uuid NOT NULL,
   provider_reference text NOT NULL,
   amount_minor numeric(38,0) NOT NULL CHECK (amount_minor > 0),
   currency char(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
   issued_at timestamptz NOT NULL,
-  ledger_transaction_id uuid NOT NULL REFERENCES ledger_transactions(id),
+  ledger_transaction_id uuid NOT NULL,
   UNIQUE (organization_id, contribution_id),
-  UNIQUE (organization_id, payment_intent_id)
+  UNIQUE (organization_id, payment_intent_id),
+  FOREIGN KEY (organization_id, contribution_id)
+    REFERENCES tontine_contributions(organization_id, id),
+  FOREIGN KEY (organization_id, payment_intent_id)
+    REFERENCES tontine_payment_intents(organization_id, id),
+  FOREIGN KEY (organization_id, ledger_transaction_id)
+    REFERENCES ledger_transactions(organization_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS outbox_events (
