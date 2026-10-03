@@ -328,3 +328,81 @@ export class PostgresDurableTontineSettlementRepository
     }
   }
 }
+
+
+export interface PostgresOutboxStore {
+  claimNext(workerId: string, now: string, leaseUntil: string): Promise<{
+    id: string;
+    organizationId: UUID;
+    eventType: string;
+    aggregateId: UUID;
+    occurredAt: string;
+    payload: string;
+    attempts: number;
+  } | null>;
+  markPublished(id: string, publishedAt: string): Promise<void>;
+  markAttemptFailed(id: string, now: string, nextAttemptAt: string): Promise<void>;
+}
+
+export class TransactionalPostgresOutboxStore implements PostgresOutboxStore {
+  constructor(private readonly client: PostgresClient) {}
+
+  async claimNext(workerId: string, now: string, leaseUntil: string) {
+    await this.client.query("BEGIN ISOLATION LEVEL READ COMMITTED READ WRITE");
+    try {
+      const result = await this.client.query<{
+        id: string;
+        organization_id: string;
+        event_type: string;
+        aggregate_id: string;
+        occurred_at: string;
+        payload: unknown;
+        attempts: number;
+      }>(
+        "WITH candidate AS (" +
+        "SELECT id FROM outbox_events " +
+        "WHERE published_at IS NULL AND (next_attempt_at IS NULL OR next_attempt_at <= $1::timestamptz) " +
+        "AND (claimed_at IS NULL OR claimed_at < $1::timestamptz) " +
+        "ORDER BY occurred_at, id FOR UPDATE SKIP LOCKED LIMIT 1" +
+        ") " +
+        "UPDATE outbox_events o SET claimed_by=$2, claimed_at=$3::timestamptz, attempts=o.attempts+1 " +
+        "FROM candidate c WHERE o.id=c.id " +
+        "RETURNING o.id,o.organization_id,o.event_type,o.aggregate_id,o.occurred_at,o.payload,o.attempts",
+        [now, workerId, leaseUntil]
+      );
+      await this.client.query("COMMIT");
+      const row = result.rows[0];
+      if (!row) return null;
+      return {
+        id: row.id,
+        organizationId: row.organization_id as UUID,
+        eventType: row.event_type,
+        aggregateId: row.aggregate_id as UUID,
+        occurredAt: row.occurred_at,
+        payload: typeof row.payload === "string" ? row.payload : JSON.stringify(row.payload),
+        attempts: row.attempts
+      };
+    } catch (error) {
+      try { await this.client.query("ROLLBACK"); } catch {}
+      throw error;
+    }
+  }
+
+  async markPublished(id: string, publishedAt: string): Promise<void> {
+    const result = await this.client.query(
+      "UPDATE outbox_events SET published_at=$2::timestamptz, claimed_by=NULL, claimed_at=NULL " +
+      "WHERE id=$1 AND published_at IS NULL",
+      [id, publishedAt]
+    );
+    if (result.rowCount !== 1) throw new Error("OUTBOX_MARK_PUBLISHED_REJECTED");
+  }
+
+  async markAttemptFailed(id: string, now: string, nextAttemptAt: string): Promise<void> {
+    const result = await this.client.query(
+      "UPDATE outbox_events SET claimed_by=NULL, claimed_at=NULL, next_attempt_at=$3::timestamptz " +
+      "WHERE id=$1 AND published_at IS NULL AND (claimed_at IS NULL OR claimed_at <= $2::timestamptz)",
+      [id, now, nextAttemptAt]
+    );
+    if (result.rowCount !== 1) throw new Error("OUTBOX_MARK_FAILURE_REJECTED");
+  }
+}
