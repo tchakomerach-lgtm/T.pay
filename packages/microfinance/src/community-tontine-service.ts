@@ -43,12 +43,18 @@ export async function createContributionIntent(
 
 export async function initiateContributionPayment(
   contribution: TontineContribution,
-  deps: { provider: TontineProviderPort; notifications: TontineNotificationPort }
+  deps: {
+    provider: TontineProviderPort;
+    notifications: TontineNotificationPort;
+    repository: Pick<CommunityTontineRepository, "findMembership">;
+  }
 ): Promise<{ providerReference: string; status: "pending" | "completed" }> {
+  const membership = await deps.repository.findMembership(contribution.membershipId);
+  if (!membership || membership.groupId !== contribution.groupId) throw new Error("TONTINE_CONTEXT_INVALID");
   const result = await deps.provider.initiate({ contribution });
   await deps.notifications.notify({
     groupId: contribution.groupId,
-    memberId: contribution.id as never,
+    memberId: membership.clientId,
     type: result.status === "completed" ? "tontine.contribution.confirmed" : "tontine.contribution.pending",
     referenceId: contribution.id
   });
