@@ -9,11 +9,19 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test dist/tests/*.test.js",
-    "check": "npm run typecheck && npm test"
+    "check": "npm run typecheck && npm test",
+    "db:migrate": "node dist/scripts/migrate.js",
+    "test:postgres": "npm run build && node --test dist/tests/postgres-live.integration.test.js"
   },
-  "engines": {"node": ">=22"},
+  "engines": {
+    "node": ">=22"
+  },
   "devDependencies": {
     "@types/node": "^22.15.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "@types/pg": "^8.15.5"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
   }
 }
