@@ -58,3 +58,7 @@ Offline collection creates an intent/envelope, never a financial confirmation. S
 ### Future extension
 
 Payout uses the same architecture in reverse: payout intent → provider → signed confirmation → atomic ledger settlement → beneficiary paid → receipt → notification → reconciliation. Rotation and cycle closure occur only after authoritative settlement.
+
+
+## S-02 durable transaction rule
+The settlement implementation now requires a single database transaction around provider-event claim, contribution/payment row locking, ledger idempotency check, ledger append, immutable fee snapshot, state transitions, receipt and outbox enqueue. The financial transaction uses a serializable boundary at this orchestration port; implementations may choose an equivalent stronger locking strategy only when the same invariants are proven. External provider calls are never performed inside this transaction. Serialization conflicts must be retried by the persistence layer with a bounded deterministic policy. Unique database constraints remain the final concurrency barrier. This follows the current OWASP business-logic guidance for atomic check-and-act/idempotency and PostgreSQL transaction/constraint semantics.
