@@ -10,7 +10,7 @@ permissions:
   contents: read
 concurrency:
   group: tpay-ci-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   quality:
     runs-on: ubuntu-latest

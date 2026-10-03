@@ -103,3 +103,45 @@ test("organization mismatch is rejected before opening a financial transaction",
   await assert.rejects(()=>executeDurableTontineSettlement({...baseInput(),organizationId:"other" as UUID},repo),/SETTLEMENT_ORGANIZATION_MISMATCH/);
   assert.equal(opened,false);
 });
+
+
+test("S-03.4 rejects inconsistent fee snapshot before opening transaction", async () => {
+  let opened = false;
+  const repo = { runAtomic: async () => { opened = true; throw new Error("MUST_NOT_RUN"); } } as any;
+  await assert.rejects(
+    () => executeDurableTontineSettlement({
+      ...baseInput(),
+      feeSnapshot: { ...baseInput().feeSnapshot, totalFeeMinor: 61n }
+    }, repo),
+    /SETTLEMENT_FEE_TOTAL_INVALID/
+  );
+  assert.equal(opened, false);
+});
+
+test("S-03.4 rejects a ledger gross amount that differs from the provider-confirmed amount", async () => {
+  let opened = false;
+  const repo = { runAtomic: async () => { opened = true; throw new Error("MUST_NOT_RUN"); } } as any;
+  const input = baseInput();
+  input.ledgerTransaction = {
+    ...input.ledgerTransaction,
+    lines: [
+      { accountId: "cash", amount: { currency: "XOF", minor: 999n }, direction: "debit" },
+      { accountId: "tontine", amount: { currency: "XOF", minor: 999n }, direction: "credit" }
+    ]
+  };
+  await assert.rejects(() => executeDurableTontineSettlement(input, repo), /SETTLEMENT_LEDGER_GROSS_MISMATCH/);
+  assert.equal(opened, false);
+});
+
+test("S-03.4 rejects receipt context substitution", async () => {
+  let opened = false;
+  const repo = { runAtomic: async () => { opened = true; throw new Error("MUST_NOT_RUN"); } } as any;
+  await assert.rejects(
+    () => executeDurableTontineSettlement({
+      ...baseInput(),
+      receipt: { ...baseInput().receipt, paymentIntentId: "payment-attacker" as UUID }
+    }, repo),
+    /SETTLEMENT_RECEIPT_CONTEXT_MISMATCH/
+  );
+  assert.equal(opened, false);
+});
