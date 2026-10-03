@@ -44,7 +44,7 @@ Contribution intent → payment intent → provider adapter → signed callback 
 3. **S-02.5 Real PostgreSQL transaction adapter + transactional persistence schema — implemented.**
 4. **S-02.5.1 Live PostgreSQL integration test + migration runner — implemented and verified in CI.**
 5. **S-03.1 Provider Adapter Registry + Provider Contract Boundary — implemented.**
-6. S-03.2 Signed callback parser/verification.
+6. **S-03.2 Signed callback parser/verification — implemented at security-contract level.**
 7. Event uniqueness and transactional claim hardening.
 8. Atomic ledger + fee + contribution settlement integration.
 9. Receipt/e-carnet evidence.
@@ -53,7 +53,7 @@ Contribution intent → payment intent → provider adapter → signed callback 
 12. Reconciliation exception queue.
 13. Security/concurrency/duplicate-provider tests.
 
-**Current implementation:** S-02/S-02.5/S-02.5.1 establish the durable financial transaction boundary. S-03.1 now provides a provider-neutral registry, normalized provider contract, TMoney/Flooz/microfinance contract adapters, bounded retry and circuit-breaker primitives. No live provider credentials or network calls are connected yet. S-03.2 remains the next gate.
+**Current implementation:** S-02/S-02.5/S-02.5.1 establish the durable financial transaction boundary. S-03.1 provides the provider-neutral registry, normalized provider contract, TMoney/Flooz/microfinance contract adapters, bounded retry and circuit-breaker primitives. S-03.2 now provides strict signed-callback parsing, exact raw-body HMAC verification, freshness and atomic replay-claim contracts. No live provider credentials or network calls are connected yet. Provider-specific schemas and durable replay persistence remain before live provider integration.
 
 ### Layer 6 — Field/offline execution
 Signed offline envelopes, device binding, route reassignment, sync conflict resolution, local encrypted queue, idempotent replay, field receipts.
