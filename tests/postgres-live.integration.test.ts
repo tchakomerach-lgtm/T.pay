@@ -541,3 +541,44 @@ test("L7 live PostgreSQL enforces organization-scoped payout idempotency and app
     await client.query("DELETE FROM organizations WHERE id IN ($1,$2)",[a,b]); await client.end();
   }
 });
+
+
+test("L7 live PostgreSQL rejects concurrent active reversals for the same payout", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const setup = new pg.Client({ connectionString: databaseUrl });
+  const workerA = new pg.Client({ connectionString: databaseUrl });
+  const workerB = new pg.Client({ connectionString: databaseUrl });
+  await setup.connect(); await workerA.connect(); await workerB.connect();
+  const organizationId = randomUUID();
+  const payoutId = randomUUID();
+  const now = "2026-10-04T01:00:00.000Z";
+  try {
+    await applyMigrations(setup, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await setup.query(
+      "INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',$3)",
+      [organizationId, "L7 reversal race", now]
+    );
+    // Bound the unique-index wait so a provider/reversal race can never hang the CI worker.
+    await Promise.all([
+      workerA.query("SET lock_timeout='3000ms'; SET statement_timeout='5000ms'"),
+      workerB.query("SET lock_timeout='3000ms'; SET statement_timeout='5000ms'")
+    ]);
+    await setup.query(
+      "INSERT INTO payout_intents (payout_id,organization_id,cycle_id,beneficiary_id,amount_minor,currency,destination_ref,state,idempotency_key,requires_human_approval,kyc_verified,created_at) VALUES ($1,$2,'cycle-1','beneficiary-1',1000,'XOF','dest','confirmed',$3,true,true,$4::timestamptz)",
+      [payoutId, organizationId, "payout-" + randomUUID(), now]
+    );
+    const insert = async (client: pg.Client, reversalId: string) => client.query(
+      "INSERT INTO payout_reversals (reversal_id,organization_id,payout_id,provider,provider_reference,amount_minor,currency,state,reason,requested_at) VALUES ($1,$2,$3,'tmoney',$4,1000,'XOF','requested','concurrent reversal',$5::timestamptz)",
+      [reversalId, organizationId, payoutId, "provider-" + reversalId, now]
+    );
+    const results = await Promise.allSettled([insert(workerA, randomUUID()), insert(workerB, randomUUID())]);
+    assert.equal(results.filter(r => r.status === "fulfilled").length, 1);
+    assert.equal(results.filter(r => r.status === "rejected").length, 1);
+    const count = await setup.query("SELECT count(*)::int AS count FROM payout_reversals WHERE organization_id=$1 AND payout_id=$2", [organizationId, payoutId]);
+    assert.equal(count.rows[0]?.count, 1);
+  } finally {
+    await setup.query("DELETE FROM payout_reversals WHERE organization_id=$1 AND payout_id=$2", [organizationId, payoutId]);
+    await setup.query("DELETE FROM payout_intents WHERE organization_id=$1", [organizationId]);
+    await setup.query("DELETE FROM organizations WHERE id=$1", [organizationId]);
+    await Promise.all([setup.end(), workerA.end(), workerB.end()]);
+  }
+});

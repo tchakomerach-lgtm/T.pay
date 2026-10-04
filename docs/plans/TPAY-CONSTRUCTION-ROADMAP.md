@@ -61,6 +61,8 @@ Signed offline envelopes, device binding, route reassignment, sync conflict reso
 ### Layer 7 — Payout and beneficiary rotation
 Payout intent, KYC/human approval, provider settlement, ledger posting, beneficiary paid transition, rotation fairness rules, payout receipt.
 
+**L7.2 execution:** durable signed provider callbacks, tenant-scoped event replay barrier, payout exception persistence, concrete provider reversal adapter, immutable original posting + idempotent reversal transaction. **Still required for Layer 7 exit:** production repository/handler wiring, PostgreSQL adversarial concurrency proof, canonical KYC eligibility integration, provider certification/live credentials, operational UI/notifications.
+
 ### Layer 8 — Cycle closure and reconciliation
 Open → settlement_pending → closed, unresolved-work gate, provider/internal reconciliation, exception workflow, pause/resume.
 
