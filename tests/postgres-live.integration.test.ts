@@ -414,3 +414,112 @@ test("S-03.9 live PostgreSQL enforces organization-scoped Ledger idempotency und
     await client.end();
   }
 });
+
+
+test("L6.2 live PostgreSQL atomically claims offline envelope and advances device sequence", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const client = new pg.Client({ connectionString: databaseUrl });
+  await client.connect();
+  const organizationId = randomUUID();
+  const deviceId = "device-" + randomUUID();
+  const keyId = "key-" + randomUUID();
+  const envelopeId = randomUUID();
+  const now = "2026-10-04T00:10:00.000Z";
+  try {
+    await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await client.query(
+      "INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',$3)",
+      [organizationId, "L6.2 device org", now]
+    );
+    await client.query(
+      "INSERT INTO field_devices (organization_id,device_id,status,max_offline_seconds,last_accepted_sequence,created_at) VALUES ($1,$2,'active',3600,0,$3)",
+      [organizationId, deviceId, now]
+    );
+    await client.query(
+      "INSERT INTO field_device_keys (organization_id,device_id,key_id,public_key_pem,status,created_at) VALUES ($1,$2,$3,$4,'active',$5)",
+      [organizationId, deviceId, keyId, "-----BEGIN PUBLIC KEY-----\nTEST\n-----END PUBLIC KEY-----", now]
+    );
+
+    const { PostgresFieldOfflineClaimStore } = await import("../packages/finance/src/postgres-field-offline.js");
+    const store = new PostgresFieldOfflineClaimStore(client);
+    const binding = await store.get(organizationId, deviceId, keyId);
+    assert.equal(binding?.lastAcceptedSequence, 0);
+    assert.equal(binding?.organizationId, organizationId);
+
+    assert.equal(await store.claimAndAdvance(envelopeId, organizationId, deviceId, 1), true);
+    assert.equal(await store.claimAndAdvance(envelopeId, organizationId, deviceId, 1), false);
+    assert.equal(await store.claimAndAdvance(randomUUID(), organizationId, deviceId, 3), false);
+
+    const state = await client.query(
+      "SELECT last_accepted_sequence FROM field_devices WHERE organization_id=$1 AND device_id=$2",
+      [organizationId, deviceId]
+    );
+    const claims = await client.query(
+      "SELECT count(*)::int AS count FROM field_offline_replay_claims WHERE organization_id=$1 AND device_id=$2",
+      [organizationId, deviceId]
+    );
+    assert.equal(state.rows[0]?.last_accepted_sequence, "1");
+    assert.equal(claims.rows[0]?.count, 1);
+
+    await client.query(
+      "UPDATE field_devices SET status='revoked', revoked_at=$3::timestamptz WHERE organization_id=$1 AND device_id=$2",
+      [organizationId, deviceId, now]
+    );
+    assert.equal(await store.get(organizationId, deviceId, keyId), undefined);
+    assert.equal(await store.claimAndAdvance(randomUUID(), organizationId, deviceId, 2), false);
+  } finally {
+    await client.query("DELETE FROM field_offline_replay_claims WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM field_device_keys WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM field_devices WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM organizations WHERE id=$1", [organizationId]);
+    await client.end();
+  }
+});
+
+test("L6.2 live PostgreSQL prevents two envelopes from consuming the same device sequence", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const setup = new pg.Client({ connectionString: databaseUrl });
+  const workerA = new pg.Client({ connectionString: databaseUrl });
+  const workerB = new pg.Client({ connectionString: databaseUrl });
+  await setup.connect();
+  await workerA.connect();
+  await workerB.connect();
+  const organizationId = randomUUID();
+  const deviceId = "device-" + randomUUID();
+  const now = "2026-10-04T00:20:00.000Z";
+  try {
+    await applyMigrations(setup, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await setup.query(
+      "INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',$3)",
+      [organizationId, "L6.2 concurrency org", now]
+    );
+    await setup.query(
+      "INSERT INTO field_devices (organization_id,device_id,status,max_offline_seconds,last_accepted_sequence,created_at) VALUES ($1,$2,'active',3600,0,$3)",
+      [organizationId, deviceId, now]
+    );
+
+    const { PostgresFieldOfflineClaimStore } = await import("../packages/finance/src/postgres-field-offline.js");
+    const a = new PostgresFieldOfflineClaimStore(workerA);
+    const b = new PostgresFieldOfflineClaimStore(workerB);
+    const results = await Promise.all([
+      a.claimAndAdvance(randomUUID(), organizationId, deviceId, 1),
+      b.claimAndAdvance(randomUUID(), organizationId, deviceId, 1)
+    ]);
+    assert.deepEqual(results.sort(), [false, true]);
+
+    const state = await setup.query(
+      "SELECT last_accepted_sequence FROM field_devices WHERE organization_id=$1 AND device_id=$2",
+      [organizationId, deviceId]
+    );
+    const claims = await setup.query(
+      "SELECT count(*)::int AS count FROM field_offline_replay_claims WHERE organization_id=$1 AND device_id=$2",
+      [organizationId, deviceId]
+    );
+    assert.equal(state.rows[0]?.last_accepted_sequence, "1");
+    assert.equal(claims.rows[0]?.count, 1);
+  } finally {
+    await setup.query("DELETE FROM field_offline_replay_claims WHERE organization_id=$1", [organizationId]);
+    await setup.query("DELETE FROM field_device_keys WHERE organization_id=$1", [organizationId]);
+    await setup.query("DELETE FROM field_devices WHERE organization_id=$1", [organizationId]);
+    await setup.query("DELETE FROM organizations WHERE id=$1", [organizationId]);
+    await Promise.all([setup.end(), workerA.end(), workerB.end()]);
+  }
+});

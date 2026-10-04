@@ -56,7 +56,20 @@ Contribution intent → payment intent → provider adapter → signed callback 
 **Current implementation:** S-02/S-02.5/S-02.5.1 establish the durable financial transaction boundary. S-03.1 provides the provider-neutral registry, normalized provider contract, TMoney/Flooz/microfinance contract adapters, bounded retry and circuit-breaker primitives. S-03.2 provides strict signed-callback parsing, exact raw-body HMAC verification, freshness and atomic replay-claim contracts. S-03.3 validates provider identity, payment identity, reference, amount, currency, organization and state before the durable replay claim, and revalidates persisted organization/provider/idempotency context after row locks. S-03.4 adds atomic accounting/evidence consistency gates across the Ledger, fee snapshot, contribution, payment, receipt and outbox. S-03.5 adds cryptographic receipt evidence, deterministic binding, privacy-minimized verification payloads and a DB uniqueness barrier. No live provider credentials or network calls are connected yet. Explicit quarantine persistence and provider-specific schemas remain before live provider integration.
 
 ### Layer 6 — Field/offline execution
-Signed offline envelopes, device binding, route reassignment, sync conflict resolution, local encrypted queue, idempotent replay, field receipts.
+**L6.1 Signed offline security boundary — implemented on construction branch.**
+- signed offline envelopes;
+- organization/device binding;
+- freshness and clock-skew control;
+- monotonic sequence and replay-claim contract;
+- synchronization conflict classification;
+- privacy-minimized field receipt evidence;
+- deterministic field-agent continuity/reassignment plan.
+
+**L6.2 PostgreSQL durable device registry + replay/sequence claims — implemented on construction branch; CI/merge pending.**
+**L6.3 Encrypted local queue + synchronization worker — after L6.2.**
+**L6.4 Field receipt synchronization and recovery — after L6.3.**
+
+Full Layer 6 exit requires all four substeps plus adversarial concurrency tests and GitHub CI green.
 
 ### Layer 7 — Payout and beneficiary rotation
 Payout intent, KYC/human approval, provider settlement, ledger posting, beneficiary paid transition, rotation fairness rules, payout receipt.
@@ -94,4 +107,4 @@ The roadmap is a sequencing control, not a second product specification. Domain 
 S-03.9 adds adversarial proof around the existing settlement boundary: contradictory provider data is rejected before persistence; signed callback replay is rejected; concurrent same-idempotency settlement is constrained to one financial effect; provider-event ownership cannot cross organizations; Ledger idempotency is unique per organization. Live PostgreSQL coverage exercises the durable uniqueness/isolation barriers. No live provider credentials or network calls are introduced by this test brick.
 
 ### Next gate after S-03.9
-If S-03.9 CI is green, proceed to **Layer 6 — Field/offline execution**: signed offline envelopes, device binding, route reassignment, sync conflict resolution, local encrypted queue, idempotent replay and field receipts.
+If S-03.9 CI is green, Layer 6 proceeds through L6.1 → L6.2 → L6.3 → L6.4. L6.2 is now implemented on the construction branch and remains blocked from completion until exact-head CI is green and the S-03.9 prerequisite is green/merged.
