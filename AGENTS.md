@@ -67,3 +67,7 @@ Code + tests + security controls + observability + documentation + migration/rol
 
 ## Settlement Orchestrator state
 The settlement construction gate is explicit: contribution idempotency → payment intent → provider adapter → signed callback → freshness/anti-replay → provider validation → atomic financial settlement → versioned fee snapshot → contribution confirmation → receipt/e-carnet → post-commit event/notification → reconciliation. S-02 defines the durable transaction contract; S-02.5 implements the PostgreSQL transaction lifecycle and schema; S-02.5.1 verifies it against live PostgreSQL; S-03.1 establishes the provider boundary; S-03.2 establishes callback authenticity/freshness/replay contracts. Next gate: provider-specific callback schemas plus durable replay claim integration.
+
+
+### Layer 7 execution state
+L7 and L7.1 are merged but remain IN PROGRESS. L7.2 adds durable signed payout callback contracts, tenant-scoped provider-event uniqueness, exception/reversal schemas, a concrete provider reversal boundary and a new idempotent Financial Core transaction for reversals. Production repository/handler wiring, PostgreSQL concurrency exit tests, canonical KYC eligibility integration and live provider certification remain open.
