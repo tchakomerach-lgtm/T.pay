@@ -1,17 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {PostgresProductionOpsRepository} from "../packages/operations/src/production-ops.js";
+import {PostgresProductionOpsRepository, type DbQuery} from "../packages/operations/src/production-ops.js";
 
 function db(){
   const calls:string[]=[];
-  return {
-    calls,
-    query:async(sql:string,values?:unknown[])=>{
+  const query:DbQuery["query"]=async<R extends Record<string,unknown>>(sql:string,values?:unknown[])=>{
       calls.push(sql);
-      if(sql.includes("RETURNING true")) return {rows:[{acquired:true}],rowCount:1};
-      return {rows:[],rowCount:1};
-    }
-  };
+      if(sql.includes("RETURNING true")) return {rows:[{acquired:true} as R],rowCount:1};
+      return {rows:[] as R[],rowCount:1};
+    };
+  return {calls,query};
 }
 const hash="a".repeat(64);
 
