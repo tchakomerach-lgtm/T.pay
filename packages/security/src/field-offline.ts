@@ -70,10 +70,11 @@ export function assertOfflineEnvelopeFresh(
     if (!Number.isSafeInteger(maxOfflineSeconds) || maxOfflineSeconds < 60) {
       throw new Error("OFFLINE_MAX_DURATION_INVALID");
     }
-    if (expires - issued > maxOfflineSeconds * 1000 + maxClockSkewMs) {
+    const maxOfflineMs = maxOfflineSeconds * 1000;
+    if (expires - issued > maxOfflineMs) {
       throw new Error("OFFLINE_ENVELOPE_DURATION_EXCEEDED");
     }
-    if (now - issued > maxOfflineSeconds * 1000 + maxClockSkewMs) {
+    if (now - issued > maxOfflineMs + maxClockSkewMs) {
       throw new Error("OFFLINE_ENVELOPE_TOO_OLD");
     }
   }
