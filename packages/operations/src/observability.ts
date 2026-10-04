@@ -1,7 +1,7 @@
 const HEX64=/^[a-f0-9]{64}$/;
 type Severity="low"|"medium"|"high"|"critical";
 interface QueryResultRow { [key:string]: unknown }
-export interface DbQuery { query<R extends QueryResultRow = QueryResultRow>(sql:string, values?:unknown[]):Promise<{rows:R[];rowCount:number|null}>; }
+export interface DbQuery { query(sql:string, values?:unknown[]):Promise<{rows:QueryResultRow[];rowCount:number|null}>; }
 
 export interface Measurement {id:string;service:string;metric:string;value:bigint;observedAt:string;correlationId?:string;evidenceHash:string;}
 export interface Alert {id:string;service:string;alertKey:string;severity:Severity;state:"open"|"acknowledged"|"resolved";firstSeenAt:string;lastSeenAt:string;correlationId?:string;evidenceHash:string;}
