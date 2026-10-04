@@ -1,0 +1,7 @@
+export type AiAgentRole="orchestrator"|"finance"|"microfinance"|"education"|"health"|"agriculture"|"support"|"security";
+export type AiRisk="low"|"medium"|"high"|"critical";
+export interface AiTool {name:string;description:string;risk:AiRisk;requiresHumanApproval:boolean;allowedAgentRoles:AiAgentRole[];}
+export interface AiRequest {id:string;organizationId?:string;userId:string;agentRole:AiAgentRole;prompt:string;requestedTool?:string;createdAt:string;}
+export interface AiDecision {requestId:string;action:"answer"|"tool_call"|"human_review"|"deny";reason:string;policyVersion:string;modelRoute:string;}
+export function authorizeTool(req:AiRequest,tool:AiTool):AiDecision{if(req.requestedTool!==tool.name)return {requestId:req.id,action:"answer",reason:"tool_not_requested",policyVersion:"AI-POLICY-001",modelRoute:"router"};if(!tool.allowedAgentRoles.includes(req.agentRole))return {requestId:req.id,action:"deny",reason:"agent_role_not_allowed",policyVersion:"AI-POLICY-001",modelRoute:"router"};if(tool.requiresHumanApproval||tool.risk==="critical"||tool.risk==="high")return {requestId:req.id,action:"human_review",reason:"high_impact_tool_requires_human",policyVersion:"AI-POLICY-001",modelRoute:"router"};return {requestId:req.id,action:"tool_call",reason:"policy_allowed",policyVersion:"AI-POLICY-001",modelRoute:"router"};}
+export function assertNoDirectFinancialMutation(tool:AiTool){if(tool.name.startsWith("ledger.")||tool.name.startsWith("payment.")||tool.name.startsWith("credit."))throw new Error("AI_DIRECT_FINANCIAL_MUTATION_FORBIDDEN");}
