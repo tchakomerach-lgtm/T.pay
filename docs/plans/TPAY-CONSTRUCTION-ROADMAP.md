@@ -51,7 +51,7 @@ Contribution intent → payment intent → provider adapter → signed callback 
 10. **S-03.6 Durable Outbox / Event Publication — merged to main.**
 11. **S-03.7 Post-commit Notification — implemented on construction branch; CI/merge pending.**
 12. **S-03.8 Reconciliation exception queue — implemented on construction branch; CI/merge pending.**
-13. Security/concurrency/duplicate-provider tests.
+13. **S-03.9 Security/concurrency/duplicate-provider tests — implemented on construction branch; CI pending.**
 
 **Current implementation:** S-02/S-02.5/S-02.5.1 establish the durable financial transaction boundary. S-03.1 provides the provider-neutral registry, normalized provider contract, TMoney/Flooz/microfinance contract adapters, bounded retry and circuit-breaker primitives. S-03.2 provides strict signed-callback parsing, exact raw-body HMAC verification, freshness and atomic replay-claim contracts. S-03.3 validates provider identity, payment identity, reference, amount, currency, organization and state before the durable replay claim, and revalidates persisted organization/provider/idempotency context after row locks. S-03.4 adds atomic accounting/evidence consistency gates across the Ledger, fee snapshot, contribution, payment, receipt and outbox. S-03.5 adds cryptographic receipt evidence, deterministic binding, privacy-minimized verification payloads and a DB uniqueness barrier. No live provider credentials or network calls are connected yet. Explicit quarantine persistence and provider-specific schemas remain before live provider integration.
 
@@ -88,3 +88,10 @@ For every substantial layer record:
 - remaining risks.
 
 The roadmap is a sequencing control, not a second product specification. Domain Bibles remain authoritative.
+
+
+### S-03.9 hardening acceptance
+S-03.9 adds adversarial proof around the existing settlement boundary: contradictory provider data is rejected before persistence; signed callback replay is rejected; concurrent same-idempotency settlement is constrained to one financial effect; provider-event ownership cannot cross organizations; Ledger idempotency is unique per organization. Live PostgreSQL coverage exercises the durable uniqueness/isolation barriers. No live provider credentials or network calls are introduced by this test brick.
+
+### Next gate after S-03.9
+If S-03.9 CI is green, proceed to **Layer 6 — Field/offline execution**: signed offline envelopes, device binding, route reassignment, sync conflict resolution, local encrypted queue, idempotent replay and field receipts.

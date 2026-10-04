@@ -330,3 +330,87 @@ test("S-03.8 live PostgreSQL deduplicates exceptions and isolates organizations"
     await client.end();
   }
 });
+
+
+test("S-03.9 live PostgreSQL rejects the same provider event across organizations", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const client = new pg.Client({ connectionString: databaseUrl });
+  await client.connect();
+  const organizationId = randomUUID();
+  const otherOrganizationId = randomUUID();
+  const provider = "tmoney";
+  const eventId = "evt-cross-org-" + randomUUID();
+  const now = "2026-10-03T22:55:00.000Z";
+  try {
+    await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await client.query(
+      "INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',$3),($4,$5,'active',$3)",
+      [organizationId, "S-03.9 A", now, otherOrganizationId, "S-03.9 B"]
+    );
+    await client.query(
+      "INSERT INTO provider_events (provider,event_id,organization_id,received_at) VALUES ($1,$2,$3,$4::timestamptz)",
+      [provider, eventId, organizationId, now]
+    );
+    const second = await client.query(
+      "INSERT INTO provider_events (provider,event_id,organization_id,received_at) VALUES ($1,$2,$3,$4::timestamptz) ON CONFLICT (provider,event_id) DO NOTHING RETURNING event_id",
+      [provider, eventId, otherOrganizationId, now]
+    );
+    assert.equal(second.rowCount, 0);
+    const owner = await client.query("SELECT organization_id FROM provider_events WHERE provider=$1 AND event_id=$2", [provider, eventId]);
+    assert.equal(owner.rows[0]?.organization_id, organizationId);
+  } finally {
+    await client.query("DELETE FROM provider_events WHERE provider=$1 AND event_id=$2", [provider, eventId]);
+    await client.query("DELETE FROM organizations WHERE id IN ($1,$2)", [organizationId, otherOrganizationId]);
+    await client.end();
+  }
+});
+
+test("S-03.9 live PostgreSQL enforces organization-scoped Ledger idempotency under duplicate writes", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const client = new pg.Client({ connectionString: databaseUrl });
+  await client.connect();
+  const organizationId = randomUUID();
+  const otherOrganizationId = randomUUID();
+  const accountA = randomUUID();
+  const accountB = randomUUID();
+  const transactionA = randomUUID();
+  const transactionB = randomUUID();
+  const key = "s03.9-" + randomUUID();
+  const now = "2026-10-03T22:56:00.000Z";
+  try {
+    await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await client.query(
+      "INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',$3),($4,$5,'active',$3)",
+      [organizationId, "S-03.9 Ledger A", now, otherOrganizationId, "S-03.9 Ledger B"]
+    );
+    await client.query(
+      "INSERT INTO financial_accounts (id,organization_id,code,name,kind,currency,status,created_at) VALUES " +
+      "($1,$3,'A-CASH','Cash','asset','XOF','active',$5),($2,$3,'A-CLEAR','Clearing','liability','XOF','active',$5), " +
+      "($6,$4,'B-CASH','Cash','asset','XOF','active',$5),($7,$4,'B-CLEAR','Clearing','liability','XOF','active',$5)",
+      [accountA, accountB, organizationId, otherOrganizationId, now, randomUUID(), randomUUID()]
+    );
+
+    await client.query(
+      "INSERT INTO ledger_transactions (id,organization_id,idempotency_key,occurred_at,posted_at) VALUES ($1,$2,$3,$4::timestamptz,$4::timestamptz)",
+      [transactionA, organizationId, key, now]
+    );
+    await assert.rejects(() => client.query(
+      "INSERT INTO ledger_transactions (id,organization_id,idempotency_key,occurred_at,posted_at) VALUES ($1,$2,$3,$4::timestamptz,$4::timestamptz)",
+      [transactionB, organizationId, key, now]
+    ));
+    await client.query(
+      "INSERT INTO ledger_transactions (id,organization_id,idempotency_key,occurred_at,posted_at) VALUES ($1,$2,$3,$4::timestamptz,$4::timestamptz)",
+      [transactionB, otherOrganizationId, key, now]
+    );
+    const counts = await client.query(
+      "SELECT organization_id, count(*)::int AS count FROM ledger_transactions WHERE idempotency_key=$1 GROUP BY organization_id ORDER BY organization_id",
+      [key]
+    );
+    assert.equal(counts.rows.length, 2);
+    assert.deepEqual(counts.rows.map(row => row.count), [1,1]);
+  } finally {
+    await client.query("DELETE FROM ledger_lines WHERE transaction_id IN ($1,$2)", [transactionA, transactionB]);
+    await client.query("DELETE FROM ledger_transactions WHERE id IN ($1,$2)", [transactionA, transactionB]);
+    await client.query("DELETE FROM financial_accounts WHERE organization_id IN ($1,$2)", [organizationId, otherOrganizationId]);
+    await client.query("DELETE FROM organizations WHERE id IN ($1,$2)", [organizationId, otherOrganizationId]);
+    await client.end();
+  }
+});
