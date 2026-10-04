@@ -1,6 +1,6 @@
 # Layer 7 Construction Record — Payout + beneficiary rotation
 
-**Status:** IN PROGRESS — foundation implemented; provider/ledger integration remains.
+**Status:** IN PROGRESS — payout intent/provider boundary implemented; confirmed settlement integration remains.
 
 ## Implemented
 - payout state machine;
@@ -13,8 +13,8 @@
 - live PostgreSQL isolation/idempotency test.
 
 ## Not yet complete
-- concrete payout provider adapters and signed callbacks;
-- atomic payout-to-Ledger posting integration;
+- concrete live provider credentials/network integration and signed callback wiring;
+- atomic payout-to-Ledger posting integration after confirmed provider settlement;
 - payout reconciliation/exception integration;
 - full KYC/beneficiary eligibility service;
 - production Mobile Money/TMoney/Flooz payout execution.
