@@ -25,5 +25,5 @@ test("high-risk profile requires human review",()=>{
 });
 
 test("uses actual repayment periods for multi-month terms",()=>{
- const d=evaluateCreditEligibility({...base,requestedAmountMinor:200000n,requestedTermDays:60,repaymentPeriodDays:30,monthlyRepaymentCapacityMinor:200000n}); assert.equal(d.decision,"approve"); assert.equal(d.debtServiceRatioBps,10000);
+ const d=evaluateCreditEligibility({...base,requestedAmountMinor:200000n,requestedTermDays:60,repaymentPeriodDays:30,monthlyRepaymentCapacityMinor:200000n}); assert.equal(d.decision,"approve"); assert.equal(d.debtServiceRatioBps,5000);
 });
