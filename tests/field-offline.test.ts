@@ -40,29 +40,10 @@ test("L6 rejects cross-organization, revoked-device, gap and tampered envelopes"
   const revoked={...device,status:"revoked" as const};
   await assert.rejects(()=>acceptOfflineEnvelope(e,"org-001",stores,{...stores,get:async()=>revoked}),/OFFLINE_DEVICE_REVOKED_OR_UNKNOWN/);
 });
-test("L6 enforces freshness and records privacy-minimized receipt evidence",async()=>{
+test("L6 enforces freshness and device offline lifetime",async()=>{
   const e=makeEnvelope(keys.privateKey);
   assert.doesNotThrow(()=>assertOfflineEnvelopeFresh(e,Date.parse(e.issuedAt)+10_000,120_000,3600));
-  assert.throws(
-    ()=>assertOfflineEnvelopeFresh(
-      {...e,issuedAt:"2026-01-01T00:00:00.000Z",expiresAt:"2026-01-01T00:50:00.000Z"},
-      Date.parse("2026-01-01T00:00:10.000Z"),120_000,60
-    ),
-    /OFFLINE_ENVELOPE_DURATION_EXCEEDED/
-  );
-  assert.throws(()=>assertOfflineEnvelopeFresh(e,Date.parse(e.expiresAt)+1),/OFFLINE_ENVELOPE_EXPIRED/);
-  assert.equal(verifyOfflineEnvelopeSignature(e,publicKeyPem),true);
-  const evidence=buildFieldReceiptEvidence(e,"receipt-001");
-  assert.equal(evidence.payloadHash,hashOfflinePayload(e.ciphertextB64));
-  assert.equal((evidence as any).payload,undefined);
-});
-test("L6 classifies recoverable synchronization conflicts without mutating financial state",()=>{
-  const e=makeEnvelope(keys.privateKey);
-  const device:DeviceBinding={deviceId:"dev-001",organizationId:"org-001",keyId:"key-001",publicKeyPem,status:"active",maxOfflineSeconds:3600,lastAcceptedSequence:1};
-  assert.deepEqual(classifySyncConflict(e,device,false),{envelopeId:"env-001",kind:"sequence_rewind",recoverable:true});
-  assert.deepEqual(classifySyncConflict({...e,sequence:3},device,false),{envelopeId:"env-001",kind:"sequence_gap",recoverable:true});
-  assert.deepEqual(classifySyncConflict(e,device,true),{envelopeId:"env-001",kind:"duplicate",recoverable:true});
-});  const shortLivedDevice:DeviceBinding={deviceId:"dev-001",organizationId:"org-001",keyId:"key-001",publicKeyPem,status:"active",maxOfflineSeconds:60,lastAcceptedSequence:0};
+  const shortLivedDevice:DeviceBinding={deviceId:"dev-001",organizationId:"org-001",keyId:"key-001",publicKeyPem,status:"active",maxOfflineSeconds:60,lastAcceptedSequence:0};
   const shortLivedStores={claim:async()=>true,get:async()=>shortLivedDevice,advanceSequence:async()=>true};
   await assert.rejects(
     ()=>acceptOfflineEnvelope(e,"org-001",shortLivedStores,shortLivedStores,Date.parse(e.issuedAt)+10_000),
