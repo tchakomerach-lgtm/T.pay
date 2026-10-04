@@ -9,7 +9,7 @@ import {
 function makeEnvelope(privateKey: ReturnType<typeof generateKeyPairSync>["privateKey"], overrides: Partial<any> = {}) {
   const base = {
     envelopeId:"env-001", organizationId:"org-001", deviceId:"dev-001", keyId:"key-001", sequence:1,
-    issuedAt:new Date(Date.now()+10*60_000).toISOString(), expiresAt:new Date(Date.now()+50*60_000).toISOString(),
+    issuedAt:new Date(Date.now()-10*60_000).toISOString(), expiresAt:new Date(Date.now()+40*60_000).toISOString(),
     idempotencyKey:"offline-idempotency-001", nonceB64:Buffer.from("nonce").toString("base64"),
     ciphertextB64:Buffer.from("encrypted-field-payload").toString("base64"), algorithm:"ed25519" as const
   };
