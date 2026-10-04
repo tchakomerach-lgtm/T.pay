@@ -18,3 +18,9 @@
 16. No False Completion — distinguish implemented, tested, integrated, certified and production-live states.
 17. Production Readiness — backups, restore, migration safety, secrets, abuse prevention, DR and incident response.
 18. Continuous African Fit — cash, mobile money, USSD/SMS/voice, low bandwidth, shared devices and multilingual operation.
+
+
+## Operational Observability Skill
+- Measure before claiming reliability: latency, queue depth, provider availability, callback lag, offline backlog and reconciliation age.
+- Every alert is correlated, idempotent and durable; notification failure is itself observable.
+- Validate SLOs with production evidence, not configuration alone.
