@@ -36,6 +36,7 @@ export interface EligibilityInput {
   maxExposureMinor:bigint;
   maxDebtServiceRatioBps:number;
   requestedTermDays:number;
+  repaymentPeriodDays:number;
   policyVersion:string;
   delinquent:boolean;
   manualReviewRequired:boolean;
