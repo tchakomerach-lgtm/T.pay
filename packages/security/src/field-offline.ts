@@ -16,6 +16,15 @@ export interface DeviceBindingStore {
   get(organizationId: string, deviceId: string, keyId: string): Promise<DeviceBinding | undefined>;
   advanceSequence(organizationId: string, deviceId: string, sequence: number): Promise<boolean>;
 }
+
+export interface AtomicOfflineClaimStore extends OfflineReplayStore, DeviceBindingStore {
+  claimAndAdvance(
+    envelopeId: string,
+    organizationId: string,
+    deviceId: string,
+    sequence: number
+  ): Promise<boolean>;
+}
 export interface OfflineQueue {
   enqueue(envelope: OfflineEnvelope): Promise<void>;
   peek(limit: number): Promise<readonly OfflineEnvelope[]>;
@@ -65,6 +74,12 @@ export async function acceptOfflineEnvelope(
   if (!verifyOfflineEnvelopeSignature(e,device.publicKeyPem)) throw new Error("OFFLINE_SIGNATURE_INVALID");
   if (e.sequence <= device.lastAcceptedSequence) throw new Error("OFFLINE_SEQUENCE_REWIND");
   if (e.sequence > device.lastAcceptedSequence + 1) throw new Error("OFFLINE_SEQUENCE_GAP");
+  if ("claimAndAdvance" in replayStore && typeof replayStore.claimAndAdvance === "function") {
+    if (!(await replayStore.claimAndAdvance(e.envelopeId,e.organizationId,e.deviceId,e.sequence))) {
+      throw new Error("OFFLINE_REPLAY_OR_SEQUENCE_CONFLICT");
+    }
+    return "accepted";
+  }
   if (!(await replayStore.claim(e.envelopeId,e.organizationId,e.deviceId,e.sequence))) throw new Error("OFFLINE_ENVELOPE_REPLAY");
   if (!(await deviceStore.advanceSequence(e.organizationId,e.deviceId,e.sequence))) throw new Error("OFFLINE_SEQUENCE_CONFLICT");
   return "accepted";
