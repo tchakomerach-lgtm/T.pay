@@ -9,7 +9,7 @@ import {
 function makeEnvelope(privateKey: ReturnType<typeof generateKeyPairSync>["privateKey"], overrides: Partial<any> = {}) {
   const base = {
     envelopeId:"env-001", organizationId:"org-001", deviceId:"dev-001", keyId:"key-001", sequence:1,
-    issuedAt:"2026-10-04T04:00:00.000Z", expiresAt:"2026-10-04T05:00:00.000Z",
+    issuedAt:new Date(Date.now()+10*60_000).toISOString(), expiresAt:new Date(Date.now()+50*60_000).toISOString(),
     idempotencyKey:"offline-idempotency-001", nonceB64:Buffer.from("nonce").toString("base64"),
     ciphertextB64:Buffer.from("encrypted-field-payload").toString("base64"), algorithm:"ed25519" as const
   };
@@ -27,8 +27,8 @@ test("L6 accepts a valid signed envelope exactly once", async()=>{
   let sequence=0;
   const replayStore={claim:async(id:string)=>{if(claimed.has(id))return false;claimed.add(id);return true;}};
   const deviceStore={get:async()=>device,advanceSequence:async(_o:string,_d:string,s:number)=>{if(s<=sequence)return false;sequence=s;return true;}};
-  assert.equal(await acceptOfflineEnvelope(e,"org-001",replayStore,deviceStore,Date.parse("2026-10-04T04:10:00.000Z")),"accepted");
-  await assert.rejects(()=>acceptOfflineEnvelope(e,"org-001",replayStore,deviceStore,Date.parse("2026-10-04T04:10:01.000Z")),/OFFLINE_SEQUENCE_REWIND/);
+  assert.equal(await acceptOfflineEnvelope(e,"org-001",replayStore,deviceStore,Date.parse(e.issuedAt)+10_000),"accepted");
+  await assert.rejects(()=>acceptOfflineEnvelope(e,"org-001",replayStore,deviceStore,Date.parse(e.issuedAt)+20_000),/OFFLINE_ENVELOPE_REPLAY/);
 });
 test("L6 rejects cross-organization, revoked-device, gap and tampered envelopes", async()=>{
   const e=makeEnvelope(keys.privateKey);
@@ -42,12 +42,12 @@ test("L6 rejects cross-organization, revoked-device, gap and tampered envelopes"
 });
 test("L6 enforces freshness and records privacy-minimized receipt evidence",()=>{
   const e=makeEnvelope(keys.privateKey);
-  assert.doesNotThrow(()=>assertOfflineEnvelopeFresh(e,Date.parse("2026-10-04T04:10:00.000Z"),120_000,3600));
+  assert.doesNotThrow(()=>assertOfflineEnvelopeFresh(e,Date.parse(e.issuedAt)+10_000,120_000,3600));
   assert.throws(
-    ()=>assertOfflineEnvelopeFresh({...e,expiresAt:"2026-10-04T06:01:00.000Z"},Date.parse("2026-10-04T04:10:00.000Z"),120_000,3600),
+    ()=>assertOfflineEnvelopeFresh({...e,expiresAt:new Date(Date.parse(e.issuedAt)+3601_000).toISOString()},Date.parse(e.issuedAt)+10_000,120_000,3600),
     /OFFLINE_ENVELOPE_DURATION_EXCEEDED/
   );
-  assert.throws(()=>assertOfflineEnvelopeFresh(e,Date.parse("2026-10-04T05:02:01.000Z"),0),/OFFLINE_ENVELOPE_EXPIRED/);
+  assert.throws(()=>assertOfflineEnvelopeFresh(e,Date.parse(e.expiresAt)+1),/OFFLINE_ENVELOPE_EXPIRED/);
   assert.equal(verifyOfflineEnvelopeSignature(e,publicKeyPem),true);
   const evidence=buildFieldReceiptEvidence(e,"receipt-001");
   assert.equal(evidence.payloadHash,hashOfflinePayload(e.ciphertextB64));
