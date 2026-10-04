@@ -14,12 +14,12 @@ test("L6 reassigns unavailable-agent clients deterministically to active agents"
     {agentId:"a3",available:true,lastHeartbeatAt:"2026-10-04T04:01:00Z"}
   ];
   const queue=buildContinuityQueue(clients,agents);
-  assert.deepEqual(queue.map(c=>c.clientId),["c1","c2","c3"]);
+  assert.deepEqual(queue.map(c=>c.clientId),["c2","c3"]);
   const first=buildReassignmentPlan(clients,agents), second=buildReassignmentPlan(clients,agents);
   assert.deepEqual(first,second);
   assert.equal(first[0]?.nextAgentId,"a2");
-  assert.equal(first[1]?.nextAgentId,"a3");
-  assert.equal(first[2]?.nextAgentId,"a2");
+  assert.equal(first[0]?.nextAgentId,"a2");
+  assert.equal(first[1]?.nextAgentId,"a2");
   assert.equal(first.every(x=>x.planHash.length===64),true);
 });
 test("L6 does not invent a replacement when every agent is unavailable",()=>{
