@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import type { Organization, UUID } from "../../domain/src/types.js";
 import type { OrganizationRepository } from "./service.js";
@@ -13,7 +14,7 @@ export class PostgresOrganizationRepository implements OrganizationRepository {
     assertOrgId(organization.id);
     await this.db.query(
       "INSERT INTO organizations (id,slug,name,organization_type,owner_user_id,access_code_hash,status,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::timestamptz)",
-      [organization.id, slugify(organization.name), organization.name, organization.type, organization.founderId, organization.accessCodeHash, organization.status, organization.createdAt]
+      [organization.id, slugify(organization.name), organization.name, organization.type, organization.founderId, organization.accessCodeHash, organization.status === "closed" ? "archived" : organization.status, organization.createdAt]
     );
   }
 
@@ -36,5 +37,5 @@ export class PostgresOrganizationRepository implements OrganizationRepository {
 function slugify(name:string):string {
   const slug=name.normalize("NFKD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,120);
   if(!slug) throw new Error("INVALID_ORGANIZATION_SLUG");
-  return slug+"-"+crypto.randomUUID().slice(0,8);
+  return slug+"-"+randomUUID().slice(0,8);
 }
