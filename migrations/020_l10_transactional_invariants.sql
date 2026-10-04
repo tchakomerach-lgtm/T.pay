@@ -1,11 +1,5 @@
 -- L10.2: PostgreSQL invariants for organization sessions and AI approvals.
 ALTER TABLE organization_roles ADD CONSTRAINT organization_roles_org_id_id_uq UNIQUE (organization_id,id);
-ALTER TABLE organization_members
-  ADD CONSTRAINT organization_members_org_role_fk
-  FOREIGN KEY (organization_id,role_id) REFERENCES organization_roles(organization_id,id);
-ALTER TABLE organization_sessions
-  ADD CONSTRAINT organization_sessions_org_role_fk
-  FOREIGN KEY (organization_id,role_id) REFERENCES organization_roles(organization_id,id);
 ALTER TABLE organization_sessions
   ADD CONSTRAINT organization_sessions_org_user_fk
   FOREIGN KEY (organization_id,user_id) REFERENCES organization_members(organization_id,user_id);
