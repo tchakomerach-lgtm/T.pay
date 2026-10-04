@@ -10,7 +10,7 @@ export class PostgresOrganizationAccessAttemptRepository implements Organization
       [organizationId,userId]
     );
     const row=r.rows[0]; if(!row) return undefined;
-    return {failedCount:Number(row.failed_count),lockedUntil:row.locked_until?new Date(row.locked_until).toISOString():undefined};
+    const state:AccessAttemptState={failedCount:Number(row.failed_count)}; if(row.locked_until) state.lockedUntil=new Date(row.locked_until).toISOString(); return state;
   }
 
   async recordFailure(organizationId:string,userId:string,now:string,windowSeconds:number,maxFailures:number,lockSeconds:number):Promise<AccessAttemptState>{
@@ -33,7 +33,7 @@ export class PostgresOrganizationAccessAttemptRepository implements Organization
       [organizationId,userId,now,windowSeconds,maxFailures,lockSeconds]
     );
     const row=r.rows[0];
-    return {failedCount:Number(row.failed_count),lockedUntil:row.locked_until?new Date(row.locked_until).toISOString():undefined};
+    const state:AccessAttemptState={failedCount:Number(row.failed_count)}; if(row.locked_until) state.lockedUntil=new Date(row.locked_until).toISOString(); return state;
   }
 
   async clear(organizationId:string,userId:string):Promise<void>{
