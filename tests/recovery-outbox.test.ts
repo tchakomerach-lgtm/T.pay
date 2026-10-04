@@ -1,0 +1,2 @@
+import test from "node:test";import assert from "node:assert/strict";import {assertRecoveryEventTenant} from "../packages/microfinance/src/recovery-outbox.js";
+test("recovery outbox never crosses tenants",()=>assert.throws(()=>assertRecoveryEventTenant({eventId:"e",organizationId:"o2",aggregateType:"repayment",aggregateId:"r",eventType:"settled",payload:{},occurredAt:"2026-10-04T08:00:00Z"},"o1"),/TENANT_MISMATCH/));
