@@ -16,22 +16,22 @@ function settlementInput(overrides: { providerEvent?: Partial<DurableSettlementI
   const paymentIntent = {
     id: paymentId, organizationId, contributionId, idempotencyKey: key,
     amountMinor: 1000n, currency: "XOF", provider: "tmoney",
-    providerReference: "TM-123", status: "provider_confirmed", createdAt: now, updatedAt: now
+    providerReference: "TM-123", status: "provider_confirmed" as const, createdAt: now, updatedAt: now
   };
   const contribution = {
     id: contributionId, groupId: id("44444444-4444-4444-8444-444444444444"),
     membershipId: id("55555555-5555-4555-8555-555555555555"), scheduledFor: now,
-    amountMinor: 1000n, currency: "XOF", status: "pending", channel: "mobile_money", idempotencyKey: key
+    amountMinor: 1000n, currency: "XOF", status: "pending" as const, channel: "mobile_money" as const, idempotencyKey: key
   };
   const providerEvent = {
     provider: "tmoney", eventId: "evt-123", paymentId, providerReference: "TM-123",
-    amountMinor: 1000n, currency: "XOF", status: "accepted", occurredAt: now
+    amountMinor: 1000n, currency: "XOF", status: "accepted" as const, occurredAt: now
   };
   const ledgerTransaction = {
     id: "ledger-123", organizationId, idempotencyKey: key, occurredAt: now, postedAt: now,
     lines: [
-      { accountId: "cash", amount: { currency: "XOF", minor: 1000n }, direction: "debit" },
-      { accountId: "tontine", amount: { currency: "XOF", minor: 1000n }, direction: "credit" }
+      { accountId: "cash", amount: { currency: "XOF", minor: 1000n }, direction: "debit" as const },
+      { accountId: "tontine", amount: { currency: "XOF", minor: 1000n }, direction: "credit" as const }
     ]
   };
   const receipt = {
