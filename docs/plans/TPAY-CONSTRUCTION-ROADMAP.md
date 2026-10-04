@@ -111,3 +111,7 @@ L9.4 persists partner settlement intents and provider callback evidence with ten
 
 ### L9.5 school finance orchestration
 L9.5 adds durable school-finance requests, separate tuition/supply expense evidence, configurable recovery rules, parent-bound recovery intents and lifecycle controls. It does not bypass partner-MFI underwriting or the Financial Core settlement boundary.
+
+
+## L9 current construction sequence
+L9.2 durable collection/reconciliation; L9.3 KYC/credit eligibility; L9.4 partner settlement; L9.5 school finance orchestration; L9.6 repayment/recovery + Financial Core settlement; L9.7 school-finance recovery settlement; L9.8 provider callback hardening; L9.9 durable KYC verification boundary; L9.10 recovery outbox/exit gates. L9 remains IN PROGRESS until exact-head CI, PostgreSQL race proofs, production repository/handler wiring, operational UX/notifications, provider contract certification and regulatory/partner activation gates are satisfied.
