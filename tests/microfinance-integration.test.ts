@@ -1,0 +1,5 @@
+import test from "node:test";import assert from "node:assert/strict";import {validateCollection,chooseCollectionRail} from "../packages/microfinance/src/integration.js";
+const base:any={collectionId:"c1",organizationId:"o1",partnerMfiId:"mfi1",clientId:"client1",agentId:"agent1",amountMinor:500n,currency:"XOF",channel:"cash_agent",location:"home",occurredAt:"2026-01-01T00:00:00Z",idempotencyKey:"mfi-collection-idempotency-1"};
+test("L9 validates field collection evidence",()=>{assert.doesNotThrow(()=>validateCollection({...base,latitude:6.13,longitude:1.22}));assert.throws(()=>validateCollection({...base,latitude:6.13}),/MFI_LOCATION_INCOMPLETE/);});
+test("L9 prefers PI-SPI when supported and healthy",()=>assert.equal(chooseCollectionRail({channel:"pi_spi",partnerSupportsPiSpi:true,providerHealthy:true}),"pi_spi"));
+test("L9 falls back to partner MFI on provider outage",()=>assert.equal(chooseCollectionRail({channel:"tmoney",partnerSupportsPiSpi:false,providerHealthy:false}),"partner_mfi"));
