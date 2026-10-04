@@ -22,7 +22,7 @@ export function buildReassignmentPlan(
   if(active.length===0) return [];
   const queue=buildContinuityQueue(clients,agents);
   return queue.map((client,index)=>{
-    const nextAgentId=active[index%active.length];
+    const nextAgentId=active[index%active.length]!;
     const reason=client.assignedAgentId===undefined ? "unassigned" : "agent_unavailable";
     const planHash=createHash("sha256").update([client.clientId,client.assignedAgentId??"",nextAgentId,reason].join("|")).digest("hex");
     return {clientId:client.clientId, ...(client.assignedAgentId===undefined ? {} : {previousAgentId:client.assignedAgentId}), nextAgentId,reason,planHash};
