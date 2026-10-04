@@ -51,3 +51,10 @@ T.Pay may use authorized OpenAI, Anthropic or local model adapters when credenti
 6. Provider contract/operational tests.
 7. Regulatory/partner gates where regulated.
 8. Documentation states every remaining limitation explicitly.
+
+
+## Operational observability invariant
+- Every production-facing layer must emit durable operational evidence with correlation IDs, bounded payloads and explicit degraded/offline states.
+- SLO targets are policy, never proof of achieved production performance.
+- Alert delivery failure must never alter Financial Core truth; alerts become queued/retriable operational evidence.
+- Africa/Togo deployments must support low-bandwidth escalation paths (SMS/internal queue) without storing provider credentials in application data.
