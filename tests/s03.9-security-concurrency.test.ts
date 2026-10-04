@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { executeDurableTontineSettlement } from "../packages/microfinance/src/tontine-settlement-uow.js";
 import { verifyProviderCallbackSignature, verifyAndClaimProviderCallback, parseProviderCallback } from "../packages/security/src/provider-callback.js";
+import type { DurableSettlementInput } from "../packages/microfinance/src/tontine-settlement-uow.js";
 
 const id = (value: string) => value as never;
 
