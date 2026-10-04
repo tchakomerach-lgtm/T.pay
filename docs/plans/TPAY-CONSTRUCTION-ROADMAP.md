@@ -103,4 +103,8 @@ L9.3 adds progressive KYC evidence metadata, policy-versioned credit application
 L9.2 adds durable tenant-scoped collection intents, cash sessions/movements, deterministic cash reconciliation, exception-first mismatch handling and a PostgreSQL repository. No mismatch can directly correct the Financial Core. The branch remains unmerged until CI is green.
 
 ### Current progression
-Layer 6 is complete. Layer 7 payout foundation and Layer 7.1 reconciliation/reversal safety are merged; Layer 7 remains IN PROGRESS. Layer 8 closure safety gates are merged; Layer 8 remains IN PROGRESS. Layer 9 microfinance integration foundation is merged; L9.2 durable collection/cash reconciliation is implemented on the construction branch. L9.3 KYC/credit eligibility is implemented on the construction branch. Layer 9 remains IN PROGRESS until durable partner settlement, repayment/recovery and school-finance orchestration are completed.
+Layer 6 is complete. Layer 7 payout foundation and Layer 7.1 reconciliation/reversal safety are merged; Layer 7 remains IN PROGRESS. Layer 8 closure safety gates are merged; Layer 8 remains IN PROGRESS. Layer 9 microfinance integration foundation is merged; L9.2 durable collection/cash reconciliation is implemented on the construction branch. L9.3 KYC/credit eligibility is implemented on the construction branch. L9.4 durable partner settlement is implemented on the construction branch. Layer 9 remains IN PROGRESS until live-provider integration, repayment/recovery and school-finance orchestration are completed.
+
+
+### L9.4 durable partner settlement
+L9.4 persists partner settlement intents and provider callback evidence with tenant-scoped idempotency, composite organization boundaries, deterministic state transitions and quarantine-first reconciliation. It deliberately stops before production provider credentials, provider certification and live network calls.
