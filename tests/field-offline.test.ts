@@ -43,7 +43,7 @@ test("L6 rejects cross-organization, revoked-device, gap and tampered envelopes"
 test("L6 enforces freshness and device offline lifetime",async()=>{
   const e=makeEnvelope(keys.privateKey);
   assert.doesNotThrow(()=>assertOfflineEnvelopeFresh(e,Date.parse(e.issuedAt)+10_000,120_000,3600));
-  assert.throws(()=>assertOfflineEnvelopeFresh(e,Date.parse(e.expiresAt)+1),/OFFLINE_ENVELOPE_EXPIRED/);
+  assert.throws(()=>assertOfflineEnvelopeFresh(e,Date.parse(e.expiresAt)+1,0),/OFFLINE_ENVELOPE_EXPIRED/);
   assert.equal(verifyOfflineEnvelopeSignature(e,publicKeyPem),true);
   const evidence=buildFieldReceiptEvidence(e,"receipt-001");
   assert.equal(evidence.payloadHash,hashOfflinePayload(e.ciphertextB64));
