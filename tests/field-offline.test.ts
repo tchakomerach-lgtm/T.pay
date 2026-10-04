@@ -36,7 +36,7 @@ test("L6 rejects cross-organization, revoked-device, gap and tampered envelopes"
   const stores={claim:async()=>true,get:async()=>device,advanceSequence:async()=>true};
   await assert.rejects(()=>acceptOfflineEnvelope(e,"org-002",stores,stores),/OFFLINE_ORGANIZATION_MISMATCH/);
   await assert.rejects(()=>acceptOfflineEnvelope({...e,ciphertextB64:Buffer.from("tampered").toString("base64")},"org-001",stores,stores),/OFFLINE_SIGNATURE_INVALID/);
-  await assert.rejects(()=>acceptOfflineEnvelope({...e,sequence:2},"org-001",stores,stores),/OFFLINE_SEQUENCE_GAP/);
+  await assert.rejects(()=>acceptOfflineEnvelope(makeEnvelope(keys.privateKey,{sequence:2}),"org-001",stores,stores),/OFFLINE_SEQUENCE_GAP/);
   const revoked={...device,status:"revoked" as const};
   await assert.rejects(()=>acceptOfflineEnvelope(e,"org-001",stores,{...stores,get:async()=>revoked}),/OFFLINE_DEVICE_REVOKED_OR_UNKNOWN/);
 });
