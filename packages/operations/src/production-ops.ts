@@ -1,5 +1,3 @@
-import type {PoolClient} from "pg";
-
 const HEX64=/^[a-f0-9]{64}$/;
 const SECRET_REF=/^[A-Za-z0-9._:/-]{1,200}$/;
 
@@ -9,8 +7,12 @@ export interface SecretRotationEvidence {
   completedAt?:string; evidenceHash:string;
 }
 
+interface QueryResultRow { [key:string]: unknown }
+interface DbQuery {
+  query<R extends QueryResultRow = QueryResultRow>(sql:string, values?:unknown[]):Promise<{rows:R[];rowCount:number|null}>;
+}
 export class PostgresProductionOpsRepository {
-  constructor(private readonly db:Pick<PoolClient,"query">){}
+  constructor(private readonly db:DbQuery){}
 
   async recordSecretRotation(e:SecretRotationEvidence):Promise<void>{
     if(!SECRET_REF.test(e.secretRef)||e.version.length<1||e.version.length>100) throw new Error("SECRET_ROTATION_REFERENCE_INVALID");
