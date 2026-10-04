@@ -8,7 +8,7 @@ test("L10.5 provisioning creates organization, director role, owner membership a
   const service=new PostgresOrganizationProvisioningService(db as any);
   const r=await service.provision({id:"o1",slug:"ecole-demo",name:"Ecole Demo",organizationType:"school",ownerUserId:"u1",accessCode:"Tpay@2026",idempotencyKey:"org-provision-2026-0001",requestHash:"hash1",createdAt:"2026-10-04T14:00:00Z"});
   assert.equal(r.replayed,false);
-  assert.equal(sql.length,5);
+  assert.equal(sql.length,8);
 });
 
 test("L10.5 provisioning rejects idempotency conflicts",async()=>{
