@@ -7,6 +7,9 @@ function checksum(sql:string):string{return createHash("sha256").update(sql).dig
 
 export async function applyMigrations(client:Client,migrationDirectory:URL):Promise<void>{
   await client.query("CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())");
+  await client.query("ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS checksum text");
+  await client.query("ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS applied_by text");
+  await client.query("CREATE TABLE IF NOT EXISTS deployment_locks (lock_name text PRIMARY KEY,owner_id text NOT NULL,lease_until timestamptz NOT NULL,acquired_at timestamptz NOT NULL,CHECK (lease_until > acquired_at))");
   const files=(await readdir(migrationDirectory)).filter(file=>/^\d+_.+\.sql$/.test(file)).sort();
   const ownerId="migration-"+randomUUID();
   let locked=false;
@@ -17,11 +20,7 @@ export async function applyMigrations(client:Client,migrationDirectory:URL):Prom
     );
     locked=lock.rows.length===1;
     if(!locked) throw new Error("MIGRATION_LOCK_BUSY");
-  }catch(error){
-    if(String(error).includes("relation \"deployment_locks\" does not exist")){
-      // L12.2/029 creates the lock table; bootstrap legacy installations before 029.
-    }else throw error;
-  }
+  }catch(error){ throw error; }
 
   try{
     for(const file of files){
