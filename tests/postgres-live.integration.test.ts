@@ -523,3 +523,21 @@ test("L6.2 live PostgreSQL prevents two envelopes from consuming the same device
     await Promise.all([setup.end(), workerA.end(), workerB.end()]);
   }
 });
+
+test("L7 live PostgreSQL enforces organization-scoped payout idempotency and approval ownership", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const client = new pg.Client({ connectionString: databaseUrl }); await client.connect();
+  const a=randomUUID(), b=randomUUID(), payout=randomUUID(), now="2026-10-04T00:30:00.000Z";
+  try {
+    await applyMigrations(client,pathToFileURL(join(process.cwd(),"migrations") + "/"));
+    await client.query("INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',$3),($4,$5,'active',$3)",[a,"L7 A",now,b,"L7 B"]);
+    await client.query("INSERT INTO payout_intents (payout_id,organization_id,cycle_id,beneficiary_id,amount_minor,currency,destination_ref,state,idempotency_key,requires_human_approval,kyc_verified,created_at) VALUES ($1,$2,'c1','member-a',1000,'XOF','dest','pending_approval','same-key',true,true,$3)",[payout,a,now]);
+    await assert.rejects(()=>client.query("INSERT INTO payout_intents (payout_id,organization_id,cycle_id,beneficiary_id,amount_minor,currency,destination_ref,state,idempotency_key,requires_human_approval,kyc_verified,created_at) VALUES ($1,$2,'c1','member-b',1000,'XOF','dest','pending_approval','same-key',true,true,$3)",[randomUUID(),a,now]));
+    await client.query("INSERT INTO payout_intents (payout_id,organization_id,cycle_id,beneficiary_id,amount_minor,currency,destination_ref,state,idempotency_key,requires_human_approval,kyc_verified,created_at) VALUES ($1,$2,'c1','member-b',1000,'XOF','dest','pending_approval','same-key',true,true,$3)",[randomUUID(),b,now]);
+    await client.query("INSERT INTO payout_approvals (payout_id,approver_id,decision,approved_at) VALUES ($1,'supervisor-1','approve',$2)",[payout,now]);
+    assert.equal((await client.query("SELECT count(*) FROM payout_approvals WHERE payout_id=$1",[payout])).rows[0].count,"1");
+  } finally {
+    await client.query("DELETE FROM payout_approvals WHERE payout_id=$1",[payout]);
+    await client.query("DELETE FROM payout_intents WHERE organization_id IN ($1,$2)",[a,b]);
+    await client.query("DELETE FROM organizations WHERE id IN ($1,$2)",[a,b]); await client.end();
+  }
+});
