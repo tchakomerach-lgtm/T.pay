@@ -16,7 +16,8 @@ export interface PayoutSettlementEvidence {
 }
 export async function initiateApprovedPayout(intent:PayoutIntent,approval:PayoutApproval|undefined,provider:PayoutProvider):Promise<{state:PayoutIntent["state"];evidence?:PayoutSettlementEvidence}>{
   authorizePayout(intent,approval);
-  assertPayoutTransition(intent.state,"initiated");
+  const approvedIntent = intent.state==="pending_approval" ? {...intent,state:"approved" as const} : intent;
+  assertPayoutTransition(approvedIntent.state,"initiated");
   const result=await provider.initiate({payoutId:intent.payoutId,idempotencyKey:intent.idempotencyKey,amountMinor:intent.amountMinor,currency:intent.currency,destinationRef:intent.destinationRef});
   if(result.status==="rejected") return {state:"failed"};
   return {state:"initiated",evidence:{payoutId:intent.payoutId,organizationId:intent.organizationId,provider:result.provider,providerReference:result.providerReference,amountMinor:intent.amountMinor,currency:intent.currency}};
