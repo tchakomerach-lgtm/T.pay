@@ -42,7 +42,11 @@ test("L6 rejects cross-organization, revoked-device, gap and tampered envelopes"
 });
 test("L6 enforces freshness and records privacy-minimized receipt evidence",()=>{
   const e=makeEnvelope(keys.privateKey);
-  assert.doesNotThrow(()=>assertOfflineEnvelopeFresh(e,Date.parse("2026-10-04T04:10:00.000Z")));
+  assert.doesNotThrow(()=>assertOfflineEnvelopeFresh(e,Date.parse("2026-10-04T04:10:00.000Z"),120_000,3600));
+  assert.throws(
+    ()=>assertOfflineEnvelopeFresh({...e,expiresAt:"2026-10-04T06:01:00.000Z"},Date.parse("2026-10-04T04:10:00.000Z"),120_000,3600),
+    /OFFLINE_ENVELOPE_DURATION_EXCEEDED/
+  );
   assert.throws(()=>assertOfflineEnvelopeFresh(e,Date.parse("2026-10-04T05:02:01.000Z"),0),/OFFLINE_ENVELOPE_EXPIRED/);
   assert.equal(verifyOfflineEnvelopeSignature(e,publicKeyPem),true);
   const evidence=buildFieldReceiptEvidence(e,"receipt-001");
