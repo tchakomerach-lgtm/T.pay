@@ -1,4 +1,7 @@
 import type { PayoutApproval, PayoutIntent } from "./payout.js";
+import { money } from "./ledger.js";
+import { postFinancialTransaction, type PostFinancialTransactionResult } from "./transactional-ledger.js";
+import type { FinancialUnitOfWork } from "./persistence.js";
 import { authorizePayout, assertPayoutTransition } from "./payout.js";
 
 export interface PayoutProviderRequest {
@@ -24,4 +27,28 @@ export async function initiateApprovedPayout(intent:PayoutIntent,approval:Payout
 }
 export function buildPayoutSettlementIdempotency(intent:PayoutIntent,providerReference:string):string{
  return `payout-settlement:${intent.organizationId}:${intent.payoutId}:${providerReference}`;
+}
+
+export async function settleConfirmedPayout(
+  uow:FinancialUnitOfWork,
+  intent:PayoutIntent,
+  evidence:PayoutSettlementEvidence,
+  sourceAccountId:string,
+  beneficiaryAccountId:string,
+  transactionId:string,
+  now=new Date().toISOString()
+):Promise<PostFinancialTransactionResult>{
+  if(intent.state!=="initiated") throw new Error("PAYOUT_NOT_INITIATED");
+  if(evidence.payoutId!==intent.payoutId||evidence.organizationId!==intent.organizationId) throw new Error("PAYOUT_EVIDENCE_IDENTITY_MISMATCH");
+  if(evidence.amountMinor!==intent.amountMinor||evidence.currency!==intent.currency) throw new Error("PAYOUT_EVIDENCE_AMOUNT_MISMATCH");
+  if(!evidence.providerReference) throw new Error("PAYOUT_PROVIDER_REFERENCE_REQUIRED");
+  return postFinancialTransaction(uow,{
+    id:transactionId,organizationId:intent.organizationId,
+    idempotencyKey:buildPayoutSettlementIdempotency(intent,evidence.providerReference),
+    occurredAt:now,postedAt:now,
+    lines:[
+      {accountId:sourceAccountId,amount:money(intent.currency,intent.amountMinor),direction:"debit"},
+      {accountId:beneficiaryAccountId,amount:money(intent.currency,intent.amountMinor),direction:"credit"}
+    ]
+  });
 }
