@@ -7,7 +7,7 @@ test("Layer 7 blocks beneficiary self approval",()=>{assert.throws(()=>authorize
 test("Layer 7 enforces state machine",()=>{assert.doesNotThrow(()=>assertPayoutTransition("approved","initiated"));assert.throws(()=>assertPayoutTransition("confirmed","initiated"),/PAYOUT_INVALID_TRANSITION/);});
 test("Layer 7 rotation is deterministic and avoids previous payout",()=>{assert.equal(selectRotationBeneficiary([{memberId:"a",eligible:true,contributionsCount:4},{memberId:"b",eligible:true,contributionsCount:3}],new Set(["a"])),"b");});
 
-import { initiateApprovedPayout, buildPayoutSettlementIdempotency } from "../packages/finance/src/payout-orchestrator.js";
+import { initiateApprovedPayout, buildPayoutSettlementIdempotency, settleConfirmedPayout } from "../packages/finance/src/payout-orchestrator.js";
 test("Layer 7 initiates only an approved payout and never posts Ledger state",async()=>{
  const result=await initiateApprovedPayout(base,{payoutId:"p1",approverId:"supervisor-1",decision:"approve",at:"2026-01-01T00:00:00Z"},{initiate:async()=>({provider:"tmoney",providerReference:"prov-1",status:"pending"}),query:async()=>({provider:"tmoney",providerReference:"prov-1",status:"pending"})});
  assert.equal(result.state,"initiated"); assert.equal(result.evidence?.providerReference,"prov-1");
