@@ -57,10 +57,26 @@ export function verifyOfflineEnvelopeSignature(e: OfflineEnvelope, publicKeyPem:
   assertOfflineEnvelopeShape(e);
   return verifySignature(null,Buffer.from(canonicalEnvelope(e),"utf8"),createPublicKey(publicKeyPem),decodeB64(e.signatureB64));
 }
-export function assertOfflineEnvelopeFresh(e: OfflineEnvelope, now=Date.now(), maxClockSkewMs=120_000): void {
+export function assertOfflineEnvelopeFresh(
+  e: OfflineEnvelope,
+  now=Date.now(),
+  maxClockSkewMs=120_000,
+  maxOfflineSeconds?: number
+): void {
   const issued=Date.parse(e.issuedAt), expires=Date.parse(e.expiresAt);
   if (issued > now + maxClockSkewMs) throw new Error("OFFLINE_ENVELOPE_FROM_FUTURE");
   if (expires < now - maxClockSkewMs) throw new Error("OFFLINE_ENVELOPE_EXPIRED");
+  if (maxOfflineSeconds !== undefined) {
+    if (!Number.isSafeInteger(maxOfflineSeconds) || maxOfflineSeconds < 60) {
+      throw new Error("OFFLINE_MAX_DURATION_INVALID");
+    }
+    if (expires - issued > maxOfflineSeconds * 1000 + maxClockSkewMs) {
+      throw new Error("OFFLINE_ENVELOPE_DURATION_EXCEEDED");
+    }
+    if (now - issued > maxOfflineSeconds * 1000 + maxClockSkewMs) {
+      throw new Error("OFFLINE_ENVELOPE_TOO_OLD");
+    }
+  }
 }
 export async function acceptOfflineEnvelope(
   e: OfflineEnvelope, expectedOrganizationId: string, replayStore: OfflineReplayStore, deviceStore: DeviceBindingStore, now=Date.now()
@@ -70,7 +86,7 @@ export async function acceptOfflineEnvelope(
   const device=await deviceStore.get(e.organizationId,e.deviceId,e.keyId);
   if (!device || device.status !== "active") throw new Error("OFFLINE_DEVICE_REVOKED_OR_UNKNOWN");
   if (device.organizationId !== e.organizationId) throw new Error("OFFLINE_DEVICE_ORGANIZATION_MISMATCH");
-  assertOfflineEnvelopeFresh(e,now);
+  assertOfflineEnvelopeFresh(e,now,120_000,device.maxOfflineSeconds);
   if (!verifyOfflineEnvelopeSignature(e,device.publicKeyPem)) throw new Error("OFFLINE_SIGNATURE_INVALID");
   if (e.sequence <= device.lastAcceptedSequence) throw new Error("OFFLINE_SEQUENCE_REWIND");
   if (e.sequence > device.lastAcceptedSequence + 1) throw new Error("OFFLINE_SEQUENCE_GAP");
