@@ -1,6 +1,6 @@
 # ADR-017 — PostgreSQL durable field device registry and atomic offline claims
 
-**Status:** Proposed — construction sequence L6.2
+**Status:** Accepted — L6.2 construction design
 
 ## Context
 
