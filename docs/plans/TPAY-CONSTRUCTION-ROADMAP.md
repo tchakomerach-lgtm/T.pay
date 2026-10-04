@@ -65,7 +65,7 @@ Contribution intent → payment intent → provider adapter → signed callback 
 - privacy-minimized field receipt evidence;
 - deterministic field-agent continuity/reassignment plan.
 
-**L6.2 PostgreSQL durable device registry + replay/sequence claims — next.**
+**L6.2 PostgreSQL durable device registry + replay/sequence claims — implemented on construction branch; CI/merge pending.**
 **L6.3 Encrypted local queue + synchronization worker — after L6.2.**
 **L6.4 Field receipt synchronization and recovery — after L6.3.**
 
@@ -107,4 +107,4 @@ The roadmap is a sequencing control, not a second product specification. Domain 
 S-03.9 adds adversarial proof around the existing settlement boundary: contradictory provider data is rejected before persistence; signed callback replay is rejected; concurrent same-idempotency settlement is constrained to one financial effect; provider-event ownership cannot cross organizations; Ledger idempotency is unique per organization. Live PostgreSQL coverage exercises the durable uniqueness/isolation barriers. No live provider credentials or network calls are introduced by this test brick.
 
 ### Next gate after S-03.9
-If S-03.9 CI is green, proceed to **Layer 6 — Field/offline execution**: signed offline envelopes, device binding, route reassignment, sync conflict resolution, local encrypted queue, idempotent replay and field receipts.
+If S-03.9 CI is green, Layer 6 proceeds through L6.1 → L6.2 → L6.3 → L6.4. L6.2 is now implemented on the construction branch and remains blocked from completion until exact-head CI is green and the S-03.9 prerequisite is green/merged.
