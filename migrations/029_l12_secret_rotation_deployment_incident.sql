@@ -38,3 +38,6 @@ CREATE TABLE IF NOT EXISTS incident_delivery_evidence (
   UNIQUE(route_id, delivery_key)
 );
 CREATE INDEX IF NOT EXISTS idx_incident_delivery_incident ON incident_delivery_evidence(incident_id, attempted_at DESC);
+
+ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS checksum text;
+ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS applied_by text;
