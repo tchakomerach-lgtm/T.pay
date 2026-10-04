@@ -8,7 +8,7 @@ export interface SecretRotationEvidence {
 }
 
 interface QueryResultRow { [key:string]: unknown }
-interface DbQuery {
+export interface DbQuery {
   query<R extends QueryResultRow = QueryResultRow>(sql:string, values?:unknown[]):Promise<{rows:R[];rowCount:number|null}>;
 }
 export class PostgresProductionOpsRepository {
