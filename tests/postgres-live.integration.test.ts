@@ -557,6 +557,11 @@ test("L7 live PostgreSQL rejects concurrent active reversals for the same payout
       "INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',$3)",
       [organizationId, "L7 reversal race", now]
     );
+    // Bound the unique-index wait so a provider/reversal race can never hang the CI worker.
+    await Promise.all([
+      workerA.query("SET lock_timeout='3000ms'; SET statement_timeout='5000ms'"),
+      workerB.query("SET lock_timeout='3000ms'; SET statement_timeout='5000ms'")
+    ]);
     await setup.query(
       "INSERT INTO payout_intents (payout_id,organization_id,cycle_id,beneficiary_id,amount_minor,currency,destination_ref,state,idempotency_key,requires_human_approval,kyc_verified,created_at) VALUES ($1,$2,'cycle-1','beneficiary-1',1000,'XOF','dest','confirmed',$3,true,true,$4::timestamptz)",
       [payoutId, organizationId, "payout-" + randomUUID(), now]
