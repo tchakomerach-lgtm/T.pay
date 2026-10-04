@@ -1,12 +1,13 @@
-import type {PoolClient} from "pg";
-
 const HEX64=/^[a-f0-9]{64}$/;
 type Severity="low"|"medium"|"high"|"critical";
+interface QueryResultRow { [key:string]: unknown }
+export interface DbQuery { query<R extends QueryResultRow = QueryResultRow>(sql:string, values?:unknown[]):Promise<{rows:R[];rowCount:number|null}>; }
+
 export interface Measurement {id:string;service:string;metric:string;value:bigint;observedAt:string;correlationId?:string;evidenceHash:string;}
 export interface Alert {id:string;service:string;alertKey:string;severity:Severity;state:"open"|"acknowledged"|"resolved";firstSeenAt:string;lastSeenAt:string;correlationId?:string;evidenceHash:string;}
 
 export class PostgresOperationalObservabilityRepository {
- constructor(private readonly db:Pick<PoolClient,"query">){}
+ constructor(private readonly db:DbQuery){}
  async recordMeasurement(m:Measurement):Promise<void>{
   if(m.value<0n||!HEX64.test(m.evidenceHash)) throw new Error("OPERATIONAL_MEASUREMENT_INVALID");
   await this.db.query("INSERT INTO operational_measurements(id,service,metric,value,observed_at,correlation_id,evidence_hash) VALUES($1,$2,$3,$4,$5::timestamptz,$6,$7)",[m.id,m.service,m.metric,m.value.toString(),m.observedAt,m.correlationId??null,m.evidenceHash]);
