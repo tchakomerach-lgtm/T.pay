@@ -13,8 +13,8 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: tpay-ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: tpay-ci-${{ github.workflow }}-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
 jobs:
   quality:
     runs-on: ubuntu-latest
