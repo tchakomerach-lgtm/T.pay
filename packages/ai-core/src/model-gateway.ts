@@ -26,7 +26,7 @@ export class AiModelGateway {
         this.breakers.set(key,breaker);
         const adapter=this.registry.resolve(route);
         const response=await executeProvider(adapter,request,route,{...runtime,allowExternal:policy.allowExternal,dataClass:policy.dataClass},breaker);
-        attempts.push({route,providerRequestId:response.providerRequestId,status:"succeeded"});
+        const attempt:AiRouteAttempt={route,status:"succeeded"}; if(response.providerRequestId) attempt.providerRequestId=response.providerRequestId; attempts.push(attempt);
         return {response,attempts};
       }catch(error){
         attempts.push({route,status:"failed",reason:error instanceof Error?error.message:"AI_PROVIDER_FAILED"});
