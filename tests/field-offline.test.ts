@@ -44,7 +44,7 @@ test("L6 enforces freshness and records privacy-minimized receipt evidence",()=>
   const e=makeEnvelope(keys.privateKey);
   assert.doesNotThrow(()=>assertOfflineEnvelopeFresh(e,Date.parse(e.issuedAt)+10_000,120_000,3600));
   assert.throws(
-    ()=>assertOfflineEnvelopeFresh({...e,expiresAt:new Date(Date.parse(e.issuedAt)+7201_000).toISOString()},Date.parse(e.issuedAt)+10_000,0,3600),
+    ()=>assertOfflineEnvelopeFresh({...e,issuedAt:"2026-01-01T00:00:00.000Z",expiresAt:"2026-01-01T01:00:01.000Z"},Date.parse("2026-01-01T00:00:10.000Z"),0,3600),
     /OFFLINE_ENVELOPE_DURATION_EXCEEDED/
   );
   assert.throws(()=>assertOfflineEnvelopeFresh(e,Date.parse(e.expiresAt)+1),/OFFLINE_ENVELOPE_EXPIRED/);
