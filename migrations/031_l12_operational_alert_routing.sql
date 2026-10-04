@@ -27,3 +27,22 @@ CREATE TABLE IF NOT EXISTS operational_degraded_drills (
 );
 CREATE INDEX IF NOT EXISTS idx_operational_degraded_drills_lookup
   ON operational_degraded_drills(service,dependency,started_at DESC);
+
+-- Dashboard contract: operational telemetry is the source of measurement truth.
+-- Metric names are stable contracts emitted by production adapters.
+CREATE OR REPLACE VIEW operational_dashboard_latest AS
+SELECT DISTINCT ON (service, metric)
+  service, metric, value, observed_at, correlation_id, evidence_hash
+FROM operational_measurements
+ORDER BY service, metric, observed_at DESC;
+
+CREATE OR REPLACE VIEW operational_dashboard_alerts AS
+SELECT service, alert_key, severity, state, first_seen_at, last_seen_at, correlation_id, evidence_hash
+FROM operational_alerts
+WHERE state <> 'resolved';
+
+CREATE OR REPLACE VIEW operational_dashboard_degraded_dependencies AS
+SELECT DISTINCT ON (service, dependency)
+  service, dependency, mode, started_at, ended_at, correlation_id, evidence_hash
+FROM operational_degraded_drills
+ORDER BY service, dependency, started_at DESC;
