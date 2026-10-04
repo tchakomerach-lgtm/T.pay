@@ -43,8 +43,7 @@ function settlementInput(overrides: { providerEvent?: Partial<DurableSettlementI
     feeSnapshot: { contributionId, microfinanceFeeMinor: 10n, tpayFeeMinor: 10n, totalFeeMinor: 20n, currency: "XOF", ruleVersion: "r1", calculatedAt: now },
     ledgerTransaction, receipt,
     outboxEvent: { id: "outbox-123", eventType: "tontine.contribution_confirmed", payload: "{}" },
-    now,
-    ...overrides
+    now
   };
 }
 
