@@ -40,7 +40,7 @@ test("L6 rejects cross-organization, revoked-device, gap and tampered envelopes"
   const revoked={...device,status:"revoked" as const};
   await assert.rejects(()=>acceptOfflineEnvelope(e,"org-001",stores,{...stores,get:async()=>revoked}),/OFFLINE_DEVICE_REVOKED_OR_UNKNOWN/);
 });
-test("L6 enforces freshness and records privacy-minimized receipt evidence",()=>{
+test("L6 enforces freshness and records privacy-minimized receipt evidence",async()=>{
   const e=makeEnvelope(keys.privateKey);
   assert.doesNotThrow(()=>assertOfflineEnvelopeFresh(e,Date.parse(e.issuedAt)+10_000,120_000,3600));
   const shortLivedDevice:DeviceBinding={deviceId:"dev-001",organizationId:"org-001",keyId:"key-001",publicKeyPem,status:"active",maxOfflineSeconds:60,lastAcceptedSequence:0};
