@@ -9,7 +9,7 @@ export interface SecretRotationEvidence {
 
 interface QueryResultRow { [key:string]: unknown }
 export interface DbQuery {
-  query<R extends QueryResultRow = QueryResultRow>(sql:string, values?:unknown[]):Promise<{rows:R[];rowCount:number|null}>;
+  query(sql:string, values?:unknown[]):Promise<{rows:QueryResultRow[];rowCount:number|null}>;
 }
 export class PostgresProductionOpsRepository {
   constructor(private readonly db:DbQuery){}
@@ -26,7 +26,7 @@ export class PostgresProductionOpsRepository {
   async acquireDeploymentLock(lockName:string,ownerId:string,leaseUntil:string,acquiredAt:string):Promise<boolean>{
     if(!lockName||!ownerId) throw new Error("DEPLOYMENT_LOCK_REFERENCE_INVALID");
     const sql="INSERT INTO deployment_locks(lock_name,owner_id,lease_until,acquired_at) VALUES($1,$2,$3::timestamptz,$4::timestamptz) ON CONFLICT(lock_name) DO UPDATE SET owner_id=EXCLUDED.owner_id,lease_until=EXCLUDED.lease_until,acquired_at=EXCLUDED.acquired_at WHERE deployment_locks.lease_until <= EXCLUDED.acquired_at RETURNING true AS acquired";
-    const r=await this.db.query<{acquired:boolean}>(sql,[lockName,ownerId,leaseUntil,acquiredAt]);
+    const r=await this.db.query(sql,[lockName,ownerId,leaseUntil,acquiredAt]);
     return r.rows.length===1;
   }
 
