@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS mfi_collection_intents (
   status text NOT NULL CHECK (status IN ('pending','accepted','rejected','quarantined')),
   provider_reference text, created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (organization_id,idempotency_key),
+  UNIQUE (organization_id,collection_id),
   CHECK ((latitude IS NULL AND longitude IS NULL) OR (latitude IS NOT NULL AND longitude IS NOT NULL))
 );
 CREATE INDEX IF NOT EXISTS idx_mfi_collection_org_client ON mfi_collection_intents(organization_id,client_id,occurred_at);
@@ -23,8 +24,10 @@ CREATE TABLE IF NOT EXISTS mfi_cash_sessions (
   UNIQUE (organization_id,session_id)
 );
 CREATE TABLE IF NOT EXISTS mfi_cash_movements (
-  movement_id text PRIMARY KEY, session_id text NOT NULL REFERENCES mfi_cash_sessions(session_id),
-  collection_id text REFERENCES mfi_collection_intents(collection_id),
+  movement_id text PRIMARY KEY, organization_id uuid NOT NULL REFERENCES organizations(id),
+  session_id text NOT NULL, collection_id text,
+  FOREIGN KEY (organization_id,session_id) REFERENCES mfi_cash_sessions(organization_id,session_id),
+  FOREIGN KEY (organization_id,collection_id) REFERENCES mfi_collection_intents(organization_id,collection_id),
   direction text NOT NULL CHECK (direction IN ('in','out')),
   amount_minor numeric(38,0) NOT NULL CHECK (amount_minor>0), currency text NOT NULL CHECK (length(currency)=3),
   evidence_ref text, occurred_at timestamptz NOT NULL
@@ -32,7 +35,8 @@ CREATE TABLE IF NOT EXISTS mfi_cash_movements (
 CREATE INDEX IF NOT EXISTS idx_mfi_cash_movements_session ON mfi_cash_movements(session_id,occurred_at);
 CREATE TABLE IF NOT EXISTS mfi_reconciliation_exceptions (
   exception_id text PRIMARY KEY, organization_id uuid NOT NULL REFERENCES organizations(id),
-  session_id text NOT NULL REFERENCES mfi_cash_sessions(session_id),
+  session_id text NOT NULL,
+  FOREIGN KEY (organization_id,session_id) REFERENCES mfi_cash_sessions(organization_id,session_id),
   classification text NOT NULL CHECK (classification IN ('shortage','overage','currency_mismatch','missing_evidence','duplicate_collection')),
   amount_minor numeric(38,0), currency text NOT NULL CHECK (length(currency)=3),
   status text NOT NULL CHECK (status IN ('open','investigating','resolved','waived')),
