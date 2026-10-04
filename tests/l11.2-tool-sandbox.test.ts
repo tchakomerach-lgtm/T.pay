@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {authorizeSandboxTool} from "../packages/ai-core/src/tool-sandbox.js";
 import {PostgresAiToolPolicyRepository} from "../packages/ai-core/src/postgres-tool-policy-repository.js";
 
-const tool={name:"documents.search",description:"search documents",risk:"low" as const,requiresHumanApproval:false,allowedAgentRoles:["support"] as const};
+const tool={name:"documents.search",description:"search documents",risk:"low" as const,requiresHumanApproval:false,allowedAgentRoles:["support"]};
 
 test("L11.2 sandbox requires tenant, role, enabled policy and bounded risk",()=>{
   const policy={organizationId:"o1",toolName:"documents.search",enabled:true,allowedAgentRoles:["support"] as any,maxRisk:"low" as const,requiresHumanApproval:false,version:1};
