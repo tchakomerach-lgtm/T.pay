@@ -12,6 +12,10 @@ export class PostgresOperationalObservabilityRepository {
   if(m.value<0n||!HEX64.test(m.evidenceHash)) throw new Error("OPERATIONAL_MEASUREMENT_INVALID");
   await this.db.query("INSERT INTO operational_measurements(id,service,metric,value,observed_at,correlation_id,evidence_hash) VALUES($1,$2,$3,$4,$5::timestamptz,$6,$7)",[m.id,m.service,m.metric,m.value.toString(),m.observedAt,m.correlationId??null,m.evidenceHash]);
  }
+ async recordAlertDelivery(e:{id:string;service:string;alertKey:string;routeId:string;deliveryKey:string;status:"queued"|"sent"|"failed"|"suppressed";attemptedAt:string;evidenceHash:string;}):Promise<void>{
+  if(!e.service||!e.alertKey||!e.deliveryKey||e.deliveryKey.length>300||!HEX64.test(e.evidenceHash)) throw new Error("OPERATIONAL_ALERT_DELIVERY_INVALID");
+  await this.db.query("INSERT INTO operational_alert_deliveries(id,service,alert_key,route_id,delivery_key,status,attempted_at,evidence_hash) VALUES($1,$2,$3,$4,$5,$6,$7::timestamptz,$8) ON CONFLICT(route_id,delivery_key) DO UPDATE SET status=EXCLUDED.status,attempted_at=EXCLUDED.attempted_at,evidence_hash=EXCLUDED.evidence_hash",[e.id,e.service,e.alertKey,e.routeId,e.deliveryKey,e.status,e.attemptedAt,e.evidenceHash]);
+ }
  async upsertAlert(a:Alert):Promise<void>{
   if(!HEX64.test(a.evidenceHash)||!a.service||!a.alertKey) throw new Error("OPERATIONAL_ALERT_INVALID");
   await this.db.query("INSERT INTO operational_alerts(id,service,alert_key,severity,state,first_seen_at,last_seen_at,correlation_id,evidence_hash) VALUES($1,$2,$3,$4,$5,$6::timestamptz,$7::timestamptz,$8,$9) ON CONFLICT(service,alert_key) DO UPDATE SET severity=EXCLUDED.severity,state=EXCLUDED.state,last_seen_at=EXCLUDED.last_seen_at,correlation_id=EXCLUDED.correlation_id,evidence_hash=EXCLUDED.evidence_hash",[a.id,a.service,a.alertKey,a.severity,a.state,a.firstSeenAt,a.lastSeenAt,a.correlationId??null,a.evidenceHash]);
