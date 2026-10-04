@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { executeDurableTontineSettlement } from "../packages/microfinance/src/tontine-settlement-uow.js";
 import { verifyProviderCallbackSignature, verifyAndClaimProviderCallback, parseProviderCallback } from "../packages/security/src/provider-callback.js";
+import type { DurableSettlementInput } from "../packages/microfinance/src/tontine-settlement-uow.js";
 
 const id = (value: string) => value as never;
 
-function settlementInput(overrides: Partial<any> = {}) {
+function settlementInput(overrides: { providerEvent?: Partial<DurableSettlementInput["providerEvent"]> } = {}): DurableSettlementInput {
   const organizationId = id("11111111-1111-4111-8111-111111111111");
   const contributionId = id("22222222-2222-4222-8222-222222222222");
   const paymentId = id("33333333-3333-4333-8333-333333333333");
@@ -15,22 +16,22 @@ function settlementInput(overrides: Partial<any> = {}) {
   const paymentIntent = {
     id: paymentId, organizationId, contributionId, idempotencyKey: key,
     amountMinor: 1000n, currency: "XOF", provider: "tmoney",
-    providerReference: "TM-123", status: "provider_confirmed", createdAt: now, updatedAt: now
+    providerReference: "TM-123", status: "provider_confirmed" as const, createdAt: now, updatedAt: now
   };
   const contribution = {
     id: contributionId, groupId: id("44444444-4444-4444-8444-444444444444"),
     membershipId: id("55555555-5555-4555-8555-555555555555"), scheduledFor: now,
-    amountMinor: 1000n, currency: "XOF", status: "pending", channel: "mobile_money", idempotencyKey: key
+    amountMinor: 1000n, currency: "XOF", status: "pending" as const, channel: "mobile_money" as const, idempotencyKey: key
   };
   const providerEvent = {
     provider: "tmoney", eventId: "evt-123", paymentId, providerReference: "TM-123",
-    amountMinor: 1000n, currency: "XOF", status: "accepted", occurredAt: now
+    amountMinor: 1000n, currency: "XOF", status: "accepted" as const, occurredAt: now
   };
   const ledgerTransaction = {
     id: "ledger-123", organizationId, idempotencyKey: key, occurredAt: now, postedAt: now,
     lines: [
-      { accountId: "cash", amount: { currency: "XOF", minor: 1000n }, direction: "debit" },
-      { accountId: "tontine", amount: { currency: "XOF", minor: 1000n }, direction: "credit" }
+      { accountId: "cash", amount: { currency: "XOF", minor: 1000n }, direction: "debit" as const },
+      { accountId: "tontine", amount: { currency: "XOF", minor: 1000n }, direction: "credit" as const }
     ]
   };
   const receipt = {
@@ -38,12 +39,11 @@ function settlementInput(overrides: Partial<any> = {}) {
     providerReference: "TM-123", amountMinor: 1000n, currency: "XOF", issuedAt: now, ledgerTransactionId: "ledger-123"
   };
   return {
-    organizationId, paymentIntent, contribution, providerEvent,
+    organizationId, paymentIntent, contribution, providerEvent: { ...providerEvent, ...(overrides.providerEvent ?? {}) } as DurableSettlementInput["providerEvent"],
     feeSnapshot: { contributionId, microfinanceFeeMinor: 10n, tpayFeeMinor: 10n, totalFeeMinor: 20n, currency: "XOF", ruleVersion: "r1", calculatedAt: now },
     ledgerTransaction, receipt,
     outboxEvent: { id: "outbox-123", eventType: "tontine.contribution_confirmed", payload: "{}" },
-    now,
-    ...overrides
+    now
   };
 }
 
