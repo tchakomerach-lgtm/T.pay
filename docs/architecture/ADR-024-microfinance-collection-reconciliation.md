@@ -16,3 +16,10 @@ Cash-first operations, intermittent connectivity, mobile-money rails and partner
 
 ## Remaining work
 Live provider clients, full KYC/eligibility, credit underwriting/disbursement/recovery, school-finance orchestration and production reconciliation UI remain outside L9.2.
+
+## Regulatory evidence checked 2026-10-04
+- BCEAO PI-SPI Notice n°0019 published 2026-10-02 is treated as a release-relevant interoperability input.
+- BCEAO guidance states that issuing electronic money is an authorized activity; T.Pay therefore defaults to a technology/partner boundary and does not model itself as an issuer unless the required authorization exists.
+- BCEAO's fintech guidance states that registration in its fintech directory does not itself constitute authorization for regulated activities.
+
+Verify the applicable authorization and contractual perimeter with the competent authorities before production launch; this repository is an engineering control, not legal advice.
