@@ -96,5 +96,22 @@ S-03.9 adds adversarial proof around the existing settlement boundary: contradic
 ### Layer 6 execution status
 L6.1 signed offline boundary and L6.2 durable PostgreSQL device/replay claims are implemented. L6.3 encrypted local queue + bounded synchronization is implemented on the construction branch. L6.4 field receipt synchronization/recovery remains before Layer 6 exit.
 
+### L9.3 KYC / credit eligibility
+L9.3 adds progressive KYC evidence metadata, policy-versioned credit applications/decisions, deterministic exposure and debt-service checks, and human-review gates for ambiguous/high-risk cases. It does not store raw biometrics in the ledger and does not authorize T.Pay to issue stored value or disburse outside an authorized partner.
+
+### L9.2 durable collection/reconciliation
+L9.2 adds durable tenant-scoped collection intents, cash sessions/movements, deterministic cash reconciliation, exception-first mismatch handling and a PostgreSQL repository. No mismatch can directly correct the Financial Core. The branch remains unmerged until CI is green.
+
 ### Current progression
-Layer 6 is complete. Layer 7 payout foundation and Layer 7.1 reconciliation/reversal safety are merged; Layer 7 remains IN PROGRESS. Layer 8 closure safety gates are merged; Layer 8 remains IN PROGRESS. Layer 9 microfinance integration foundation is merged; Layer 9 remains IN PROGRESS.
+Layer 6 is complete. Layer 7 payout foundation and Layer 7.1 reconciliation/reversal safety are merged; Layer 7 remains IN PROGRESS. Layer 8 closure safety gates are merged; Layer 8 remains IN PROGRESS. Layer 9 microfinance integration foundation is merged; L9.2 durable collection/cash reconciliation is implemented on the construction branch. L9.3 KYC/credit eligibility is implemented on the construction branch. L9.4 durable partner settlement is implemented on the construction branch. Layer 9 remains IN PROGRESS until live-provider integration, repayment/recovery, recovery-to-Ledger integration and production school-finance delivery are completed.
+
+
+### L9.4 durable partner settlement
+L9.4 persists partner settlement intents and provider callback evidence with tenant-scoped idempotency, composite organization boundaries, deterministic state transitions and quarantine-first reconciliation. It deliberately stops before production provider credentials, provider certification and live network calls.
+
+### L9.5 school finance orchestration
+L9.5 adds durable school-finance requests, separate tuition/supply expense evidence, configurable recovery rules, parent-bound recovery intents and lifecycle controls. It does not bypass partner-MFI underwriting or the Financial Core settlement boundary.
+
+
+## L9 current construction sequence
+L9.2 durable collection/reconciliation; L9.3 KYC/credit eligibility; L9.4 partner settlement; L9.5 school finance orchestration; L9.6 repayment/recovery + Financial Core settlement; L9.7 school-finance recovery settlement; L9.8 provider callback hardening; L9.9 durable KYC verification boundary; L9.10 recovery outbox/exit gates. L9 remains IN PROGRESS until exact-head CI, PostgreSQL race proofs, production repository/handler wiring, operational UX/notifications, provider contract certification and regulatory/partner activation gates are satisfied.

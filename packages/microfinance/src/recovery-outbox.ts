@@ -1,0 +1,2 @@
+export interface RecoveryOutboxEvent{eventId:string;organizationId:string;aggregateType:"repayment"|"school_recovery"|"recovery_action";aggregateId:string;eventType:string;payload:Record<string,unknown>;occurredAt:string;}
+export function assertRecoveryEventTenant(event:RecoveryOutboxEvent,organizationId:string):void{if(event.organizationId!==organizationId)throw new Error("RECOVERY_OUTBOX_TENANT_MISMATCH");if(!event.eventId||!event.aggregateId||!event.eventType)throw new Error("RECOVERY_OUTBOX_IDENTITY_INVALID");}
