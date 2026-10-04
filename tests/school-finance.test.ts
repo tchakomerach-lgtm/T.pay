@@ -1,0 +1,10 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {calculateSchoolFinanceFees,nextSchoolFinanceStatus,validateRecoveryIntent,validateSchoolFinanceRequest} from "../packages/microfinance/src/school-finance.js";
+const policy={version:"2026.10",mfiBps:300,tpayBps:600,supplyMarginBps:500};
+const req={requestId:"r",organizationId:"o",schoolId:"s",parentId:"p",studentId:"st",partnerMfiId:"m",annualTuitionMinor:120000n,supplyMinor:30000n,recoveryMinimumMinor:500n,currency:"XOF",recoveryFrequency:"daily" as const,status:"requested" as const,policyVersion:"2026.10"};
+test("validates school finance request",()=>assert.doesNotThrow(()=>validateSchoolFinanceRequest(req,policy)));
+test("calculates immutable fee snapshot with bigint",()=>{const f=calculateSchoolFinanceFees(150000n,policy);assert.equal(f.mfiFeeMinor,4500n);assert.equal(f.tpayFeeMinor,9000n);assert.equal(f.supplyMarginMinor,7500n);});
+test("rejects recovery below the configured minimum",()=>assert.throws(()=>validateRecoveryIntent({...req,recoveryId:"x",amountMinor:499n,idempotencyKey:"i",source:"tontine" as const,status:"pending" as const,occurredAt:new Date().toISOString()},req),/BELOW_MINIMUM/));
+test("binds recovery to exact parent and request",()=>assert.throws(()=>validateRecoveryIntent({...req,recoveryId:"x",amountMinor:500n,idempotencyKey:"i",source:"tontine" as const,status:"pending" as const,occurredAt:new Date().toISOString(),parentId:"other"},req),/OWNER_MISMATCH/));
+test("requires explicit funding before recovery",()=>assert.throws(()=>nextSchoolFinanceStatus("approved","recovering"),/INVALID_STATE_TRANSITION/));
