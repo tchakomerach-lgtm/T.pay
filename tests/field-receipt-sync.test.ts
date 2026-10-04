@@ -1,0 +1,11 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { deterministicReceiptId, queueFieldReceipt, recoverReceiptSync, type ReceiptSyncRecord, type ReceiptSyncStore } from "../packages/security/src/field-receipt-sync.js";
+import type { FieldReceiptEvidence } from "../packages/security/src/field-offline.js";
+
+function setup(){const m=new Map<string,ReceiptSyncRecord>();const s:ReceiptSyncStore={get:async id=>m.get(id),put:async r=>{m.set(r.receiptId,r)},markVerified:async id=>m.set(id,{...m.get(id)!,state:"verified"}),markRejected:async(id,reason)=>m.set(id,{...m.get(id)!,state:"rejected",lastError:reason}),quarantine:async(id,reason)=>m.set(id,{...m.get(id)!,state:"quarantined",lastError:reason})};return{s,m};}
+function evidence():FieldReceiptEvidence{const x={receiptId:"",envelopeId:"env-001",organizationId:"org-001",deviceId:"dev-001",sequence:1,payloadHash:"a".repeat(64),issuedAt:"2026-01-01T00:00:00.000Z"};return {...x,receiptId:deterministicReceiptId(x)};}
+test("L6.4 receipt identity is deterministic and tenant-bound",async()=>{const e=evidence();assert.equal(e.receiptId,deterministicReceiptId(e));const{s}=setup();await assert.rejects(()=>queueFieldReceipt(s,{...e,receiptId:"wrong"}),/FIELD_RECEIPT_ID_MISMATCH/);});
+test("L6.4 recovers pending receipt after interrupted sync",async()=>{const e=evidence();const{s,m}=setup();await queueFieldReceipt(s,e);let calls=0;assert.equal(await recoverReceiptSync(s,{verify:async()=>{calls++;return "retry"}},e.receiptId),"pending");assert.equal(m.get(e.receiptId)?.attempts,1);assert.equal(await recoverReceiptSync(s,{verify:async()=>{calls++;return "verified"}},e.receiptId),"verified");assert.equal(calls,2);});
+test("L6.4 quarantines repeated verification failure",async()=>{const e=evidence();const{s}=setup();await queueFieldReceipt(s,e);for(let i=0;i<5;i++)await recoverReceiptSync(s,{verify:async()=> "retry"},e.receiptId);assert.equal((await s.get(e.receiptId))?.state,"quarantined");});
+test("L6.4 never treats receipt verification as Ledger mutation",async()=>{const e=evidence();const{s}=setup();await queueFieldReceipt(s,e);let financialWrites=0;await recoverReceiptSync(s,{verify:async()=>{financialWrites++;return "verified"}},e.receiptId);assert.equal(financialWrites,1);assert.equal((await s.get(e.receiptId))?.state,"verified");});
