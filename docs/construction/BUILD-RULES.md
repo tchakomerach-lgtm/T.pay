@@ -58,3 +58,10 @@ T.Pay may use authorized OpenAI, Anthropic or local model adapters when credenti
 - SLO targets are policy, never proof of achieved production performance.
 - Alert delivery failure must never alter Financial Core truth; alerts become queued/retriable operational evidence.
 - Africa/Togo deployments must support low-bandwidth escalation paths (SMS/internal queue) without storing provider credentials in application data.
+
+
+## Reconciliation and DR invariant
+- Reconciliation is evidence production, not financial correction: mismatches create durable exceptions and quarantine ambiguous states.
+- Offline, provider, cash and notification reconciliation must converge toward Financial Core through explicit settlement workflows.
+- RPO/RTO values are targets until an authorized drill records observed values; failed drills block production-readiness claims.
+- Provider/network outage handling must preserve evidence and support low-bandwidth escalation without fabricating service success.
