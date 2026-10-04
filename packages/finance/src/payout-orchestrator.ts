@@ -1,4 +1,3 @@
-import type { PaymentProvider, PaymentProviderResult } from "./provider.js";
 import type { PayoutApproval, PayoutIntent } from "./payout.js";
 import { authorizePayout, assertPayoutTransition } from "./payout.js";
 
