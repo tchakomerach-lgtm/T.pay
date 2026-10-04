@@ -96,5 +96,8 @@ S-03.9 adds adversarial proof around the existing settlement boundary: contradic
 ### Layer 6 execution status
 L6.1 signed offline boundary and L6.2 durable PostgreSQL device/replay claims are implemented. L6.3 encrypted local queue + bounded synchronization is implemented on the construction branch. L6.4 field receipt synchronization/recovery remains before Layer 6 exit.
 
+### L9.2 durable collection/reconciliation
+L9.2 adds durable tenant-scoped collection intents, cash sessions/movements, deterministic cash reconciliation, exception-first mismatch handling and a PostgreSQL repository. No mismatch can directly correct the Financial Core. The branch remains unmerged until CI is green.
+
 ### Current progression
-Layer 6 is complete. Layer 7 payout foundation and Layer 7.1 reconciliation/reversal safety are merged; Layer 7 remains IN PROGRESS. Layer 8 closure safety gates are merged; Layer 8 remains IN PROGRESS. Layer 9 microfinance integration foundation is merged; Layer 9 remains IN PROGRESS.
+Layer 6 is complete. Layer 7 payout foundation and Layer 7.1 reconciliation/reversal safety are merged; Layer 7 remains IN PROGRESS. Layer 8 closure safety gates are merged; Layer 8 remains IN PROGRESS. Layer 9 microfinance integration foundation is merged; L9.2 durable collection/cash reconciliation is now implemented on the construction branch; Layer 9 remains IN PROGRESS until KYC/credit, durable partner settlement and school-finance orchestration are completed.
