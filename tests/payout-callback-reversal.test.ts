@@ -42,7 +42,7 @@ const evidence:any={payoutId:"p1",organizationId:"org1",provider:"tmoney",provid
 
 test("L7.2 reversal requires confirmed payout and exact evidence",async()=>{
   let called=false;
-  const provider:ReversiblePayoutProvider={initiate:async()=>({provider:"tmoney",providerReference:"x",status:"accepted"}),query:async()=>({provider:"tmoney",providerReference:"x",status:"confirmed"}),reverse:async()=>{called=true;return {provider:"tmoney",providerReference:"rev-1",status:"confirmed"};}};
+  const provider:ReversiblePayoutProvider={initiate:async()=>({provider:"tmoney",providerReference:"x",status:"accepted"}),query:async()=>({provider:"tmoney",providerReference:"x",status:"pending"}),reverse:async()=>{called=true;return {provider:"tmoney",providerReference:"rev-1",status:"confirmed"};}};
   const result=await initiatePayoutReversal(intent,evidence,{reversalId:"r1",organizationId:"org1",payoutId:"p1",provider,providerReference:"prov-1",amountMinor:1000n,currency:"XOF",reason:"provider duplicate",idempotencyKey:"rev-idem-1"});
   assert.equal(result.providerReference,"rev-1"); assert.equal(called,true);
 });
