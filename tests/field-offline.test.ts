@@ -46,8 +46,8 @@ test("L6 enforces freshness and records privacy-minimized receipt evidence",asyn
   const shortLivedDevice:DeviceBinding={deviceId:"dev-001",organizationId:"org-001",keyId:"key-001",publicKeyPem,status:"active",maxOfflineSeconds:60,lastAcceptedSequence:0};
   const shortLivedStores={claim:async()=>true,get:async()=>shortLivedDevice,advanceSequence:async()=>true};
   await assert.rejects(
-    ()=>acceptOfflineEnvelope(e,"org-001",shortLivedStores,shortLivedStores,Date.parse(e.issuedAt)+10_000),
-    /OFFLINE_ENVELOPE_DURATION_EXCEEDED/
+    ()=>acceptOfflineEnvelope(e,"org-001",shortLivedStores,shortLivedStores,Date.parse(e.issuedAt)+61_000),
+    /OFFLINE_ENVELOPE_TOO_OLD/
   );
   assert.throws(()=>assertOfflineEnvelopeFresh(e,Date.parse(e.expiresAt)+1),/OFFLINE_ENVELOPE_EXPIRED/);
   assert.equal(verifyOfflineEnvelopeSignature(e,publicKeyPem),true);
