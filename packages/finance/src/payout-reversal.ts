@@ -9,7 +9,7 @@ export interface PayoutReversalRequest {
   reversalId: string;
   organizationId: string;
   payoutId: string;
-  provider: PayoutProvider;
+  provider: ReversiblePayoutProvider;
   providerReference: string;
   amountMinor: bigint;
   currency: string;
