@@ -67,3 +67,10 @@ A layer is marked COMPLETE only when:
 7. regulatory/partner gates are explicitly satisfied or the feature remains marked IN PROGRESS.
 
 The construction must continue by fixing the earliest unsatisfied gate rather than skipping it.
+
+## 11. Session continuity boundary
+- Construction work is durable only through committed repository state, branches, pull requests and CI.
+- No hidden or invisible agent may be assumed to execute after the ChatGPT session ends.
+- The construction agent must never bypass OpenAI, GitHub, provider, regulatory or security controls.
+- When a session ends, the next session resumes from the latest committed SHA and the earliest unmet exit gate.
+- A provider such as OpenAI or Anthropic may be used only through authorized APIs, connectors and credentials actually available to the project.
