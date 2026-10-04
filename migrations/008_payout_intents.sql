@@ -22,3 +22,4 @@ CREATE TABLE IF NOT EXISTS payout_approvals (
   PRIMARY KEY (payout_id,approver_id)
 );
 CREATE INDEX IF NOT EXISTS idx_payout_intents_org_state ON payout_intents(organization_id,state,created_at);
+\nCREATE UNIQUE INDEX IF NOT EXISTS uq_payout_intents_org_payout ON payout_intents(organization_id,payout_id);\n
