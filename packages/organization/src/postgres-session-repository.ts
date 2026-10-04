@@ -29,6 +29,8 @@ export class PostgresSessionRepository implements SessionRepository {
       [id,organizationId,userId,now]
     );
     const x=r.rows[0]; if(!x)return undefined;
-    return {id:x.id,organizationId:x.organization_id,userId:x.user_id,roleId:x.role_id,issuedAt:new Date(x.issued_at).toISOString(),expiresAt:new Date(x.expires_at).toISOString(),revokedAt:x.revoked_at?new Date(x.revoked_at).toISOString():undefined};
+    const session: OrganizationSession = {id:x.id,organizationId:x.organization_id,userId:x.user_id,roleId:x.role_id,issuedAt:new Date(x.issued_at).toISOString(),expiresAt:new Date(x.expires_at).toISOString()};
+    if (x.revoked_at) session.revokedAt=new Date(x.revoked_at).toISOString();
+    return session;
   }
 }
