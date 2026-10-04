@@ -43,7 +43,7 @@ export class PostgresFieldOfflineClaimStore implements AtomicOfflineClaimStore {
     const result = await this.client.query(
       `INSERT INTO field_offline_replay_claims
          (envelope_id, organization_id, device_id, sequence, claimed_at)
-       VALUES ($1,$2,$3,$4,now())
+       VALUES ($1,$2,$3,$4::bigint,now())
        ON CONFLICT DO NOTHING
        RETURNING envelope_id`,
       [envelopeId, organizationId, deviceId, sequence]
@@ -82,7 +82,7 @@ export class PostgresFieldOfflineClaimStore implements AtomicOfflineClaimStore {
              WHERE organization_id = $2
                AND device_id = $3
                AND status = 'active'
-               AND last_accepted_sequence = $4 - 1
+               AND last_accepted_sequence = $4::bigint - 1
           )
          ON CONFLICT DO NOTHING
          RETURNING envelope_id`,
