@@ -93,5 +93,8 @@ The roadmap is a sequencing control, not a second product specification. Domain 
 ### S-03.9 hardening acceptance
 S-03.9 adds adversarial proof around the existing settlement boundary: contradictory provider data is rejected before persistence; signed callback replay is rejected; concurrent same-idempotency settlement is constrained to one financial effect; provider-event ownership cannot cross organizations; Ledger idempotency is unique per organization. Live PostgreSQL coverage exercises the durable uniqueness/isolation barriers. No live provider credentials or network calls are introduced by this test brick.
 
+### Layer 6 exit status
+L6.1 signed boundary, L6.2 durable device/replay claims, L6.3 encrypted local queue and L6.4 field receipt synchronization/recovery are implemented on their construction branches. Layer 6 is not complete until L6.4 exact-head CI is green and merged, followed by the Layer 6 adversarial exit suite.
+
 ### Next gate after S-03.9
 If S-03.9 CI is green, proceed to **Layer 6 — Field/offline execution**: signed offline envelopes, device binding, route reassignment, sync conflict resolution, local encrypted queue, idempotent replay and field receipts.
