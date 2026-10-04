@@ -96,5 +96,5 @@ S-03.9 adds adversarial proof around the existing settlement boundary: contradic
 ### Layer 6 execution status
 L6.1 signed offline boundary and L6.2 durable PostgreSQL device/replay claims are implemented. L6.3 encrypted local queue + bounded synchronization is implemented on the construction branch. L6.4 field receipt synchronization/recovery remains before Layer 6 exit.
 
-### Next gate after S-03.9
-If S-03.9 CI is green, proceed to **Layer 6 — Field/offline execution**: signed offline envelopes, device binding, route reassignment, sync conflict resolution, local encrypted queue, idempotent replay and field receipts.
+### Current progression
+Layer 6 is complete. Layer 7 payout foundation and Layer 7.1 reconciliation/reversal safety are merged; Layer 7 remains IN PROGRESS. Layer 8 closure safety gates are merged; Layer 8 remains IN PROGRESS. Layer 9 microfinance integration foundation is merged; Layer 9 remains IN PROGRESS.
