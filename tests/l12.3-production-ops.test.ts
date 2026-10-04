@@ -4,10 +4,10 @@ import {PostgresProductionOpsRepository, type DbQuery} from "../packages/operati
 
 function db(){
   const calls:string[]=[];
-  const query:DbQuery["query"]=async<R extends Record<string,unknown>>(sql:string,values?:unknown[])=>{
+  const query:DbQuery["query"]=async(sql:string,values?:unknown[])=>{
       calls.push(sql);
-      if(sql.includes("RETURNING true")) return {rows:[{acquired:true} as R],rowCount:1};
-      return {rows:[] as R[],rowCount:1};
+      if(sql.includes("RETURNING true")) return {rows:[{acquired:true}],rowCount:1};
+      return {rows:[],rowCount:1};
     };
   return {calls,query};
 }
