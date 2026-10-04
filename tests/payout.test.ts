@@ -13,3 +13,14 @@ test("Layer 7 initiates only an approved payout and never posts Ledger state",as
  assert.equal(result.state,"initiated"); assert.equal(result.evidence?.providerReference,"prov-1");
 });
 test("Layer 7 settlement identity is deterministic and organization-scoped",()=>{assert.equal(buildPayoutSettlementIdempotency(base,"prov-1"),"payout-settlement:org1:p1:prov-1");});
+
+test("Layer 7 settles only confirmed provider evidence through Financial Core idempotency",async()=>{
+ let appended:any; const uow:any={accounts:{getById:async(_o:string,id:string)=>({id,organizationId:"org1",currency:"XOF",type:"asset",status:"active",version:1})},ledger:{findByIdempotencyKey:async()=>undefined,append:async(t:any)=>{appended=t}},run:async(fn:any)=>fn(uow)};
+ const evidence={payoutId:"p1",organizationId:"org1",provider:"tmoney",providerReference:"prov-1",amountMinor:1000n,currency:"XOF"};
+ const result=await settleConfirmedPayout(uow,{...base,state:"initiated"},evidence,"source","beneficiary","tx-1");
+ assert.equal(result.replayed,false); assert.equal(appended.idempotencyKey,"payout-settlement:org1:p1:prov-1");
+});
+test("Layer 7 rejects provider amount substitution before Ledger",async()=>{
+ const uow:any={accounts:{getById:async()=>({id:"x",organizationId:"org1",currency:"XOF",type:"asset",status:"active",version:1})},ledger:{findByIdempotencyKey:async()=>undefined,append:async()=>{throw new Error("SHOULD_NOT_POST")}},run:async(fn:any)=>fn(uow)};
+ await assert.rejects(()=>settleConfirmedPayout(uow,{...base,state:"initiated"},{payoutId:"p1",organizationId:"org1",provider:"tmoney",providerReference:"prov-1",amountMinor:999n,currency:"XOF"},"source","beneficiary","tx-1"),/PAYOUT_EVIDENCE_AMOUNT_MISMATCH/);
+});
