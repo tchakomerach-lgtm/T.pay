@@ -32,3 +32,7 @@
 28. API Runtime Resilience — normalize errors, enforce bounded timeout/retry/circuit policies, separate readiness from liveness and never retry non-idempotent financial mutations without an explicit replay-safe boundary.
 29. Health/Readiness Evidence — dependency checks are bounded, explicit and observable; degraded health cannot be represented as ready, and health failure never mutates financial truth.
 30. Shared-Device Runtime Security — do not require a stable device identifier when the channel cannot reliably provide one; enforce stronger available scopes and keep financial authorization independent of device evidence.
+
+31. Canonical Channel Ingress — normalize REST/mobile/agent/USSD/SMS/voice/partner traffic into one governed envelope with correlation, idempotency, tenant and privacy-safe scope evidence.
+32. HTTPS Upstream Adapter — allowlist hosts, reject HTTP/redirects/private IP literals, bound request/response sizes and timeouts, and never put credentials in URLs.
+33. Offline Evidence Sequencing — use bounded sequence numbers, payload hashes and replay/conflict quarantine without creating a parallel financial ledger.
