@@ -11,7 +11,8 @@
     "test": "npm run build && node --test dist/tests/*.test.js",
     "check": "npm run typecheck && npm test",
     "db:migrate": "node dist/scripts/migrate.js",
-    "test:postgres": "npm run build && node --test dist/tests/postgres-live.integration.test.js"
+    "test:postgres": "npm run build && node --test dist/tests/postgres-live.integration.test.js",
+    "test:l16": "npm run build && node --test dist/tests/l16-postgres-live.integration.test.js dist/tests/voice-red-team.test.js dist/tests/secure-http-client.test.js dist/tests/voice-https-server.test.js"
   },
   "engines": {
     "node": ">=22"
