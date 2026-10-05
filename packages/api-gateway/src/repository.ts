@@ -19,7 +19,7 @@ export class ApiGatewayRepository{
   const row=existing.rows[0];
   if(!row)throw new Error("API_IDEMPOTENCY_RACE_UNRESOLVED");
   if(row.request_hash!==input.requestHash||row.route!==input.route)return {status:"conflict",requestId:String(row.id),state:String(row.state)};
-  return {status:"replay",requestId:String(row.id),responseHash:row.response_hash==null?undefined:String(row.response_hash),statusCode:row.status_code==null?undefined:Number(row.status_code),state:String(row.state)};
+  const replay:IdempotencyResult={status:"replay",requestId:String(row.id),state:String(row.state)};\n  if(row.response_hash!=null) replay.responseHash=String(row.response_hash);\n  if(row.status_code!=null) replay.statusCode=Number(row.status_code);\n  return replay;
  }
  async completeIdempotency(input:{requestId:string;state:"succeeded"|"failed";responseHash?:string;statusCode:number}):Promise<void>{
   if(!HEX64.test(input.responseHash??""))throw new Error("API_RESPONSE_HASH_INVALID");
