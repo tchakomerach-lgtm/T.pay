@@ -40,7 +40,11 @@ Scope: Prompt 020 — Voice Fabric, telephony, appointments and secure voice ope
 13. Durable tenant/provider/event replay barrier bound to payload SHA-256.
 14. Versioned voice API route contract with idempotency required for mutating routes.
 15. Migration 044 for callback replay claims and endpoint policy metadata; provider secrets remain outside PostgreSQL.
-16. Targeted transport/provider regression tests.
+16. Concrete TLS 1.3-only HTTPS Voice API server with server-side authz and mandatory idempotency for mutating routes.
+17. Production HTTPS provider client boundary with certificate verification and injected mTLS material.
+18. Live PostgreSQL test coverage for concurrent appointment exclusion and durable callback replay claims.
+19. Voice red-team regression coverage for SSRF, downgrade, callback tampering/staleness, mTLS material and tenant confusion.
+20. Targeted transport/provider regression tests.
 
 ## Safety boundary
 Production execution remains:
