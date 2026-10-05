@@ -45,7 +45,20 @@ T.Pay may use authorized OpenAI, Anthropic or local model adapters when credenti
 ## 15. HTTPS-only external adapters
 All network-facing T.Pay adapters MUST use HTTPS/TLS. Plain HTTP endpoints, redirects to HTTP, mixed-content API calls and insecure fallback transports are prohibited. Adapter configuration must reject non-HTTPS origins at startup and in tests. TLS verification may not be disabled in production. Certificate/proxy behavior must be explicit and observable without weakening verification. Channel adapters (REST, mobile, USSD/SMS gateways, voice, partner APIs) must terminate at a governed gateway and cannot bypass authentication, authorization, idempotency, rate limits or audit.
 
-## 16. Definition of Done
+## 16. 2026-2030 cybersecurity baseline
+- Prefer TLS 1.3, modern cipher suites and platform-managed certificate rotation; do not invent custom cryptography.
+- Use crypto-agility: algorithm identifiers and key versions must be explicit so approved post-quantum/hybrid algorithms can be introduced without redesigning financial records.
+- Prefer phishing-resistant authentication such as WebAuthn/passkeys for capable user/admin devices, with controlled recovery paths for low-end/shared-device environments.
+- Secrets must come from an authorized secret manager at runtime; never from source code, migrations, client bundles or database business records. Rotation and revocation are first-class events.
+- Every release must be capable of producing an SBOM and provenance evidence; dependencies require automated vulnerability/license checks, lockfile discipline and controlled update windows.
+- Protect the software supply chain with signed/provenance-aware builds where the deployment environment supports them; separate build identity from runtime identity.
+- Use least privilege, short-lived credentials, workload identity where available, and deny-by-default network egress for sensitive services.
+- Treat prompt injection, tool poisoning, model-context exfiltration, dependency confusion, credential stuffing, SIM-swap risk, replay and API abuse as first-class threat models.
+- Security telemetry must be privacy-minimized, tamper-evident and correlated; never log secrets, raw authentication factors, payment credentials or unnecessary personal identifiers.
+- Security controls must fail closed for authorization and fail safely for availability; a security-control outage must not fabricate or mutate financial truth.
+- Automated security scanners are evidence-generators, not proof that zero vulnerabilities exist. Critical findings block release unless an explicit, audited exception exists.
+
+## 17. Definition of Done
 1. Exact-head CI green.
 2. Typecheck/unit/integration/audit gates green.
 3. PostgreSQL race/idempotency/replay proofs where relevant.
@@ -54,6 +67,7 @@ All network-facing T.Pay adapters MUST use HTTPS/TLS. Plain HTTP endpoints, redi
 6. Provider contract/operational tests.
 7. Regulatory/partner gates where regulated.
 8. Documentation states every remaining limitation explicitly.
+9. Security baseline and release evidence are satisfied for the layer.
 
 ## Operational observability invariant
 - Every production-facing layer must emit durable operational evidence with correlation IDs, bounded payloads and explicit degraded/offline states.
