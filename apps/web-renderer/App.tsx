@@ -185,6 +185,12 @@ export function App() {
   );
 }
 
+function connectionLabel(connection: "online" | "reconnecting" | "offline"): string {
+  return connection === "online" ? "● En ligne"
+    : connection === "reconnecting" ? "◌ Reconnexion…"
+    : "○ Hors ligne";
+}
+
 function labelFor(item: TPayPrimaryDestination): string {
   return ({
     home: "Accueil", organizations: "Organisations", social: "Réseau social",
