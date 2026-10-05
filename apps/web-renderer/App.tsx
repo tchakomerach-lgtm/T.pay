@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTpayBrowserRuntime } from "./runtime.js";
 import { assertRendererRuntime } from "../design/renderer-quality.js";
+import { buildTpayCssVariables } from "./adapter.js";
 import { tpayTokens } from "../design/tokens.js";
 import { assertShellModel, type TPayPrimaryDestination } from "../design/shell.js";
 import { assertUniversalObject, type TPayUniversalObject } from "../design/objects.js";
