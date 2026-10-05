@@ -82,3 +82,42 @@ test("payout initiation stays provider-pending and does not imply settlement",as
   assert.equal(result.state,"initiated");
   assert.equal(result.evidence?.providerReference,"out-1");
 });
+
+test("confirmed tontine payout uses Financial Core idempotent settlement",async()=>{
+  const { settleConfirmedTontinePayout } = await import("../packages/microfinance/src/tontine-payout-settlement.js");
+  let appended:any;
+  const uow:any={
+    accounts:{getById:async(_org:string,id:string)=>({id,organizationId:"o1",currency:"XOF",type:"asset",status:"active",version:1})},
+    ledger:{findByIdempotencyKey:async()=>undefined,append:async(tx:any)=>{appended=tx}},
+    run:async(fn:any)=>fn(uow)
+  };
+  const plan=buildTontinePayoutPlan({
+    organizationId:"o1" as never,cycleId:"cycle3",beneficiaryMembershipId:"m1" as never,
+    beneficiaryClientId:"c1" as never,microfinanceId:"mf1" as never,destinationRef:"mf-account:c1",
+    amountMinor:1800n,currency:"XOF",kycVerified:true,unresolvedFinancialException:false,humanApprovalRequired:false,
+    now:"2026-10-05T00:00:00Z"
+  },members[0]!);
+  const intent={...plan.intent,state:"initiated" as const};
+  const result=await settleConfirmedTontinePayout(uow,intent,{
+    payoutId:intent.payoutId,organizationId:"o1",provider:"microfinance",providerReference:"out-3",amountMinor:1800n,currency:"XOF"
+  },{tontineClearingAccountId:"tontine-clearing",microfinanceSettlementAccountId:"mf-clearing"},"tx-3","2026-10-05T00:00:00Z");
+  assert.equal(result.replayed,false);
+  assert.equal(appended.idempotencyKey,"payout-settlement:o1:"+intent.payoutId+":out-3");
+});
+test("tontine payout settlement rejects provider amount substitution before Ledger",async()=>{
+  const { settleConfirmedTontinePayout } = await import("../packages/microfinance/src/tontine-payout-settlement.js");
+  const uow:any={
+    accounts:{getById:async(_org:string,id:string)=>({id,organizationId:"o1",currency:"XOF",type:"asset",status:"active",version:1})},
+    ledger:{findByIdempotencyKey:async()=>undefined,append:async()=>{throw new Error("SHOULD_NOT_POST")}},
+    run:async(fn:any)=>fn(uow)
+  };
+  const plan=buildTontinePayoutPlan({
+    organizationId:"o1" as never,cycleId:"cycle4",beneficiaryMembershipId:"m1" as never,
+    beneficiaryClientId:"c1" as never,microfinanceId:"mf1" as never,destinationRef:"mf-account:c1",
+    amountMinor:1800n,currency:"XOF",kycVerified:true,unresolvedFinancialException:false,humanApprovalRequired:false,
+    now:"2026-10-05T00:00:00Z"
+  },members[0]!);
+  await assert.rejects(()=>settleConfirmedTontinePayout(uow,{...plan.intent,state:"initiated"},{
+    payoutId:plan.intent.payoutId,organizationId:"o1",provider:"microfinance",providerReference:"out-4",amountMinor:1799n,currency:"XOF"
+  },{tontineClearingAccountId:"tontine-clearing",microfinanceSettlementAccountId:"mf-clearing"},"tx-4","2026-10-05T00:00:00Z"),/PAYOUT_EVIDENCE_AMOUNT_MISMATCH/);
+});
