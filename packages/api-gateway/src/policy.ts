@@ -7,12 +7,13 @@ export const API_ROUTE_POLICIES:readonly ApiRoutePolicy[]=[
  {route:"/v1/ai/runs",methods:["POST"],auth:"member",financial:false},
 ];
 const normalize=(route:string)=>route.split("/").filter(Boolean).map(s=>s.startsWith(":")?":param":s).join("/");
+const normalizedPolicyRoute=(route:string)=>"/"+normalize(route);
 export function resolveRoutePolicy(method:string,route:string):ApiRoutePolicy|null{
  const normalized="/"+normalize(route);
- const candidate=API_ROUTE_POLICIES.find(p=>p.route===normalized&&p.methods.includes(method.toUpperCase()));
+ const candidate=API_ROUTE_POLICIES.find(p=>normalizedPolicyRoute(p.route)===normalized&&p.methods.includes(method.toUpperCase()));
  return candidate??null;
 }
-export function isFinancialRoute(route:string):boolean{return /(^|\\/)\\b(payments?|wallets?|ledger|credit|loans?|transfers?|cash|withdrawals?|deposits?|tontines?)\\b/i.test(route);}
+export function isFinancialRoute(route:string):boolean{return /(^|\/)\b(payments?|wallets?|ledger|credit|loans?|transfers?|cash|withdrawals?|deposits?|tontines?)\b/i.test(route);}
 export function authorizeRoute(input:{method:string;route:string;authClass:ApiRoutePolicy["auth"]}):{allowed:boolean;reason:string;policy?:ApiRoutePolicy}{
  if(isFinancialRoute(input.route)) return {allowed:false,reason:"FINANCIAL_CORE_DENY_BY_DEFAULT"};
  const policy=resolveRoutePolicy(input.method,input.route);
