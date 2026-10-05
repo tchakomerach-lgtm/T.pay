@@ -62,6 +62,9 @@ Foundation is implemented for domain types, security sessions/policies, risk con
 
 Community Tontine remains an independent interoperable domain: daily/weekly/monthly cycles, fixed/variable/goal contributions, membership/roles, beneficiary rotation, governance, partner microfinance selection, multi-channel collection, provider reconciliation, KYC/human payout gates, field continuity and idempotent contribution intents. It never creates a second ledger; T.Pay Financial Core remains authoritative.
 
+## DB-074 Design Runtime state
+DB-074 implements renderer-neutral universal object, object presentation, action presentation, realtime presentation, synchronization presentation and field/low-bandwidth display contracts on `construction/db-074-universal-object-action-runtime`. It extends DB-073 without creating a second design system. Status is IMPLEMENTED, not VERIFIED/PRODUCTION-READY, until exact-head CI, renderer consumption, visual/accessibility regression and low-end performance evidence exist.
+
 ## Definition of Done
 Code + tests + security controls + observability + documentation + migration/rollback plan when stateful + CI green.
 
@@ -99,3 +102,7 @@ The AI Core owns model-provider routing and specialist-agent orchestration. No d
 The Commercial Growth Agent is a first-class AI Core specialist, not an isolated revenue chatbot. It can reason over approved commercial context and request authorized tools. Its outputs do not directly mutate financial state or silently contact people. Consent, channel policy, outbound budgets, organization scope and human-approval gates are enforced outside the model.
 
 Construction rule: provider outage is not permission to bypass policy. Failover may occur only among providers allowed for the same data classification and tenant policy.
+
+## DB-073 Design Runtime Foundation
+
+DB-073 is implemented on construction branch/PR #80 as renderer-neutral TypeScript contracts because the current repository does not yet contain a browser/mobile renderer. It establishes canonical design tokens, universal component states, realtime/offline invariants, context separation, action contracts, accessibility requirements and the global shell contract. Status remains IMPLEMENTED until exact-head CI and review evidence are available; no UI/production completion claim is implied.
