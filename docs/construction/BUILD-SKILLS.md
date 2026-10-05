@@ -39,3 +39,6 @@
 
 34. API Contract Versioning — explicit /vN routes, active/deprecated/sunset policy, gateway compatibility checks and deterministic migration boundaries.
 35. Bounded API Errors — stable machine-readable codes and correlation IDs without provider, database, secret or stack-trace leakage.
+
+36. Privacy-Safe API Observability — durable correlation/version/channel/status/latency evidence without raw secrets, payment credentials or unnecessary PII.
+37. Operational Evidence Retention — bounded telemetry retention and pruning remain outside Financial Core and cannot mutate financial truth.
