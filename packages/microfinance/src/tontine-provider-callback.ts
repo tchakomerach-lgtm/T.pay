@@ -84,9 +84,10 @@ export async function processVerifiedTontinePayoutCallback(
     const existing = await tx.query<{
       provider_event_id: string;
       payout_id: UUID;
+      payload_sha256: string;
       state: "received" | "processed" | "rejected" | "replayed";
     }>(
-      `SELECT provider_event_id,payout_id,state
+      `SELECT provider_event_id,payout_id,payload_sha256,state
        FROM tontine_provider_callback_receipts
        WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3
        FOR UPDATE`,
@@ -94,6 +95,10 @@ export async function processVerifiedTontinePayoutCallback(
     );
 
     if (existing.rows[0]) {
+      if (existing.rows[0].payload_sha256 !== payloadSha256 || existing.rows[0].payout_id !== callback.payoutId) {
+        await tx.query("UPDATE tontine_provider_callback_receipts SET state='rejected', failure_code='CALLBACK_PAYLOAD_MISMATCH' WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3", [callback.organizationId, callback.provider, callback.providerEventId]);
+        throw new Error("TONTINE_CALLBACK_REPLAY_PAYLOAD_MISMATCH");
+      }
       await tx.query(
         `UPDATE tontine_provider_callback_receipts
          SET state='replayed'
