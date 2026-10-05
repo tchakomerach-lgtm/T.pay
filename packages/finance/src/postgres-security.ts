@@ -37,6 +37,7 @@ export class PostgresDurableSecurityStore implements DurableSecurityStore {
   async createApproval(input: {
     approvalId: string; tenantId: string; approverId: string; subjectActorId: string; requestDigest: string; expiresAt: string;
   }): Promise<void> {
+    if (input.approverId === input.subjectActorId) throw new Error("SELF_APPROVAL_FORBIDDEN");
     const result = await this.client.query(
       `INSERT INTO security_approvals
          (approval_id,tenant_id,approver_id,subject_actor_id,request_digest,status,created_at,expires_at)
