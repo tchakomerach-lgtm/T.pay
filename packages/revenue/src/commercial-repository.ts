@@ -22,7 +22,7 @@ export interface CommercialActionRepository {
     scheduledAt?: string;
     createdAt: string;
   }): Promise<boolean>;
-  claimDue(organizationId: string, now: string): Promise<{ id: string; action: string; channel: string; leadId?: string } | undefined>;
-  markCompleted(id: string, executedAt: string): Promise<void>;
-  markBlocked(id: string, failureCode: string): Promise<void>;
+  claimDue(organizationId: string, now: string, workerId: string): Promise<{ id: string; action: string; channel: string; leadId?: string } | undefined>;
+  markCompleted(id: string, workerId: string, executedAt: string): Promise<void>;
+  markBlocked(id: string, workerId: string, failureCode: string): Promise<void>;
 }
