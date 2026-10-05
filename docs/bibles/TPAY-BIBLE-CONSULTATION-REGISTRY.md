@@ -13,7 +13,7 @@ This registry makes the project's Bibles discoverable before implementation and 
 |---|---|
 | Money, balances, fees, payment, ledger | `docs/skills/TPAY-FIN-002.md` + finance architecture/ADR |
 | Microfinance, collection, field agent | `docs/skills/TPAY-MF-002.md` + microfinance ADRs |
-| Identity, authorization, secrets, abuse | `docs/skills/TPAY-SEC-001.md` + `docs/security/THREAT-MODEL.md` |
+| Identity, authorization, secrets, abuse | `docs/skills/TPAY-SEC-001.md` + `docs/security/THREAT-MODEL.md` + applicable SEC sequence docs (currently SEC-073/SEC-074) |
 | AI, agents, tools, prompts | `docs/skills/TPAY-AI-001.md` + AI Bible |
 | Authentication/session | `docs/skills/TPAY-AUTH-002.md` |
 | Orchestration/workflows | `docs/skills/TPAY-ORCH-001.md` |
