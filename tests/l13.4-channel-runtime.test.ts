@@ -6,11 +6,9 @@ import {ChannelIngressRepository} from "../packages/api-gateway/src/channel-repo
 import {processChannelIngress} from "../packages/api-gateway/src/channel-runtime.js";
 
 test("L13.4 routes a governed mobile request into evidence without financial mutation",async()=>{
-  const abuse={
-    consume:async()=>({allowed:true,limited:false,requestCount:1,limit:90,retryAfterSeconds:60,scopeHash:"a".repeat(64)}),
-    recordAbuse:async()=>{}
-  } as unknown as ApiAbuseRepository;
-  const runtime=new ApiRuntimeGate(abuse);
+  const runtime={
+    evaluate:async()=>({allowed:true,correlationId:"corr-runtime-1",policyKey:"mobile:POST:/v1/profile",rateScopes:["channel","ip","actor"]})
+  } as unknown as ApiRuntimeGate;
   let persisted=false;
   const repository=new ChannelIngressRepository({query:async(sql:string)=>{if(sql.includes("INSERT INTO api_channel_ingress_events")){persisted=true;return {rows:[{id:"evidence-1"}],rowCount:1};}throw new Error("UNEXPECTED_QUERY");}});
   const result=await processChannelIngress({
