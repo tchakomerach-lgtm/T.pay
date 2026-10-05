@@ -99,3 +99,12 @@ A session ending, token limit, provider outage or unavailable coding agent is no
 23. Completion-state invariant
 The roadmap must maintain per-layer states: PLANNED → IMPLEMENTED → VERIFIED → INTEGRATED → PRODUCTION-READY → LIVE. A layer cannot skip states based on prose or model confidence.
 
+
+24. Runtime containment invariant
+Model safety is not the final boundary. Sensitive AI execution requires independent harness/tool policy plus environment containment: sandbox, credential non-exposure, deny-by-default egress and destination policy. Tool results remain untrusted data.
+
+25. Security-monitor independence invariant
+Where a security monitor evaluates consequential AI actions, its decision input must be structurally separated from persuasive model prose and hostile tool results whenever the decision does not require them. The monitor evaluates the canonical structured action, identity, scope and destination.
+
+26. External-content quarantine invariant
+Suspicious tool/RAG/partner content is quarantined and cannot become policy, capability, approval or executable instructions.
