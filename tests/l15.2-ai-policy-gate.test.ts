@@ -4,9 +4,9 @@ import { createActionEnvelope } from "../packages/ai/src/action-envelope.js";
 import { issueCapability } from "../packages/ai/src/capability-policy.js";
 import { AiPolicyGate } from "../packages/ai/src/policy-gate.js";
 
-const base=()=>createActionEnvelope({
+const base=(now=Date.now())=>createActionEnvelope({
   actionId:"a1",toolName:"send-message",toolVersion:"1",organizationId:"org",actorId:"actor",agentId:"agent",
-  purpose:"customer-contact",risk:"L3",canonicalPayload:"{\"message\":\"hello\"}",createdAt:1000,expiresAt:2000,correlationId:"req-1"
+  purpose:"customer-contact",risk:"L3",canonicalPayload:"{\"message\":\"hello\"}",createdAt:now,expiresAt:now+2000,correlationId:"req-1"
 });
 
 test("action envelope binds its canonical payload hash",()=>{
@@ -16,7 +16,7 @@ test("action envelope binds its canonical payload hash",()=>{
 });
 
 test("capability is scoped and short-lived",()=>{
-  const capability=issueCapability({capabilityId:"cap",agentId:"agent",organizationId:"org",actorId:"actor",purpose:"customer-contact",toolName:"send-message",dataClasses:["internal"],risk:"L3",ttlMs:60000},1000);
+  const capability=issueCapability({capabilityId:"cap",agentId:"agent",organizationId:"org",actorId:"actor",purpose:"customer-contact",toolName:"send-message",dataClasses:["internal"],risk:"L3",ttlMs:60000},Date.now());
   const gate=new AiPolicyGate();
   assert.equal(gate.evaluate(base(),capability,true).allowed,true);
   const foreign=createActionEnvelope({...base(),actorId:"other"});
