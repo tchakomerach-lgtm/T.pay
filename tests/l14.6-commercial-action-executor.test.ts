@@ -20,7 +20,7 @@ test("L14.6 only one worker claims a commercial action", { skip: !databaseUrl &&
     await setup.query("INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',$3)",[organizationId,"L14.6",now]);
     await setup.query("INSERT INTO commercial_offers (id,organization_id,owner_user_id,title,description,category,currency,active,created_at,updated_at) VALUES ($1,$2,$3,'Offer','Offer','service','XOF',true,$4,$4)",[offerId,organizationId,randomUUID(),now]);
     await setup.query("INSERT INTO commercial_campaigns (id,organization_id,offer_id,status,daily_outbound_limit,sent_today,created_at,updated_at) VALUES ($1,$2,$3,'active',10,0,$4,$4)",[campaignId,organizationId,offerId,now]);
-    await setup.query("INSERT INTO commercial_actions (id,organization_id,campaign_id,action,channel,state,idempotency_key,created_at) VALUES ($1,$2,$3,'prepare_follow_up','tpay','planned','l146-'+randomUUID(),$4)",[actionId,organizationId,campaignId,now]);
+    await setup.query("INSERT INTO commercial_actions (id,organization_id,campaign_id,action,channel,state,idempotency_key,created_at) VALUES ($1,$2,$3,'prepare_follow_up','tpay','planned',$4,$5)",[actionId,organizationId,campaignId,'l146-'+randomUUID(),now]);
     const a=new PostgresCommercialActionStore(workerA), b=new PostgresCommercialActionStore(workerB);
     const results=await Promise.all([a.claimDue(organizationId,now,"worker-a"),b.claimDue(organizationId,now,"worker-b")]);
     assert.equal(results.filter(Boolean).length,1);
