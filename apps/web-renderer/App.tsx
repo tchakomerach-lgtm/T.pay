@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { useTpayBrowserRuntime } from "./runtime.js";
 import { assertRendererRuntime } from "../design/renderer-quality.js";
 import { buildTpayCssVariables } from "./adapter.js";
