@@ -23,7 +23,7 @@ test("security monitoring fails closed and redacts secret-shaped fields",()=>{
   const m=new SecurityMonitor();
   m.record({eventType:"tool",organizationId:"o",severity:"info",timestamp:Date.now(),metadata:{apiKey:"secret",safe:"ok"}});
   const first=m.snapshot()[0]; assert.ok(first); assert.equal(first.metadata.apiKey,"[REDACTED]");
-  m.setAvailable(false); assert.throws(()=>m.record({eventType:"x",organizationId:"o",severity:"critical",timestamp:Date.now(),metadata:{}}),/SECURITY_MONITOR_UNAVAILABLE/);
+  m.verifyAuditIntegrity(); assert.ok(m.getAuditRecords().length===1); m.setAvailable(false); assert.throws(()=>m.record({eventType:"x",organizationId:"o",severity:"critical",timestamp:Date.now(),metadata:{}}),/SECURITY_MONITOR_UNAVAILABLE/);
 });
 test("resource budgets stop runaway automation",()=>{
   const g=new ResourceBudgetGuard({maxCalls:1,maxInputBytes:10,maxOutputBytes:10,maxWallTimeMs:1000});
