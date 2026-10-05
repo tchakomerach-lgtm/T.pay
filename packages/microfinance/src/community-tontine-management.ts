@@ -50,7 +50,7 @@ export interface CommunityTontineMfSettlementInstruction {
 export interface CommunityTontineMfReconciliationItem {
   id: UUID; tontineGroupId: UUID; microfinanceId: UUID; externalReference: string;
   expectedMinor: bigint; observedMinor: bigint; currency: string;
-  state: "open" | "investigating" | "resolved" | "escalated"; openedAt: string;
+  state: "open" | "investigating" | "resolved" | "escalated"; openedAt: string; idempotencyKey?: string;
 }
 export interface CommunityTontineMfSettlementApprovalPolicy {
   humanApprovalRequired: boolean; lowRiskAutomationEnabled: boolean; maxAutomatedAmountMinor: bigint;
