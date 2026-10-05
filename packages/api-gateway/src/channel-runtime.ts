@@ -18,7 +18,8 @@ export async function processChannelIngress(input:ChannelIngressInput&{
   const runtimeDecision=await runtime.evaluate({
     method:ingress.method,route:ingress.route,authClass:input.authClass,
     channel:ingress.channel,origin:ingress.origin,correlationId:ingress.correlationId,
-    scopeSecrets:input.scopeSecrets,organizationId:input.organizationId,now:input.now
+    scopeSecrets:input.scopeSecrets,now:input.now,
+    ...(input.organizationId===undefined?{}:{organizationId:input.organizationId})
   });
   if(!runtimeDecision.allowed)return {runtime:runtimeDecision,ingress};
   const evidence=await repository.record(ingress,input.organizationId);
