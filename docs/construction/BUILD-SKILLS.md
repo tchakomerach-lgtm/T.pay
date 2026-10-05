@@ -18,13 +18,8 @@
 16. No False Completion — distinguish implemented, tested, integrated, certified and production-live states.
 17. Production Readiness — backups, restore, migration safety, secrets, abuse prevention, DR and incident response.
 18. Continuous African Fit — cash, mobile money, USSD/SMS/voice, low bandwidth, shared devices and multilingual operation.
-
-
-## Operational Observability Skill
-- Measure before claiming reliability: latency, queue depth, provider availability, callback lag, offline backlog and reconciliation age.
-- Every alert is correlated, idempotent and durable; notification failure is itself observable.
-- Validate SLOs with production evidence, not configuration alone.
-
 19. API Gateway Replay Discipline — reserve atomically, reject same-key/different-payload conflicts, persist successful/failed responses, and make anonymous idempotency keys unique as well as tenant-scoped keys.
 20. API Route Deny-by-Default — no route exists merely because a handler exists; route, method, auth class and data-domain policy must be explicitly allowlisted, with Financial Core routes denied until a dedicated financial policy gate exists.
 21. Session-Independent Continuity — a conversation/session boundary is not a construction boundary; the durable state is the repository. Each sequence must leave a committed, testable state and an explicit earliest unmet gate for the next sequence.
+22. HTTPS Adapter Enforcement — reject non-HTTPS origins, never disable TLS verification in production, forbid HTTP redirects/fallbacks, and test transport security at adapter registration and request boundaries.
+23. Anthropic Provider Hardening — Anthropic uses the same provider interface, secret resolver, route/data-class policy, timeout/retry/circuit-breaker, audit and cost controls as every other model provider; provider choice never grants additional financial or tenant privileges.
