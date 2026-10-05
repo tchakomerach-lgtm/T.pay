@@ -161,10 +161,12 @@ export class PostgresTontineBeneficiarySlotRepository implements TontineBenefici
   async createIfAbsent(organizationId: UUID, slot: TontineBeneficiarySlot): Promise<TontineBeneficiarySlot> {
     const result = await this.db.query(
       `INSERT INTO tontine_beneficiary_slots
-       (id,organization_id,group_id,cycle_number,sequence,beneficiary_membership_id,
+       (id,organization_id,group_id,cycle_id,cycle_number,sequence,beneficiary_membership_id,
         amount_target_minor,status,scheduled_for)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-       ON CONFLICT (group_id,cycle_number)
+       SELECT $1,$2,$3,c.id,$4,$5,$6,$7,$8,$9
+       FROM tontine_cycles c
+       WHERE c.organization_id=$2 AND c.group_id=$3 AND c.cycle_number=$4
+       ON CONFLICT (organization_id,cycle_id,sequence)
        DO UPDATE SET beneficiary_membership_id=tontine_beneficiary_slots.beneficiary_membership_id
        RETURNING *`,
       [
@@ -184,11 +186,16 @@ export class PostgresTontineBeneficiarySlotRepository implements TontineBenefici
     expectedBeneficiaryMemberId: UUID
   ): Promise<TontineBeneficiarySlot> {
     const result = await this.db.query(
-      `UPDATE tontine_beneficiary_slots
+      `WITH locked_cycle AS (
+         SELECT id FROM tontine_cycles
+         WHERE organization_id=$1 AND group_id=$2 AND cycle_number=$3
+         FOR UPDATE
+       )
+       UPDATE tontine_beneficiary_slots s
        SET status='eligible'
-       WHERE organization_id=$1 AND group_id=$2 AND cycle_number=$3
-         AND beneficiary_membership_id=$4 AND status='scheduled'
-       RETURNING *`,
+       WHERE s.organization_id=$1 AND s.cycle_id=(SELECT id FROM locked_cycle)
+         AND s.beneficiary_membership_id=$4 AND s.status='scheduled'
+       RETURNING s.*`,
       [organizationId, groupId, cycleNumber, expectedBeneficiaryMemberId]
     );
     const row = result.rows[0];
