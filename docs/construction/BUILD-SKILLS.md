@@ -42,3 +42,6 @@
 
 36. Privacy-Safe API Observability — durable correlation/version/channel/status/latency evidence without raw secrets, payment credentials or unnecessary PII.
 37. Operational Evidence Retention — bounded telemetry retention and pruning remain outside Financial Core and cannot mutate financial truth.
+
+38. Financial Intent Admission — allow only explicit intent routes; require tenant, idempotency and payload evidence; keep Ledger mutation behind Financial Core command handlers and preserve human approval defaults.
+39. Financial Route Deny-by-Default — direct wallet/Ledger/payment/transfer mutation endpoints remain blocked until transaction, replay, concurrency, audit and production gates are evidenced.

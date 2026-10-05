@@ -114,3 +114,10 @@ All network-facing T.Pay adapters MUST use HTTPS/TLS. Plain HTTP endpoints, redi
 - Operational telemetry never stores raw secrets, authentication factors, payment credentials or unnecessary PII; evidence is hashed where content binding is required.
 - Telemetry persistence failure must not fabricate or mutate Financial Core truth; degraded observability is an explicit operational condition.
 - Runtime evidence retention is bounded and independently prunable; observability storage is never a financial ledger.
+
+
+## Financial intent admission invariant
+- Financial API routes are deny-by-default except explicitly allowlisted intent routes. An admitted request creates only a governed intent/evidence boundary; it never constitutes Ledger truth.
+- Every financial intent requires tenant scope, bounded idempotency evidence and a canonical payload hash before application handling. Same-key/different-payload conflicts must be quarantined.
+- Human approval remains the default for high-impact financial intents. Policy-based automation may disable it only through an explicit, auditable policy decision; provider/model selection cannot disable approval.
+- Direct Ledger, wallet balance, cash, transfer, payout and settlement mutation endpoints remain unavailable until a dedicated Financial Core command handler proves transactionality, concurrency, replay, audit and production authorization.

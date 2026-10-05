@@ -5,6 +5,12 @@ export const API_ROUTE_POLICIES:readonly ApiRoutePolicy[]=[
  {route:"/v1/organizations",methods:["GET","POST"],auth:"user",financial:false},
  {route:"/v1/organizations/:organizationId",methods:["GET","PATCH"],auth:"member",financial:false},
  {route:"/v1/ai/runs",methods:["POST"],auth:"member",financial:false},
+ {route:"/v1/payments/intents",methods:["POST"],auth:"member",financial:true},
+ {route:"/v1/transfers/intents",methods:["POST"],auth:"member",financial:true},
+ {route:"/v1/deposits/intents",methods:["POST"],auth:"member",financial:true},
+ {route:"/v1/withdrawals/intents",methods:["POST"],auth:"member",financial:true},
+ {route:"/v1/loans/applications",methods:["POST"],auth:"member",financial:true},
+ {route:"/v1/tontines/contributions",methods:["POST"],auth:"member",financial:true},
 ];
 const normalize=(route:string)=>route.split("/").filter(Boolean).map(s=>s.startsWith(":")?":param":s).join("/");
 const normalizedPolicyRoute=(route:string)=>"/"+normalize(route);
@@ -15,9 +21,11 @@ export function resolveRoutePolicy(method:string,route:string):ApiRoutePolicy|nu
 }
 export function isFinancialRoute(route:string):boolean{return /(^|\/)\b(payments?|wallets?|ledger|credit|loans?|transfers?|cash|withdrawals?|deposits?|tontines?)\b/i.test(route);}
 export function authorizeRoute(input:{method:string;route:string;authClass:ApiRoutePolicy["auth"]}):{allowed:boolean;reason:string;policy?:ApiRoutePolicy}{
- if(isFinancialRoute(input.route)) return {allowed:false,reason:"FINANCIAL_CORE_DENY_BY_DEFAULT"};
  const policy=resolveRoutePolicy(input.method,input.route);
- if(!policy)return {allowed:false,reason:"API_ROUTE_NOT_ALLOWLISTED"};
+ if(!policy){
+  if(isFinancialRoute(input.route)) return {allowed:false,reason:"FINANCIAL_CORE_DENY_BY_DEFAULT"};
+  return {allowed:false,reason:"API_ROUTE_NOT_ALLOWLISTED"};
+ }
  const rank={anonymous:0,user:1,member:2,admin:3,service:4} as const;
  return rank[input.authClass]>=rank[policy.auth]?{allowed:true,reason:"ALLOWED",policy}:{allowed:false,reason:"API_AUTH_INSUFFICIENT",policy};
 }

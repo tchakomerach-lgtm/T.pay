@@ -3,6 +3,7 @@ import {assertHttpsOrigin} from "./auth-device.js";
 import {authorizeRoute, type ApiRoutePolicy} from "./policy.js";
 import {resolveRatePolicy, type ApiChannel} from "./rate-policy.js";
 import {ApiAbuseRepository} from "./rate-abuse.js";
+import {admitFinancialIntent} from "./financial-admission.js";
 import {assertApiVersionCompatibility} from "./api-version.js";
 
 export type RuntimeDecision=
@@ -22,6 +23,8 @@ export class ApiRuntimeGate {
     correlationId:string;
     scopeSecrets:Partial<Record<"ip"|"device"|"actor"|"organization"|"phone"|"channel",string>>;
     organizationId?:string;
+    idempotencyKey?:string;
+    payloadHash?:string;
     now:string;
   }):Promise<RuntimeDecision>{
     assertHttpsOrigin(input.origin);
@@ -33,6 +36,20 @@ export class ApiRuntimeGate {
     }
     const auth=authorizeRoute({method:input.method,route:input.route,authClass:input.authClass});
     if(!auth.allowed)return {allowed:false,status:auth.reason==="API_AUTH_INSUFFICIENT"?403:401,code:auth.reason,correlationId:input.correlationId};
+
+    if(auth.policy?.financial){
+      try{
+        admitFinancialIntent({
+          method:input.method,route:input.route,authClass:input.authClass,
+          ...(input.organizationId===undefined?{}:{organizationId:input.organizationId}),
+          ...(input.idempotencyKey===undefined?{}:{idempotencyKey:input.idempotencyKey}),
+          ...(input.payloadHash===undefined?{}:{payloadHash:input.payloadHash})
+        });
+      }catch(error){
+        const code=error instanceof Error?error.message:"FINANCIAL_INTENT_REJECTED";
+        return {allowed:false,status:400,code,correlationId:input.correlationId};
+      }
+    }
 
     const rate=resolveRatePolicy({
       method:input.method,route:input.route,channel:input.channel,authClass:input.authClass
