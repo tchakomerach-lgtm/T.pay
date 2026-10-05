@@ -47,8 +47,8 @@ import {createAgentTrustEnvelope,validateAgentTrustEnvelope} from "../packages/s
 
 test("capability revocation is enforced at execution policy",()=>{
  const registry=new CapabilityRevocationRegistry();
- const cap=issueCapability({capabilityId:"cap-r",agentId:"agent",organizationId:"org",actorId:"actor",purpose:"read",toolName:"read",dataClasses:["internal"],risk:"L0",ttlMs:10000},1000);
- const action=createActionEnvelope({actionId:"a",toolName:"read",toolVersion:"1",organizationId:"org",actorId:"actor",agentId:"agent",purpose:"read",risk:"L0",canonicalPayload:"{}",createdAt:1000,expiresAt:5000,correlationId:"a"});
+ const cap=issueCapability({capabilityId:"cap-r",agentId:"agent",organizationId:"org",actorId:"actor",purpose:"read",toolName:"read",dataClasses:["internal"],risk:"L0",ttlMs:10000},Date.now());
+ const action=createActionEnvelope({actionId:"a",toolName:"read",toolVersion:"1",organizationId:"org",actorId:"actor",agentId:"agent",purpose:"read",risk:"L0",canonicalPayload:"{}",createdAt:Date.now(),expiresAt:Date.now()+5000,correlationId:"a"});
  const gate=new AiPolicyGate(registry); assert.doesNotThrow(()=>gate.assertAllowed(action,cap));
  registry.revoke("cap-r","incident"); assert.throws(()=>gate.assertAllowed(action,cap),/AI_CAPABILITY_REVOKED/);
 });
@@ -59,7 +59,7 @@ test("global capability revocation fails closed",()=>{
  assert.throws(()=>new AiPolicyGate(registry).assertAllowed(action,cap),/AI_CAPABILITY_GLOBAL_REVOCATION_ACTIVE/);
 });
 test("output boundary blocks secrets and oversized data",()=>{
- assert.throws(()=>enforceOutputBoundary({apiKey:"secret"},{allowed:["internal"],maxBytes:1000}),/AI_OUTPUT_DATA_CLASS_DENIED|AI_OUTPUT_SIZE_EXCEEDED/);
+ assert.deepEqual(enforceOutputBoundary({apiKey:"secret"},{allowed:["internal"],maxBytes:1000}),{apiKey:"[REDACTED]"});
  assert.throws(()=>enforceOutputBoundary("x".repeat(1001),{allowed:["internal"],maxBytes:1000}),/AI_OUTPUT_SIZE_EXCEEDED/);
  assert.deepEqual(enforceOutputBoundary({apiKey:"secret",value:"ok"},{allowed:["internal"],maxBytes:1000}),{apiKey:"[REDACTED]",value:"ok"});
 });
