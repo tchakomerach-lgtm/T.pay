@@ -133,7 +133,7 @@ export class InMemoryDurableSecurityStore implements DurableSecurityStore {
   }
 
   async createApproval(input: {
-    approvalId: string; tenantId: string; approverId: string; requestDigest: string; expiresAt: string;
+    approvalId: string; tenantId: string; approverId: string; subjectActorId: string; requestDigest: string; expiresAt: string;
   }): Promise<void> {
     if (!input.approvalId || !input.tenantId || !input.approverId || !input.subjectActorId) throw new Error("INVALID_APPROVAL");
     if (input.approverId === input.subjectActorId) throw new Error("SELF_APPROVAL_FORBIDDEN");
