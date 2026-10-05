@@ -19,10 +19,10 @@ Scope: Prompt 020 — Voice Fabric, telephony, appointments and secure voice ope
 - existing migration conventions
 
 ## External evidence
-- NIST TLS guidance requires/supports TLS 1.3 and the 2026 review is moving the guidance toward current TLS 1.3/IETF practice. citeturn0search0turn0search1
-- OWASP TLS guidance recommends TLS 1.3 by default, disabling obsolete TLS and avoiding insecure downgrade. citeturn0search2
-- HTTP/3 uses QUIC and TLS 1.3; if HTTP/3 connectivity fails, secure TCP-based HTTP can be used without falling back to cleartext HTTP. citeturn0search3
-- NIST notes TLS 1.3 provides forward secrecy and requires visibility/security controls to adapt to encrypted internal traffic. citeturn0search5
+- NIST TLS guidance requires/supports TLS 1.3 and the 2026 review is moving the guidance toward current TLS 1.3/IETF practice. (NIST SP 800-52 Rev. 2; NIST 2026 review: https://www.nist.gov/news-events/news/2026/05/nist-requests-public-comments-sp-800-52-rev-2-guidelines-selection)
+- OWASP TLS guidance recommends TLS 1.3 by default, disabling obsolete TLS and avoiding insecure downgrade. (OWASP Transport Layer Security Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Security_Cheat_Sheet.html)
+- HTTP/3 uses QUIC and TLS 1.3; if HTTP/3 connectivity fails, secure TCP-based HTTP can be used without falling back to cleartext HTTP. (IETF RFC 9114 HTTP/3: https://datatracker.ietf.org/doc/rfc9114/)
+- NIST notes TLS 1.3 provides forward secrecy and requires visibility/security controls to adapt to encrypted internal traffic. (NIST SP 1800-37: https://csrc.nist.gov/pubs/sp/1800/37/final)
 
 ## Implemented
 1. Secure voice session state machine with explicit legal transitions.
