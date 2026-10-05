@@ -1,6 +1,6 @@
 import {createHash} from "node:crypto";
 import {assertHttpsOrigin} from "./auth-device.js";
-import {authorizeRoute, type ApiAuthClass} from "./policy.js";
+import {authorizeRoute, type ApiRoutePolicy} from "./policy.js";
 import {resolveRatePolicy, type ApiChannel} from "./rate-policy.js";
 import {ApiAbuseRepository} from "./rate-abuse.js";
 
@@ -15,7 +15,7 @@ export class ApiRuntimeGate {
   async evaluate(input:{
     method:string;
     route:string;
-    authClass:ApiAuthClass;
+    authClass:ApiRoutePolicy["auth"];
     channel:ApiChannel;
     origin:string;
     correlationId:string;
