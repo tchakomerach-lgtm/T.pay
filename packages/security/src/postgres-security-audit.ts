@@ -56,26 +56,34 @@ export class PostgresSecurityAuditStore{
 
  async verifyOrganization(organizationId:string):Promise<void>{
   if(!organizationId.trim())throw new Error("SECURITY_AUDIT_ORGANIZATION_REQUIRED");
-  const rows=await this.client.query<{event_id:string;organization_id:string;actor_id:string|null;agent_id:string|null;correlation_id:string|null;event_type:string;severity:string;event_timestamp:string;payload_hash:string;previous_hash:string;record_hash:string}>(
-   `SELECT event_id,organization_id,actor_id,agent_id,correlation_id,event_type,severity,event_timestamp,payload_hash,previous_hash,record_hash
-    FROM security_audit_events WHERE organization_id=$1 ORDER BY sequence_id`,
-   [organizationId]
-  );
-  let previous=genesisHash(organizationId);
-  for(const row of rows.rows){
-   if(row.previous_hash!==previous)throw new Error("SECURITY_AUDIT_CHAIN_BROKEN");
-   const ts=Date.parse(row.event_timestamp);
-   const event:PersistentSecurityAuditEvent={
-    eventId:row.event_id,organizationId:row.organization_id,
-    ...(row.actor_id?{actorId:row.actor_id}:{}),
-    ...(row.agent_id?{agentId:row.agent_id}:{}),
-    ...(row.correlation_id?{correlationId:row.correlation_id}:{}),
-    eventType:row.event_type,severity:row.severity as PersistentSecurityAuditEvent["severity"],
-    timestamp:ts,payloadHash:row.payload_hash
-   };
-   const expected=recordHash(event,row.previous_hash);
-   if(expected!==row.record_hash)throw new Error("SECURITY_AUDIT_RECORD_TAMPERED");
-   previous=row.record_hash;
+  await this.client.query("BEGIN");
+  try{
+   await this.client.query("SELECT set_config('tpay.organization_id',$1,true)",[organizationId]);
+   const rows=await this.client.query<{event_id:string;organization_id:string;actor_id:string|null;agent_id:string|null;correlation_id:string|null;event_type:string;severity:string;event_timestamp:string;payload_hash:string;previous_hash:string;record_hash:string}>(
+    `SELECT event_id,organization_id,actor_id,agent_id,correlation_id,event_type,severity,event_timestamp,payload_hash,previous_hash,record_hash
+     FROM security_audit_events WHERE organization_id=$1 ORDER BY sequence_id`,
+    [organizationId]
+   );
+   let previous=genesisHash(organizationId);
+   for(const row of rows.rows){
+    if(row.previous_hash!==previous)throw new Error("SECURITY_AUDIT_CHAIN_BROKEN");
+    const ts=Date.parse(row.event_timestamp);
+    const event:PersistentSecurityAuditEvent={
+     eventId:row.event_id,organizationId:row.organization_id,
+     ...(row.actor_id?{actorId:row.actor_id}:{}),
+     ...(row.agent_id?{agentId:row.agent_id}:{}),
+     ...(row.correlation_id?{correlationId:row.correlation_id}:{}),
+     eventType:row.event_type,severity:row.severity as PersistentSecurityAuditEvent["severity"],
+     timestamp:ts,payloadHash:row.payload_hash
+    };
+    const expected=recordHash(event,row.previous_hash);
+    if(expected!==row.record_hash)throw new Error("SECURITY_AUDIT_RECORD_TAMPERED");
+    previous=row.record_hash;
+   }
+   await this.client.query("COMMIT");
+  }catch(error){
+   await this.client.query("ROLLBACK");
+   throw error;
   }
  }
 }
