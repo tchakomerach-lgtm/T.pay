@@ -45,6 +45,9 @@ Scope: Prompt 020 — Voice Fabric, telephony, appointments and secure voice ope
 18. Live PostgreSQL test coverage for concurrent appointment exclusion and durable callback replay claims.
 19. Voice red-team regression coverage for SSRF, downgrade, callback tampering/staleness, mTLS material and tenant confusion.
 20. Targeted transport/provider regression tests.
+21. Dedicated L16 CI command and PostgreSQL service gate.
+22. Encrypted voice media/transcript vault metadata with KMS/HSM envelope references and retention state.
+23. Provider sandbox certification harness enforcing protocol/correlation/provider-call identity.
 
 ## Safety boundary
 Production execution remains:
@@ -61,7 +64,7 @@ Targeted tests added:
 - tests/secure-transport.test.ts
 - tests/voice-provider-security.test.ts
 
-GitHub CI status for the current branch is not yet claimed green. Production readiness remains fail-closed until the exact final commit has green required checks.
+GitHub CI status for the current branch is not yet claimed green. The workflow now installs reproducibly with npm ci, runs the complete check, executes the dedicated L16 Voice gate against PostgreSQL 17, and performs the production dependency audit. Production readiness remains fail-closed until GitHub reports green required checks on the exact final commit.
 
 ## Remaining production gates
 - provider-specific network clients with real TLS configuration and certificate validation;
