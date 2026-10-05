@@ -4,6 +4,8 @@ import { AiCore } from "../packages/ai/src/ai-core.js";
 import { AiProviderRegistry } from "../packages/ai/src/provider.js";
 import { AiToolRegistry } from "../packages/ai/src/tool-registry.js";
 import { type AiRequestClassification, type AiRoutePolicy } from "../packages/ai/src/routing-policy.js";
+import { issueCapability } from "../packages/ai/src/capability-policy.js";
+import { canonicalPayloadHash } from "../packages/ai/src/action-envelope.js";
 
 function provider(id:string,priority:number,fail=false){return {id,priority,enabled:true,async generate(request:{model:string}){if(fail)throw new Error("PROVIDER_DOWN");return {provider:id,model:request.model,requestId:id+"-1",outputText:"ok"};}};}
 
@@ -17,7 +19,8 @@ test("AI Core fails over to the next allowed provider",async()=>{
 test("AI tools are deny-by-default and approval-gated",async()=>{
   const tools=new AiToolRegistry();
   tools.register({name:"send-message",version:"1",risk:"high",requiresApproval:true,allowedAgents:["commercial-growth"],execute:async()=> "sent"});
-  const ctx={organizationId:"org",actorId:"actor",agentId:"commercial-growth",approved:false};
+  const capability=issueCapability({capabilityId:"cap-send",agentId:"commercial-growth",organizationId:"org",actorId:"actor",purpose:"customer-contact",toolName:"send-message",dataClasses:["internal"],risk:"L4",ttlMs:30000});
+  const ctx={organizationId:"org",actorId:"actor",agentId:"commercial-growth",approved:false,purpose:"customer-contact",correlationId:"req-send",capability};
   await assert.rejects(()=>tools.execute("send-message",{},ctx),/AI_TOOL_APPROVAL_REQUIRED/);
   await assert.rejects(()=>tools.execute("send-message",{}, {...ctx,approved:true}),/AI_TOOL_APPROVAL_BINDING_REQUIRED/);
   const payloadHash=canonicalPayloadHash({});
