@@ -74,7 +74,7 @@ export class PostgresCommunityTontineMfReconciliationRepository implements Commu
     await this.db.query(
       `INSERT INTO community_tontine_mf_reconciliation
        (id,organization_id,tontine_group_id,microfinance_id,external_reference,expected_minor,observed_minor,currency,state,opened_at,idempotency_key)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        ON CONFLICT (id) DO UPDATE SET expected_minor=EXCLUDED.expected_minor,observed_minor=EXCLUDED.observed_minor,
        state=EXCLUDED.state,resolved_at=CASE WHEN EXCLUDED.state='resolved' THEN now() ELSE NULL END`,
       [item.id, organizationId, item.tontineGroupId, item.microfinanceId, item.externalReference,
