@@ -22,7 +22,7 @@ export class PostgresCommercialActionStore implements CommercialActionRepository
     return result.rowCount === 1;
   }
 
-  async claimDue(organizationId: string, now: string) {
+  async claimDue(organizationId: string, now: string, workerId: string) {
     await this.client.query("BEGIN ISOLATION LEVEL READ COMMITTED READ WRITE");
     try {
       const result = await this.client.query<{
@@ -39,7 +39,7 @@ export class PostgresCommercialActionStore implements CommercialActionRepository
         "UPDATE commercial_actions a SET claimed_by=$3,claimed_at=$2::timestamptz,attempts=a.attempts+1 " +
         "FROM candidate c WHERE a.id=c.id " +
         "RETURNING a.id,a.action,a.channel,a.lead_id",
-        [organizationId,now,"tpay-commercial-worker"]
+        [organizationId,now,workerId]
       );
       await this.client.query("COMMIT");
       const row=result.rows[0];
@@ -51,18 +51,18 @@ export class PostgresCommercialActionStore implements CommercialActionRepository
     }
   }
 
-  async markCompleted(id: string, executedAt: string): Promise<void> {
+  async markCompleted(id: string, workerId: string, executedAt: string): Promise<void> {
     const result=await this.client.query(
-      "UPDATE commercial_actions SET state='completed',executed_at=$2::timestamptz,claimed_by=NULL,claimed_at=NULL WHERE id=$1 AND claimed_by IS NOT NULL AND state='planned'",
-      [id,executedAt]
+      "UPDATE commercial_actions SET state='completed',executed_at=$2::timestamptz,claimed_by=NULL,claimed_at=NULL WHERE id=$1 AND claimed_by=$2 AND state='planned'",
+      [id,workerId,executedAt]
     );
     if(result.rowCount!==1) throw new Error("COMMERCIAL_ACTION_COMPLETE_REJECTED");
   }
 
-  async markBlocked(id: string, failureCode: string): Promise<void> {
+  async markBlocked(id: string, workerId: string, failureCode: string): Promise<void> {
     const result=await this.client.query(
       "UPDATE commercial_actions SET state='blocked',failure_code=$2,claimed_by=NULL,claimed_at=NULL WHERE id=$1 AND claimed_by IS NOT NULL AND state='planned'",
-      [id,failureCode]
+      [id,workerId,failureCode]
     );
     if(result.rowCount!==1) throw new Error("COMMERCIAL_ACTION_BLOCK_REJECTED");
   }
