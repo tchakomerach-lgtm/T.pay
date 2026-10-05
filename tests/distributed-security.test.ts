@@ -18,7 +18,7 @@ class FakeClient{
    this.replayed=true;return {rowCount:1,rows:[]};
   }
   if(sql.startsWith("DELETE FROM security_replay_claims"))return {rowCount:1,rows:[]};
-  if(sql==="BEGIN"||sql==="COMMIT"||sql==="ROLLBACK"||sql.startsWith("SELECT pg_advisory_xact_lock"))return {rowCount:0,rows:[]};
+  if(sql==="BEGIN"||sql==="COMMIT"||sql==="ROLLBACK"||sql.startsWith("SELECT set_config")||sql.startsWith("SELECT pg_advisory_xact_lock"))return {rowCount:0,rows:[]};
   if(sql.includes("FROM security_audit_events")&&sql.includes("ORDER BY sequence_id DESC"))return {rowCount:this.lastHash?1:0,rows:this.lastHash?[{record_hash:this.lastHash} as T]:[]};
   if(sql.startsWith("INSERT INTO security_audit_events")){
    this.lastHash=String(params[10]);return {rowCount:1,rows:[]};
@@ -40,7 +40,7 @@ test("persistent replay store is atomic and duplicate-safe",async()=>{
  const key={scope:"org:o",actionId:"a",payloadHash:"h",expiresAt:Date.now()+10000};
  assert.equal(await store.claim(key),true);
  assert.equal(await store.claim(key),false);
- assert.equal(await store.prune(),1);
+ assert.equal(await store.prune("o"),1);
 });
 
 test("persistent capability revocation propagates globally",async()=>{
