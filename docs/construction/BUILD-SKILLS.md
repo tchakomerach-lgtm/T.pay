@@ -24,3 +24,7 @@
 - Measure before claiming reliability: latency, queue depth, provider availability, callback lag, offline backlog and reconciliation age.
 - Every alert is correlated, idempotent and durable; notification failure is itself observable.
 - Validate SLOs with production evidence, not configuration alone.
+
+19. API Gateway Replay Discipline — reserve atomically, reject same-key/different-payload conflicts, persist successful/failed responses, and make anonymous idempotency keys unique as well as tenant-scoped keys.
+20. API Route Deny-by-Default — no route exists merely because a handler exists; route, method, auth class and data-domain policy must be explicitly allowlisted, with Financial Core routes denied until a dedicated financial policy gate exists.
+21. Session-Independent Continuity — a conversation/session boundary is not a construction boundary; the durable state is the repository. Each sequence must leave a committed, testable state and an explicit earliest unmet gate for the next sequence.
