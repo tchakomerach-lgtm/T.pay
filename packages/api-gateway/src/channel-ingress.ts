@@ -56,12 +56,14 @@ export function normalizeChannelIngress(input:ChannelIngressInput):CanonicalChan
       sequenceNo=value.toString();
     }catch{throw new Error("CHANNEL_SEQUENCE_INVALID");}
   }
-  return {
-    channel:input.channel,method,route,origin:input.origin,
+  const result:CanonicalChannelIngress={
+    channel:input.channel,method,route:input.route,origin:input.origin,
     correlationId:input.correlationId,idempotencyKey:input.idempotencyKey,
     scopeHash:sha256(input.scopeSecret),payloadHash:sha256(input.payload),
-    payloadBytes:bytes,sequenceNo,offline:input.offline===true
+    payloadBytes:bytes,offline:input.offline===true
   };
+  if(sequenceNo!==undefined)result.sequenceNo=sequenceNo;
+  return result;
 }
 
 export function assertPayloadHash(value:string):void{
