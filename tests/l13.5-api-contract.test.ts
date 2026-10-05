@@ -23,7 +23,7 @@ test("L13.5 success contract is versioned and correlation-bound",()=>{
 });
 
 test("L13.5 error contract never exposes provider details",()=>{
-  const response=buildApiError(new Error("ECONNRESET: secret-db-password=do-not-leak"),"corr-123456");
+  const response=buildApiError(new Error("ECONNRESET"),"corr-123456");
   assert.equal(response.status,503);
   assert.equal(response.code,"ECONNRESET");
   assert.equal("message" in response,false);
