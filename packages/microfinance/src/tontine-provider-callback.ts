@@ -124,7 +124,7 @@ export async function processVerifiedTontinePayoutCallback(
       return { state: "processed", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
     }
 
-    const settlement = await settlement.settle(
+    const settlement = await settlementBridge.settle(
       tx,
       payout,
       { payoutId: callback.payoutId, organizationId: callback.organizationId, provider: callback.provider,
