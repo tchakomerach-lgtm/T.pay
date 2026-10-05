@@ -69,7 +69,7 @@ export function evaluateSecurityRequest(
     return { decision: "DENY", reason: "CAPABILITY_MISSING" };
   }
 
-  if (request.permission?.tenantId !== request.tenantId) {
+  if (request.permission && request.permission.tenantId !== request.tenantId) {
     return { decision: "DENY", reason: "TENANT_MISMATCH" };
   }
 
