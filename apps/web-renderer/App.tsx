@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useTpayBrowserRuntime } from "./runtime.js";
+import { assertRendererRuntime } from "../design/renderer-quality.js";
 import { tpayTokens } from "../design/tokens.js";
 import { assertShellModel, type TPayPrimaryDestination } from "../design/shell.js";
 import { assertUniversalObject, type TPayUniversalObject } from "../design/objects.js";
@@ -77,6 +79,17 @@ export function App() {
   const [active, setActive] = useState<TPayPrimaryDestination>("home");
   const [fieldMode, setFieldMode] = useState<"standard" | "low-bandwidth" | "offline">("standard");
   const [notice, setNotice] = useState("T.Pay Design Runtime actif");
+  const runtime = useTpayBrowserRuntime(fieldMode);
+
+  assertRendererRuntime({
+    connection: runtime.connection,
+    load: "ready",
+    density: runtime.density,
+    viewport: runtime.viewport,
+    reducedMotion: runtime.reducedMotion,
+    queuedActions: 0,
+    conflicts: 0,
+  });
 
   const destinationLabel = useMemo(() => ({
     home: "Accueil", organizations: "Organisations", social: "Réseau social",
@@ -118,7 +131,7 @@ export function App() {
             <button className="mode" onClick={() => setFieldMode(fieldMode === "standard" ? "low-bandwidth" : fieldMode === "low-bandwidth" ? "offline" : "standard")}>
               Mode : {fieldMode}
             </button>
-            <span className="live" aria-label="Connexion en ligne">● En ligne</span>
+            <span className={"live " + runtime.connection} aria-live="polite">{connectionLabel(runtime.connection)}</span>
           </div>
         </header>
 
@@ -158,10 +171,10 @@ export function App() {
           </article>
 
           <article className="card">
-            <div className="card-head"><span>Mode terrain</span><span className="status">Actif</span></div>
-            <div className="field-row"><span>Connexion</span><strong>{fieldMode === "offline" ? "Hors ligne" : "Disponible"}</strong></div>
+            <div className="card-head"><span>Mode terrain</span><span className="status">{runtime.viewport} · {runtime.density}</span></div>
+            <div className="field-row"><span>Connexion</span><strong>{connectionLabel(runtime.connection)}</strong></div>
             <div className="field-row"><span>Média lourd</span><strong>{fieldMode === "low-bandwidth" || fieldMode === "offline" ? "Réduit" : "Autorisé"}</strong></div>
-            <div className="field-row"><span>Animation</span><strong>{fieldMode === "offline" ? "Réduite" : "Adaptative"}</strong></div>
+            <div className="field-row"><span>Animation</span><strong>{runtime.reducedMotion || fieldMode === "offline" ? "Réduite" : "Adaptative"}</strong></div>
           </article>
         </section>
 
