@@ -116,14 +116,14 @@ export class PostgresDurableTontineSettlementRepository
             "INSERT INTO provider_events " +
             "(provider, event_id, organization_id, received_at) " +
             "VALUES ($1, $2, $3, $4::timestamptz) " +
-            "ON CONFLICT (provider, event_id) DO NOTHING " +
+            "ON CONFLICT (organization_id, provider, event_id) DO NOTHING " +
             "RETURNING event_id, organization_id",
             [provider, eventId, organizationId, receivedAt]
           );
           if (result.rowCount > 0) return true;
 
           const existing = await this.client.query<{ organization_id: string }>(
-            "SELECT organization_id FROM provider_events WHERE provider = $1 AND event_id = $2",
+            "SELECT organization_id FROM provider_events WHERE organization_id = $3 AND provider = $1 AND event_id = $2",
             [provider, eventId]
           );
           const row = existing.rows[0];
