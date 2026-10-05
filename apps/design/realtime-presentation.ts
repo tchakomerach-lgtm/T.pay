@@ -6,13 +6,13 @@ export type TPayRealtimePresentation = Readonly<{
   changedFields: readonly string[];
   announcement: string;
   visualDiff: boolean;
-  screenFlash: false;
+  screenFlash: boolean;
 }>;
 
 export function assertRealtimePresentation(model: TPayRealtimePresentation): void {
-  if (!model.announcement) throw new Error("Realtime changes require an accessible announcement");
-  if (model.screenFlash !== false) throw new Error("Screen-wide flashing is forbidden");
+  if (!model.announcement.trim()) throw new Error("Realtime presentation requires an accessible announcement");
+  if (model.screenFlash) throw new Error("Full-screen flashing is forbidden");
   if (model.sync === "conflict" && model.changedFields.length === 0) {
-    throw new Error("Conflict presentation requires affected-field information");
+    throw new Error("Realtime conflict requires affected fields");
   }
 }
