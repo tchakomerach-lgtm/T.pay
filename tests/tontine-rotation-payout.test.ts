@@ -18,8 +18,8 @@ const members = [
 
 test("rotation is deterministic and does not repeat before a full round",()=>{
   assert.equal(selectRotatingBeneficiary(group,members,new Set()).memberId,"m1");
-  assert.equal(selectRotatingBeneficiary({...group,cycleNumber:2},members,new Set(["m1"])).memberId,"m2");
-  assert.equal(selectRotatingBeneficiary({...group,cycleNumber:3},members,new Set(["m1","m2"])).memberId,"m3");
+  assert.equal(selectRotatingBeneficiary({...group,cycleNumber:2},members,new Set(["m1" as never])).memberId,"m2");
+  assert.equal(selectRotatingBeneficiary({...group,cycleNumber:3},members,new Set(["m1" as never,"m2" as never])).memberId,"m3");
 });
 
 test("beneficiary slot starts scheduled and pool assignment becomes eligible",()=>{
