@@ -66,3 +66,19 @@ test("payout requires KYC and then independent human approval",()=>{
   const approved=approveTontinePayout(approvalPlan,{payoutId:approvalPlan.intent.payoutId,approverId:"supervisor",decision:"approve",at:"2026-10-05T00:00:00Z"});
   assert.equal(approved.state,"approved");
 });
+
+test("payout initiation stays provider-pending and does not imply settlement",async()=>{
+  const { initiateTontinePayout } = await import("../packages/microfinance/src/tontine-payout-orchestrator.js");
+  const plan=buildTontinePayoutPlan({
+    organizationId:"o1" as never,cycleId:"cycle2",beneficiaryMembershipId:"m1" as never,
+    beneficiaryClientId:"c1" as never,microfinanceId:"mf1" as never,destinationRef:"mf-account:c1",
+    amountMinor:1800n,currency:"XOF",kycVerified:true,unresolvedFinancialException:false,humanApprovalRequired:true,
+    now:"2026-10-05T00:00:00Z"
+  },members[0]!);
+  const result=await initiateTontinePayout(plan,{payoutId:plan.intent.payoutId,approverId:"supervisor",decision:"approve",at:"2026-10-05T00:00:00Z"},{
+    initiate:async()=>({provider:"microfinance",providerReference:"out-1",status:"pending"}),
+    query:async()=>({provider:"microfinance",providerReference:"out-1",status:"pending"})
+  });
+  assert.equal(result.state,"initiated");
+  assert.equal(result.evidence?.providerReference,"out-1");
+});
