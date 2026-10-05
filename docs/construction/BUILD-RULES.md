@@ -77,3 +77,25 @@ Every public API route is explicitly versioned and centrally governed; handler e
 
 ## Financial intent invariant
 Financial API routes are deny-by-default except explicit intent routes. Intents require tenant scope, bounded idempotency evidence and canonical payload hashes. Ledger mutation remains behind dedicated Financial Core command handlers.
+
+17. AI action-envelope invariant
+Every consequential AI action is represented as a versioned structured envelope containing tenant, actor, agent, purpose, tool/version, risk, canonical payload hash, correlation ID and bounded expiry. A model-generated string is never itself an executable command.
+
+18. Capability issuance invariant
+Capabilities are issued by deterministic server-side policy, never by a model or agent. L5/root capabilities are non-issuable. Capability TTL is bounded by risk and cannot be widened by downstream components.
+
+19. Kill-switch invariant
+AI execution has a fail-closed scoped/global kill switch. Disabling AI must stop agent/tool execution without mutating, rolling back or corrupting Financial Core truth. Re-enable is an explicit control-plane operation.
+
+20. Cross-agent authorization invariant
+An agent's output is evidence only. Agent-to-agent messages cannot transfer privileges, approvals or capabilities. Any consequential action is re-authorized at the final policy gate.
+
+21. Modern-model neutrality
+T.Pay may use OpenAI, Anthropic, compatible or local models where contracts and data policies permit. Model capability, benchmark score or vendor identity never creates authorization. External vendor documentation is design input, not executable authority.
+
+22. Construction-continuity invariant
+A session ending, token limit, provider outage or unavailable coding agent is not an execution event. Only committed repository state, CI evidence and explicit handoff records represent construction progress.
+
+23. Completion-state invariant
+The roadmap must maintain per-layer states: PLANNED → IMPLEMENTED → VERIFIED → INTEGRATED → PRODUCTION-READY → LIVE. A layer cannot skip states based on prose or model confidence.
+
