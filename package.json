@@ -11,7 +11,10 @@
     "test": "npm run build && node --test dist/tests/*.test.js",
     "check": "npm run typecheck && npm test",
     "db:migrate": "node dist/scripts/migrate.js",
-    "test:postgres": "npm run build && node --test dist/tests/postgres-live.integration.test.js"
+    "test:postgres": "npm run build && node --test dist/tests/postgres-live.integration.test.js",
+    "web:dev": "vite --config apps/web-renderer/vite.config.ts",
+    "web:build": "vite build --config apps/web-renderer/vite.config.ts",
+    "web:check": "npm run typecheck && npm run web:build"
   },
   "engines": {
     "node": ">=22"
@@ -19,9 +22,15 @@
   "devDependencies": {
     "@types/node": "^22.15.0",
     "typescript": "^5.8.3",
-    "@types/pg": "^8.15.5"
+    "@types/pg": "^8.15.5",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "vite": "^7.1.9",
+    "@vitejs/plugin-react": "^5.0.4"
   },
   "dependencies": {
-    "pg": "^8.16.3"
+    "pg": "^8.16.3",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
   }
 }

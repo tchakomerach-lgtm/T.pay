@@ -62,6 +62,9 @@ Foundation is implemented for domain types, security sessions/policies, risk con
 
 Community Tontine remains an independent interoperable domain: daily/weekly/monthly cycles, fixed/variable/goal contributions, membership/roles, beneficiary rotation, governance, partner microfinance selection, multi-channel collection, provider reconciliation, KYC/human payout gates, field continuity and idempotent contribution intents. It never creates a second ledger; T.Pay Financial Core remains authoritative.
 
+## DB-074 Design Runtime state
+DB-074 implements renderer-neutral universal object, object presentation, action presentation, realtime presentation, synchronization presentation and field/low-bandwidth display contracts on `construction/db-074-universal-object-action-runtime`. It extends DB-073 without creating a second design system. Status is IMPLEMENTED, not VERIFIED/PRODUCTION-READY, until exact-head CI, renderer consumption, visual/accessibility regression and low-end performance evidence exist.
+
 ## Definition of Done
 Code + tests + security controls + observability + documentation + migration/rollback plan when stateful + CI green.
 
@@ -99,3 +102,35 @@ The AI Core owns model-provider routing and specialist-agent orchestration. No d
 The Commercial Growth Agent is a first-class AI Core specialist, not an isolated revenue chatbot. It can reason over approved commercial context and request authorized tools. Its outputs do not directly mutate financial state or silently contact people. Consent, channel policy, outbound budgets, organization scope and human-approval gates are enforced outside the model.
 
 Construction rule: provider outage is not permission to bypass policy. Failover may occur only among providers allowed for the same data classification and tenant policy.
+
+## DB-073 Design Runtime Foundation
+
+DB-073 is implemented on construction branch/PR #80 as renderer-neutral TypeScript contracts because the current repository does not yet contain a browser/mobile renderer. It establishes canonical design tokens, universal component states, realtime/offline invariants, context separation, action contracts, accessibility requirements and the global shell contract. Status remains IMPLEMENTED until exact-head CI and review evidence are available; no UI/production completion claim is implied.
+
+
+## DB-075 React Renderer state
+
+DB-075 introduces the first real browser renderer under `apps/web-renderer` using React 19 + Vite. It consumes DB-073/074 contracts directly. The renderer is not a source of truth for authorization, financial state, security policy or design semantics.
+
+Renderer construction gate:
+DISCOVER -> DB-073/074 CONTRACTS -> REACT ADAPTER -> RESPONSIVE UI -> ACCESSIBILITY -> REALTIME/SYNC -> FIELD MODE -> TEST -> SECURITY REVIEW -> PERFORMANCE -> VISUAL REGRESSION -> CI -> RECORD.
+
+No React component may introduce a competing color token, object state, action grammar, realtime state, permission rule or terminology registry. Future Flutter must consume the same semantic contracts through a separate platform adapter.
+
+DB-075 currently remains IMPLEMENTED/PENDING-VERIFICATION until exact-head CI and browser/visual/accessibility/performance evidence pass.
+
+
+## DB-076 Renderer Quality & Field Runtime
+
+DB-076 adds browser runtime safeguards on top of DB-075:
+- viewport/density contract;
+- online/reconnecting/offline semantics;
+- reduced-motion enforcement;
+- canonical Design Registry CSS adapter;
+- renderer failure boundary;
+- field-mode tests.
+
+Construction gate:
+CONTRACTS -> RUNTIME ADAPTER -> RESPONSIVE -> ACCESSIBILITY -> OFFLINE/RECONNECT -> ERROR CONTAINMENT -> TEST -> SECURITY REVIEW -> PERFORMANCE -> VISUAL REGRESSION -> CI -> RECORD.
+
+Do not introduce renderer-local semantic colors, object states, authorization rules or financial success semantics.
