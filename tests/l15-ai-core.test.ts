@@ -20,8 +20,9 @@ test("AI tools are deny-by-default and approval-gated",async()=>{
   const ctx={organizationId:"org",actorId:"actor",agentId:"commercial-growth",approved:false};
   await assert.rejects(()=>tools.execute("send-message",{},ctx),/AI_TOOL_APPROVAL_REQUIRED/);
   await assert.rejects(()=>tools.execute("send-message",{}, {...ctx,approved:true}),/AI_TOOL_APPROVAL_BINDING_REQUIRED/);
-  assert.equal(await tools.execute("send-message",{}, {...ctx,approved:true,approvalPayloadHash:"h1",requestedPayloadHash:"h1"}),"sent");
-  await assert.rejects(()=>tools.execute("send-message",{}, {...ctx,approved:true,approvalPayloadHash:"h1",requestedPayloadHash:"h2"}),/AI_TOOL_APPROVAL_PAYLOAD_MISMATCH/);
+  const payloadHash=canonicalPayloadHash({});
+  assert.equal(await tools.execute("send-message",{}, {...ctx,approved:true,approvalPayloadHash:payloadHash}),"sent");
+  await assert.rejects(()=>tools.execute("send-message",{}, {...ctx,approved:true,approvalPayloadHash:"bad"}),/AI_TOOL_APPROVAL_PAYLOAD_MISMATCH/);
 });
 
 test("critical AI tools cannot be registered without approval",()=>{
