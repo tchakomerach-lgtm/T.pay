@@ -72,3 +72,17 @@ Foundation, durable settlement, PostgreSQL transaction boundaries, provider call
 
 ## Definition of Done
 Code + tests + security controls + observability + documentation + migration/rollback plan when stateful + CI green + applicable TASS/evaluation evidence. Never declare a layer complete while mandatory gates remain unverified.
+
+### AI action and continuity hard stops
+- Never execute a model-generated command directly. Convert it to a typed action envelope and re-authorize it at the deterministic policy gate.
+- Capabilities are issued server-side, short-lived and scoped. Agents cannot issue, widen, delegate or approve their own capabilities.
+- L5/root actions are never executable by AI.
+- Global/scoped AI kill switch must fail closed without changing Financial Core truth.
+- Agent-to-agent output is evidence, not authority; final sinks require independent authorization.
+- Provider/model choice never changes authorization.
+- For Togo/Africa channels, REST/mobile/agent/USSD/SMS/voice/partner traffic must converge on canonical envelopes, idempotency and the same policy boundary.
+- A session ending, token limit or provider outage never implies that construction continued in the background. Only committed SHAs and CI evidence count.
+- Do not claim a layer is complete unless its exact state and evidence satisfy BUILD-RULES.md.
+
+### Current construction protocol
+DISCOVER → BIBLE-MAP → CURRENT-CODE → EXTERNAL-RESEARCH → THREAT-GATE → DESIGN → IMPLEMENT → TEST → SECURITY REVIEW → OBSERVE → COST REVIEW → CI → RECORD → NEXT-GATE.
