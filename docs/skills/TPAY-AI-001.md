@@ -35,7 +35,6 @@ Financial approval, identity recovery, high-risk account changes and irreversibl
 ## Evaluation
 Maintain golden tasks, adversarial prompts, tool misuse tests, hallucination checks, authorization tests and regression datasets. Never evaluate an AI agent only on fluent text.
 
-
 ## L15 — provider-agnostic AI Core
 The AI Core is the sole orchestration plane for T.Pay agents. Specialist agents never call model providers directly. They request inference through a provider registry that supports OpenAI Responses, Anthropic Messages and future compatible providers behind one contract.
 
@@ -54,3 +53,17 @@ The provider registry is replaceable; model vendors can be added without changin
 
 ## L15.1 — policy-aware routing
 AI inference is routed through explicit data-classification and provider-allowlist policy. Provider failover is bounded and may not cross a tenant's allowed provider or data-class boundary. Required-provider policies disable silent fallback. Residency and contractual constraints are part of the route policy before production deployment.
+
+## L16 — Voice Fabric integration
+Voice Fabric is a media/interface boundary over the AI Core, not a replacement for it. The canonical chain is:
+
+Voice channel -> Voice Gateway -> Session/Consent -> Trust/Risk -> structured intent -> AI Core -> Policy/Capability -> Tool Gateway -> Domain Service -> Audit.
+
+Voice input is untrusted. Caller ID, transcript content, memory claims and model output cannot grant authorization. Voice sessions receive short-lived capability leases; capabilities are regenerated after handoff/recovery and never blindly carried across calls.
+
+Voice-specific risk V0–V5 is attached to the action and propagated across agent/tool boundaries. Financial, credit and privileged operations require the same or stronger controls as non-voice paths, plus fresh step-up proof and policy-required approval.
+
+Realtime/SIP/WebRTC providers are adapters. T.Pay owns tenant isolation, authorization, tool execution, appointments, approvals, audit and financial state.
+
+## Voice testing requirements
+At minimum test caller-ID spoof assumptions, capability expiry, replay, altered transaction parameters, missing approval, prompt injection in transcript, unauthorized tools, cross-tenant appointment access and handoff capability revocation.
