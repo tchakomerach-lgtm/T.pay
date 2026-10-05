@@ -37,7 +37,7 @@ export function selectRotatingBeneficiary(
   const eligible = policy.requireActiveMembership ? active : memberships.slice();
   const fresh = eligible.filter(m => !previouslyPaidMemberIds.has(m.id));
   const pool = policy.allowRepeatOnlyAfterFullRound && fresh.length > 0 ? fresh : eligible;
-  const index = Math.max(0, group.cycleNumber - 1) % pool.length;
+  const index = fresh.length > 0 ? 0 : Math.max(0, group.cycleNumber - 1) % pool.length;
   const selected = pool[index];
   if (!selected) throw new Error("TONTINE_NO_ELIGIBLE_BENEFICIARY");
   return { memberId: selected.id, sequence: group.cycleNumber, reason: "rotation" };
