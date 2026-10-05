@@ -5,6 +5,8 @@ import {quarantineContent,assertNotAuthority} from "../packages/security/src/con
 import {SecurityMonitor} from "../packages/security/src/security-monitor.js";
 import {ResourceBudgetGuard} from "../packages/security/src/resource-budget.js";
 import {createAgentEnvelope,validateAgentEnvelope} from "../packages/security/src/agent-envelope.js";
+import {ReplayGuard} from "../packages/security/src/replay-guard.js";
+import {AuditChain} from "../packages/security/src/audit-chain.js";
 
 test("egress denies private targets and non-allowlisted hosts",()=>{
   const policy={allowedHosts:["api.example.com"]};
@@ -32,3 +34,5 @@ test("agent envelopes are tenant- and target-bound",()=>{
   assert.doesNotThrow(()=>validateAgentEnvelope(e,{organizationId:"o",targetAgentId:"b"}));
   assert.throws(()=>validateAgentEnvelope(e,{organizationId:"other",targetAgentId:"b"}),/AGENT_ENVELOPE_TENANT_MISMATCH/);
 });
+test("replay guard rejects duplicate actions",()=>{const g=new ReplayGuard();const k={scope:"org:actor",actionId:"a",payloadHash:"h",expiresAt:Date.now()+1000};g.claim(k);assert.throws(()=>g.claim(k),/ACTION_REPLAY_DETECTED/);});
+test("audit chain detects record tampering",()=>{const c=new AuditChain();c.append({timestamp:Date.now(),eventType:"allowed",organizationId:"o",payloadHash:"h"});c.append({timestamp:Date.now(),eventType:"completed",organizationId:"o",payloadHash:"h2"});assert.doesNotThrow(()=>c.verify());const records=c.snapshot() as Array<{eventType:string}>;records[0]!.eventType="tampered";assert.throws(()=>c.verify(),/AUDIT_RECORD_TAMPERED|AUDIT_CHAIN_BROKEN/);});
