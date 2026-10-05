@@ -84,3 +84,9 @@ Voice provider outage is not permission to bypass policy. A failed voice service
 
 ## Definition of Done
 Code + tests + security controls + observability + documentation + migration/rollback plan when stateful + CI green.
+
+
+## L16.1 current implementation state
+Prompt 020 Voice Fabric is now present in `packages/ai/src/voice-fabric.ts`, with targeted regression coverage in `tests/voice-fabric.test.ts`. Migration `043_l16_voice_fabric.sql` adds durable voice sessions, capability leases, transaction challenges, consent/security metadata, media metadata and a PostgreSQL GiST exclusion constraint preventing overlapping confirmed appointments per organization/resource. The implementation record is `docs/construction/L16-VOICE-FABRIC-RECORD.md`.
+
+The production gate remains fail-closed until provider-specific telephony contracts, signed callback/replay controls, PostgreSQL concurrency integration tests, API Gateway routes, media retention workers, end-to-end voice red-team tests and CI green are verified. No production readiness claim is made from the domain/reference implementation alone.
