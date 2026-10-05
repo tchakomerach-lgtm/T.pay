@@ -7,7 +7,7 @@ import {
   type DurableSecurityStore,
   type ReplayClaimResult,
   type SecurityEventInput,
-} from "../../packages/security/src/durable-security.js";
+} from "../../security/src/durable-security.js";
 
 export class PostgresDurableSecurityStore implements DurableSecurityStore {
   constructor(private readonly client: Client) {}
@@ -35,15 +35,15 @@ export class PostgresDurableSecurityStore implements DurableSecurityStore {
   }
 
   async createApproval(input: {
-    approvalId: string; tenantId: string; approverId: string; requestDigest: string; expiresAt: string;
+    approvalId: string; tenantId: string; approverId: string; subjectActorId: string; requestDigest: string; expiresAt: string;
   }): Promise<void> {
     const result = await this.client.query(
       `INSERT INTO security_approvals
-         (approval_id,tenant_id,approver_id,request_digest,status,created_at,expires_at)
-       VALUES ($1,$2,$3,$4,'pending',now(),$5)
+         (approval_id,tenant_id,approver_id,subject_actor_id,request_digest,status,created_at,expires_at)
+       VALUES ($1,$2,$3,$4,$5,'pending',now(),$6)
        ON CONFLICT (approval_id) DO NOTHING
        RETURNING approval_id`,
-      [input.approvalId, input.tenantId, input.approverId, input.requestDigest, input.expiresAt]
+      [input.approvalId, input.tenantId, input.approverId, input.subjectActorId, input.requestDigest, input.expiresAt]
     );
     if (result.rowCount !== 1) throw new Error("APPROVAL_ID_CONFLICT");
   }
