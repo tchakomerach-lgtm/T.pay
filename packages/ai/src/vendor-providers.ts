@@ -66,7 +66,10 @@ function extractOpenAIOutput(value:unknown):string|undefined{
     const content=(item as Record<string,unknown>).content;
     if(!Array.isArray(content)) continue;
     for(const part of content){
-      if(part && typeof part==="object" && typeof (part as Record<string,unknown>).text==="string") parts.push((part as Record<string,string>).text);
+      if(part && typeof part==="object"){
+        const textValue=(part as Record<string,unknown>).text;
+        if(typeof textValue==="string") parts.push(textValue);
+      }
     }
   }
   return parts.join("");
@@ -111,7 +114,10 @@ function extractAnthropicOutput(value:unknown):string|undefined{
   if(!Array.isArray(value)) return undefined;
   const parts:string[]=[];
   for(const item of value){
-    if(item && typeof item==="object" && typeof (item as Record<string,unknown>).text==="string") parts.push((item as Record<string,string>).text);
+    if(item && typeof item==="object"){
+      const textValue=(item as Record<string,unknown>).text;
+      if(typeof textValue==="string") parts.push(textValue);
+    }
   }
   return parts.join("");
 }
