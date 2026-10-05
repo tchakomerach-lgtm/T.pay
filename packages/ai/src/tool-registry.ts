@@ -3,6 +3,7 @@ import type { AiCapability } from "./capability-policy.js";
 import { AiPolicyGate } from "./policy-gate.js";
 import { SecurityMonitor } from "../../security/src/security-monitor.js";
 import { ResourceBudgetGuard } from "../../security/src/resource-budget.js";
+import { ReplayGuard } from "../../security/src/replay-guard.js";
 
 export type AiToolRisk = "low"|"medium"|"high"|"critical";
 
@@ -45,6 +46,7 @@ export class AiToolRegistry {
   private readonly tools=new Map<string,AiToolDefinition>();
   private readonly policyGate=new AiPolicyGate();
   private readonly securityMonitor=new SecurityMonitor();
+  private readonly replayGuard=new ReplayGuard();
 
   register(tool:AiToolDefinition):void{
     validateDefinition(tool);
@@ -84,6 +86,7 @@ export class AiToolRegistry {
       expiresAt: context.capabilityExpiresAt ?? now+30_000,
       correlationId: context.correlationId ?? `${name}-${now}`,
     });
+    this.replayGuard.claim({scope:`${context.organizationId}:${context.actorId}`,actionId:action.actionId,payloadHash:action.payloadHash,expiresAt:action.expiresAt},now);
     const approvalRequired=tool.requiresApproval || risk==="L4" || risk==="L5";
     if(approvalRequired && !context.approved) throw new Error("AI_TOOL_APPROVAL_REQUIRED");
     if(approvalRequired && context.approvalPayloadHash!==undefined && context.approvalPayloadHash!==action.payloadHash) throw new Error("AI_TOOL_APPROVAL_PAYLOAD_MISMATCH");
