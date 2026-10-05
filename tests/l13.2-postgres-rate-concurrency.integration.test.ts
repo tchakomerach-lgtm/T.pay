@@ -31,7 +31,7 @@ test("L13.2 PostgreSQL serializes competing rate-limit increments without lost u
       "SELECT request_count,max_requests,window_seconds FROM api_rate_limit_buckets WHERE policy_key=$1",
       [policyKey]
     );
-    assert.equal(persisted.rows[0]?.request_count,8);
+    assert.equal(persisted.rows[0]?.request_count,"8");
     assert.equal(persisted.rows[0]?.max_requests,3);
     assert.equal(persisted.rows[0]?.window_seconds,60);
   }finally{
