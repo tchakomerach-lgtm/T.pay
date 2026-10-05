@@ -40,7 +40,7 @@ export interface TontineBeneficiarySlotRepository {
 const asBigInt = (value: unknown): bigint => BigInt(String(value));
 
 function groupFromRow(row: Record<string, unknown>): CommunityTontineGroup {
-  return {
+  const group: CommunityTontineGroup = {
     id: row.id as UUID,
     organizationId: row.organization_id as UUID,
     name: String(row.name),
@@ -48,34 +48,36 @@ function groupFromRow(row: Record<string, unknown>): CommunityTontineGroup {
     currency: String(row.currency),
     frequency: row.frequency as CommunityTontineGroup["frequency"],
     contributionMode: row.contribution_mode as CommunityTontineGroup["contributionMode"],
-    targetMinor: row.target_minor == null ? undefined : asBigInt(row.target_minor),
-    fixedAmountMinor: row.fixed_amount_minor == null ? undefined : asBigInt(row.fixed_amount_minor),
     minimumAmountMinor: asBigInt(row.minimum_amount_minor),
     cycleNumber: Number(row.cycle_number),
-    maxMembers: row.max_members == null ? undefined : Number(row.max_members),
     governance: row.governance as CommunityTontineGroup["governance"],
-    partnerMicrofinanceId: row.partner_microfinance_id as UUID | undefined,
     status: row.status as CommunityTontineGroup["status"],
     createdBy: row.created_by as UUID,
     createdAt: new Date(String(row.created_at)).toISOString()
   };
+  if (row.target_minor != null) group.targetMinor = asBigInt(row.target_minor);
+  if (row.fixed_amount_minor != null) group.fixedAmountMinor = asBigInt(row.fixed_amount_minor);
+  if (row.max_members != null) group.maxMembers = Number(row.max_members);
+  if (row.partner_microfinance_id != null) group.partnerMicrofinanceId = row.partner_microfinance_id as UUID;
+  return group;
 }
 
 function membershipFromRow(row: Record<string, unknown>): CommunityTontineMembership {
-  return {
+  const membership: CommunityTontineMembership = {
     id: row.id as UUID,
     groupId: row.group_id as UUID,
     clientId: row.client_id as UUID,
     role: row.role as CommunityTontineMembership["role"],
     status: row.status as CommunityTontineMembership["status"],
-    joinedAt: new Date(String(row.joined_at)).toISOString(),
-    exitedAt: row.exited_at == null ? undefined : new Date(String(row.exited_at)).toISOString(),
-    selectedMicrofinanceId: row.selected_microfinance_id as UUID | undefined
+    joinedAt: new Date(String(row.joined_at)).toISOString()
   };
+  if (row.exited_at != null) membership.exitedAt = new Date(String(row.exited_at)).toISOString();
+  if (row.selected_microfinance_id != null) membership.selectedMicrofinanceId = row.selected_microfinance_id as UUID;
+  return membership;
 }
 
 function slotFromRow(row: Record<string, unknown>): TontineBeneficiarySlot {
-  return {
+  const slot: TontineBeneficiarySlot = {
     id: row.id as UUID,
     groupId: row.group_id as UUID,
     cycleNumber: Number(row.cycle_number),
@@ -83,9 +85,10 @@ function slotFromRow(row: Record<string, unknown>): TontineBeneficiarySlot {
     beneficiaryMemberId: row.beneficiary_membership_id as UUID,
     amountTargetMinor: asBigInt(row.amount_target_minor),
     status: row.status as TontineBeneficiarySlot["status"],
-    scheduledFor: new Date(String(row.scheduled_for)).toISOString(),
-    paidAt: row.paid_at == null ? undefined : new Date(String(row.paid_at)).toISOString()
+    scheduledFor: new Date(String(row.scheduled_for)).toISOString()
   };
+  if (row.paid_at != null) slot.paidAt = new Date(String(row.paid_at)).toISOString();
+  return slot;
 }
 
 export class PostgresTontineGroupRepository implements TontineGroupRepository {
