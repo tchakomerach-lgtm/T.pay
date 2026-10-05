@@ -1,4 +1,4 @@
-import {randomBytes,timingSafeEqual} from "node:crypto";
+import {randomBytes} from "node:crypto";
 export interface AgentTrustEnvelope{
  readonly envelopeId:string; readonly sourceAgentId:string; readonly targetAgentId:string; readonly organizationId:string;
  readonly audience:string; readonly purpose:string; readonly nonce:string; readonly issuedAt:number; readonly expiresAt:number;
@@ -16,5 +16,5 @@ export function validateAgentTrustEnvelope(e:AgentTrustEnvelope,expected:{organi
  if(e.audience!==expected.audience)throw new Error("AGENT_TRUST_AUDIENCE_MISMATCH");
  if(now>=e.expiresAt||now<e.issuedAt)throw new Error("AGENT_TRUST_EXPIRED");
  if(e.delegatedCapabilities.length>0)throw new Error("AGENT_TRUST_PRIVILEGE_AMPLIFICATION_FORBIDDEN");
- if(e.nonce.length!==32||!timingSafeEqual(Buffer.from(e.nonce),Buffer.from(e.nonce)))throw new Error("AGENT_TRUST_NONCE_INVALID");
+ if(!/^[0-9a-f]{32}$/i.test(e.nonce))throw new Error("AGENT_TRUST_NONCE_INVALID");
 }
