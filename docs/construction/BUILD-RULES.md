@@ -13,7 +13,7 @@ Every organization-owned object is tenant scoped. Cross-table relationships use 
 Human approval is the default for high-impact financial, identity, credit, access and administrative actions. AI tools require explicit role/risk/organization policy, bounded inputs, idempotency, audit evidence and cannot directly mutate Ledger/payment/credit truth.
 
 ## 5. Provider boundary
-OpenAI, Anthropic, local models, TMoney, Flooz, PI-SPI and MFI partners are replaceable adapters. Provider callbacks require raw-body verification, freshness, identity/amount/currency/reference validation, replay protection and quarantine for ambiguity. Credentials and regulatory certifications must be real; code cannot manufacture them.
+OpenAI, Anthropic, local models, TMoney, Flooz, PI-SPI and MFI partners are replaceable adapters. Anthropic is a first-class authorized provider adapter, never a bypass path. Provider callbacks require raw-body verification, freshness, identity/amount/currency/reference validation, replay protection and quarantine for ambiguity. Credentials and regulatory certifications must be real; code cannot manufacture them.
 
 ## 6. AI runtime resilience
 All external model execution has bounded timeouts, transient-only retries, circuit breakers and cost/rate controls. Fallback is allowed only when the destination route is permitted for the data class. Sensitive and financial data remain local/safety-routed unless an explicitly authorized compliant route exists. Never bypass provider or platform controls.
@@ -40,9 +40,12 @@ Before production: migrations, rollback strategy, backups/restore, secrets manag
 Prioritize XOF integer accounting, bilingual/multilingual UX, printable receipts, agent workflows, cash reconciliation, mobile-money confirmation, low-cost devices, power/network interruptions, shared phones/SIM fraud controls and graceful degraded service.
 
 ## 14. Platform independence without bypass
-T.Pay may use authorized OpenAI, Anthropic or local model adapters when credentials/connectors are available. Architectural replaceability is the solution to vendor limits, not circumvention.
+T.Pay may use authorized OpenAI, Anthropic or local model adapters when credentials/connectors are available. Architectural replaceability is the solution to vendor limits, not circumvention. Provider-specific capabilities must remain behind the same policy, audit, secret and data-class boundaries.
 
-## 15. Definition of Done
+## 15. HTTPS-only external adapters
+All network-facing T.Pay adapters MUST use HTTPS/TLS. Plain HTTP endpoints, redirects to HTTP, mixed-content API calls and insecure fallback transports are prohibited. Adapter configuration must reject non-HTTPS origins at startup and in tests. TLS verification may not be disabled in production. Certificate/proxy behavior must be explicit and observable without weakening verification. Channel adapters (REST, mobile, USSD/SMS gateways, voice, partner APIs) must terminate at a governed gateway and cannot bypass authentication, authorization, idempotency, rate limits or audit.
+
+## 16. Definition of Done
 1. Exact-head CI green.
 2. Typecheck/unit/integration/audit gates green.
 3. PostgreSQL race/idempotency/replay proofs where relevant.
@@ -51,7 +54,6 @@ T.Pay may use authorized OpenAI, Anthropic or local model adapters when credenti
 6. Provider contract/operational tests.
 7. Regulatory/partner gates where regulated.
 8. Documentation states every remaining limitation explicitly.
-
 
 ## Operational observability invariant
 - Every production-facing layer must emit durable operational evidence with correlation IDs, bounded payloads and explicit degraded/offline states.
