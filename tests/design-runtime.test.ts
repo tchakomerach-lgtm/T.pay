@@ -5,6 +5,8 @@ import { assertRealtimeState } from "../apps/design/realtime.js";
 import { assertContextStack } from "../apps/design/context.js";
 import { assertActionContract } from "../apps/design/actions.js";
 import { assertAccessibilityContract } from "../apps/design/accessibility.js";
+import { assertShellModel } from "../apps/design/shell.js";
+import { assertComponentState } from "../apps/design/component-state.js";
 
 test("design tokens preserve the canonical T.Pay palette and motion limits", () => {
   assert.equal(tpayTokens.color.brand.emerald, "#0F8F68");
@@ -44,5 +46,18 @@ test("accessibility cannot depend on color alone", () => {
   assert.throws(() => assertAccessibilityContract({
     visibleLabel: "Envoyer", statusText: "Prêt", statusIcon: "send",
     keyboardReachable: true, focusVisible: true, touchTargetPx: 40, reducedMotionSafe: true,
+  }));
+});
+
+
+test("shell and component state remain fail-closed", () => {
+  assert.doesNotThrow(() => assertShellModel({
+    activeContextId: "personal",
+    primaryDestination: "home",
+    destinations: ["home","organizations","social","opportunities","community-tontine","wallet","notifications","search","command-center","settings"],
+    unreadNotifications: 0, pendingActions: 0, connection: "online",
+  }));
+  assert.throws(() => assertComponentState({
+    surface: "success", connectivity: "offline", authorization: "allowed", reducedMotion: false,
   }));
 });
