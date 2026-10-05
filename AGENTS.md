@@ -106,3 +106,15 @@ Construction rule: provider outage is not permission to bypass policy. Failover 
 ## DB-073 Design Runtime Foundation
 
 DB-073 is implemented on construction branch/PR #80 as renderer-neutral TypeScript contracts because the current repository does not yet contain a browser/mobile renderer. It establishes canonical design tokens, universal component states, realtime/offline invariants, context separation, action contracts, accessibility requirements and the global shell contract. Status remains IMPLEMENTED until exact-head CI and review evidence are available; no UI/production completion claim is implied.
+
+
+## DB-075 React Renderer state
+
+DB-075 introduces the first real browser renderer under `apps/web-renderer` using React 19 + Vite. It consumes DB-073/074 contracts directly. The renderer is not a source of truth for authorization, financial state, security policy or design semantics.
+
+Renderer construction gate:
+DISCOVER -> DB-073/074 CONTRACTS -> REACT ADAPTER -> RESPONSIVE UI -> ACCESSIBILITY -> REALTIME/SYNC -> FIELD MODE -> TEST -> SECURITY REVIEW -> PERFORMANCE -> VISUAL REGRESSION -> CI -> RECORD.
+
+No React component may introduce a competing color token, object state, action grammar, realtime state, permission rule or terminology registry. Future Flutter must consume the same semantic contracts through a separate platform adapter.
+
+DB-075 currently remains IMPLEMENTED/PENDING-VERIFICATION until exact-head CI and browser/visual/accessibility/performance evidence pass.
