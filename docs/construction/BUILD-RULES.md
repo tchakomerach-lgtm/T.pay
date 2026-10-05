@@ -92,3 +92,11 @@ All network-facing T.Pay adapters MUST use HTTPS/TLS. Plain HTTP endpoints, redi
 - API versions are explicit and backward-compatibility policy is enforced at the gateway rather than inferred from handler existence.
 - Runtime scope evidence is policy-specific: stable device evidence is optional for shared/low-end devices when stronger channel/IP/actor controls remain; missing required evidence fails closed.
 - Health/readiness probes must be individually time-bounded; a hung dependency cannot block health reporting indefinitely.
+
+
+## Channel ingress invariant
+- REST, mobile, agent, USSD, SMS, voice and partner channels must enter through one canonical, policy-governed ingress envelope before reaching application handlers.
+- Every channel request carries correlation and idempotency evidence; replay of the same key/payload is a safe replay, while same-key/different-payload is quarantined as conflict.
+- Offline channel data is evidence only: sequence numbers and payload hashes prove ordering/replay context but never authorize or mutate Financial Core directly.
+- External upstream adapters are HTTPS-only, host-allowlisted, redirect-disabled and bounded by request/response size and timeout limits; provider credentials never appear in URLs.
+- Shared-device and low-bandwidth channels may lack stable device evidence; channel/IP/actor/phone controls remain governed by policy and financial authorization remains independent.
