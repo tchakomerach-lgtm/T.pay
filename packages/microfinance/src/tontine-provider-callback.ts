@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import type { UUID } from "../../domain/src/types.js";
 import type { TontinePayoutContext } from "./tontine-payout.js";
-import { settleConfirmedTontinePayout } from "./tontine-payout-settlement.js";
 import type { TontineSqlExecutor } from "./tontine-repositories.js";
 
 export interface VerifiedTontineProviderCallback {
@@ -25,7 +24,7 @@ export interface TontineCallbackVerifier {
   }): Promise<VerifiedTontineProviderCallback>;
 }
 
-export interface TontineCallbackReceipt {
+export interface TontineFinancialSettlementBridge {\n  settle(tx: unknown, payout: TontinePayoutContext, evidence: { payoutId: UUID; organizationId: UUID; provider: string; providerReference: string; amountMinor: bigint; currency: string }, accounts: { tontineClearingAccountId: string; microfinanceSettlementAccountId: string }, transactionId: string, now: string): Promise<unknown>;\n}\n\nexport interface TontineCallbackReceipt {
   state: "processed" | "replayed" | "rejected";
   providerEventId: string;
   payoutId: UUID;
@@ -125,13 +124,9 @@ export async function processVerifiedTontinePayoutCallback(
       return { state: "processed", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
     }
 
-    const settlement = await settleConfirmedTontinePayout(
+    const settlement = await settlement.settle(
       tx,
-      { payoutId: callback.payoutId, organizationId: callback.organizationId, amountMinor: callback.amountMinor,
-        currency: callback.currency, beneficiaryClientId: payout.beneficiaryClientId,
-        beneficiaryMembershipId: payout.beneficiaryMembershipId, microfinanceId: payout.microfinanceId,
-        destinationRef: payout.destinationRef, cycleId: payout.cycleId,
-        idempotencyKey: row.idempotency_key, state: "initiated" },
+      payout,
       { payoutId: callback.payoutId, organizationId: callback.organizationId, provider: callback.provider,
         providerReference: callback.providerReference, amountMinor: callback.amountMinor, currency: callback.currency },
       accounts, transactionId, callback.receivedAt
