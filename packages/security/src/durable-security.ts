@@ -36,6 +36,7 @@ export interface DurableSecurityStore {
     approvalId: string;
     tenantId: string;
     approverId: string;
+    subjectActorId: string;
     requestDigest: string;
     expiresAt: string;
   }): Promise<void>;
@@ -108,6 +109,7 @@ export class InMemoryDurableSecurityStore implements DurableSecurityStore {
   private readonly approvals = new Map<string, {
     tenantId: string;
     approverId: string;
+    subjectActorId: string;
     digest: string;
     expiresAt: number;
     consumed: boolean;
@@ -133,13 +135,14 @@ export class InMemoryDurableSecurityStore implements DurableSecurityStore {
   async createApproval(input: {
     approvalId: string; tenantId: string; approverId: string; requestDigest: string; expiresAt: string;
   }): Promise<void> {
-    if (!input.approvalId || !input.tenantId || !input.approverId) throw new Error("INVALID_APPROVAL");
+    if (!input.approvalId || !input.tenantId || !input.approverId || !input.subjectActorId) throw new Error("INVALID_APPROVAL");
+    if (input.approverId === input.subjectActorId) throw new Error("SELF_APPROVAL_FORBIDDEN");
     assertDigest(input.requestDigest);
     const expiresAt = assertIso(input.expiresAt);
     if (expiresAt <= Date.now()) throw new Error("APPROVAL_EXPIRY_INVALID");
     if (this.approvals.has(input.approvalId)) throw new Error("APPROVAL_ID_CONFLICT");
     this.approvals.set(input.approvalId, {
-      tenantId: input.tenantId, approverId: input.approverId,
+      tenantId: input.tenantId, approverId: input.approverId, subjectActorId: input.subjectActorId,
       digest: input.requestDigest, expiresAt, consumed: false
     });
   }
