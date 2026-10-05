@@ -89,13 +89,13 @@ export class AiToolRegistry {
     if(approvalRequired && context.approvalPayloadHash!==undefined && context.approvalPayloadHash!==action.payloadHash) throw new Error("AI_TOOL_APPROVAL_PAYLOAD_MISMATCH");
     if(approvalRequired && context.approvalPayloadHash===undefined) throw new Error("AI_TOOL_APPROVAL_BINDING_REQUIRED");
     this.policyGate.assertAllowed(action,context.capability,context.approved);
-    this.securityMonitor.record({eventType:"ai.tool.allowed",organizationId:context.organizationId,actorId:context.actorId,agentId:context.agentId,correlationId:context.correlationId,severity:risk==="L4"||risk==="L5"?"high":"info",timestamp:Date.now(),metadata:{tool:name,risk}});
+    this.securityMonitor.record({eventType:"ai.tool.allowed",organizationId:context.organizationId,actorId:context.actorId,agentId:context.agentId,...(context.correlationId ? {correlationId:context.correlationId} : {}),severity:risk==="L4"||risk==="L5"?"high":"info",timestamp:Date.now(),metadata:{tool:name,risk}});
     try {
       const result=await tool.execute(input,context);
-      this.securityMonitor.record({eventType:"ai.tool.completed",organizationId:context.organizationId,actorId:context.actorId,agentId:context.agentId,correlationId:context.correlationId,severity:"info",timestamp:Date.now(),metadata:{tool:name}});
+      this.securityMonitor.record({eventType:"ai.tool.completed",organizationId:context.organizationId,actorId:context.actorId,agentId:context.agentId,...(context.correlationId ? {correlationId:context.correlationId} : {}),severity:"info",timestamp:Date.now(),metadata:{tool:name}});
       return result;
     } catch(error) {
-      this.securityMonitor.record({eventType:"ai.tool.failed",organizationId:context.organizationId,actorId:context.actorId,agentId:context.agentId,correlationId:context.correlationId,severity:"high",timestamp:Date.now(),metadata:{tool:name,error:error instanceof Error?error.message:"unknown"}});
+      this.securityMonitor.record({eventType:"ai.tool.failed",organizationId:context.organizationId,actorId:context.actorId,agentId:context.agentId,...(context.correlationId ? {correlationId:context.correlationId} : {}),severity:"high",timestamp:Date.now(),metadata:{tool:name,error:error instanceof Error?error.message:"unknown"}});
       throw error;
     }
   }
