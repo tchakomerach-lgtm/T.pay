@@ -81,7 +81,7 @@ test("beneficiary slot repository uses conditional claim to prevent double assig
     async query<Row = Record<string, unknown>>(text: string, values?: readonly unknown[]): Promise<{ rows: Row[]; rowCount?: number }> {
       if (values === undefined) queries.push({ text });
       else queries.push({ text, values });
-      if (text.startsWith("UPDATE tontine_beneficiary_slots")) {
+      if (text.includes("UPDATE tontine_beneficiary_slots s")) {
         const row = { id: uuid, group_id: uuid, cycle_number: 1, sequence: 1,
           beneficiary_membership_id: uuid, amount_target_minor: "1000",
           status: "eligible", scheduled_for: "2026-10-05T00:00:00Z" };
