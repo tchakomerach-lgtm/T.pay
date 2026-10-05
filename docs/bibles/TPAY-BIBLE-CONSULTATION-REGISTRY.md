@@ -6,6 +6,7 @@ This registry makes the project's Bibles discoverable before implementation and 
 - `AGENTS.md`
 - `docs/bibles/IMPLEMENTATION-MAP.md`
 - `docs/skills/TPAY-CONSTRUCTION-001.md`
+- `docs/bibles/TPAY-DESIGN-BIBLE-IMPLEMENTATION.md`
 
 ## Domain routing
 | Change type | Mandatory references |
@@ -18,7 +19,7 @@ This registry makes the project's Bibles discoverable before implementation and 
 | Orchestration/workflows | `docs/skills/TPAY-ORCH-001.md` |
 | Cost/token/compute | `docs/skills/TPAY-COST-001.md` |
 | Organization branding | relevant organization ADR + design/brand registry |
-| UX/UI/motion/accessibility | design system + Design Bible |
+| UX/UI/motion/accessibility | `docs/bibles/TPAY-DESIGN-BIBLE-IMPLEMENTATION.md` |
 | Community Tontine | `docs/architecture/ADR-004-community-tontine.md` + MF + FIN + SEC skills |
 | Cross-domain feature | all affected domain references before implementation |
 
