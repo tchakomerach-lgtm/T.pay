@@ -34,7 +34,10 @@ export class ApiRuntimeGate {
 
     for(const scope of rate.scopes){
       const secret=input.scopeSecrets[scope];
-      if(!secret)return {allowed:false,status:401,code:"API_SCOPE_EVIDENCE_MISSING",correlationId:input.correlationId};
+      if(!secret){
+        if(scope==="device")continue;
+        return {allowed:false,status:401,code:"API_SCOPE_EVIDENCE_MISSING",correlationId:input.correlationId};
+      }
       try{
         const decision=await this.abuse.consume({
           policyKey:`${rate.policyKey}:${scope}`,
