@@ -53,7 +53,7 @@ export class OpenAIResponsesProvider implements AiProvider {
       metadata:request.metadata,
     },this.timeoutMs,signal);
     const output=typeof result.body.output_text==="string"?result.body.output_text:extractOpenAIOutput(result.body.output);
-    if(!output) throw new Error("AI_OPENAI_OUTPUT_MISSING");
+    if(typeof output !== "string" || output.length===0) throw new Error("AI_OPENAI_OUTPUT_MISSING");
     return {provider:this.id,model:request.model || this.model,requestId:result.requestId,outputText:output};
   }
 }
@@ -102,7 +102,7 @@ export class AnthropicMessagesProvider implements AiProvider {
       messages,
     },this.timeoutMs,signal);
     const output=extractAnthropicOutput(result.body.content);
-    if(!output) throw new Error("AI_ANTHROPIC_OUTPUT_MISSING");
+    if(typeof output !== "string" || output.length===0) throw new Error("AI_ANTHROPIC_OUTPUT_MISSING");
     return {provider:this.id,model:request.model || this.model,requestId:result.requestId,outputText:output};
   }
 }
