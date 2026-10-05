@@ -26,7 +26,7 @@ export class ChannelIngressRepository{
         [input.channel,input.scopeHash,input.sequenceNo]
       );
       const row=existing.rows[0];
-      if(!row)throw new Error("CHANNEL_SEQUENCE_CONFLICT_LOOKUP_FAILED");
+      if(!row||row.id===undefined)throw new Error("CHANNEL_SEQUENCE_CONFLICT_LOOKUP_FAILED");
       await this.db.query("UPDATE api_channel_ingress_events SET state='quarantined' WHERE id=$1",[row.id]);
       return {state:"quarantined",id:String(row.id)};
     }
