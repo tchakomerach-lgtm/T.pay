@@ -20,7 +20,7 @@ export async function initiateTontinePayout(
   if (plan.gate === "blocked") throw new Error("TONTINE_PAYOUT_BLOCKED");
   if (intent.state !== "approved") throw new Error("TONTINE_PAYOUT_NOT_APPROVED");
 
-  const result = await initiateApprovedPayout(intent, undefined, provider);
+  const result = await initiateApprovedPayout(intent, approval, provider);
   const nextIntent: PayoutIntent = result.state === "initiated"
     ? { ...intent, state: "initiated" }
     : { ...intent, state: result.state };
