@@ -114,3 +114,7 @@ L16.2 adds:
 - targeted regression tests in `tests/secure-transport.test.ts` and `tests/voice-provider-security.test.ts`.
 
 Production provider credentials, certificates, real PSTN/SIP/WebRTC clients, PostgreSQL live integration and CI remain gated. No production-readiness claim is made until those checks are verified on the exact final commit.
+
+
+## L16.4 current implementation state
+The Voice Fabric now includes a concrete TLS 1.3-only HTTPS API server boundary, an HTTPS provider client with certificate verification and injectable mTLS material, live PostgreSQL concurrency/replay integration coverage, and a red-team suite covering SSRF/downgrade/callback tampering/staleness/mTLS/tenant-confusion. Provider credentials and certificates remain runtime-injected; no vendor secret is committed. The CI workflow's existing PostgreSQL service exposes TPAY_DATABASE_URL, so live L16 tests execute in the normal check/test path. CI must still be observed on the exact final commit before any production-readiness claim.
