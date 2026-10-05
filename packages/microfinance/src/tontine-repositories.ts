@@ -23,7 +23,7 @@ export interface TontineGroupRepository {
 export interface TontineMembershipRepository {
   listActive(organizationId: UUID, groupId: UUID): Promise<CommunityTontineMembership[]>;
   getForUpdate(organizationId: UUID, membershipId: UUID): Promise<CommunityTontineMembership | null>;
-  save(membership: CommunityTontineMembership): Promise<void>;
+  save(organizationId: UUID, membership: CommunityTontineMembership): Promise<void>;
 }
 
 export interface TontineBeneficiarySlotRepository {
@@ -139,7 +139,7 @@ export class PostgresTontineMembershipRepository implements TontineMembershipRep
     return result.rows[0] ? membershipFromRow(result.rows[0]) : null;
   }
 
-  async save(membership: CommunityTontineMembership): Promise<void> {
+  async save(organizationId: UUID, membership: CommunityTontineMembership): Promise<void> {
     await this.db.query(
       `INSERT INTO tontine_memberships
        (id,organization_id,group_id,client_id,role,status,joined_at,exited_at,selected_microfinance_id)
@@ -147,7 +147,7 @@ export class PostgresTontineMembershipRepository implements TontineMembershipRep
        ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status, exited_at=EXCLUDED.exited_at,
          selected_microfinance_id=EXCLUDED.selected_microfinance_id`,
       [
-        membership.id, membership.organizationId ?? null, membership.groupId, membership.clientId,
+        membership.id, organizationId, membership.groupId, membership.clientId,
         membership.role, membership.status, membership.joinedAt, membership.exitedAt ?? null,
         membership.selectedMicrofinanceId ?? null
       ]
