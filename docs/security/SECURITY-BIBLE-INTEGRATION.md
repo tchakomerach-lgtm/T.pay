@@ -40,3 +40,16 @@ Any new agent, model, connector, MCP tool, provider, channel or organization mod
 ## Evidence rule
 
 A security control becomes VERIFIED only after exact-head automated evidence passes. INTEGRATED requires the control to be wired into its real runtime boundary. PRODUCTION-READY additionally requires observability, rollback/recovery, abuse controls and applicable operational/regulatory evidence. LIVE requires explicit activation evidence. A green CI run alone never means LIVE.
+
+
+## Construction-contract integration
+The Security Bible is mandatory through docs/construction/T_PAY_SECURITY_CONSTRUCTION_CONTRACT.md, T_PAY_CONSTRUCTION_ROADMAP.md, AGENTS.md, BUILD-SKILLS.md and BUILD-RULES.md. Every new component inherits the registry controls and must pass the applicable security gate.
+
+## Security inheritance and blast-radius rule
+New agents, models, connectors, MCP tools, channels, workflows and organization modules must declare trust boundary, identity/tenant source, data classes, allowed tools, capability TTL, egress destinations, approval requirements, audit events, kill-switch scope and rollback/recovery. Undefined security metadata blocks integration.
+
+## Runtime safety rule
+Model refusal is never the primary authorization boundary. T.Pay uses layered defenses: structured actions, deterministic policy, capabilities, independent approval, runtime containment, egress controls, external-content quarantine, financial-domain boundaries, monitoring and kill switches.
+
+## Verification rule
+VERIFIED requires implementation and deterministic evidence. INTEGRATED requires the real runtime boundary. PRODUCTION-READY requires recovery, observability, abuse and operational/regulatory evidence. LIVE requires explicit activation evidence.
