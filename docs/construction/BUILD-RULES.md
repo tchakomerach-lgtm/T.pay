@@ -82,3 +82,11 @@ All network-facing T.Pay adapters MUST use HTTPS/TLS. Plain HTTP endpoints, redi
 - Low-bandwidth Togo/Africa channels (USSD/SMS/voice) receive explicit tighter policies and must degrade with bounded retries, clear user feedback and no financial-state mutation when the abuse subsystem is unavailable.
 - Progressive penalties, reputation and SIM-swap signals may influence abuse decisions only through auditable policy inputs; they must never silently alter Ledger truth.
 - Rate-limit storage is operational control state, not financial truth, and must have bounded retention/cleanup and privacy-minimized observability.
+
+
+## API runtime resilience invariant
+- API runtime failures must produce normalized bounded error codes with correlation IDs; never leak provider, database, secret or stack-trace details to callers.
+- Retries are limited to classified transient failures, use bounded exponential backoff and must never duplicate a financial mutation unless an idempotency boundary already guarantees replay safety.
+- Circuit breakers are route/provider scoped operational controls; an open circuit fails fast and cannot fabricate success or mutate financial truth.
+- Readiness is distinct from liveness/health: an unavailable dependency may make the service unready while health evidence remains explicit and observable.
+- API versions are explicit and backward-compatibility policy is enforced at the gateway rather than inferred from handler existence.
