@@ -30,3 +30,15 @@
 28. Evaluation Engineering — maintain adversarial regression corpora for prompt injection, tool misuse, data exfiltration, cross-tenant leakage, goal drift, autonomy and cost abuse.
 29. Security Exception Engineering — every exception has owner, justification, expiry, compensating control and independent approval.
 30. Session-Independent Continuity — the repository commit/CI state is the durable construction boundary.
+
+31. Action-Envelope Engineering — canonical typed actions with payload hashes, correlation and expiry.
+32. Deterministic Capability Issuance — server-side capability issuance with risk-bounded TTL and no agent self-escalation.
+33. Policy-Gate Engineering — final deny-by-default authorization immediately before consequential sinks.
+34. Kill-Switch Engineering 2.0 — fail-closed AI shutdown with Financial Core integrity preservation and explicit recovery.
+35. Cross-Agent Authorization — treat agent outputs as evidence and re-authorize every consequential sink.
+36. Model/Vendor Agnosticism — isolate model providers and prevent vendor/model choice from creating privilege.
+37. Construction-State Ledger — record layer state and evidence without conflating implementation with verification or production readiness.
+38. African Channel Security — secure USSD/SMS/voice/mobile-money/cash ingress through the same canonical action and authorization boundary.
+39. Security-First Offline Recovery — quarantine ambiguous offline financial events and reconcile through Financial Core rather than trusting client state.
+40. Regulatory Activation Gates — keep regulated payment/e-money/credit capabilities disabled until partner, license and operational controls are evidenced.
+
