@@ -19,7 +19,7 @@ export class CommercialAgentService {
 
   buildCampaign(input: {
     offer: SellerOffer;
-    leads: readonly Array<CommercialLead & {
+    leads: ReadonlyArray<CommercialLead & {
       needMatch: number;
       localityMatch: number;
       purchasingSignal: number;
