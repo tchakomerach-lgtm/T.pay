@@ -38,3 +38,6 @@ A renderer crash is isolated to the presentation boundary. It must not silently 
 
 ## Verification gate
 DB-076 is IMPLEMENTED/PENDING-VERIFICATION until exact-head CI, browser build, accessibility automation, visual regression, low-end performance and security review produce evidence.
+
+## Accessibility gate
+The renderer now has an executable accessibility contract requiring a named surface, live-region support, keyboard reachability, visible focus, minimum 44px controls, and text/icon status semantics. These are contracts; browser-level automated accessibility scanning remains a separate verification gate.
