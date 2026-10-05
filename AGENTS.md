@@ -62,6 +62,9 @@ Foundation is implemented for domain types, security sessions/policies, risk con
 
 Community Tontine remains an independent interoperable domain: daily/weekly/monthly cycles, fixed/variable/goal contributions, membership/roles, beneficiary rotation, governance, partner microfinance selection, multi-channel collection, provider reconciliation, KYC/human payout gates, field continuity and idempotent contribution intents. It never creates a second ledger; T.Pay Financial Core remains authoritative.
 
+## DB-074 Design Runtime state
+DB-074 implements renderer-neutral universal object, object presentation, action presentation, realtime presentation, synchronization presentation and field/low-bandwidth display contracts on `construction/db-074-universal-object-action-runtime`. It extends DB-073 without creating a second design system. Status is IMPLEMENTED, not VERIFIED/PRODUCTION-READY, until exact-head CI, renderer consumption, visual/accessibility regression and low-end performance evidence exist.
+
 ## Definition of Done
 Code + tests + security controls + observability + documentation + migration/rollback plan when stateful + CI green.
 
