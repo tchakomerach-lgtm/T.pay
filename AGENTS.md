@@ -71,3 +71,7 @@ The settlement construction gate is explicit: contribution idempotency → payme
 
 ## L14.3 construction rule
 Provider-specific production wire formats MUST come from the signed operator/aggregator contract. T.Pay may ship a normalized adapter profile and fail-closed mapping tests, but must not invent undocumented fields, statuses, callback signatures or live endpoints. Callback acceptance order is signature/freshness → schema mapping → durable tenant-scoped replay claim → normalized provider validation → settlement. Same event ID with a different payload hash is a hard security conflict.
+
+
+## Mobile-money contract activation rule (L14.3+)
+T-Money/Mixx by Yas and Moov Money Flooz integrations are contract-bound. Public discovery material is never authoritative for production wire compatibility. A provider adapter can move from DISCOVERY to CONTRACT_REGISTERED only after the current operator/authorized aggregator contract bundle is recorded with version/effective-date/document hashes. Production activation additionally requires sandbox vectors, signature verification vectors, replay/race tests, reconciliation tests, explicit operator approval, secret rotation validation, and CI/security gates. Expired or superseded contracts fail closed. Aggregator callbacks remain external evidence and cannot bypass T.Pay ledger controls.
