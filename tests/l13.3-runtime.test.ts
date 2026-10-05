@@ -72,11 +72,13 @@ test("L13.3 aborts timed operations before retrying",async()=>{
   let aborted=false;
   const result=await executeWithResilience(async signal=>{
     calls+=1;
-    await new Promise<void>((resolve,reject)=>{
-      if(signal.aborted){aborted=true;resolve();return;}
-      signal.addEventListener("abort",()=>{aborted=true;resolve();},{once:true});
-    });
-    if(calls===1)throw new Error("TIMEOUT");
+    if(calls===1){
+      await new Promise<void>(resolve=>{
+        if(signal.aborted){aborted=true;resolve();return;}
+        signal.addEventListener("abort",()=>{aborted=true;resolve();},{once:true});
+      });
+      throw new Error("TIMEOUT");
+    }
     return "recovered";
   },{
     timeoutMs:5,
