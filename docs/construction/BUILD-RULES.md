@@ -90,3 +90,5 @@ All network-facing T.Pay adapters MUST use HTTPS/TLS. Plain HTTP endpoints, redi
 - Circuit breakers are route/provider scoped operational controls; an open circuit fails fast and cannot fabricate success or mutate financial truth.
 - Readiness is distinct from liveness/health: an unavailable dependency may make the service unready while health evidence remains explicit and observable.
 - API versions are explicit and backward-compatibility policy is enforced at the gateway rather than inferred from handler existence.
+- Runtime scope evidence is policy-specific: stable device evidence is optional for shared/low-end devices when stronger channel/IP/actor controls remain; missing required evidence fails closed.
+- Health/readiness probes must be individually time-bounded; a hung dependency cannot block health reporting indefinitely.
