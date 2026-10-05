@@ -21,11 +21,7 @@ Every brick MUST execute and respect docs/skills/TPAY-CONSTRUCTION-001.md:
 
 DISCOVER -> BIBLE-MAP -> CURRENT-CODE -> EXTERNAL-RESEARCH -> THREAT-GATE -> DESIGN -> IMPLEMENT -> TEST -> SECURITY REVIEW -> OBSERVE -> COST REVIEW -> CI -> RECORD.
 
-The loop is iterative. A failed test, security gate, CI check, material Bible change, provider-contract change or unresolved high-risk exception sends the brick back to the appropriate earlier stage.
-
 Before every brick, consult docs/bibles/TPAY-BIBLE-CONSULTATION-REGISTRY.md and the mandatory domain Bibles/skills mapped there. Do not rely on memory when the repository contains the authoritative rule.
-
-External research is evidence-driven, not decorative. Use primary standards and authoritative documentation when a design decision depends on current security, protocol, regulatory, infrastructure or interoperability guidance. Record only the decision-relevant findings, not private chain-of-thought.
 
 ## Coding rules
 - Strict TypeScript.
@@ -62,40 +58,29 @@ Foundation is implemented for domain types, security sessions/policies, risk con
 
 Community Tontine remains an independent interoperable domain: daily/weekly/monthly cycles, fixed/variable/goal contributions, membership/roles, beneficiary rotation, governance, partner microfinance selection, multi-channel collection, provider reconciliation, KYC/human payout gates, field continuity and idempotent contribution intents. It never creates a second ledger; T.Pay Financial Core remains authoritative.
 
-## Definition of Done
-Code + tests + security controls + observability + documentation + migration/rollback plan when stateful + CI green.
-
-## Settlement Orchestrator state
-The settlement construction gate is explicit: contribution idempotency → payment intent → provider adapter → signed callback → freshness/anti-replay → provider validation → atomic financial settlement → versioned fee snapshot → contribution confirmation → receipt/e-carnet → post-commit event/notification → reconciliation. S-02 defines the durable transaction contract; S-02.5 implements the PostgreSQL transaction lifecycle and schema; S-02.5.1 verifies it against live PostgreSQL; S-03.1 establishes the provider boundary; S-03.2 establishes callback authenticity/freshness/replay contracts; L14.3 establishes the versioned schema gate and durable tenant-scoped ingress replay barrier. Next gate: provider-contract activation from signed operator/aggregator schemas, then end-to-end callback-to-settlement integration.
-
-
-## L14.3 construction rule
-Provider-specific production wire formats MUST come from the signed operator/aggregator contract. T.Pay may ship a normalized adapter profile and fail-closed mapping tests, but must not invent undocumented fields, statuses, callback signatures or live endpoints. Callback acceptance order is signature/freshness → schema mapping → durable tenant-scoped replay claim → normalized provider validation → settlement. Same event ID with a different payload hash is a hard security conflict.
-
-
-## Mobile-money contract activation rule (L14.3+)
-T-Money/Mixx by Yas and Moov Money Flooz integrations are contract-bound. Public discovery material is never authoritative for production wire compatibility. A provider adapter can move from DISCOVERY to CONTRACT_REGISTERED only after the current operator/authorized aggregator contract bundle is recorded with version/effective-date/document hashes. Production activation additionally requires sandbox vectors, signature verification vectors, replay/race tests, reconciliation tests, explicit operator approval, secret rotation validation, and CI/security gates. Expired or superseded contracts fail closed. Aggregator callbacks remain external evidence and cannot bypass T.Pay ledger controls.
-
-
-## L14.4 construction rule — Provider settlement + Revenue Growth
-L14.4 extends the provider boundary into a contract registry and the commercial/revenue plane. Provider contracts are tenant-scoped and evidence-bound; activation is fail-closed until the signed contract evidence, validity window, callback schema, signature scheme, currency set and clock-skew policy are present. The settlement path remains: raw-body signature → freshness → versioned schema → tenant replay barrier → payment-intent correlation → exact provider/reference/amount/currency validation → monotonic state transition → serializable atomic settlement → Ledger/fees/contribution/payment/receipt/outbox → reconciliation.
-
-T.Pay also contains a cross-vertical Commercial Agent domain. Every organization can expose sellable offers/services/products; the agent may discover and rank opportunities, prepare/publish offers through permitted channels, qualify leads, schedule follow-ups and optimize campaigns. Autonomous outbound action is bounded by tenant policy, consent, channel allowlists, daily budgets, category restrictions and auditability. Price/contract changes remain human-approved by default. Direct messaging requires explicit consent where applicable; revoked consent is a hard stop. The agent must prefer T.Pay-native marketplace/social opportunities before external channels and must never use purchased/scraped personal data as an implicit permission to contact a person.
-
-The Revenue Growth plane is not a separate money system: successful sales settle through the same T.Pay Financial Core, Payment Intent, Ledger, fee/commission, receipt and reconciliation controls. Offline-first operation, low-bandwidth payloads, SMS/USSD-compatible fallback workflows and local-language offer templates are first-class requirements for Togo/Africa.
-
 ## Design Bible implementation state
-
-The global Design Bible implementation contract is recorded in `docs/bibles/TPAY-DESIGN-BIBLE-IMPLEMENTATION.md` and registered as a mandatory baseline. It covers the established DB sequence: Experience OS, universal objects/actions/workflows, real-time experience, organization ecosystem/workspace, People & Teams, Projects & Tasks, Calendar & Meetings, temporal permissions, reservation governance, universal color/token system, Finance & Budget UX, motion system, accessibility, language governance, offline/field mode, AI UX and Togo/Africa readiness.
-
-Frontend construction gate:
-DISCOVER -> BIBLE-MAP -> CURRENT-CODE -> DESIGN TOKENS -> SHELL/CONTEXT -> UNIVERSAL STATES -> REALTIME/OFFLINE -> DOMAIN SURFACES -> ACCESSIBILITY/RESPONSIVE -> TEST -> SECURITY REVIEW -> PERFORMANCE/COST -> CI -> RECORD.
-
-Design implementation must reuse existing semantic components and tokens. A new component or interaction requires a repository search first and must not silently create a competing design rule.
+The global Design Bible implementation contract is recorded in `docs/bibles/TPAY-DESIGN-BIBLE-IMPLEMENTATION.md` and registered as a mandatory baseline. Frontend construction must reuse existing semantic components and tokens.
 
 ## L15 construction rule — AI Core is the central control plane
 The AI Core owns model-provider routing and specialist-agent orchestration. No domain agent may embed a direct vendor SDK/API call. Provider adapters are isolated behind a common interface and selected by explicit tenant/data/security/cost policy. OpenAI Responses and Anthropic Messages are supported as replaceable adapters; future providers must conform to the same contract.
 
-The Commercial Growth Agent is a first-class AI Core specialist, not an isolated revenue chatbot. It can reason over approved commercial context and request authorized tools. Its outputs do not directly mutate financial state or silently contact people. Consent, channel policy, outbound budgets, organization scope and human-approval gates are enforced outside the model.
+The Commercial Growth Agent is a first-class AI Core specialist, not an isolated revenue chatbot. It can reason over approved commercial context and request authorized tools. Its outputs do not directly mutate financial state or silently contact people.
 
-Construction rule: provider outage is not permission to bypass policy. Failover may occur only among providers allowed for the same data classification and tenant policy.
+## L16 construction rule — Voice Fabric
+Prompt 020 and `docs/skills/TPAY-VOICE-001.md` define the voice boundary. Voice is an untrusted interface and never an authorization source. `packages/ai/src/voice-fabric.ts` contains the deterministic domain/reference implementation and security invariants.
+
+Voice production adapters MUST keep:
+- telephony/media provider behind an adapter;
+- session and capability leases short-lived;
+- caller ID separate from identity proof;
+- sensitive actions behind step-up authentication and policy approval;
+- transaction challenges bound to the exact normalized action;
+- appointment conflicts enforced by PostgreSQL transaction/constraint;
+- transcript/audio privacy and retention policy outside the model;
+- financial execution inside Financial Core;
+- cross-tenant context impossible by construction.
+
+Voice provider outage is not permission to bypass policy. A failed voice service must degrade to a safe handoff or non-mutating mode.
+
+## Definition of Done
+Code + tests + security controls + observability + documentation + migration/rollback plan when stateful + CI green.
