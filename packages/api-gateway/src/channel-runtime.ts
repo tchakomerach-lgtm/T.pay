@@ -26,11 +26,11 @@ export async function processChannelIngress(input:ChannelIngressInput&{
     await observability.record({
       ...(input.organizationId===undefined?{}:{organizationId:input.organizationId}),
       correlationId:ingress.correlationId,route:ingress.route,method:ingress.method,
-      apiVersion:ingress.route.match(/^\\/v[0-9]+/)?.[0]??"v1",channel:ingress.channel,
+      apiVersion:ingress.route.match(/^\/v[0-9]+/)?.[0]??"v1",channel:ingress.channel,
       statusCode:runtimeDecision.allowed?200:runtimeDecision.status,
       outcome:runtimeDecision.allowed?"success":runtimeDecision.status===429?"limited":"blocked",
-      errorCode:runtimeDecision.allowed?undefined:runtimeDecision.code,
-      durationMs:0,occurredAt:input.now
+      durationMs:0,occurredAt:input.now,
+      ...(runtimeDecision.allowed?{}:{errorCode:runtimeDecision.code})
     });
   }
   if(!runtimeDecision.allowed)return {runtime:runtimeDecision,ingress};
