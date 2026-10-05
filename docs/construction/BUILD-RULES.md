@@ -107,3 +107,10 @@ All network-facing T.Pay adapters MUST use HTTPS/TLS. Plain HTTP endpoints, redi
 - Version state is governed centrally: active, deprecated and sunset versions have explicit policy, with deterministic replacement/sunset behavior.
 - Success and error responses carry bounded correlation and version evidence; provider/database/secret/stack details never cross the API boundary.
 - Backward compatibility is enforced at the gateway; adding a handler cannot silently create a public API contract.
+
+
+## API observability invariant
+- Every production-facing API/channel boundary emits privacy-minimized runtime evidence with correlation ID, version, channel, route, status, bounded latency and normalized outcome.
+- Operational telemetry never stores raw secrets, authentication factors, payment credentials or unnecessary PII; evidence is hashed where content binding is required.
+- Telemetry persistence failure must not fabricate or mutate Financial Core truth; degraded observability is an explicit operational condition.
+- Runtime evidence retention is bounded and independently prunable; observability storage is never a financial ledger.
