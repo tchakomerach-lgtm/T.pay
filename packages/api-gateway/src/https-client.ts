@@ -43,13 +43,14 @@ export async function requestJson<T>(input:{
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(new Error("TIMEOUT")),timeoutMs);
   try{
-    const response=await fetch(url,{
-      method,
+    const requestInit:RequestInit={
+      method:input.method,
       headers:{"accept":"application/json","content-type":"application/json",...(input.headers??{})},
-      body:input.body===undefined?undefined:JSON.stringify(input.body),
       redirect:"error",
       signal:controller.signal
-    });
+    };
+    if(input.body!==undefined)requestInit.body=JSON.stringify(input.body);
+    const response=await fetch(url,requestInit);
     const length=response.headers.get("content-length");
     if(length!==null&&Number(length)>maxResponseBytes)throw new Error("HTTPS_RESPONSE_TOO_LARGE");
     const bytes=new Uint8Array(await response.arrayBuffer());
