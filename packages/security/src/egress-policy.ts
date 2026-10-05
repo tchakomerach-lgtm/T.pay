@@ -13,7 +13,8 @@ function isPrivateTarget(host:string):boolean {
   const ipVersion=isIP(normalized);
   if(ipVersion===4){
     const o=ipv4Octets(normalized); if(!o)return true;
-    const [a,b]=o;
+    const a=o[0]; const b=o[1];
+    if(a===undefined || b===undefined) return true;
     return a===0 || a===10 || a===127 || (a===169&&b===254) || (a===172&&b>=16&&b<=31) ||
       (a===192&&b===168) || (a===100&&b>=64&&b<=127) || (a===198&&(b===18||b===19)) ||
       (a===192&&b===0) || a>=224;
