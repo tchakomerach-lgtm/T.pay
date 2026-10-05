@@ -108,3 +108,79 @@ Where a security monitor evaluates consequential AI actions, its decision input 
 
 26. External-content quarantine invariant
 Suspicious tool/RAG/partner content is quarantined and cannot become policy, capability, approval or executable instructions.
+
+
+## 27. Confused-deputy invariant
+Requester, authorizer and executor identities are distinct facts. A downstream privileged service cannot infer authorization from the identity of an upstream agent.
+
+## 28. Secretless-agent invariant
+AI agents receive scoped references/capabilities, never reusable provider credentials, signing keys, database passwords or root tokens. Secret material is resolved only at protected execution boundaries.
+
+## 29. Outbound-request invariant
+Sensitive services use deny-by-default egress. Destinations are normalized and policy-checked server-side; private/internal targets, metadata services, unsafe redirects and unapproved hosts are blocked.
+
+## 30. Output-boundary invariant
+Model/tool output is untrusted until validated for its destination. Rendering, persistence, SQL, templates and downstream API calls use schema validation and context-appropriate encoding/parameterization.
+
+## 31. Replay-and-order invariant
+Every state-changing channel has idempotency/replay protection, ordering semantics and bounded clock-skew handling. Ambiguous financial events quarantine instead of guessing.
+
+## 32. Recovery-equivalence invariant
+Retries, compensation, rollback, restore and reconciliation paths receive the same authorization, policy, audit and anti-replay controls as forward execution.
+
+## 33. Multi-party-control invariant
+High-impact initiation, authorization and settlement cannot collapse into one autonomous principal. Independent controls enforce separation of duties where risk requires it.
+
+## 34. Security-monitor availability invariant
+Security-monitor degradation cannot silently authorize protected actions. High-impact execution fails closed or enters an explicit safe-degraded state.
+
+## 35. Approval-UI integrity invariant
+Human approval displays the canonical action/payload actually bound to approval. Stale approvals, substituted recipients/amounts and UI-only changes invalidate approval.
+
+## 36. Migration-fortress invariant
+Migration uses mapping, lineage, quarantine, dual-run/shadow mode, reconciliation, freeze/cutover and rollback. Legacy credentials are isolated and never blindly migrated.
+
+## 37. Evidence-integrity invariant
+Critical security/financial evidence is integrity-protected, time-correlated and mutation/deletion detectable. Telemetry is evidence, not financial truth.
+
+## 38. Privacy-telemetry invariant
+Observability minimizes personal/financial content, uses pseudonymous identifiers where possible and never emits secrets or raw sensitive records by default.
+
+## 39. Abuse-economics invariant
+Controls model fee abuse, bot farms, referral fraud, account takeover, cash theft, agent collusion and Denial-of-Wallet across velocity, value and behavior.
+
+## 40. Human-factors invariant
+Security-critical UX resists phishing and accidental approval, remains usable on low-end devices and makes consequential actions understandable before approval.
+
+## 41. Reproducible-build invariant
+Generated code is treated like human code: tested, reviewed, provenance-traceable and security-gated.
+
+## 42. Security-regression invariant
+Every confirmed bypass becomes a deterministic regression test before closure unless an explicitly approved compensating control exists.
+
+## 43. Resource-containment invariant
+Agents/tools/model calls have bounded time, memory, context, tool-call count, queue depth and cost. Runaway behavior trips a circuit breaker or kill switch.
+
+## 44. Security-change-impact invariant
+Security/policy changes require impact analysis over affected tenants, channels, financial paths, agents and inherited controls before release.
+
+## 45. Control-effectiveness invariant
+A documented control with no evidence of prevention, detection, containment or recovery effectiveness is not production-ready.
+
+## 46. Channel-equivalence invariant
+REST, web/mobile, offline, agent, USSD, SMS, voice and partner channels must implement equivalent authorization semantics. A weaker channel cannot become an authorization bypass.
+
+## 47. Security inheritance invariant
+Any new agent, model, connector, provider, tool, channel, workflow or organization module automatically inherits the Security Bible and may only add restrictions.
+
+## 48. Security construction contract
+docs/construction/T_PAY_SECURITY_CONSTRUCTION_CONTRACT.md is mandatory for every construction sequence. docs/construction/T_PAY_CONSTRUCTION_ROADMAP.md is the durable sequencing source.
+
+## 49. Public-vendor boundary
+T.Pay may adapt publicly documented defensive principles from OpenAI and other vendors, but never claims to reproduce private system prompts, hidden policies, proprietary detectors, model weights or confidential operational controls.
+
+## 50. Regulated activation invariant
+Technical implementation never authorizes production use of regulated payment/e-money/credit functionality. Activation requires applicable partner, license, operational, security and monitoring evidence.
+
+## 51. No-false-green invariant
+A green CI result proves only the checks executed by that workflow. It does not prove controls outside the workflow, production readiness, regulatory authorization or LIVE status.
