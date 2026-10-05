@@ -118,3 +118,19 @@ DISCOVER -> DB-073/074 CONTRACTS -> REACT ADAPTER -> RESPONSIVE UI -> ACCESSIBIL
 No React component may introduce a competing color token, object state, action grammar, realtime state, permission rule or terminology registry. Future Flutter must consume the same semantic contracts through a separate platform adapter.
 
 DB-075 currently remains IMPLEMENTED/PENDING-VERIFICATION until exact-head CI and browser/visual/accessibility/performance evidence pass.
+
+
+## DB-076 Renderer Quality & Field Runtime
+
+DB-076 adds browser runtime safeguards on top of DB-075:
+- viewport/density contract;
+- online/reconnecting/offline semantics;
+- reduced-motion enforcement;
+- canonical Design Registry CSS adapter;
+- renderer failure boundary;
+- field-mode tests.
+
+Construction gate:
+CONTRACTS -> RUNTIME ADAPTER -> RESPONSIVE -> ACCESSIBILITY -> OFFLINE/RECONNECT -> ERROR CONTAINMENT -> TEST -> SECURITY REVIEW -> PERFORMANCE -> VISUAL REGRESSION -> CI -> RECORD.
+
+Do not introduce renderer-local semantic colors, object states, authorization rules or financial success semantics.
