@@ -37,7 +37,7 @@ test("approval consumption is one-time under concurrent requests", { skip: !data
     await Promise.all(clients.map(c=>c.connect()));
     await applyMigrations(clients[0]!, pathToFileURL(join(process.cwd(),"migrations") + "/"));
     await new PostgresDurableSecurityStore(clients[0]!).createApproval({
-      approvalId,tenantId,approverId:"admin-1",requestDigest:digest,expiresAt:"2030-01-01T00:00:00.000Z"
+      approvalId,tenantId,approverId:"admin-1",subjectActorId:"user-1",requestDigest:digest,expiresAt:"2030-01-01T00:00:00.000Z"
     });
     const results = await Promise.all(clients.map(c => new PostgresDurableSecurityStore(c).consumeApproval({
       approvalId,tenantId,requestDigest:digest,now:"2029-01-01T00:00:00.000Z"
