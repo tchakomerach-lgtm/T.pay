@@ -1,6 +1,8 @@
 import { createActionEnvelope, type AiActionRisk } from "./action-envelope.js";
 import type { AiCapability } from "./capability-policy.js";
 import { AiPolicyGate } from "./policy-gate.js";
+import { SecurityMonitor } from "../../security/src/security-monitor.js";
+import { ResourceBudgetGuard } from "../../security/src/resource-budget.js";
 
 export type AiToolRisk = "low"|"medium"|"high"|"critical";
 
@@ -42,6 +44,7 @@ function actionRisk(risk:AiToolRisk):AiActionRisk {
 export class AiToolRegistry {
   private readonly tools=new Map<string,AiToolDefinition>();
   private readonly policyGate=new AiPolicyGate();
+  private readonly securityMonitor=new SecurityMonitor();
 
   register(tool:AiToolDefinition):void{
     validateDefinition(tool);
@@ -57,6 +60,7 @@ export class AiToolRegistry {
   }
 
   async execute(name:string,input:unknown,context:AiToolContext):Promise<unknown>{
+    this.securityMonitor.assertOperational();
     const tool=this.get(name,context.agentId);
     if(!context.organizationId.trim() || !context.actorId.trim() || !context.agentId.trim()) throw new Error("AI_TOOL_CONTEXT_REQUIRED");
     const now=Date.now();
@@ -64,6 +68,8 @@ export class AiToolRegistry {
     const risk=actionRisk(tool.risk);
     if(risk!=="L0" && (!context.purpose?.trim() || !context.correlationId?.trim())) throw new Error("AI_TOOL_ACTION_CONTEXT_REQUIRED");
     const canonicalPayload=JSON.stringify(input);
+    const budget=new ResourceBudgetGuard({maxCalls:1,maxInputBytes:1_000_000,maxOutputBytes:5_000_000,maxWallTimeMs:30_000});
+    budget.consume(Buffer.byteLength(canonicalPayload,"utf8"));
     const action=createActionEnvelope({
       actionId: context.correlationId ?? `${name}-${now}`,
       toolName: name,
@@ -83,10 +89,19 @@ export class AiToolRegistry {
     if(approvalRequired && context.approvalPayloadHash!==undefined && context.approvalPayloadHash!==action.payloadHash) throw new Error("AI_TOOL_APPROVAL_PAYLOAD_MISMATCH");
     if(approvalRequired && context.approvalPayloadHash===undefined) throw new Error("AI_TOOL_APPROVAL_BINDING_REQUIRED");
     this.policyGate.assertAllowed(action,context.capability,context.approved);
-    return tool.execute(input,context);
+    this.securityMonitor.record({eventType:"ai.tool.allowed",organizationId:context.organizationId,actorId:context.actorId,agentId:context.agentId,correlationId:context.correlationId,severity:risk==="L4"||risk==="L5"?"high":"info",timestamp:Date.now(),metadata:{tool:name,risk}});
+    try {
+      const result=await tool.execute(input,context);
+      this.securityMonitor.record({eventType:"ai.tool.completed",organizationId:context.organizationId,actorId:context.actorId,agentId:context.agentId,correlationId:context.correlationId,severity:"info",timestamp:Date.now(),metadata:{tool:name}});
+      return result;
+    } catch(error) {
+      this.securityMonitor.record({eventType:"ai.tool.failed",organizationId:context.organizationId,actorId:context.actorId,agentId:context.agentId,correlationId:context.correlationId,severity:"high",timestamp:Date.now(),metadata:{tool:name,error:error instanceof Error?error.message:"unknown"}});
+      throw error;
+    }
   }
 
   disableAll(reason:string):void { this.policyGate.disable(reason); }
   enableAll():void { this.policyGate.enable(); }
   isEnabled():boolean { return this.policyGate.isEnabled(); }
+  getSecurityMonitor():SecurityMonitor { return this.securityMonitor; }
 }
