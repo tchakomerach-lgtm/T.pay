@@ -20,7 +20,7 @@ test("external content is quarantined and cannot become authority",()=>{
 test("security monitoring fails closed and redacts secret-shaped fields",()=>{
   const m=new SecurityMonitor();
   m.record({eventType:"tool",organizationId:"o",severity:"info",timestamp:Date.now(),metadata:{apiKey:"secret",safe:"ok"}});
-  assert.equal(m.snapshot()[0].metadata.apiKey,"[REDACTED]");
+  const first=m.snapshot()[0]; assert.ok(first); assert.equal(first.metadata.apiKey,"[REDACTED]");
   m.setAvailable(false); assert.throws(()=>m.record({eventType:"x",organizationId:"o",severity:"critical",timestamp:Date.now(),metadata:{}}),/SECURITY_MONITOR_UNAVAILABLE/);
 });
 test("resource budgets stop runaway automation",()=>{
