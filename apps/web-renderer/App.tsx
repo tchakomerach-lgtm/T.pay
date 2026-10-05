@@ -7,6 +7,7 @@ import { assertActionPresentation } from "../design/action-presentation.js";
 import { assertRealtimePresentation } from "../design/realtime-presentation.js";
 import { assertSyncPresentation } from "../design/sync-presentation.js";
 import { assertFieldDisplayPolicy } from "../design/field-mode.js";
+import { buildTpayCssVariables } from "./adapter.js";
 import type { TPayActionContract } from "../design/actions.js";
 
 const destinations: readonly TPayPrimaryDestination[] = [
