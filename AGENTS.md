@@ -62,6 +62,9 @@ Foundation is implemented for domain types, security sessions/policies, risk con
 
 Community Tontine remains an independent interoperable domain: daily/weekly/monthly cycles, fixed/variable/goal contributions, membership/roles, beneficiary rotation, governance, partner microfinance selection, multi-channel collection, provider reconciliation, KYC/human payout gates, field continuity and idempotent contribution intents. It never creates a second ledger; T.Pay Financial Core remains authoritative.
 
+## SEC-074 construction state
+SEC-074 adds a durable tenant/JTI replay barrier, exact-digest one-time human approvals with separation of duties, policy provenance, and hash-linked redacted security events. PostgreSQL persistence and race tests are implemented on `construction/sec-074-durable-security-gates`. This remains IMPLEMENTED, not VERIFIED/PRODUCTION-READY, until exact-head CI, security review, and authoritative domain/AI/finance command-gate integration are evidenced.
+
 ## Definition of Done
 Code + tests + security controls + observability + documentation + migration/rollback plan when stateful + CI green.
 
