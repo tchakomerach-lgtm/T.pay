@@ -7,7 +7,7 @@ test("L13.4 canonicalizes a mobile ingress without exposing raw scope identifier
   const value=normalizeChannelIngress({
     channel:"mobile",method:"post",route:"/v1/profile",origin:"https://api.tpay.tg",
     correlationId:"corr-123456",idempotencyKey:"idem-123456",scopeSecret:"device-secret-123",
-    payload:"{"hello":"world"}",sequenceNo:"42",offline:true
+    payload:'{"hello":"world"}',sequenceNo:"42",offline:true
   });
   assert.equal(value.method,"POST");
   assert.equal(value.sequenceNo,"42");
