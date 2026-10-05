@@ -1,0 +1,13 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {parseNormalizedProviderCallback,sha256Payload,TOGO_PROVIDER_CALLBACK_PROFILES} from "../packages/finance/src/provider-callback-schema.js";
+import {PostgresProviderReplayStore,type ProviderReplayDb} from "../packages/finance/src/provider-replay-store.js";
+const body=JSON.stringify({event_id:"evt-001",payment_id:"pay-001",provider_reference:"TM-001",status:"success",amount_minor:"1500",currency:"XOF",idempotency_key:"pay-001-idem",correlation_id:"corr-001",occurred_at:"2026-10-05T08:00:00Z"});
+test("L14.3 normalizes a Togo callback only through an explicit profile",()=>{const e=parseNormalizedProviderCallback(TOGO_PROVIDER_CALLBACK_PROFILES.tmoney,body);assert.equal(e.providerId,"tmoney");assert.equal(e.status,"confirmed");assert.equal(e.amountMinor,1500n);assert.equal(e.currency,"XOF");});
+test("L14.3 rejects unknown provider status",()=>{assert.throws(()=>parseNormalizedProviderCallback(TOGO_PROVIDER_CALLBACK_PROFILES.flooz,body.replace("success","paid_ok")),/PROVIDER_CALLBACK_STATUS_UNMAPPED/);});
+test("L14.3 rejects malformed amount",()=>{assert.throws(()=>parseNormalizedProviderCallback(TOGO_PROVIDER_CALLBACK_PROFILES.tmoney,body.replace('"amount_minor":"1500"','"amount_minor":"15x00"')),/PROVIDER_CALLBACK_AMOUNT_INVALID/);});
+class Db implements ProviderReplayDb {
+ readonly rows=new Map<string,string>();
+ async query<Row extends Record<string,unknown>=Record<string,unknown>>(text:string,values:readonly unknown[]=[]){const key=String(values[0])+"|"+String(values[1])+"|"+String(values[2]);if(text.startsWith("INSERT")){if(this.rows.has(key))return {rows:[],rowCount:0};this.rows.set(key,String(values[3]));return {rows:[],rowCount:1};}return {rows:[{payload_sha256:this.rows.get(key)??""} as Row],rowCount:1};}
+}
+test("L14.3 durable replay is idempotent and detects payload conflict",async()=>{const db=new Db(),store=new PostgresProviderReplayStore(db),hash=sha256Payload(body);assert.equal(await store.claim("org-1","tmoney","evt-001",hash,"2026-10-05T08:00:00Z"),true);assert.equal(await store.claim("org-1","tmoney","evt-001",hash,"2026-10-05T08:01:00Z"),false);await assert.rejects(store.claim("org-1","tmoney","evt-001","b".repeat(64),"2026-10-05T08:02:00Z"),/PROVIDER_REPLAY_PAYLOAD_CONFLICT/);assert.equal(await store.claim("org-2","tmoney","evt-001",hash,"2026-10-05T08:00:00Z"),true);});
