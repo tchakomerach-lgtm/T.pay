@@ -34,3 +34,20 @@ Financial approval, identity recovery, high-risk account changes and irreversibl
 
 ## Evaluation
 Maintain golden tasks, adversarial prompts, tool misuse tests, hallucination checks, authorization tests and regression datasets. Never evaluate an AI agent only on fluent text.
+
+
+## L15 — provider-agnostic AI Core
+The AI Core is the sole orchestration plane for T.Pay agents. Specialist agents never call model providers directly. They request inference through a provider registry that supports OpenAI Responses, Anthropic Messages and future compatible providers behind one contract.
+
+Provider selection is policy-driven: organization/data classification, allowed provider list, latency/cost budget, model capability and availability determine routing. Failover must not cross a tenant/data-residency policy boundary. Provider secrets remain outside source code.
+
+### Agent/tool boundary
+- Agents are capabilities, not unrestricted chatbots.
+- Tools are deny-by-default, versioned, risk-rated and agent-scoped.
+- High/critical side effects require explicit approval unless a separately reviewed policy grants automation.
+- Financial actions can never write balances directly; they invoke existing Financial Core commands.
+- Commercial Growth Agent may discover, rank and prepare opportunities, but direct outbound contact requires consent and policy authorization.
+- All agent actions require organization context, request/correlation ID and auditable outcome.
+
+### Scalability
+The provider registry is replaceable; model vendors can be added without changing specialist-agent contracts. Routing must support retries with bounded budgets, circuit breaking, health state, fallback and cost telemetry.
