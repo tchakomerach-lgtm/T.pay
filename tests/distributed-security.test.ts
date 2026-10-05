@@ -66,3 +66,18 @@ test("persistent audit chain self-anchors and serializes predecessor selection",
  assert.equal(hash2.length,64);
  assert.throws(()=>store.append({...next,eventId:"e3",payloadHash:"p3"}, "wrong"),/SECURITY_AUDIT_PREVIOUS_HASH_MISMATCH/);
 });
+
+import {assertAuthorized} from "../packages/security/src/authorization-context.js";
+
+test("ABAC denies cross-tenant resources and weak device/session context",()=>{
+ const base={
+  organizationId:"org",actorId:"actor",agentId:"agent",roles:["agent"],
+  purpose:"transfer",dataClasses:["internal"],requestedAction:"transfer",
+  resourceOrganizationId:"org",actorStatus:"active" as const,deviceTrust:"trusted" as const,
+  sessionAgeMs:1000,policyVersion:"v1"
+ };
+ assert.doesNotThrow(()=>assertAuthorized(base,{action:"transfer",requiredRoles:["agent"],allowedDataClasses:["internal"],requiredPurpose:"transfer",requireActiveActor:true,requireTrustedDevice:true,maxSessionAgeMs:5000,policyVersion:"v1"}));
+ assert.throws(()=>assertAuthorized({...base,resourceOrganizationId:"other"},{action:"transfer",requiredRoles:["agent"],allowedDataClasses:["internal"]}),/AUTHORIZATION_DENIED/);
+ assert.throws(()=>assertAuthorized({...base,deviceTrust:"untrusted"},{action:"transfer",requiredRoles:["agent"],allowedDataClasses:["internal"],requireTrustedDevice:true}),/AUTHORIZATION_DENIED/);
+ assert.throws(()=>assertAuthorized({...base,sessionAgeMs:6000},{action:"transfer",requiredRoles:["agent"],allowedDataClasses:["internal"],maxSessionAgeMs:5000}),/AUTHORIZATION_DENIED/);
+});
