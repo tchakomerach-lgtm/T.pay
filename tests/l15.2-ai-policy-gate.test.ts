@@ -26,7 +26,7 @@ test("capability is scoped and short-lived",()=>{
 test("L4 requires independent approval and L5 is never executable",()=>{
   const gate=new AiPolicyGate();
   const action=createActionEnvelope({...base(),risk:"L4"});
-  const capability=issueCapability({capabilityId:"cap4",agentId:"agent",organizationId:"org",actorId:"actor",purpose:"customer-contact",toolName:"send-message",dataClasses:["sensitive_financial"],risk:"L4",ttlMs:30000},1000);
+  const capability=issueCapability({capabilityId:"cap4",agentId:"agent",organizationId:"org",actorId:"actor",purpose:"customer-contact",toolName:"send-message",dataClasses:["sensitive_financial"],risk:"L4",ttlMs:30000},Date.now());
   assert.equal(gate.evaluate(action,capability,false).reason,"AI_HUMAN_APPROVAL_REQUIRED");
   assert.equal(gate.evaluate(action,capability,true).allowed,true);
   const root=createActionEnvelope({...base(),risk:"L5"});
