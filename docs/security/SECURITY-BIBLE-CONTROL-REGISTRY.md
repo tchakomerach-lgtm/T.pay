@@ -78,3 +78,18 @@ This registry converts the Security Bible into implementation gates. A control i
 ## Completion rule
 
 For every control, record state and evidence. No control may be marked LIVE without a verified implementation, integration, observability, rollback/recovery and—where regulated—external activation evidence.
+
+
+## Construction-gate mapping
+SB-01..SB-03 -> SG-1 Identity/tenant.
+SB-04..SB-15 -> SG-3/SG-4/SG-5 AI, containment and external-content gates.
+SB-16..SB-20 -> SG-6/SG-7 Financial Core and provider/payment gates.
+SB-21..SB-23 -> SG-8/SG-9 channel and privacy gates.
+SB-24..SB-26 -> SG-9/SG-11 secrets, supply chain and abuse gates.
+SB-27..SB-30 -> SG-10/SG-12 observability, incident response, TASS and adversarial evaluation.
+SB-31..SB-32 -> SG-13/SG-14/SG-15 governance, production readiness and activation.
+
+This mapping is many-to-many in implementation: a runtime boundary may satisfy several controls, and one control may require several layers. It never permits a bypass.
+
+## Minimum inherited security declaration
+Before integration, each new component must document its trust boundary, tenant scope, data classes, capabilities, tools, egress, approval level, audit events, kill-switch scope and recovery behavior. Missing security metadata is an integration blocker.
