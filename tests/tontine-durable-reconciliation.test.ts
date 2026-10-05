@@ -77,7 +77,7 @@ test("tontine case transition rejects unsafe silent closure", () => {
 test("beneficiary slot repository uses conditional claim to prevent double assignment", async () => {
   const queries: Array<{ text: string; values?: readonly unknown[] }> = [];
   const db: TontineSqlExecutor = {
-    async query(text: string, values?: readonly unknown[]) {
+    async query<Row = Record<string, unknown>>(text: string, values?: readonly unknown[]) {
       queries.push({ text, values });
       if (text.startsWith("UPDATE tontine_beneficiary_slots")) {
         return { rows: [{
@@ -86,7 +86,7 @@ test("beneficiary slot repository uses conditional claim to prevent double assig
           status: "eligible", scheduled_for: "2026-10-05T00:00:00Z"
         }], rowCount: 1 };
       }
-      return { rows: [] };
+      return { rows: [] as Row[] };
     },
     async transaction(work) { return work(this); }
   };
