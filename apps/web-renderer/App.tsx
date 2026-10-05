@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { tpayTokens } from "../design/tokens.js";
 import { assertShellModel, type TPayPrimaryDestination } from "../design/shell.js";
 import { assertUniversalObject, type TPayUniversalObject } from "../design/objects.js";
