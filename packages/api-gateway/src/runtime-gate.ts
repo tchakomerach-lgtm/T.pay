@@ -7,7 +7,7 @@ import {assertApiVersionCompatibility} from "./api-version.js";
 
 export type RuntimeDecision=
   | {allowed:true;correlationId:string;policyKey:string;rateScopes:string[]}
-  | {allowed:false;status:401|403|429|503;code:string;correlationId:string;retryAfterSeconds?:number};
+  | {allowed:false;status:400|401|403|404|410|429|503;code:string;correlationId:string;retryAfterSeconds?:number};
 
 const evidenceHash=(value:string)=>createHash("sha256").update(value).digest("hex");
 
