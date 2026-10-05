@@ -24,7 +24,28 @@ export interface TontineCallbackVerifier {
   }): Promise<VerifiedTontineProviderCallback>;
 }
 
-export interface TontineFinancialSettlementBridge {\n  settle(tx: unknown, payout: TontinePayoutContext, evidence: { payoutId: UUID; organizationId: UUID; provider: string; providerReference: string; amountMinor: bigint; currency: string }, accounts: { tontineClearingAccountId: string; microfinanceSettlementAccountId: string }, transactionId: string, now: string): Promise<unknown>;\n}\n\nexport interface TontineCallbackReceipt {
+export interface TontineFinancialSettlementBridge {
+  settle(
+    tx: unknown,
+    payout: TontinePayoutContext,
+    evidence: {
+      payoutId: UUID;
+      organizationId: UUID;
+      provider: string;
+      providerReference: string;
+      amountMinor: bigint;
+      currency: string;
+    },
+    accounts: {
+      tontineClearingAccountId: string;
+      microfinanceSettlementAccountId: string;
+    },
+    transactionId: string,
+    now: string
+  ): Promise<unknown>;
+}
+
+export interface TontineCallbackReceipt {
   state: "processed" | "replayed" | "rejected";
   providerEventId: string;
   payoutId: UUID;
@@ -44,7 +65,8 @@ export async function processVerifiedTontinePayoutCallback(
     tontineClearingAccountId: string;
     microfinanceSettlementAccountId: string;
   },
-  transactionId: string
+  transactionId: string,
+  settlementBridge: TontineFinancialSettlementBridge
 ): Promise<TontineCallbackReceipt> {
   const callback = await verifier.verifyAndNormalize(input);
 
@@ -77,11 +99,7 @@ export async function processVerifiedTontinePayoutCallback(
          WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3`,
         [callback.organizationId, callback.provider, callback.providerEventId]
       );
-      return {
-        state: "replayed",
-        providerEventId: callback.providerEventId,
-        payoutId: callback.payoutId
-      };
+      return { state: "replayed", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
     }
 
     await tx.query(
@@ -109,11 +127,15 @@ export async function processVerifiedTontinePayoutCallback(
       state: "initiated" | "approved" | "blocked" | "settled";
       idempotency_key: string;
     }>(
-      "SELECT payout_id,organization_id,state,idempotency_key FROM payout_intents WHERE organization_id=$1 AND payout_id=$2 FOR UPDATE",
+      `SELECT payout_id,organization_id,state,idempotency_key
+       FROM payout_intents
+       WHERE organization_id=$1 AND payout_id=$2
+       FOR UPDATE`,
       [callback.organizationId, callback.payoutId]
     );
     const row = intent.rows[0];
     if (!row) throw new Error("TONTINE_PAYOUT_INTENT_NOT_FOUND");
+
     if (row.state === "settled") {
       await tx.query(
         `UPDATE tontine_provider_callback_receipts
@@ -124,12 +146,20 @@ export async function processVerifiedTontinePayoutCallback(
       return { state: "processed", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
     }
 
-    const settlement = await settlementBridge.settle(
+    await settlementBridge.settle(
       tx,
       payout,
-      { payoutId: callback.payoutId, organizationId: callback.organizationId, provider: callback.provider,
-        providerReference: callback.providerReference, amountMinor: callback.amountMinor, currency: callback.currency },
-      accounts, transactionId, callback.receivedAt
+      {
+        payoutId: callback.payoutId,
+        organizationId: callback.organizationId,
+        provider: callback.provider,
+        providerReference: callback.providerReference,
+        amountMinor: callback.amountMinor,
+        currency: callback.currency
+      },
+      accounts,
+      transactionId,
+      callback.receivedAt
     );
 
     await tx.query(
@@ -139,7 +169,6 @@ export async function processVerifiedTontinePayoutCallback(
       [callback.organizationId, callback.provider, callback.providerEventId]
     );
 
-    void settlement;
     return { state: "processed", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
   });
 }
