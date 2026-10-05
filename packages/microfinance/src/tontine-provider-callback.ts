@@ -91,7 +91,7 @@ export async function processVerifiedTontinePayoutCallback(
         received_at,state,payout_id,provider_reference,amount_minor,currency)
        VALUES ($1,$2,$3,$4,$5,true,$6,'received',$7,$8,$9,$10)`,
       [
-        cryptoUuid(),
+        deterministicReceiptId(callback),
         callback.organizationId,
         callback.provider,
         callback.providerEventId,
@@ -149,9 +149,17 @@ export async function processVerifiedTontinePayoutCallback(
   });
 }
 
-function cryptoUuid(): UUID {
+function deterministicReceiptId(callback: VerifiedTontineProviderCallback): UUID {
   const hex = createHash("sha256")
-    .update(`tontine-callback:${Date.now()}:${Math.random()}`)
-    .digest("hex");
+    .update([
+      "tpay:tontine:callback-receipt:v1",
+      callback.organizationId,
+      callback.provider,
+      callback.providerEventId,
+      callback.payoutId,
+      callback.rawBody
+    ].join("|"), "utf8")
+    .digest("hex")
+    .slice(0, 32);
   return `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-8${hex.slice(17,20)}-${hex.slice(20,32)}` as UUID;
 }
