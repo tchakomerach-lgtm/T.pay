@@ -20,7 +20,7 @@ test("replay barrier hard-fails a reused JTI with a different digest", async () 
 
 test("approval is exact-digest, tenant-bound and one-time", async () => {
   const store = new InMemoryDurableSecurityStore();
-  await store.createApproval({approvalId:"approval-1",tenantId:"org-1",approverId:"admin-1",requestDigest:digest,expiresAt:"2030-01-01T00:00:00.000Z"});
+  await store.createApproval({approvalId:"approval-1",tenantId:"org-1",approverId:"admin-1",subjectActorId:"user-1",requestDigest:digest,expiresAt:"2030-01-01T00:00:00.000Z"});
   assert.equal(await store.consumeApproval({approvalId:"approval-1",tenantId:"org-1",requestDigest:"b".repeat(64),now:"2029-01-01T00:00:00.000Z"}),"DIGEST_MISMATCH");
   assert.equal(await store.consumeApproval({approvalId:"approval-1",tenantId:"org-1",requestDigest:digest,now:"2029-01-01T00:00:00.000Z"}),"CONSUMED");
   assert.equal(await store.consumeApproval({approvalId:"approval-1",tenantId:"org-1",requestDigest:digest,now:"2029-01-01T00:00:00.000Z"}),"ALREADY_CONSUMED");
@@ -28,7 +28,7 @@ test("approval is exact-digest, tenant-bound and one-time", async () => {
 
 test("expired approval cannot be consumed", async () => {
   const store = new InMemoryDurableSecurityStore();
-  await store.createApproval({approvalId:"approval-2",tenantId:"org-1",approverId:"admin-1",requestDigest:digest,expiresAt:"2029-01-01T00:00:00.000Z"});
+  await store.createApproval({approvalId:"approval-2",tenantId:"org-1",approverId:"admin-1",subjectActorId:"user-1",requestDigest:digest,expiresAt:"2029-01-01T00:00:00.000Z"});
   assert.equal(await store.consumeApproval({approvalId:"approval-2",tenantId:"org-1",requestDigest:digest,now:"2030-01-01T00:00:00.000Z"}),"EXPIRED");
 });
 
@@ -53,4 +53,13 @@ test("security event hash changes when provenance changes", async () => {
   const b = securityEventHash({...base,provenance:{...base.provenance,policyRevision:"r2"}},null);
   assert.notEqual(a,b);
   assert.match(a,/^[a-f0-9]{64}$/);
+});
+
+
+test("self-approval is rejected before persistence", async () => {
+  const store = new InMemoryDurableSecurityStore();
+  await assert.rejects(() => store.createApproval({
+    approvalId:"approval-self",tenantId:"org-1",approverId:"user-1",subjectActorId:"user-1",
+    requestDigest:digest,expiresAt:"2030-01-01T00:00:00.000Z"
+  }), /SELF_APPROVAL_FORBIDDEN/);
 });
