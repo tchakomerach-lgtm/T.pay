@@ -8,7 +8,8 @@ import { pathToFileURL } from "node:url";
 
 const databaseUrl = process.env.TPAY_DATABASE_URL;
 
-test("independent tontine PostgreSQL barriers survive real concurrent claims and duplicate receipts", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+test("independent tontine PostgreSQL barriers survive real concurrent claims and duplicate receipts", { skip: !databaseUrl }, async () => {
+  if (!databaseUrl) return;
   const a = new pg.Client({ connectionString: databaseUrl });
   const b = new pg.Client({ connectionString: databaseUrl });
   const organizationId = randomUUID();
