@@ -86,12 +86,12 @@ export class AiToolRegistry {
       expiresAt: context.capabilityExpiresAt ?? now+30_000,
       correlationId: context.correlationId ?? `${name}-${now}`,
     });
-    this.replayGuard.claim({scope:`${context.organizationId}:${context.actorId}`,actionId:action.actionId,payloadHash:action.payloadHash,expiresAt:action.expiresAt},now);
     const approvalRequired=tool.requiresApproval || risk==="L4" || risk==="L5";
     if(approvalRequired && !context.approved) throw new Error("AI_TOOL_APPROVAL_REQUIRED");
     if(approvalRequired && context.approvalPayloadHash!==undefined && context.approvalPayloadHash!==action.payloadHash) throw new Error("AI_TOOL_APPROVAL_PAYLOAD_MISMATCH");
     if(approvalRequired && context.approvalPayloadHash===undefined) throw new Error("AI_TOOL_APPROVAL_BINDING_REQUIRED");
     this.policyGate.assertAllowed(action,context.capability,context.approved);
+    this.replayGuard.claim({scope:`${context.organizationId}:${context.actorId}`,actionId:action.actionId,payloadHash:action.payloadHash,expiresAt:action.expiresAt},now);
     this.securityMonitor.record({eventType:"ai.tool.allowed",organizationId:context.organizationId,actorId:context.actorId,agentId:context.agentId,...(context.correlationId ? {correlationId:context.correlationId} : {}),severity:risk==="L4"||risk==="L5"?"high":"info",timestamp:Date.now(),metadata:{tool:name,risk}});
     try {
       const result=await tool.execute(input,context);
