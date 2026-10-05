@@ -18,3 +18,12 @@ test("concrete voice HTTPS server is TLS 1.3-only and requires scoped auth/idemp
   assert.ok(server);
   server.close();
 });
+
+
+test("voice API security boundary rejects malformed and prototype-pollution JSON", async () => {
+  const source = await import("../packages/api-gateway/src/voice-https-server.js");
+  assert.equal(typeof source.createVoiceHttpsServer, "function");
+  const firewall = await import("../packages/security/src/input-firewall.js");
+  assert.throws(() => firewall.assertSafeJsonValue(JSON.parse('{"__proto__":{"admin":true}}')), /PROTO_POLLUTION_KEY/);
+  assert.throws(() => firewall.assertSafeJsonValue(Array.from({ length: 1001 }, () => "x")), /ARRAY_TOO_LARGE/);
+});
