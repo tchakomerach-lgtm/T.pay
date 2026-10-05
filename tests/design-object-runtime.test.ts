@@ -14,7 +14,8 @@ const object = {
 };
 
 test("universal object requires tenant binding for non-public data", () => {
-  assert.throws(() => assertUniversalObject({...object, organizationId:undefined}));
+  const { organizationId: _organizationId, ...withoutOrganization } = object;
+  assert.throws(() => assertUniversalObject(withoutOrganization));
 });
 test("object presentation redacts sensitive fields", () => {
   assert.throws(() => assertObjectPresentation({...{object,headingLevel:2,showStatus:true,showFreshness:true,showContext:true,showActivity:true,compact:false},sensitiveFieldsHidden:false}));
