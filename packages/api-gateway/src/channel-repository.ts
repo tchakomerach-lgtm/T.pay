@@ -30,7 +30,11 @@ export class ChannelIngressRepository{
       await this.db.query("UPDATE api_channel_ingress_events SET state='quarantined' WHERE id=$1",[row.id]);
       return {state:"quarantined",id:String(row.id)};
     }
-    if(inserted.rows.length===1)return {state:"accepted",id:String(inserted.rows[0].id)};
+    if(inserted.rows.length===1){
+      const insertedRow=inserted.rows[0];
+      if(!insertedRow||insertedRow.id===undefined)throw new Error("CHANNEL_INGRESS_INSERT_ID_MISSING");
+      return {state:"accepted",id:String(insertedRow.id)};
+    }
     const existing=await this.db.query(
       `SELECT id,payload_hash,state FROM api_channel_ingress_events
        WHERE channel=$1 AND scope_hash=$2 AND idempotency_key=$3`,
