@@ -25,7 +25,8 @@
     "@types/pg": "^8.15.5",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
-    "vite": "^7.1.9"
+    "vite": "^7.1.9",
+    "@vitejs/plugin-react": "^5.0.4"
   },
   "dependencies": {
     "pg": "^8.16.3",
