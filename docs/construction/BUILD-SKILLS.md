@@ -26,3 +26,5 @@
 24. 2026-2030 Cybersecurity Engineering — apply phishing-resistant auth where supported, crypto-agility, TLS 1.3, secret-manager runtime injection, SBOM/provenance, supply-chain controls, least-privilege workload identity, egress deny-by-default, privacy-minimized telemetry and audited vulnerability exceptions.
 25. Abuse Engineering — rate limits must be atomic under concurrency, multi-dimensional, privacy-preserving and channel-aware; IP/device/actor/org/phone/channel controls share one governance model.
 26. African Channel Security — USSD/SMS/voice/mobile channels cannot bypass API authorization, replay protection, rate limits, audit or financial approval gates; shared phones and SIM-swap scenarios require explicit risk controls.
+
+27. Governed Abuse Policy — rate limits are selected server-side from normalized route/method/channel/auth policy; callers cannot supply production thresholds. Combine privacy-preserving scopes, progressive penalties and low-bandwidth channel controls without creating a second source of financial truth.
