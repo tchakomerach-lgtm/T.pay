@@ -3,6 +3,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import { VOICE_ROUTES } from "./voice-routes.js";
 
+export const VOICE_TLS_MIN_VERSION = "TLSv1.3" as const;
+export const VOICE_TLS_MAX_VERSION = "TLSv1.3" as const;
+
 export interface VoiceApiPrincipal {
   readonly actorId: string;
   readonly organizationIds: readonly string[];
@@ -47,8 +50,8 @@ export function createVoiceHttpsServer(options: VoiceHttpsServerOptions): Server
     key: options.tls.key,
     cert: options.tls.cert,
     ...(options.tls.ca === undefined ? {} : { ca: options.tls.ca }),
-    minVersion: "TLSv1.3",
-    maxVersion: "TLSv1.3",
+    minVersion: VOICE_TLS_MIN_VERSION,
+    maxVersion: VOICE_TLS_MAX_VERSION,
     ...(options.tls.requestCert === undefined ? {} : { requestCert: options.tls.requestCert }),
     ...(options.tls.rejectUnauthorized === undefined ? {} : { rejectUnauthorized: options.tls.rejectUnauthorized }),
   };
