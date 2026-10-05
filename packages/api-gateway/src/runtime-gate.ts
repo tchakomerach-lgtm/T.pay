@@ -3,10 +3,11 @@ import {assertHttpsOrigin} from "./auth-device.js";
 import {authorizeRoute, type ApiRoutePolicy} from "./policy.js";
 import {resolveRatePolicy, type ApiChannel} from "./rate-policy.js";
 import {ApiAbuseRepository} from "./rate-abuse.js";
+import {assertApiVersionCompatibility} from "./api-version.js";
 
 export type RuntimeDecision=
   | {allowed:true;correlationId:string;policyKey:string;rateScopes:string[]}
-  | {allowed:false;status:401|403|429|503;code:string;correlationId:string;retryAfterSeconds?:number};
+  | {allowed:false;status:400|401|403|404|410|429|503;code:string;correlationId:string;retryAfterSeconds?:number};
 
 const evidenceHash=(value:string)=>createHash("sha256").update(value).digest("hex");
 
@@ -24,6 +25,12 @@ export class ApiRuntimeGate {
     now:string;
   }):Promise<RuntimeDecision>{
     assertHttpsOrigin(input.origin);
+    try{
+      assertApiVersionCompatibility(input.route);
+    }catch(error){
+      const code=error instanceof Error&&/^API_VERSION_/.test(error.message)?error.message:"API_VERSION_INVALID";
+      return {allowed:false,status:code==="API_VERSION_MISSING"?400:code==="API_VERSION_SUNSET"?410:404,code,correlationId:input.correlationId};
+    }
     const auth=authorizeRoute({method:input.method,route:input.route,authClass:input.authClass});
     if(!auth.allowed)return {allowed:false,status:auth.reason==="API_AUTH_INSUFFICIENT"?403:401,code:auth.reason,correlationId:input.correlationId};
 

@@ -36,3 +36,6 @@
 31. Canonical Channel Ingress — normalize REST/mobile/agent/USSD/SMS/voice/partner traffic into one governed envelope with correlation, idempotency, tenant and privacy-safe scope evidence.
 32. HTTPS Upstream Adapter — allowlist hosts, reject HTTP/redirects/private IP literals, bound request/response sizes and timeouts, and never put credentials in URLs.
 33. Offline Evidence Sequencing — use bounded sequence numbers, payload hashes and replay/conflict quarantine without creating a parallel financial ledger.
+
+34. API Contract Versioning — explicit /vN routes, active/deprecated/sunset policy, gateway compatibility checks and deterministic migration boundaries.
+35. Bounded API Errors — stable machine-readable codes and correlation IDs without provider, database, secret or stack-trace leakage.
