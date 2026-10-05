@@ -29,6 +29,8 @@ export class PostgresSecurityAuditStore{
   if(!Number.isSafeInteger(event.timestamp)||event.timestamp<=0)throw new Error("SECURITY_AUDIT_TIMESTAMP_INVALID");
   await this.client.query("BEGIN");
   try{
+   await this.client.query("SELECT set_config('tpay.organization_id',$1,true)",[event.organizationId]);
+   await this.client.query("SELECT set_config('tpay.actor_id',$1,true)",[event.actorId??"system"]);
    await this.client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[event.organizationId]);
    const latest=await this.client.query<{record_hash:string}>(
     `SELECT record_hash FROM security_audit_events
