@@ -48,3 +48,29 @@
 43. External-Content Quarantine — provenance, trust, quarantine and post-tool inspection for hostile content.
 44. Adaptive Red-Team Engineering — evaluate repeated/adaptive attacks, not only one-shot prompt injections.
 45. Partner-Evidence Security — signed/idempotent/bound partner events before financial effects.
+
+46. Trust-Boundary Mapping — mark every ingress, transformation, privilege transition and consequential sink.
+47. Confused-Deputy Prevention — keep requester, authorizer and executor identities distinct.
+48. Decision-Provenance Engineering — preserve privacy-minimized evidence/reasons for security decisions and approvals.
+49. Data-Classification Enforcement — bind data class to storage, model routing, egress and retention.
+50. Secretless-Agent Engineering — agents receive references/capabilities, never reusable credentials.
+51. SSRF/Outbound Request Defense — normalize and authorize destinations server-side; block internal metadata/private targets and unsafe redirects.
+52. Output-Handling Security — validate and context-encode model/tool output before rendering, persistence, SQL, templates or downstream APIs.
+53. Replay/Ordering Proof — nonce/idempotency, monotonic sequence and bounded clock-skew tests.
+54. Security-Monitor Fail-Closed Design — monitoring degradation cannot silently authorize high-impact actions.
+55. Approval UX Integrity — display the canonical action bound to approval; stale/substituted approvals fail.
+56. Multi-Party Control — separate initiation, authorization and settlement for high-impact operations.
+57. Transaction-State Machine Proof — explicit allowed financial transitions and terminal semantics.
+58. Recovery-Path Security — retries, compensation, rollback and restore receive forward-path security controls.
+59. Migration-Fortress Engineering — quarantine, dual-run, reconciliation, freeze/cutover, rollback and legacy credential isolation.
+60. Canary/Chaos Security — test isolation, kill switches and provider failure without real-money damage.
+61. Evidence-Integrity Engineering — hash/sign critical evidence and detect deletion or mutation.
+62. Privacy-Preserving Telemetry — minimize payloads and prohibit secrets/raw sensitive records in traces.
+63. Abuse-Economics Engineering — model fraud incentives, bot farms, fee abuse, cash theft and Denial-of-Wallet.
+64. Human-Factors Security — secure defaults, anti-phishing UI, clear approvals and low-literacy-safe flows.
+65. Dependency/Build Reproducibility — review transitive changes and preserve build provenance.
+66. Security Regression Corpus — every confirmed bypass becomes a deterministic regression test.
+67. Runtime Resource Isolation — bound time, memory, context, tool calls, queues and cost.
+68. Security-Change Impact Analysis — map security changes to tenants, channels, financial paths and inherited controls.
+69. Control-Effectiveness Measurement — measure prevention, detection, containment and recovery outcomes.
+70. African-Channel Equivalence — prove REST/mobile/USSD/SMS/voice/offline/partner paths cannot bypass the same security semantics.
