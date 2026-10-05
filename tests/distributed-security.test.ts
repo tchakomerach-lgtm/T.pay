@@ -81,3 +81,23 @@ test("ABAC denies cross-tenant resources and weak device/session context",()=>{
  assert.throws(()=>assertAuthorized({...base,deviceTrust:"untrusted"},{action:"transfer",requiredRoles:["agent"],allowedDataClasses:["internal"],requireTrustedDevice:true}),/AUTHORIZATION_DENIED/);
  assert.throws(()=>assertAuthorized({...base,sessionAgeMs:6000},{action:"transfer",requiredRoles:["agent"],allowedDataClasses:["internal"],maxSessionAgeMs:5000}),/AUTHORIZATION_DENIED/);
 });
+
+import {generateKeyPairSync} from "node:crypto";
+import {createSignedAgentMessage,verifySignedAgentMessage} from "../packages/security/src/signed-agent-message.js";
+import {assertFinancialActionAuthorized,assertAiCannotSettleFinancialAction} from "../packages/security/src/financial-authority.js";
+
+test("agent-to-agent messages require tenant-bound cryptographic signatures",()=>{
+ const {privateKey,publicKey}=generateKeyPairSync("ed25519");
+ const now=Date.now();
+ const message=createSignedAgentMessage({messageId:"m1",sourceAgentId:"a",targetAgentId:"b",organizationId:"org",purpose:"handoff",nonce:"n1",issuedAt:now,expiresAt:now+10000,payload:"{}"},privateKey);
+ assert.doesNotThrow(()=>verifySignedAgentMessage(message,publicKey,{organizationId:"org",targetAgentId:"b",now}));
+ assert.throws(()=>verifySignedAgentMessage({...message,organizationId:"other"},publicKey,{organizationId:"org",targetAgentId:"b",now}),/AGENT_MESSAGE_TENANT_MISMATCH|AGENT_MESSAGE_SIGNATURE_INVALID/);
+});
+
+test("financial authority requires independent risk allow and approval quorum",()=>{
+ const request={operation:"transfer" as const,organizationId:"org",actorId:"actor",transactionId:"tx",idempotencyKey:"idem",amountMinor:1000,currency:"XOF",beneficiaryId:"beneficiary",purpose:"payment",ledgerIntentHash:"hash",approvalCount:2,requiredApprovals:2,independentRiskDecision:"allow" as const};
+ assert.doesNotThrow(()=>assertFinancialActionAuthorized(request));
+ assert.throws(()=>assertFinancialActionAuthorized({...request,approvalCount:1}),/FINANCIAL_APPROVAL_QUORUM_REQUIRED/);
+ assert.throws(()=>assertFinancialActionAuthorized({...request,independentRiskDecision:"review"}),/FINANCIAL_RISK_GATE_DENIED/);
+ assert.throws(()=>assertAiCannotSettleFinancialAction("agent"),/AI_FINANCIAL_SETTLEMENT_FORBIDDEN/);
+});
