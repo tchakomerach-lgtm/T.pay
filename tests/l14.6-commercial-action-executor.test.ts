@@ -24,9 +24,8 @@ test("L14.6 only one worker claims a commercial action", { skip: !databaseUrl &&
     const a=new PostgresCommercialActionStore(workerA), b=new PostgresCommercialActionStore(workerB);
     const results=await Promise.all([a.claimDue(organizationId,now,"worker-a"),b.claimDue(organizationId,now,"worker-b")]);
     assert.equal(results.filter(Boolean).length,1);
-    const claimed=results.find(Boolean);
-    assert.ok(claimed);
-    const wrong=claimed?.id===actionId ? (claimed ? "worker-b":"worker-a") : "worker-a";
+    const winner = results[0] ? "worker-a" : "worker-b";
+    const wrong = winner === "worker-a" ? "worker-b" : "worker-a";
     await assert.rejects(async()=> {
       if (wrong==="worker-a") await a.markCompleted(actionId,wrong,"2026-10-05T01:01:00.000Z");
       else await b.markCompleted(actionId,wrong,"2026-10-05T01:01:00.000Z");
