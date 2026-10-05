@@ -27,7 +27,7 @@ function reconciliationFromRow(row: Record<string, unknown>): CommunityTontineMf
     externalReference: String(row.external_reference), expectedMinor: BigInt(String(row.expected_minor)),
     observedMinor: BigInt(String(row.observed_minor)), currency: String(row.currency),
     state: row.state as CommunityTontineMfReconciliationItem["state"],
-    openedAt: new Date(String(row.opened_at)).toISOString()
+    openedAt: new Date(String(row.opened_at)).toISOString(),\n    ...(row.idempotency_key != null ? { idempotencyKey: String(row.idempotency_key) } : {})
   };
 }
 export class PostgresCommunityTontineMfAccessRepository implements CommunityTontineMfAccessRepository {
@@ -73,12 +73,12 @@ export class PostgresCommunityTontineMfReconciliationRepository implements Commu
   async save(organizationId: UUID, item: CommunityTontineMfReconciliationItem): Promise<void> {
     await this.db.query(
       `INSERT INTO community_tontine_mf_reconciliation
-       (id,organization_id,tontine_group_id,microfinance_id,external_reference,expected_minor,observed_minor,currency,state,opened_at)
+       (id,organization_id,tontine_group_id,microfinance_id,external_reference,expected_minor,observed_minor,currency,state,opened_at,idempotency_key)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
        ON CONFLICT (id) DO UPDATE SET expected_minor=EXCLUDED.expected_minor,observed_minor=EXCLUDED.observed_minor,
        state=EXCLUDED.state,resolved_at=CASE WHEN EXCLUDED.state='resolved' THEN now() ELSE NULL END`,
       [item.id, organizationId, item.tontineGroupId, item.microfinanceId, item.externalReference,
-       item.expectedMinor.toString(), item.observedMinor.toString(), item.currency, item.state, item.openedAt]
+       item.expectedMinor.toString(), item.observedMinor.toString(), item.currency, item.state, item.openedAt, item.idempotencyKey ?? null]
     );
   }
 }
