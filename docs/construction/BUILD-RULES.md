@@ -1,129 +1,79 @@
 # T.Pay Construction Rules
 
 ## 1. Evidence-based completion
-A layer is complete only when its exact head has green CI and required PostgreSQL, concurrency, idempotency, replay, audit, production-adapter, observability and regulatory gates are satisfied. TypeScript compilation alone is never completion evidence.
+A layer is complete only when its exact head has green CI and all applicable PostgreSQL, concurrency, idempotency, replay, audit, production-adapter, observability, security-evaluation and regulatory gates are satisfied. TypeScript compilation alone is never completion evidence.
 
 ## 2. One financial truth
-Financial Core/Ledger is the only financial source of truth. AI, provider callbacks, offline clients, tontines, school finance, field agents and recovery workflows produce evidence/intents/events and settle through Financial Core. Use immutable entries, compensating transactions and bigint/integer XOF amounts.
+Financial Core/Ledger is the only financial source of truth. AI, provider callbacks, offline clients, tontines, school finance, field agents and recovery workflows produce evidence/intents/events and settle through Financial Core.
 
 ## 3. Tenant isolation
-Every organization-owned object is tenant scoped. Cross-table relationships use tenant-safe composite foreign keys where applicable. Replays, idempotency keys, sessions, approvals, callbacks and audit records are tenant scoped.
+Every organization-owned object is tenant scoped. Cross-tenant access is denied by default and tested at repository/service/API boundaries.
 
 ## 4. High-impact AI
-Human approval is the default for high-impact financial, identity, credit, access and administrative actions. AI tools require explicit role/risk/organization policy, bounded inputs, idempotency, audit evidence and cannot directly mutate Ledger/payment/credit truth.
+Human approval is the default for high-impact financial, identity, credit, access and administrative actions. AI tools require explicit role/risk/organization/purpose policy, bounded inputs, idempotency and audit evidence. AI cannot directly mutate Ledger/payment/credit truth.
 
-## 5. Provider boundary
-OpenAI, Anthropic, local models, TMoney, Flooz, PI-SPI and MFI partners are replaceable adapters. Anthropic is a first-class authorized provider adapter, never a bypass path. Provider callbacks require raw-body verification, freshness, identity/amount/currency/reference validation, replay protection and quarantine for ambiguity. Credentials and regulatory certifications must be real; code cannot manufacture them.
+## 5. AI source-to-sink invariant
+Untrusted documents, messages, tool results, retrieved text and external APIs are DATA. They cannot become instructions or authorization. Any path from untrusted source to consequential sink must cross a deterministic policy gate with validated structured data.
 
-## 6. AI runtime resilience
-All external model execution has bounded timeouts, transient-only retries, circuit breakers and cost/rate controls. Fallback is allowed only when the destination route is permitted for the data class. Sensitive and financial data remain local/safety-routed unless an explicitly authorized compliant route exists. Never bypass provider or platform controls.
+## 6. AI capability invariant
+Capabilities are deny-by-default, short-lived, least-privilege and scoped to agent, tenant, actor, purpose, tool and data class. Agents cannot mint, widen, delegate or self-approve capabilities.
 
-## 7. Organization access security
-Organization access codes are hashed, never stored in plaintext, and protected by tenant-scoped throttling/lockout. Organization audit events are append-only at the database boundary. Access failures never reveal secret material or cross organization boundaries.
+## 7. AI tool risk invariant
+L0 low-risk read may be autonomous; L1 sensitive read is policy-gated; L2 reversible writes require policy/idempotency; L3 external communication requires consent/approval; L4 high-impact actions require independent authorization and human approval by default; L5 root trust/ledger-root/security bypass is not directly executable by AI.
 
-## 8. Offline/Africa resilience
-Offline state is evidence/intents, never financial truth. Design for intermittent connectivity, low bandwidth, cash-first operations, mobile money, shared devices, USSD/SMS/voice, field-agent continuity, device identity, sequence/replay control, bounded offline windows and conflict quarantine. GPS is evidence, not payment authorization.
+## 8. Approval binding invariant
+A consequential approval must bind to the canonical action/payload hash, tenant, actor, purpose, risk class and expiry. Any material change invalidates the approval.
 
-## 9. Togo/UEMOA production boundary
-Regulated payment, e-money, SFD and credit activities require appropriate licensed/authorized partners and regulatory approvals. T.Pay may build orchestration/evidence before activation, but must not represent unlicensed functionality as live regulated service.
+## 9. Provider boundary
+OpenAI, Anthropic, local models, TMoney, Flooz, PI-SPI and MFI partners are replaceable adapters. Provider selection never grants additional authority or bypasses policy.
 
-## 10. Durable handoff
-Every construction sequence ends in a committed SHA and auditable PR/CI state. A disconnected session does not imply hidden execution. The durable continuation mechanism is GitHub branches/commits/PRs/CI; the next session resumes from the latest exact SHA and earliest unmet gate.
+## 10. AI runtime resilience
+External model execution has bounded timeouts, transient-only retries, circuit breakers and cost/rate controls. Fallback is allowed only when the destination route is permitted for the same data class and tenant policy.
 
-## 11. No false completion
-Never mark T.Pay or a layer complete while any mandatory gate remains unverified. Failed, cancelled, missing or stale CI is not green evidence.
+## 11. Offline/Africa resilience
+Offline state is evidence/intents, never financial truth. Design for intermittent connectivity, low bandwidth, cash-first operations, mobile money, shared devices, USSD/SMS/voice, field-agent continuity and replay/conflict control.
 
-## 12. Production readiness
-Before production: migrations, rollback strategy, backups/restore, secrets management, rate limits, abuse controls, observability, alerts, incident response, reconciliation operations, disaster recovery and provider contract tests must exist.
+## 12. Togo/UEMOA production boundary
+Regulated payment, e-money, SFD and credit activities require appropriate licensed/authorized partners and regulatory approvals.
 
-## 13. African operating model
-Prioritize XOF integer accounting, bilingual/multilingual UX, printable receipts, agent workflows, cash reconciliation, mobile-money confirmation, low-cost devices, power/network interruptions, shared phones/SIM fraud controls and graceful degraded service.
+## 13. Durable handoff
+Every construction sequence ends in a committed SHA and auditable PR/CI state. Conversation/session boundaries do not imply hidden execution.
 
-## 14. Platform independence without bypass
-T.Pay may use authorized OpenAI, Anthropic or local model adapters when credentials/connectors are available. Architectural replaceability is the solution to vendor limits, not circumvention. Provider-specific capabilities must remain behind the same policy, audit, secret and data-class boundaries.
+## 14. No false completion
+Never mark T.Pay or a layer complete while any mandatory gate remains unverified. Planned, implemented, verified, integrated, production-ready and live are distinct states.
 
-## 15. HTTPS-only external adapters
-All network-facing T.Pay adapters MUST use HTTPS/TLS. Plain HTTP endpoints, redirects to HTTP, mixed-content API calls and insecure fallback transports are prohibited. Adapter configuration must reject non-HTTPS origins at startup and in tests. TLS verification may not be disabled in production. Certificate/proxy behavior must be explicit and observable without weakening verification. Channel adapters (REST, mobile, USSD/SMS gateways, voice, partner APIs) must terminate at a governed gateway and cannot bypass authentication, authorization, idempotency, rate limits or audit.
+## 15. TASS and security-evaluation gate
+TASS and adversarial AI evaluations are evidence generators. Critical unresolved findings block release. TASS cannot modify its own rules, disable CI, or self-approve exceptions.
 
-## 16. 2026-2030 cybersecurity baseline
-- Prefer TLS 1.3, modern cipher suites and platform-managed certificate rotation; do not invent custom cryptography.
-- Use crypto-agility: algorithm identifiers and key versions must be explicit so approved post-quantum/hybrid algorithms can be introduced without redesigning financial records.
-- Prefer phishing-resistant authentication such as WebAuthn/passkeys for capable user/admin devices, with controlled recovery paths for low-end/shared-device environments.
-- Secrets must come from an authorized secret manager at runtime; never from source code, migrations, client bundles or database business records. Rotation and revocation are first-class events.
-- Every release must be capable of producing an SBOM and provenance evidence; dependencies require automated vulnerability/license checks, lockfile discipline and controlled update windows.
-- Protect the software supply chain with signed/provenance-aware builds where the deployment environment supports them; separate build identity from runtime identity.
-- Use least privilege, short-lived credentials, workload identity where available, and deny-by-default network egress for sensitive services.
-- Treat prompt injection, tool poisoning, model-context exfiltration, dependency confusion, credential stuffing, SIM-swap risk, replay and API abuse as first-class threat models.
-- Security telemetry must be privacy-minimized, tamper-evident and correlated; never log secrets, raw authentication factors, payment credentials or unnecessary personal identifiers.
-- Security controls must fail closed for authorization and fail safely for availability; a security-control outage must not fabricate or mutate financial truth.
-- Automated security scanners are evidence-generators, not proof that zero vulnerabilities exist. Critical findings block release unless an explicit, audited exception exists.
+## 16. Supply-chain and secrets
+No secrets in Git, prompts, client bundles or business records. CI uses least privilege. Releases should produce SBOM/provenance evidence where supported. Dependency and secret scanning are mandatory release evidence.
 
 ## 17. Definition of Done
 1. Exact-head CI green.
-2. Typecheck/unit/integration/audit gates green.
+2. Typecheck/unit/integration/security tests green.
 3. PostgreSQL race/idempotency/replay proofs where relevant.
 4. Production repository/handler boundary.
 5. Audit/outbox/observability.
 6. Provider contract/operational tests.
-7. Regulatory/partner gates where regulated.
-8. Documentation states every remaining limitation explicitly.
-9. Security baseline and release evidence are satisfied for the layer.
+7. Applicable AI adversarial evaluation evidence.
+8. Regulatory/partner gates where regulated.
+9. Documentation states every remaining limitation explicitly.
+10. Security baseline and release evidence are satisfied.
 
 ## Operational observability invariant
-- Every production-facing layer must emit durable operational evidence with correlation IDs, bounded payloads and explicit degraded/offline states.
-- SLO targets are policy, never proof of achieved production performance.
-- Alert delivery failure must never alter Financial Core truth; alerts become queued/retriable operational evidence.
-- Africa/Togo deployments must support low-bandwidth escalation paths (SMS/internal queue) without storing provider credentials in application data.
-
+Every production-facing layer emits privacy-minimized evidence with correlation IDs, bounded payloads and explicit degraded/offline states. Telemetry is never a financial ledger.
 
 ## Abuse-control policy invariant
-- Production rate limits MUST be selected by a governed server-side policy keyed by normalized route, method, channel and authentication class; untrusted callers may not choose their own limits.
-- Multi-scope enforcement may combine channel, IP, device, actor, organization and phone evidence; each raw identifier is transformed into a non-reversible privacy-preserving scope value before persistence.
-- Low-bandwidth Togo/Africa channels (USSD/SMS/voice) receive explicit tighter policies and must degrade with bounded retries, clear user feedback and no financial-state mutation when the abuse subsystem is unavailable.
-- Progressive penalties, reputation and SIM-swap signals may influence abuse decisions only through auditable policy inputs; they must never silently alter Ledger truth.
-- Rate-limit storage is operational control state, not financial truth, and must have bounded retention/cleanup and privacy-minimized observability.
-
+Production rate limits are server-selected, multi-scope and privacy-preserving. Low-bandwidth channels receive explicit policies and cannot bypass financial authorization or replay controls.
 
 ## API runtime resilience invariant
-- API runtime failures must produce normalized bounded error codes with correlation IDs; never leak provider, database, secret or stack-trace details to callers.
-- Retries are limited to classified transient failures, use bounded exponential backoff and must never duplicate a financial mutation unless an idempotency boundary already guarantees replay safety.
-- Circuit breakers are route/provider scoped operational controls; an open circuit fails fast and cannot fabricate success or mutate financial truth.
-- Readiness is distinct from liveness/health: an unavailable dependency may make the service unready while health evidence remains explicit and observable.
-- API versions are explicit and backward-compatibility policy is enforced at the gateway rather than inferred from handler existence.
-- Runtime scope evidence is policy-specific: stable device evidence is optional for shared/low-end devices when stronger channel/IP/actor controls remain; missing required evidence fails closed.
-- Health/readiness probes must be individually time-bounded; a hung dependency cannot block health reporting indefinitely.
-
+Normalize errors, enforce bounded retry/circuit policies, separate readiness from liveness and never retry non-idempotent financial mutations without a replay-safe boundary.
 
 ## Channel ingress invariant
-- REST, mobile, agent, USSD, SMS, voice and partner channels must enter through one canonical, policy-governed ingress envelope before reaching application handlers.
-- Every channel request carries correlation and idempotency evidence; replay of the same key/payload is a safe replay, while same-key/different-payload is quarantined as conflict.
-- Offline channel data is evidence only: sequence numbers and payload hashes prove ordering/replay context but never authorize or mutate Financial Core directly.
-- External upstream adapters are HTTPS-only, host-allowlisted, redirect-disabled and bounded by request/response size and timeout limits; provider credentials never appear in URLs.
-- Shared-device and low-bandwidth channels may lack stable device evidence; channel/IP/actor/phone controls remain governed by policy and financial authorization remains independent.
-
+REST, mobile, agent, USSD, SMS, voice and partner traffic enter a canonical policy-governed envelope with correlation, idempotency, tenant and privacy-safe scope evidence.
 
 ## API contract invariant
-- Every public API route is explicitly versioned; unversioned requests are rejected rather than inferred from handler existence.
-- Version state is governed centrally: active, deprecated and sunset versions have explicit policy, with deterministic replacement/sunset behavior.
-- Success and error responses carry bounded correlation and version evidence; provider/database/secret/stack details never cross the API boundary.
-- Backward compatibility is enforced at the gateway; adding a handler cannot silently create a public API contract.
+Every public API route is explicitly versioned and centrally governed; handler existence does not create a public contract.
 
-
-## API observability invariant
-- Every production-facing API/channel boundary emits privacy-minimized runtime evidence with correlation ID, version, channel, route, status, bounded latency and normalized outcome.
-- Operational telemetry never stores raw secrets, authentication factors, payment credentials or unnecessary PII; evidence is hashed where content binding is required.
-- Telemetry persistence failure must not fabricate or mutate Financial Core truth; degraded observability is an explicit operational condition.
-- Runtime evidence retention is bounded and independently prunable; observability storage is never a financial ledger.
-
-
-## Financial intent admission invariant
-- Financial API routes are deny-by-default except explicitly allowlisted intent routes. An admitted request creates only a governed intent/evidence boundary; it never constitutes Ledger truth.
-- Every financial intent requires tenant scope, bounded idempotency evidence and a canonical payload hash before application handling. Same-key/different-payload conflicts must be quarantined.
-- Human approval remains the default for high-impact financial intents. Policy-based automation may disable it only through an explicit, auditable policy decision; provider/model selection cannot disable approval.
-- Direct Ledger, wallet balance, cash, transfer, payout and settlement mutation endpoints remain unavailable until a dedicated Financial Core command handler proves transactionality, concurrency, replay, audit and production authorization.
-
-
-## Payment intent core invariant
-- Payment intents are tenant-scoped, XOF-first records with immutable payload evidence and unique (organization_id,idempotency_key) enforcement.
-- Creation and approval are separate state transitions. Approval evidence is explicit; settlement must call Financial Core and may never infer approval from client state.
-- Same-key/different-payload requests are hard conflicts. Same-key/same-payload requests are safe replays and must not create a second intent or ledger transaction.
+## Financial intent invariant
+Financial API routes are deny-by-default except explicit intent routes. Intents require tenant scope, bounded idempotency evidence and canonical payload hashes. Ledger mutation remains behind dedicated Financial Core command handlers.

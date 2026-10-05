@@ -1,0 +1,44 @@
+name: T.Pay AI Security Gate
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "packages/ai/**"
+      - "packages/security/**"
+      - "tests/**"
+      - "docs/security/**"
+      - "docs/construction/**"
+      - "AGENTS.md"
+      - ".github/workflows/**"
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tpay-ai-security-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  ai-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: AI security regression suite
+        run: npm test
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+      - name: Fail on committed private key material
+        shell: bash
+        run: |
+          if grep -RInE --exclude-dir=.git --exclude='*.md' '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----' .; then
+            echo "Private key material detected in repository"
+            exit 1
+          fi
