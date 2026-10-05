@@ -39,7 +39,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run check
       - name: Run live PostgreSQL integration tests
-        run: npm test -- --test-name-pattern "L16 live PostgreSQL"
+        run: npm run test:l16
       - run: npm audit --omit=dev --audit-level=high
       - name: Upload diagnostics on failure
         if: failure()
