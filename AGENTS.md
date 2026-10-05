@@ -84,6 +84,15 @@ T.Pay also contains a cross-vertical Commercial Agent domain. Every organization
 
 The Revenue Growth plane is not a separate money system: successful sales settle through the same T.Pay Financial Core, Payment Intent, Ledger, fee/commission, receipt and reconciliation controls. Offline-first operation, low-bandwidth payloads, SMS/USSD-compatible fallback workflows and local-language offer templates are first-class requirements for Togo/Africa.
 
+## Design Bible implementation state
+
+The global Design Bible implementation contract is recorded in `docs/bibles/TPAY-DESIGN-BIBLE-IMPLEMENTATION.md` and registered as a mandatory baseline. It covers the established DB sequence: Experience OS, universal objects/actions/workflows, real-time experience, organization ecosystem/workspace, People & Teams, Projects & Tasks, Calendar & Meetings, temporal permissions, reservation governance, universal color/token system, Finance & Budget UX, motion system, accessibility, language governance, offline/field mode, AI UX and Togo/Africa readiness.
+
+Frontend construction gate:
+DISCOVER -> BIBLE-MAP -> CURRENT-CODE -> DESIGN TOKENS -> SHELL/CONTEXT -> UNIVERSAL STATES -> REALTIME/OFFLINE -> DOMAIN SURFACES -> ACCESSIBILITY/RESPONSIVE -> TEST -> SECURITY REVIEW -> PERFORMANCE/COST -> CI -> RECORD.
+
+Design implementation must reuse existing semantic components and tokens. A new component or interaction requires a repository search first and must not silently create a competing design rule.
+
 ## L15 construction rule — AI Core is the central control plane
 The AI Core owns model-provider routing and specialist-agent orchestration. No domain agent may embed a direct vendor SDK/API call. Provider adapters are isolated behind a common interface and selected by explicit tenant/data/security/cost policy. OpenAI Responses and Anthropic Messages are supported as replaceable adapters; future providers must conform to the same contract.
 
