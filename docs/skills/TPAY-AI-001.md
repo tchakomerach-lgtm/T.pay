@@ -51,3 +51,6 @@ Provider selection is policy-driven: organization/data classification, allowed p
 
 ### Scalability
 The provider registry is replaceable; model vendors can be added without changing specialist-agent contracts. Routing must support retries with bounded budgets, circuit breaking, health state, fallback and cost telemetry.
+
+## L15.1 — policy-aware routing
+AI inference is routed through explicit data-classification and provider-allowlist policy. Provider failover is bounded and may not cross a tenant's allowed provider or data-class boundary. Required-provider policies disable silent fallback. Residency and contractual constraints are part of the route policy before production deployment.
