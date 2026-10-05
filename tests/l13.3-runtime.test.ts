@@ -21,7 +21,7 @@ test("L13.3 retries transient failures and closes circuit on success",async()=>{
   assert.deepEqual(sleeps,[1,2]);
 });
 
-test("L13.3 opens circuit after repeated failures and allows half-open recovery",()=>{
+test("L13.3 opens circuit after repeated failures and allows one half-open probe",()=>{
   const circuit=new CircuitBreaker(2,100);
   circuit.onFailure(1000);
   assert.equal(circuit.getState(1000),"closed");
@@ -29,6 +29,7 @@ test("L13.3 opens circuit after repeated failures and allows half-open recovery"
   assert.equal(circuit.getState(1001),"open");
   assert.equal(circuit.allow(1050),false);
   assert.equal(circuit.allow(1101),true);
+  assert.equal(circuit.allow(1101),false);
   assert.equal(circuit.getState(1101),"half_open");
   circuit.onSuccess();
   assert.equal(circuit.getState(1101),"closed");
@@ -41,4 +42,26 @@ test("L13.3 reports readiness separately from degraded health",async()=>{
   ],"2026-10-05T10:00:00.000Z");
   assert.equal(report.status,"degraded");
   assert.equal(report.ready,false);
+});
+
+test("L13.3 aborts timed operations before retrying",async()=>{
+  let calls=0;
+  let aborted=false;
+  const result=await executeWithResilience(async signal=>{
+    calls+=1;
+    await new Promise<void>((resolve,reject)=>{
+      if(signal.aborted){aborted=true;resolve();return;}
+      signal.addEventListener("abort",()=>{aborted=true;resolve();},{once:true});
+    });
+    if(calls===1)throw new Error("TIMEOUT");
+    return "recovered";
+  },{
+    timeoutMs:5,
+    retry:{maxAttempts:2,baseDelayMs:1,maxDelayMs:2},
+    circuit:new CircuitBreaker(3,100),
+    sleep:async()=>{}
+  });
+  assert.equal(result,"recovered");
+  assert.equal(calls,2);
+  assert.equal(aborted,true);
 });
