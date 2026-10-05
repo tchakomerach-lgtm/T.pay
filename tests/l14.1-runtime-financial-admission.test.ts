@@ -29,7 +29,7 @@ test("L14.1 valid financial intent passes gateway admission but remains governed
   now:"2026-10-05T10:01:12.000Z"
  });
  assert.equal(result.allowed,true);
- if(result.allowed)assert.equal(result.policyKey,"mobile:member");
+ if(result.allowed)assert.equal(result.policyKey,"mobile:POST:/v1/payments/intents");
 });
 
 test("L14.1 direct ledger route remains denied by default",async()=>{
