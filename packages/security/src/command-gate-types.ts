@@ -1,0 +1,8 @@
+export type AuthorizedCommandClaimResult =
+  | "CLAIMED"
+  | "REPLAY"
+  | "DIGEST_CONFLICT"
+  | "APPROVAL_MISSING"
+  | "APPROVAL_EXPIRED"
+  | "APPROVAL_DIGEST_MISMATCH"
+  | "APPROVAL_ALREADY_CONSUMED";
