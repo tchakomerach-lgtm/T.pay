@@ -1,3 +1,5 @@
+import { tpayTokens } from "./tokens.js";
+
 export type TPaySurfaceState =
   | "default" | "hover" | "focus" | "pressed" | "loading"
   | "success" | "warning" | "error" | "disabled"
