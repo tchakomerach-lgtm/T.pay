@@ -15,6 +15,7 @@ test("L14.5 commerce tables enforce tenant isolation and idempotent campaign act
   const orgB = randomUUID();
   const offerA = randomUUID();
   const campaignA = randomUUID();
+  const campaignB = randomUUID();
   const leadA = randomUUID();
   const actionA = randomUUID();
   const now = "2026-10-05T00:00:00.000Z";
@@ -48,6 +49,19 @@ test("L14.5 commerce tables enforce tenant isolation and idempotent campaign act
       "INSERT INTO commercial_actions (id,organization_id,campaign_id,action,channel,state,idempotency_key,created_at) VALUES ($1,$2,$3,'discover_lead','tpay','planned','idem-commerce-2',$4)",
       [randomUUID(),orgB,campaignA,now]
     ));
+    await client.query(
+      "INSERT INTO commercial_offers (id,organization_id,owner_user_id,title,description,category,currency,active,created_at,updated_at) VALUES ($1,$2,$3,'Service B','Offre B','service','XOF',true,$4,$4)",
+      [randomUUID(),orgB,randomUUID(),now]
+    );
+    const offerB = (await client.query("SELECT id FROM commercial_offers WHERE organization_id=$1 ORDER BY created_at DESC LIMIT 1",[orgB])).rows[0]?.id;
+    await client.query(
+      "INSERT INTO commercial_campaigns (id,organization_id,offer_id,status,daily_outbound_limit,sent_today,created_at,updated_at) VALUES ($1,$2,$3,'active',10,0,$4,$4)",
+      [campaignB,orgB,offerB,now]
+    );
+    await client.query(
+      "INSERT INTO commercial_actions (id,organization_id,campaign_id,action,channel,state,idempotency_key,created_at) VALUES ($1,$2,$3,'discover_lead','tpay','planned','idem-commerce-1',$4)",
+      [randomUUID(),orgB,campaignB,now]
+    );
     const counts = await client.query(
       "SELECT organization_id,count(*)::int AS count FROM commercial_actions WHERE idempotency_key='idem-commerce-1' GROUP BY organization_id ORDER BY organization_id"
     );
