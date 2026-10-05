@@ -4,6 +4,7 @@ import type {
   CommunityTontineMembership,
   TontineBeneficiarySlot
 } from "./community-tontine.js";
+import type { TontineCycle, TontineMemberSchedule } from "./tontine-cycle.js";
 
 export interface SqlResult<Row = Record<string, unknown>> {
   rows: Row[];
@@ -24,6 +25,16 @@ export interface TontineMembershipRepository {
   listActive(organizationId: UUID, groupId: UUID): Promise<CommunityTontineMembership[]>;
   getForUpdate(organizationId: UUID, membershipId: UUID): Promise<CommunityTontineMembership | null>;
   save(organizationId: UUID, membership: CommunityTontineMembership): Promise<void>;
+}
+
+export interface TontineCycleRepository {
+  getById(organizationId: UUID, cycleId: UUID): Promise<TontineCycle | null>;
+  save(organizationId: UUID, cycle: TontineCycle): Promise<void>;
+}
+
+export interface TontineScheduleRepository {
+  listByCycle(organizationId: UUID, cycleId: UUID): Promise<TontineMemberSchedule[]>;
+  save(organizationId: UUID, schedule: TontineMemberSchedule): Promise<void>;
 }
 
 export interface TontineBeneficiarySlotRepository {
@@ -158,7 +169,7 @@ export class PostgresTontineMembershipRepository implements TontineMembershipRep
   }
 }
 
-export class PostgresTontineBeneficiarySlotRepository implements TontineBeneficiarySlotRepository {
+function cycleFromRow(row: Record<string, unknown>): TontineCycle {\n  const cycle: TontineCycle = { id: row.id as UUID, groupId: row.group_id as UUID, cycleNumber: Number(row.cycle_number), startsOn: String(row.starts_on), endsOn: String(row.ends_on), status: row.status as TontineCycle["status"], rulesVersion: String(row.rules_version), minimumAmountMinor: asBigInt(row.minimum_amount_minor), currency: String(row.currency), createdAt: new Date(String(row.created_at)).toISOString() };\n  if (row.closed_at != null) cycle.closedAt = new Date(String(row.closed_at)).toISOString();\n  return cycle;\n}\n\nfunction scheduleFromRow(row: Record<string, unknown>): TontineMemberSchedule {\n  const schedule: TontineMemberSchedule = { id: row.id as UUID, cycleId: row.cycle_id as UUID, membershipId: row.membership_id as UUID, sequence: Number(row.sequence), scheduledFor: String(row.scheduled_for), expectedAmountMinor: asBigInt(row.expected_amount_minor), dueStatus: row.due_status as TontineMemberSchedule["dueStatus"] };\n  if (row.contribution_id != null) schedule.contributionId = row.contribution_id as UUID;\n  if (row.grace_until != null) schedule.graceUntil = new Date(String(row.grace_until)).toISOString();\n  if (row.confirmed_at != null) schedule.confirmedAt = new Date(String(row.confirmed_at)).toISOString();\n  return schedule;\n}\n\nexport class PostgresTontineCycleRepository implements TontineCycleRepository {\n  constructor(private readonly db: TontineSqlExecutor) {}\n  async getById(organizationId: UUID, cycleId: UUID): Promise<TontineCycle | null> {\n    const result = await this.db.query("SELECT * FROM tontine_cycles WHERE organization_id=$1 AND id=$2",[organizationId,cycleId]);\n    return result.rows[0] ? cycleFromRow(result.rows[0]) : null;\n  }\n  async save(organizationId: UUID, cycle: TontineCycle): Promise<void> {\n    await this.db.query(`INSERT INTO tontine_cycles (id,organization_id,group_id,cycle_number,starts_on,ends_on,status,rules_version,minimum_amount_minor,currency,created_at,closed_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,rules_version=EXCLUDED.rules_version,minimum_amount_minor=EXCLUDED.minimum_amount_minor,closed_at=EXCLUDED.closed_at`,[cycle.id,organizationId,cycle.groupId,cycle.cycleNumber,cycle.startsOn,cycle.endsOn,cycle.status,cycle.rulesVersion,cycle.minimumAmountMinor.toString(),cycle.currency,cycle.createdAt,cycle.closedAt ?? null]);\n  }\n}\n\nexport class PostgresTontineScheduleRepository implements TontineScheduleRepository {\n  constructor(private readonly db: TontineSqlExecutor) {}\n  async listByCycle(organizationId: UUID, cycleId: UUID): Promise<TontineMemberSchedule[]> {\n    const result = await this.db.query("SELECT * FROM tontine_member_schedules WHERE organization_id=$1 AND cycle_id=$2 ORDER BY sequence,id",[organizationId,cycleId]);\n    return result.rows.map(scheduleFromRow);\n  }\n  async save(organizationId: UUID, schedule: TontineMemberSchedule): Promise<void> {\n    await this.db.query(`INSERT INTO tontine_member_schedules (id,organization_id,cycle_id,membership_id,sequence,scheduled_for,expected_amount_minor,due_status,contribution_id,grace_until,confirmed_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (id) DO UPDATE SET due_status=EXCLUDED.due_status,contribution_id=EXCLUDED.contribution_id,grace_until=EXCLUDED.grace_until,confirmed_at=EXCLUDED.confirmed_at`,[schedule.id,organizationId,schedule.cycleId,schedule.membershipId,schedule.sequence,schedule.scheduledFor,schedule.expectedAmountMinor.toString(),schedule.dueStatus,schedule.contributionId ?? null,schedule.graceUntil ?? null,schedule.confirmedAt ?? null]);\n  }\n}\n\nexport class PostgresTontineBeneficiarySlotRepository implements TontineBeneficiarySlotRepository {
   constructor(private readonly db: TontineSqlExecutor) {}
 
   async createIfAbsent(organizationId: UUID, slot: TontineBeneficiarySlot): Promise<TontineBeneficiarySlot> {
