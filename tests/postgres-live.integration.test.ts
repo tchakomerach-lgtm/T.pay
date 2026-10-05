@@ -332,7 +332,7 @@ test("S-03.8 live PostgreSQL deduplicates exceptions and isolates organizations"
 });
 
 
-test("S-03.9 live PostgreSQL rejects the same provider event across organizations", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+test("S-03.9 live PostgreSQL scopes provider events by organization", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
   const client = new pg.Client({ connectionString: databaseUrl });
   await client.connect();
   const organizationId = randomUUID();
@@ -351,12 +351,12 @@ test("S-03.9 live PostgreSQL rejects the same provider event across organization
       [provider, eventId, organizationId, now]
     );
     const second = await client.query(
-      "INSERT INTO provider_events (provider,event_id,organization_id,received_at) VALUES ($1,$2,$3,$4::timestamptz) ON CONFLICT (provider,event_id) DO NOTHING RETURNING event_id",
+      "INSERT INTO provider_events (provider,event_id,organization_id,received_at) VALUES ($1,$2,$3,$4::timestamptz) ON CONFLICT (organization_id,provider,event_id) DO NOTHING RETURNING event_id",
       [provider, eventId, otherOrganizationId, now]
     );
-    assert.equal(second.rowCount, 0);
-    const owner = await client.query("SELECT organization_id FROM provider_events WHERE provider=$1 AND event_id=$2", [provider, eventId]);
-    assert.equal(owner.rows[0]?.organization_id, organizationId);
+    assert.equal(second.rowCount, 1);
+    const owners = await client.query("SELECT organization_id FROM provider_events WHERE provider=$1 AND event_id=$2 ORDER BY organization_id", [provider, eventId]);
+    assert.deepEqual(owners.rows.map(row => row.organization_id).sort(), [organizationId, otherOrganizationId].sort());
   } finally {
     await client.query("DELETE FROM provider_events WHERE provider=$1 AND event_id=$2", [provider, eventId]);
     await client.query("DELETE FROM organizations WHERE id IN ($1,$2)", [organizationId, otherOrganizationId]);
