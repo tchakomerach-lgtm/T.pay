@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS commercial_offers (
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL
 );
+CREATE UNIQUE INDEX IF NOT EXISTS commercial_offers_org_id_uq ON commercial_offers (organization_id, id);
 CREATE INDEX IF NOT EXISTS commercial_offers_org_active_idx ON commercial_offers (organization_id, active, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS commercial_leads (
@@ -26,6 +27,7 @@ CREATE TABLE IF NOT EXISTS commercial_leads (
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL
 );
+CREATE UNIQUE INDEX IF NOT EXISTS commercial_leads_org_id_uq ON commercial_leads (organization_id, id);
 CREATE INDEX IF NOT EXISTS commercial_leads_org_score_idx ON commercial_leads (organization_id, score DESC, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS commercial_campaigns (
@@ -54,4 +56,15 @@ CREATE TABLE IF NOT EXISTS commercial_actions (
   created_at timestamptz NOT NULL,
   UNIQUE (organization_id, idempotency_key)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS commercial_campaigns_org_id_uq ON commercial_campaigns (organization_id, id);
+CREATE UNIQUE INDEX IF NOT EXISTS commercial_actions_org_id_uq ON commercial_actions (organization_id, id);
+ALTER TABLE commercial_campaigns
+  ADD CONSTRAINT commercial_campaign_offer_tenant_fk
+  FOREIGN KEY (organization_id, offer_id) REFERENCES commercial_offers (organization_id, id);
+ALTER TABLE commercial_actions
+  ADD CONSTRAINT commercial_action_campaign_tenant_fk
+  FOREIGN KEY (organization_id, campaign_id) REFERENCES commercial_campaigns (organization_id, id);
+ALTER TABLE commercial_actions
+  ADD CONSTRAINT commercial_action_lead_tenant_fk
+  FOREIGN KEY (organization_id, lead_id) REFERENCES commercial_leads (organization_id, id);
 CREATE INDEX IF NOT EXISTS commercial_actions_due_idx ON commercial_actions (organization_id, state, scheduled_at);
