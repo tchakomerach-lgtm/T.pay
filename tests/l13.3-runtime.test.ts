@@ -44,6 +44,29 @@ test("L13.3 reports readiness separately from degraded health",async()=>{
   assert.equal(report.ready,false);
 });
 
+test("L13.3 times out a hung health dependency without blocking readiness",async()=>{
+  const report=await runHealthProbes([
+    {name:"postgres",check:async()=>true},
+    {name:"hung",check:async()=>new Promise<boolean>(()=>{})}
+  ],"2026-10-05T10:00:00.000Z",5);
+  assert.equal(report.status,"degraded");
+  assert.equal(report.ready,false);
+  assert.equal(report.checks.hung,false);
+});
+
+test("L13.3 allows shared-device requests without device evidence",async()=>{
+  const {ApiRuntimeGate}=await import("../packages/api-gateway/src/runtime-gate.js");
+  const {ApiAbuseRepository}=await import("../packages/api-gateway/src/rate-abuse.js");
+  const abuse=new ApiAbuseRepository({query:async()=>({rows:[{request_count:"1",max_requests:"60",window_started_at:"2026-10-05T10:01:00.000Z",window_seconds:60}],rowCount:1})});
+  const gate=new ApiRuntimeGate(abuse);
+  const decision=await gate.evaluate({
+    method:"GET",route:"/v1/profile",authClass:"user",channel:"mobile",
+    origin:"https://tpay.example",correlationId:"c-shared-device",
+    scopeSecrets:{channel:"channel",ip:"ip",actor:"actor"},now:"2026-10-05T10:01:12.000Z"
+  });
+  assert.equal(decision.allowed,true);
+});
+
 test("L13.3 aborts timed operations before retrying",async()=>{
   let calls=0;
   let aborted=false;
