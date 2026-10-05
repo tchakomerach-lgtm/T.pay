@@ -42,3 +42,9 @@
 39. Security-First Offline Recovery — quarantine ambiguous offline financial events and reconcile through Financial Core rather than trusting client state.
 40. Regulatory Activation Gates — keep regulated payment/e-money/credit capabilities disabled until partner, license and operational controls are evidenced.
 
+
+41. Runtime Containment Engineering — sandbox, filesystem boundaries, credential non-exposure and deny-by-default egress.
+42. Security-Monitor Independence — judge structured action/intent rather than persuasive model prose when possible.
+43. External-Content Quarantine — provenance, trust, quarantine and post-tool inspection for hostile content.
+44. Adaptive Red-Team Engineering — evaluate repeated/adaptive attacks, not only one-shot prompt injections.
+45. Partner-Evidence Security — signed/idempotent/bound partner events before financial effects.
