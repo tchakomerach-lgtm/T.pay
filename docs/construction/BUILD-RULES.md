@@ -74,3 +74,11 @@ All network-facing T.Pay adapters MUST use HTTPS/TLS. Plain HTTP endpoints, redi
 - SLO targets are policy, never proof of achieved production performance.
 - Alert delivery failure must never alter Financial Core truth; alerts become queued/retriable operational evidence.
 - Africa/Togo deployments must support low-bandwidth escalation paths (SMS/internal queue) without storing provider credentials in application data.
+
+
+## Abuse-control policy invariant
+- Production rate limits MUST be selected by a governed server-side policy keyed by normalized route, method, channel and authentication class; untrusted callers may not choose their own limits.
+- Multi-scope enforcement may combine channel, IP, device, actor, organization and phone evidence; each raw identifier is transformed into a non-reversible privacy-preserving scope value before persistence.
+- Low-bandwidth Togo/Africa channels (USSD/SMS/voice) receive explicit tighter policies and must degrade with bounded retries, clear user feedback and no financial-state mutation when the abuse subsystem is unavailable.
+- Progressive penalties, reputation and SIM-swap signals may influence abuse decisions only through auditable policy inputs; they must never silently alter Ledger truth.
+- Rate-limit storage is operational control state, not financial truth, and must have bounded retention/cleanup and privacy-minimized observability.
