@@ -41,7 +41,9 @@ export class ApiRuntimeGate {
       try{
         admitFinancialIntent({
           method:input.method,route:input.route,authClass:input.authClass,
-          organizationId:input.organizationId,idempotencyKey:input.idempotencyKey,payloadHash:input.payloadHash
+          ...(input.organizationId===undefined?{}:{organizationId:input.organizationId}),
+          ...(input.idempotencyKey===undefined?{}:{idempotencyKey:input.idempotencyKey}),
+          ...(input.payloadHash===undefined?{}:{payloadHash:input.payloadHash})
         });
       }catch(error){
         const code=error instanceof Error?error.message:"FINANCIAL_INTENT_REJECTED";
