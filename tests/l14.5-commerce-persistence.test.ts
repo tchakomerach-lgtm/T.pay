@@ -44,10 +44,10 @@ test("L14.5 commerce tables enforce tenant isolation and idempotent campaign act
       "INSERT INTO commercial_actions (id,organization_id,campaign_id,lead_id,action,channel,state,idempotency_key,created_at) VALUES ($1,$2,$3,$4,'prepare_follow_up','tpay','planned','idem-commerce-1',$5)",
       [randomUUID(),orgA,campaignA,leadA,now]
     ));
-    await client.query(
-      "INSERT INTO commercial_actions (id,organization_id,campaign_id,action,channel,state,idempotency_key,created_at) VALUES ($1,$2,$3,'discover_lead','tpay','planned','idem-commerce-1',$4)",
+    await assert.rejects(() => client.query(
+      "INSERT INTO commercial_actions (id,organization_id,campaign_id,action,channel,state,idempotency_key,created_at) VALUES ($1,$2,$3,'discover_lead','tpay','planned','idem-commerce-2',$4)",
       [randomUUID(),orgB,campaignA,now]
-    );
+    ));
     const counts = await client.query(
       "SELECT organization_id,count(*)::int AS count FROM commercial_actions WHERE idempotency_key='idem-commerce-1' GROUP BY organization_id ORDER BY organization_id"
     );
