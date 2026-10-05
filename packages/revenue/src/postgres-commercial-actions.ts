@@ -53,7 +53,7 @@ export class PostgresCommercialActionStore implements CommercialActionRepository
 
   async markCompleted(id: string, workerId: string, executedAt: string): Promise<void> {
     const result=await this.client.query(
-      "UPDATE commercial_actions SET state='completed',executed_at=$2::timestamptz,claimed_by=NULL,claimed_at=NULL WHERE id=$1 AND claimed_by=$2 AND state='planned'",
+      "UPDATE commercial_actions SET state='completed',executed_at=$3::timestamptz,claimed_by=NULL,claimed_at=NULL WHERE id=$1 AND claimed_by=$2 AND state='planned'",
       [id,workerId,executedAt]
     );
     if(result.rowCount!==1) throw new Error("COMMERCIAL_ACTION_COMPLETE_REJECTED");
@@ -61,7 +61,7 @@ export class PostgresCommercialActionStore implements CommercialActionRepository
 
   async markBlocked(id: string, workerId: string, failureCode: string): Promise<void> {
     const result=await this.client.query(
-      "UPDATE commercial_actions SET state='blocked',failure_code=$2,claimed_by=NULL,claimed_at=NULL WHERE id=$1 AND claimed_by IS NOT NULL AND state='planned'",
+      "UPDATE commercial_actions SET state='blocked',failure_code=$3,claimed_by=NULL,claimed_at=NULL WHERE id=$1 AND claimed_by=$2 AND state='planned'",
       [id,workerId,failureCode]
     );
     if(result.rowCount!==1) throw new Error("COMMERCIAL_ACTION_BLOCK_REJECTED");
