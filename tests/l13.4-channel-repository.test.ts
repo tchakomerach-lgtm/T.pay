@@ -14,7 +14,7 @@ test("L13.4 rejects a same-key different-payload replay as conflict",async()=>{
   const rows=new Map<string,any>();
   const db={query:async(sql:string,values?:unknown[])=>{
     if(sql.includes("INSERT INTO api_channel_ingress_events")){
-      const key=String(values?.[2]);
+      const key=String(values?.[4]);
       if(rows.has(key))return {rows:[],rowCount:0};
       const id=String(values?.[0]); rows.set(key,{id,payload_hash:String(values?.[6]),state:"accepted"});
       return {rows:[{id}],rowCount:1};
