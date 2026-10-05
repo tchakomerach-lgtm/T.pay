@@ -24,7 +24,7 @@ test("L13.2 PostgreSQL serializes competing rate-limit increments without lost u
       policyKey,scopeSecret,now,maxRequests:3,windowSeconds:60
     })));
     assert.equal(decisions.length,8);
-    assert.deepEqual(decisions.map(d=>d.requestCount).sort((a,b)=>a-b),[1,2,3,4,5,6,7,8]);
+    assert.deepEqual(decisions.map(d=>Number(d.requestCount)).sort((a,b)=>a-b),[1,2,3,4,5,6,7,8]);
     assert.equal(decisions.filter(d=>d.allowed).length,3);
     assert.equal(decisions.filter(d=>d.limited).length,5);
     const persisted=await setup.query(
