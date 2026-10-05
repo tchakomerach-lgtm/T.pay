@@ -99,3 +99,7 @@ The AI Core owns model-provider routing and specialist-agent orchestration. No d
 The Commercial Growth Agent is a first-class AI Core specialist, not an isolated revenue chatbot. It can reason over approved commercial context and request authorized tools. Its outputs do not directly mutate financial state or silently contact people. Consent, channel policy, outbound budgets, organization scope and human-approval gates are enforced outside the model.
 
 Construction rule: provider outage is not permission to bypass policy. Failover may occur only among providers allowed for the same data classification and tenant policy.
+
+## DB-073 Design Runtime Foundation
+
+DB-073 is implemented on construction branch/PR #80 as renderer-neutral TypeScript contracts because the current repository does not yet contain a browser/mobile renderer. It establishes canonical design tokens, universal component states, realtime/offline invariants, context separation, action contracts, accessibility requirements and the global shell contract. Status remains IMPLEMENTED until exact-head CI and review evidence are available; no UI/production completion claim is implied.
