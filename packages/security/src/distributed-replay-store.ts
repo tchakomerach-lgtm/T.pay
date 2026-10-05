@@ -9,7 +9,7 @@ export interface ReplayClaim {
 
 export interface ReplayStore {
   claim(key:ReplayClaim, now?:number):Promise<boolean>;
-  prune(now?:number):Promise<number>;
+  prune(organizationId:string, now?:number):Promise<number>;
 }
 
 /**
@@ -62,7 +62,7 @@ export class PostgresReplayStore implements ReplayStore {
     }
   }
 }
-\nfunction organizationFromScope(scope:string):string{
+function organizationFromScope(scope:string):string{
  const [kind,organizationId,...rest]=scope.split(":");
  if(kind!=="org"||!organizationId||rest.length>0)throw new Error("REPLAY_SCOPE_TENANT_REQUIRED");
  return organizationId;
