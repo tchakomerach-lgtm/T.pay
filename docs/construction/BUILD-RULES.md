@@ -100,3 +100,10 @@ All network-facing T.Pay adapters MUST use HTTPS/TLS. Plain HTTP endpoints, redi
 - Offline channel data is evidence only: sequence numbers and payload hashes prove ordering/replay context but never authorize or mutate Financial Core directly.
 - External upstream adapters are HTTPS-only, host-allowlisted, redirect-disabled and bounded by request/response size and timeout limits; provider credentials never appear in URLs.
 - Shared-device and low-bandwidth channels may lack stable device evidence; channel/IP/actor/phone controls remain governed by policy and financial authorization remains independent.
+
+
+## API contract invariant
+- Every public API route is explicitly versioned; unversioned requests are rejected rather than inferred from handler existence.
+- Version state is governed centrally: active, deprecated and sunset versions have explicit policy, with deterministic replacement/sunset behavior.
+- Success and error responses carry bounded correlation and version evidence; provider/database/secret/stack details never cross the API boundary.
+- Backward compatibility is enforced at the gateway; adding a handler cannot silently create a public API contract.
