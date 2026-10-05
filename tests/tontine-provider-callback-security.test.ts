@@ -5,17 +5,11 @@ import { processVerifiedTontinePayoutCallback } from "../packages/microfinance/s
 
 const id = "11111111-1111-4111-8111-111111111111" as UUID;
 const payout = {
-  payoutId: id,
-  organizationId: id,
-  cycleId: id,
-  beneficiaryMembershipId: id,
-  beneficiaryClientId: id,
-  microfinanceId: id,
-  destinationRef: "mf:c1",
-  amountMinor: 1000n,
-  currency: "XOF",
-  state: "initiated" as const,
-  idempotencyKey: "payout-1"
+  payoutId: id, organizationId: id, cycleId: id, beneficiaryMembershipId: id,
+  beneficiaryClientId: id, microfinanceId: id, destinationRef: "mf:c1",
+  amountMinor: 1000n, currency: "XOF", state: "initiated" as const, idempotencyKey: "payout-1",
+  kycVerified: true, unresolvedFinancialException: false, humanApprovalRequired: true,
+  now: "2026-10-05T10:00:00Z"
 };
 
 test("community tontine rejects same provider event replay with substituted payload", async () => {
@@ -34,17 +28,13 @@ test("community tontine rejects same provider event replay with substituted payl
     },
     async transaction<T>(work: (tx: any) => Promise<T>): Promise<T> { return work(this); }
   } as any;
-
   const verifier = {
     async verifyAndNormalize(input: any) {
-      return {
-        provider: input.provider, providerEventId: "evt-1", payoutId: id, organizationId: id,
+      return { provider: input.provider, providerEventId: "evt-1", payoutId: id, organizationId: id,
         providerReference: "ref-1", amountMinor: 1000n, currency: "XOF",
-        receivedAt: "2026-10-05T10:00:00Z", rawBody: input.rawBody
-      };
+        receivedAt: "2026-10-05T10:00:00Z", rawBody: input.rawBody };
     }
   };
-
   const bridge = { async settle() { return undefined; } };
   await processVerifiedTontinePayoutCallback(db, verifier, { provider:"mf", rawBody:"body-A", signature:"sig", receivedAt:"2026-10-05T10:00:00Z" }, id, payout, { tontineClearingAccountId:"a", microfinanceSettlementAccountId:"b" }, "tx-1", bridge);
   await assert.rejects(
