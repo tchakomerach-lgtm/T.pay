@@ -5,7 +5,8 @@ const MAX_RESPONSE_BYTES=256*1024;
 function isPrivateIp(hostname:string):boolean{
   const version=isIP(hostname);
   if(version===4){
-    const [a,b]=hostname.split(".").map(Number);
+    const parts=hostname.split(".").map(Number);
+    const a=parts[0]??-1,b=parts[1]??-1;
     return a===10||a===127||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&b===168);
   }
   if(version===6){
