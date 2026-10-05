@@ -8,7 +8,8 @@ const evidence = {
   version: "2026.1",
   contentSha256: "a".repeat(64),
   sourceKind: "operator_signed" as const,
-  effectiveAt: "2026-01-01T00:00:00.000Z"
+  effectiveAt: "2026-01-01T00:00:00.000Z",
+  evidenceRef: "test://tmoney-contract"
 };
 
 test("L14.4 rejects provider activation without registered contract", () => {
