@@ -60,6 +60,7 @@ export async function processVerifiedTontinePayoutCallback(
     signature: string;
     receivedAt: string;
   },
+  payoutId: UUID,
   payout: TontinePayoutContext,
   accounts: {
     tontineClearingAccountId: string;
@@ -70,7 +71,7 @@ export async function processVerifiedTontinePayoutCallback(
 ): Promise<TontineCallbackReceipt> {
   const callback = await verifier.verifyAndNormalize(input);
 
-  if (callback.organizationId !== payout.organizationId || callback.payoutId !== payout.payoutId) {
+  if (callback.organizationId !== payout.organizationId || callback.payoutId !== payoutId) {
     throw new Error("TONTINE_CALLBACK_BINDING_MISMATCH");
   }
   if (callback.currency !== payout.currency || callback.amountMinor !== payout.amountMinor) {
