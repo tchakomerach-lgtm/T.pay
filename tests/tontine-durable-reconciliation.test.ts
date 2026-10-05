@@ -7,6 +7,7 @@ import {
   classifyOfflineConflict
 } from "../packages/microfinance/src/tontine-offline.js";
 import { assertTontineCaseTransition } from "../packages/microfinance/src/tontine-case.js";
+import type { UUID } from "../packages/domain/src/types.js";
 import {
   PostgresTontineBeneficiarySlotRepository,
   type TontineSqlExecutor
@@ -77,14 +78,14 @@ test("tontine case transition rejects unsafe silent closure", () => {
 test("beneficiary slot repository uses conditional claim to prevent double assignment", async () => {
   const queries: Array<{ text: string; values?: readonly unknown[] }> = [];
   const db: TontineSqlExecutor = {
-    async query<Row = Record<string, unknown>>(text: string, values?: readonly unknown[]) {
-      queries.push({ text, values });
+    async query<Row = Record<string, unknown>>(text: string, values?: readonly unknown[]): Promise<{ rows: Row[]; rowCount?: number }> {
+      if (values === undefined) queries.push({ text });
+      else queries.push({ text, values });
       if (text.startsWith("UPDATE tontine_beneficiary_slots")) {
-        return { rows: [{
-          id: uuid, group_id: uuid, cycle_number: 1, sequence: 1,
+        const row = { id: uuid, group_id: uuid, cycle_number: 1, sequence: 1,
           beneficiary_membership_id: uuid, amount_target_minor: "1000",
-          status: "eligible", scheduled_for: "2026-10-05T00:00:00Z"
-        }], rowCount: 1 };
+          status: "eligible", scheduled_for: "2026-10-05T00:00:00Z" };
+        return { rows: [row as Row], rowCount: 1 };
       }
       return { rows: [] as Row[] };
     },
