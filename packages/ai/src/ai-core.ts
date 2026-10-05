@@ -1,5 +1,6 @@
 import { AiProviderRegistry, type AiGenerateRequest, type AiGenerateResponse } from "./provider.js";
 import { AiToolRegistry } from "./tool-registry.js";
+import { selectProviders, type AiRequestClassification, type AiRoutePolicy } from "./routing-policy.js";
 
 export interface SpecialistAgent {
   readonly id: string;
@@ -60,6 +61,15 @@ export class AiCore {
       try{return await provider.generate(request);}catch(error){lastError=error;}
     }
     throw lastError instanceof Error?lastError:new Error("AI_ALL_PROVIDERS_FAILED");
+  }
+
+  async generateRouted(request:AiGenerateRequest, classification:AiRequestClassification, routePolicy:AiRoutePolicy):Promise<AiGenerateResponse>{
+    const routes=selectProviders(this.providers,routePolicy,classification);
+    let lastError:unknown;
+    for(const route of routes){
+      try{return await route.provider.generate(request);}catch(error){lastError=error;}
+    }
+    throw lastError instanceof Error?lastError:new Error("AI_ROUTED_PROVIDERS_FAILED");
   }
 
   getToolRegistry():AiToolRegistry{return this.tools;}
