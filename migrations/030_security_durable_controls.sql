@@ -16,12 +16,14 @@ CREATE TABLE IF NOT EXISTS security_approvals (
   approval_id text PRIMARY KEY,
   tenant_id text NOT NULL,
   approver_id text NOT NULL,
+  subject_actor_id text NOT NULL,
   request_digest char(64) NOT NULL CHECK (request_digest ~ '^[a-f0-9]{64}$'),
   status text NOT NULL CHECK (status IN ('pending','consumed','revoked')),
   created_at timestamptz NOT NULL,
   expires_at timestamptz NOT NULL,
   consumed_at timestamptz,
   CHECK (expires_at > created_at),
+  CHECK (approver_id <> subject_actor_id),
   CHECK ((status = 'consumed' AND consumed_at IS NOT NULL) OR status <> 'consumed')
 );
 
