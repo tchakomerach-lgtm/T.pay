@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { UUID } from "../../domain/src/types.js";
 import { authorizePayout, assertPayoutTransition, type PayoutApproval, type PayoutIntent } from "../../finance/src/payout.js";
 import type { CommunityTontineMembership } from "./community-tontine.js";
@@ -26,6 +27,17 @@ export interface TontinePayoutPlan {
   readonly microfinanceId: UUID;
 }
 
+function deterministicPayoutId(context: TontinePayoutContext): UUID {
+  const hex = createHash("sha256")
+    .update(["tpay:tontine:payout:v1", context.organizationId, context.cycleId, context.beneficiaryMembershipId].join("|"), "utf8")
+    .digest("hex")
+    .slice(0, 32)
+    .split("");
+  hex[12] = "5";
+  hex[16] = ["8", "9", "a", "b"][parseInt(hex[16] ?? "8", 16) % 4] ?? "8";
+  return `${hex.slice(0,8).join("")}-${hex.slice(8,12).join("")}-${hex.slice(12,16).join("")}-${hex.slice(16,20).join("")}-${hex.slice(20).join("")}` as UUID;
+}
+
 export function buildTontinePayoutPlan(
   context: TontinePayoutContext,
   beneficiary: CommunityTontineMembership
@@ -47,7 +59,7 @@ export function buildTontinePayoutPlan(
         : "approved";
 
   const intent: PayoutIntent = {
-    payoutId: ("tontine:" + context.cycleId + ":" + context.beneficiaryMembershipId) as UUID,
+    payoutId: deterministicPayoutId(context),
     organizationId: context.organizationId,
     cycleId: context.cycleId,
     beneficiaryId: context.beneficiaryClientId,
