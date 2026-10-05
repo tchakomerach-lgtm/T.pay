@@ -57,3 +57,6 @@ No external font or media dependency is required for initial rendering. Low-band
 - CI is green.
 
 DB-075 is therefore not declared production-ready until those gates have evidence.
+
+## Verification note
+The repository CI workflow is configured for all branch pushes and PRs targeting `main`. PR #84 is intentionally stacked on DB-074, so exact-head CI evidence must be obtained from the branch push or after retargeting the integration PR to `main`.
