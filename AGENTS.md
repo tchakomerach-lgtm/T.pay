@@ -53,6 +53,21 @@ Before every brick, consult docs/bibles/TPAY-BIBLE-CONSULTATION-REGISTRY.md and 
 ## Security baseline
 OWASP ASVS 5.0 is the stable application-security baseline. NIST SSDF is used as a secure-development lifecycle reference. WebAuthn Level 3 is a current W3C Recommendation. OpenTelemetry semantic conventions are mandatory for telemetry naming. Recheck release-critical external standards when the relevant source/version changes.
 
+## Secure transport baseline — 2026+
+All external/provider adapters MUST be protocol-explicit and fail closed:
+- HTTPS with TLS 1.3 is the primary application transport.
+- HTTP/3 over QUIC/TLS 1.3 is preferred where supported; fallback may only be HTTPS/TLS 1.3.
+- WSS is mandatory for WebSocket transports.
+- WebRTC media uses DTLS-SRTP; SIP uses TLS plus SRTP where applicable.
+- mTLS is required for service-to-service/provider links whenever the provider contract supports it and risk policy requires it.
+- HTTP cleartext, SSL, TLS 1.0/1.1 and silent downgrade are forbidden.
+- Provider hostnames are allowlisted; private IP literals are rejected by outbound adapters by default.
+- Redirects are not followed automatically for provider calls.
+- Provider callbacks require exact raw-body signature verification, freshness and durable replay claims.
+- Secrets/certificates never live in source or ordinary database rows; use secret manager/KMS/HSM.
+- TLS/protocol selection is a transport property, not an authorization property. Every request still requires tenant context, authorization, capability and idempotency.
+- Compatibility exceptions must be isolated to dedicated non-sensitive endpoints and documented; they never weaken the primary security boundary.
+
 ## Current construction state
 Foundation is implemented for domain types, security sessions/policies, risk controls, audit/telemetry, ledger invariants, wallet/payment/commission primitives, identity/passkey contracts, organization creation, KYC contracts and ledger idempotency. S-02 durable settlement is merged. S-02.5 adds the concrete PostgreSQL transaction adapter and transactional settlement schema. S-02.5.1 adds the live PostgreSQL integration test and migration runner. S-03.1 adds the provider-neutral adapter registry, normalized provider contract, TMoney/Flooz/microfinance contract adapters, bounded retry and circuit-breaker primitives. S-03.2 adds strict signed callback parsing, exact raw-body HMAC verification, freshness and atomic replay-claim contracts. L14.3 adds explicit versioned provider callback schema profiles, a durable tenant-scoped callback replay barrier bound to payload SHA-256, and tenant-scoped provider event uniqueness. Live provider credentials/network clients remain intentionally disconnected until the signed operator/aggregator wire contracts are installed and the remaining settlement integration gates pass.
 
@@ -71,6 +86,9 @@ Prompt 020 and `docs/skills/TPAY-VOICE-001.md` define the voice boundary. Voice 
 
 Voice production adapters MUST keep:
 - telephony/media provider behind an adapter;
+- all provider HTTP APIs on HTTPS/TLS 1.3; HTTP/3/QUIC is an optimization with HTTPS/TLS 1.3 fallback;
+- WSS/WebRTC/SIP transport security explicit;
+- provider callbacks signed, fresh and replay-protected;
 - session and capability leases short-lived;
 - caller ID separate from identity proof;
 - sensitive actions behind step-up authentication and policy approval;
@@ -85,8 +103,18 @@ Voice provider outage is not permission to bypass policy. A failed voice service
 ## Definition of Done
 Code + tests + security controls + observability + documentation + migration/rollback plan when stateful + CI green.
 
+## L16.2 current implementation state
+L16.2 adds:
+- `packages/api-gateway/src/secure-transport.ts`: HTTPS/TLS 1.3 policy, HSTS invariant, provider-host allowlisting, private-IP rejection, HTTPS-only fallback and secure WebSocket URL validation.
+- `packages/ai/src/voice-provider-adapter.ts`: provider-neutral PSTN/SIP/WebRTC callback boundary.
+- `packages/ai/src/voice-callback-security.ts`: exact raw-body HMAC-SHA256 verification with freshness.
+- `packages/ai/src/voice-provider-replay.ts`: durable tenant/provider/event replay barrier bound to payload SHA-256.
+- `packages/api-gateway/src/voice-routes.ts`: versioned voice route contract; every mutating route is idempotent and TLS 1.3 transport-bound.
+- migration `044_l16_voice_provider_security.sql`: durable callback claims and endpoint policy metadata without provider secrets.
+- targeted regression tests in `tests/secure-transport.test.ts` and `tests/voice-provider-security.test.ts`.
 
-## L16.1 current implementation state
-Prompt 020 Voice Fabric is now present in `packages/ai/src/voice-fabric.ts`, with targeted regression coverage in `tests/voice-fabric.test.ts`. Migration `043_l16_voice_fabric.sql` adds durable voice sessions, capability leases, transaction challenges, consent/security metadata, media metadata and a PostgreSQL GiST exclusion constraint preventing overlapping confirmed appointments per organization/resource. The implementation record is `docs/construction/L16-VOICE-FABRIC-RECORD.md`.
+Production provider credentials, certificates, real PSTN/SIP/WebRTC clients, PostgreSQL live integration and CI remain gated. No production-readiness claim is made until those checks are verified on the exact final commit.
 
-The production gate remains fail-closed until provider-specific telephony contracts, signed callback/replay controls, PostgreSQL concurrency integration tests, API Gateway routes, media retention workers, end-to-end voice red-team tests and CI green are verified. No production readiness claim is made from the domain/reference implementation alone.
+
+## L16.4 current implementation state
+The Voice Fabric now includes a concrete TLS 1.3-only HTTPS API server boundary, an HTTPS provider client with certificate verification and injectable mTLS material, live PostgreSQL concurrency/replay integration coverage, and a red-team suite covering SSRF/downgrade/callback tampering/staleness/mTLS/tenant-confusion. Provider credentials and certificates remain runtime-injected; no vendor secret is committed. The CI workflow's existing PostgreSQL service exposes TPAY_DATABASE_URL, so live L16 tests execute in the normal check/test path. CI must still be observed on the exact final commit before any production-readiness claim.
