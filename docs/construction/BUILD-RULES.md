@@ -121,3 +121,9 @@ All network-facing T.Pay adapters MUST use HTTPS/TLS. Plain HTTP endpoints, redi
 - Every financial intent requires tenant scope, bounded idempotency evidence and a canonical payload hash before application handling. Same-key/different-payload conflicts must be quarantined.
 - Human approval remains the default for high-impact financial intents. Policy-based automation may disable it only through an explicit, auditable policy decision; provider/model selection cannot disable approval.
 - Direct Ledger, wallet balance, cash, transfer, payout and settlement mutation endpoints remain unavailable until a dedicated Financial Core command handler proves transactionality, concurrency, replay, audit and production authorization.
+
+
+## Payment intent core invariant
+- Payment intents are tenant-scoped, XOF-first records with immutable payload evidence and unique (organization_id,idempotency_key) enforcement.
+- Creation and approval are separate state transitions. Approval evidence is explicit; settlement must call Financial Core and may never infer approval from client state.
+- Same-key/different-payload requests are hard conflicts. Same-key/same-payload requests are safe replays and must not create a second intent or ledger transaction.
