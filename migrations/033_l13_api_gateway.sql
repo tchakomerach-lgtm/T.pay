@@ -26,3 +26,7 @@ CREATE TABLE IF NOT EXISTS api_request_audit (
   metadata_hash text NOT NULL CHECK (metadata_hash ~ '^[a-f0-9]{64}$')
 );
 CREATE INDEX IF NOT EXISTS idx_api_audit_correlation ON api_request_audit(correlation_id);
+
+-- PostgreSQL NULL semantics would otherwise allow duplicate anonymous idempotency keys.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_api_dedupe_org_key ON api_request_deduplication(organization_id,idempotency_key) WHERE organization_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_api_dedupe_anonymous_key ON api_request_deduplication(idempotency_key) WHERE organization_id IS NULL;
