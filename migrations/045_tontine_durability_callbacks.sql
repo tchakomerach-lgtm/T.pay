@@ -2,12 +2,8 @@
 -- This migration adds database-level exclusivity and callback deduplication.
 -- It does not create or mutate the Financial Core ledger.
 
-ALTER TABLE tontine_beneficiary_slots
-  ADD CONSTRAINT tontine_beneficiary_slots_group_cycle_unique
-  UNIQUE (group_id, cycle_number);
-
 CREATE INDEX IF NOT EXISTS idx_tontine_beneficiary_slots_claim
-  ON tontine_beneficiary_slots (organization_id, group_id, cycle_number, status);
+  ON tontine_beneficiary_slots (organization_id, group_id, cycle_number, sequence, status);
 
 CREATE TABLE IF NOT EXISTS tontine_provider_callback_receipts (
   id uuid PRIMARY KEY,
