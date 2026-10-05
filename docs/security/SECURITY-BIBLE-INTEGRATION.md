@@ -23,7 +23,7 @@ The detailed mapping is maintained in docs/security/SECURITY-BIBLE-CONTROL-REGIS
 
 ## Public AI security principles adapted to T.Pay
 
-T.Pay adopts only publicly documented engineering principles, including source-to-sink analysis, limiting agent access, structured outputs, tool risk controls, guardrails, human approval for consequential actions, trace/evaluation, and layered defenses. OpenAI explicitly notes that prompt injection should not be treated as a filtering-only problem and that dangerous actions or sensitive transmissions should not occur silently. citeturn0search0turn0search2turn0search3
+T.Pay adopts only publicly documented engineering principles, including source-to-sink analysis, limiting agent access, structured outputs, tool risk controls, guardrails, human approval for consequential actions, trace/evaluation, and layered defenses. OpenAI explicitly notes that prompt injection should not be treated as a filtering-only problem and that dangerous actions or sensitive transmissions should not occur silently.
 
 T.Pay therefore implements independent deterministic authorization rather than trusting model refusal. Model safety is one layer; identity, authorization, capability, tool, runtime, network, financial and human-approval boundaries remain independent.
 
