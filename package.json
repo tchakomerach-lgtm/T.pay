@@ -11,7 +11,11 @@
     "test": "npm run build && node --test dist/tests/*.test.js",
     "check": "npm run typecheck && npm test",
     "db:migrate": "node dist/scripts/migrate.js",
-    "test:postgres": "npm run build && node --test dist/tests/postgres-live.integration.test.js"
+    "test:postgres": "npm run build && node --test dist/tests/postgres-live.integration.test.js",
+    "web:build": "npm run build && node scripts/copy-web-assets.mjs",
+    "web:dev": "npm run web:build && node scripts/web-server.mjs",
+    "web:check": "npm run typecheck && npm run web:build",
+    "web:smoke": "npm run web:build && node --test dist/tests/web-smoke.test.js"
   },
   "engines": {
     "node": ">=22"
