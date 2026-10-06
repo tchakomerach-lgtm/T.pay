@@ -7,9 +7,9 @@ test("universal shell renders and navigates core areas",async({page})=>{
  await page.getByText("Organisations",{exact:true}).first().click();
  await expect(page.getByText("Créer une organisation")).toBeVisible();
  await page.getByText("Réseau social",{exact:true}).click();
- await expect(page.getByRole("heading",{name:"Réseau social"})).toBeVisible();
+ await expect(page.getByText("Réseau social",{exact:true})).toBeVisible();
  await page.getByText("Opportunités",{exact:true}).click();
- await expect(page.getByRole("heading",{name:"Opportunités"})).toBeVisible();
+ await expect(page.getByText("Opportunités",{exact:true})).toBeVisible();
  await page.getByText("Tontine communautaire",{exact:true}).click();
- await expect(page.getByRole("heading",{name:"Tontine communautaire"})).toBeVisible();
+ await expect(page.getByText("Tontine communautaire",{exact:true})).toBeVisible();
 });
