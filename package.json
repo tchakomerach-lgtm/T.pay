@@ -14,7 +14,7 @@
     "test:postgres": "npm run build && node --test dist/tests/postgres-live.integration.test.js",
     "web:build": "npm run build && node scripts/copy-web-assets.mjs",
     "web:dev": "npm run web:build && node scripts/web-server.mjs",
-    "web:check": "npm run typecheck && npm run web:build",
+    "web:check": "npm run typecheck && npm run web:build && npm run web:smoke && npm run web:security",
     "web:smoke": "npm run web:build && node --test dist/tests/web-smoke.test.js",
     "web:security": "npm run build && node --test dist/tests/web-security.test.js"
   },
