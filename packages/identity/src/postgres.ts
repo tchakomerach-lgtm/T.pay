@@ -533,7 +533,7 @@ export async function issueOrganizationPortalCode(
     if(member.rows[0]?.status!=="active") throw new Error("MEMBER_NOT_FOUND");
     await client.query("UPDATE organization_portal_codes SET status='revoked',revoked_at=now() WHERE organization_id=$1 AND user_id=$2 AND status='active'",[input.organizationId,input.userId]);
     const codeId=randomUUID();
-    const code=generateOpaqueToken(12);
+    const code=generateOpaqueToken(32);
     await client.query(
       "INSERT INTO organization_portal_codes(id,organization_id,user_id,code_hash,expires_at) VALUES($1,$2,$3,$4,$5)",
       [codeId,input.organizationId,input.userId,sha256Hex(code),expiresAt]
