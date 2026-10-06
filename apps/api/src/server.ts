@@ -70,6 +70,9 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
       const correlationId=String(req.headers["x-correlation-id"]??randomUUID());
       const method=req.method??"GET";
       const url=new URL(req.url??"/","https://tpay.local");
+      const startedAt=process.hrtime.bigint();
+      res.on("finish",()=>metrics.inc("tpay_http_requests_total",{route:url.pathname,method,status:String(res.statusCode),mode:runtimeMode,channel:nativeClient?"native":"web"}));
+      res.on("finish",()=>metrics.observe("tpay_http_request_duration_seconds",Number(process.hrtime.bigint()-startedAt)/1e9,{route:url.pathname,method,mode:runtimeMode}));
 
       try{
         if(url.pathname==="/v1/health"&&method==="GET"){
