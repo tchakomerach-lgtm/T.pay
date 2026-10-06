@@ -282,3 +282,56 @@ export function assertCsrf(requestOrigin: string | undefined, expectedOrigin: st
     throw new Error("CSRF_TOKEN_REJECTED");
   }
 }
+
+export interface OrganizationMemberRecord {
+  userId:string; displayName:string; loginIdentifier:string; roleId:string; roleName:string; permissions:string[]; status:"active"|"suspended"|"revoked";
+}
+export async function listOrganizationMembers(pool:Pool, organizationId:string, actorUserId:string):Promise<OrganizationMemberRecord[]>{
+  const access=await pool.query(`SELECT 1 FROM organization_memberships WHERE organization_id=$1 AND user_id=$2 AND status='active'`,[organizationId,actorUserId]);
+  if(!access.rowCount)throw new Error("ORGANIZATION_ACCESS_DENIED");
+  const result=await pool.query(`SELECT u.id AS user_id,u.display_name,u.login_identifier,m.role_id,r.name AS role_name,r.permissions,m.status
+    FROM organization_memberships m JOIN users u ON u.id=m.user_id JOIN organization_roles r ON r.id=m.role_id
+    WHERE m.organization_id=$1 ORDER BY u.display_name ASC`,[organizationId]);
+  return result.rows.map(row=>({userId:String(row.user_id),displayName:String(row.display_name),loginIdentifier:String(row.login_identifier),roleId:String(row.role_id),roleName:String(row.role_name),permissions:Array.isArray(row.permissions)?row.permissions.map(String):[],status:String(row.status) as OrganizationMemberRecord["status"]}));
+}
+export async function createOrganizationRole(pool:Pool,input:{organizationId:string;actorUserId:string;name:string;permissions:string[]}):Promise<{roleId:string}>{
+  const name=input.name.trim();
+  if(name.length<2||name.length>100)throw new Error("INVALID_ROLE_NAME");
+  const permissions=[...new Set(input.permissions.map(p=>p.trim()).filter(Boolean))].slice(0,100);
+  return withTx(pool,async client=>{
+    const actor=await client.query(`SELECT r.permissions FROM organization_memberships m JOIN organization_roles r ON r.id=m.role_id WHERE m.organization_id=$1 AND m.user_id=$2 AND m.status='active' FOR SHARE`,[input.organizationId,input.actorUserId]);
+    const allowed=actor.rows[0]?.permissions?.includes("member.manage");
+    if(!allowed)throw new Error("PERMISSION_DENIED");
+    const roleId=randomUUID();
+    await client.query("INSERT INTO organization_roles(id,organization_id,name,permissions) VALUES($1,$2,$3,$4)",[roleId,input.organizationId,name,permissions]);
+    return {roleId};
+  });
+}
+export async function updateOrganizationRole(pool:Pool,input:{organizationId:string;actorUserId:string;roleId:string;name:string;permissions:string[]}):Promise<void>{
+  const name=input.name.trim();
+  if(name.length<2||name.length>100)throw new Error("INVALID_ROLE_NAME");
+  const permissions=[...new Set(input.permissions.map(p=>p.trim()).filter(Boolean))].slice(0,100);
+  const actor=await pool.query(`SELECT r.permissions FROM organization_memberships m JOIN organization_roles r ON r.id=m.role_id WHERE m.organization_id=$1 AND m.user_id=$2 AND m.status='active'`,[input.organizationId,input.actorUserId]);
+  if(!actor.rows[0]?.permissions?.includes("member.manage"))throw new Error("PERMISSION_DENIED");
+  const result=await pool.query("UPDATE organization_roles SET name=$3,permissions=$4 WHERE organization_id=$1 AND id=$2",[input.organizationId,input.roleId,name,permissions]);
+  if(!result.rowCount)throw new Error("ROLE_NOT_FOUND");
+}
+export async function setOrganizationMemberRole(pool:Pool,input:{organizationId:string;actorUserId:string;userId:string;roleId:string}):Promise<void>{
+  return withTx(pool,async client=>{
+    const actor=await client.query(`SELECT r.permissions FROM organization_memberships m JOIN organization_roles r ON r.id=m.role_id WHERE m.organization_id=$1 AND m.user_id=$2 AND m.status='active' FOR SHARE`,[input.organizationId,input.actorUserId]);
+    if(!actor.rows[0]?.permissions?.includes("member.manage"))throw new Error("PERMISSION_DENIED");
+    const role=await client.query("SELECT id FROM organization_roles WHERE organization_id=$1 AND id=$2",[input.organizationId,input.roleId]);
+    if(!role.rowCount)throw new Error("ROLE_NOT_FOUND");
+    const result=await client.query("UPDATE organization_memberships SET role_id=$3 WHERE organization_id=$1 AND user_id=$2 AND status!='revoked'",[input.organizationId,input.userId,input.roleId]);
+    if(!result.rowCount)throw new Error("MEMBER_NOT_FOUND");
+  });
+}
+export async function setOrganizationMemberStatus(pool:Pool,input:{organizationId:string;actorUserId:string;userId:string;status:"active"|"suspended"|"revoked"}):Promise<void>{
+  if(input.userId===input.actorUserId&&input.status!=="active")throw new Error("SELF_LOCKOUT_FORBIDDEN");
+  return withTx(pool,async client=>{
+    const actor=await client.query(`SELECT r.permissions FROM organization_memberships m JOIN organization_roles r ON r.id=m.role_id WHERE m.organization_id=$1 AND m.user_id=$2 AND m.status='active' FOR SHARE`,[input.organizationId,input.actorUserId]);
+    if(!actor.rows[0]?.permissions?.includes("member.manage"))throw new Error("PERMISSION_DENIED");
+    const result=await client.query("UPDATE organization_memberships SET status=$3 WHERE organization_id=$1 AND user_id=$2",[input.organizationId,input.userId,input.status]);
+    if(!result.rowCount)throw new Error("MEMBER_NOT_FOUND");
+  });
+}
