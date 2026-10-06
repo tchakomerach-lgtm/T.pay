@@ -2,6 +2,18 @@
 
 T.Pay est un OS/SaaS modulaire pour particuliers et organisations : réseau social, opportunités, marketplace, wallet, microfinance, éducation, investissement et assistants IA spécialisés.
 
+## Client Universal Web + Mobile — nouvelle fondation scalable
+
+Le dépôt contient désormais `apps/universal`, un client React Native/Expo commun Android, iOS et Web. Il ne remplace pas encore la Web Alpha historique : il constitue la nouvelle trajectoire de rendu destinée à remplacer progressivement le renderer DOM de démonstration.
+
+Le client est conçu comme un **client mince** : aucune logique financière critique, aucun ledger local et aucune décision d'autorisation. Les données et permissions viennent de l'API Gateway. Expo SDK 57 cible React Native 0.86 et React 19.2.3 et fournit une base commune Android/iOS/Web.
+
+L'objectif de migration est :
+
+`DOM Alpha → React Native/Expo Universal → API Gateway → Identity → services métier → PostgreSQL`
+
+Cette séparation permet d'ajouter des instances web, Android et iOS sans dupliquer les règles métier.
+
 ## Web Alpha — première application testable
 
 La Web Alpha fournit désormais une véritable interface navigateur construite à partir du dépôt T.Pay, avec un endpoint HTTP `/v1/health` relié au module Health du core. Elle est volontairement en **mode démonstration** : aucune opération financière réelle et aucun contournement des contrôles serveur.
