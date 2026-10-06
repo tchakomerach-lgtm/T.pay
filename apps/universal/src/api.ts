@@ -14,6 +14,7 @@ import {
 export type Health = { ready:boolean; checks?:Array<{name:string;ok:boolean}> };
 export type AuthResponse = { userId:string; csrfToken:string; expiresAt:string; sessionToken?:string };
 export type Organization = { id:string; name:string; type:string; status:string; roleId:string; roleName:string; membershipStatus:string };
+export type OrganizationDetail = Organization & { founderId:string; createdAt:string; permissions:string[] };
 export type CursorPage<T> = { items:T[]; nextCursor:string|null };
 
 export class TPayApi {
@@ -44,7 +45,7 @@ export class TPayApi {
 
   async login(input:{loginIdentifier:string;password:string}):Promise<AuthResponse>{
     const result=await this.request<AuthResponse>("/v1/auth/login",{method:"POST",body:JSON.stringify(input)});
-    this.setSession(result.sessionToken,result.csrfToken); return result;
+    this.setSession(result.sessionToken,result.csrfToken,result.userId); return result;
   }
 
   async organizations(cursor?:string):Promise<CursorPage<Organization>>{
@@ -55,6 +56,13 @@ export class TPayApi {
     await this.cache.set(key,result,15_000); return result;
   }
 
+  async organization(organizationId:string):Promise<OrganizationDetail>{return this.request<OrganizationDetail>("/v1/organizations/"+encodeURIComponent(organizationId));}
+  async updateOrganization(organizationId:string,input:{name?:string;type?:string;status?:"active"|"suspended"|"closed"}):Promise<OrganizationDetail>{return this.mutate<OrganizationDetail>("/v1/organizations/"+encodeURIComponent(organizationId),"PATCH",input,makeIdempotencyKey(),{financial:false});}
+  async members(organizationId:string):Promise<{items:Array<{userId:string;displayName:string;loginIdentifier:string;roleId:string;roleName:string;permissions:string[];status:string}>;nextCursor:null}>{return this.request("/v1/organizations/"+encodeURIComponent(organizationId)+"/members");}
+  async audit(organizationId:string):Promise<{items:Array<Record<string,unknown>>}>{return this.request("/v1/organizations/"+encodeURIComponent(organizationId)+"/audit");}
+  async invite(organizationId:string,input:{loginIdentifier:string;roleId:string;expiresInHours?:number}):Promise<{invitationId:string;token:string;expiresAt:string}>{return this.mutate("/v1/organizations/"+encodeURIComponent(organizationId)+"/invitations","POST",input,makeIdempotencyKey(),{financial:false});}
+  async issuePortalCode(organizationId:string,userId:string,expiresInHours?:number):Promise<{codeId:string;code:string;expiresAt:string}>{return this.mutate("/v1/organizations/"+encodeURIComponent(organizationId)+"/portal-codes","POST",{userId,expiresInHours},makeIdempotencyKey(),{financial:false});}
+  async openPortalSession(organizationId:string,portalCode:string):Promise<{organizationId:string;expiresAt:string}>{return this.mutate("/v1/organizations/"+encodeURIComponent(organizationId)+"/portal-session","POST",{portalCode},makeIdempotencyKey(),{financial:false});}
   async openOrganizationSession(organizationId:string,accessCode:string):Promise<{organizationId:string;expiresAt:string}>{
     return this.request<{organizationId:string;expiresAt:string}>("/v1/organizations/"+encodeURIComponent(organizationId)+"/session",{method:"POST",body:JSON.stringify({accessCode}),headers:{"idempotency-key":makeIdempotencyKey()}});
   }
