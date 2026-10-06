@@ -135,7 +135,8 @@ function ensureStylesheet(): void {
   document.head.appendChild(link);
 }
 
-ensureStylesheet();
-
-const root = document.getElementById("app");
-if (root) startApp(root);
+if (typeof document !== "undefined") {
+  ensureStylesheet();
+  const root = document.getElementById("app");
+  if (root) startApp(root);
+}
