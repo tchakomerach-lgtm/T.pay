@@ -23,7 +23,7 @@ test("microfinance settlement requires explicit human approval by default", () =
   assert.doesNotThrow(() => assertSettlementMayProceed({
     id, tontineGroupId:id, microfinanceId:id, payoutId:id, beneficiaryClientId:id,
     amountMinor:1000n, currency:"XOF", destinationRef:"client:1",
-    requiresHumanApproval:true, state:"approved", createdAt:"2026-10-05T12:00:00Z"
+    requiresHumanApproval:true, preparedBy:id, approvedBy:"22222222-2222-4222-8222-222222222222" as any, state:"approved", createdAt:"2026-10-05T12:00:00Z"
   }));
   assert.throws(() => assertSettlementMayProceed({
     id, tontineGroupId:id, microfinanceId:id, payoutId:id, beneficiaryClientId:id,
