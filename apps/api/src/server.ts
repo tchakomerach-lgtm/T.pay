@@ -152,7 +152,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           const scopedKey=(userId??"anonymous")+":"+rawKey;
           const requestHash=canonicalRequestHash(method,url.pathname,payload);
           const replay=await requestGovernance.reserveOrReplay({
-            organizationId:authenticatedSession?.organizationId,
+            ...(authenticatedSession?.organizationId ? {organizationId:authenticatedSession.organizationId} : {}),
             key:scopedKey,
             requestHash,
             route:url.pathname,
