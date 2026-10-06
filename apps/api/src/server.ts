@@ -290,7 +290,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           if(!nativeClient)await requireBrowserCsrf(pool,{sessionId:authenticatedSession?.sessionId??""},origin,String(req.headers["x-csrf-token"]??""));
           const input=safeJson(payload) as {loginIdentifier?:string;roleId?:string;expiresInHours?:number}|null;
           if(!input?.loginIdentifier||!input.roleId){json(res,400,buildApiError({message:"INVALID_INVITATION"},correlationId));return;}
-          try{json(res,201,buildApiSuccess("v1",correlationId,await createOrganizationInvitation(pool,{organizationId,actorUserId:userId,loginIdentifier:input.loginIdentifier,roleId:input.roleId,expiresInHours:input.expiresInHours}));}
+          try{json(res,201,buildApiSuccess("v1",correlationId,await createOrganizationInvitation(pool,{organizationId,actorUserId:userId,loginIdentifier:input.loginIdentifier,roleId:input.roleId,expiresInHours:input.expiresInHours})));}
           catch(error){const message=error instanceof Error?error.message:"INVITATION_FAILED";json(res,/PERMISSION_DENIED|MEMBER_ALREADY_ACTIVE/.test(message)?403:400,buildApiError({message},correlationId));}
           return;
         }
@@ -311,7 +311,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           if(!nativeClient)await requireBrowserCsrf(pool,{sessionId:authenticatedSession?.sessionId??""},origin,String(req.headers["x-csrf-token"]??""));
           const input=safeJson(payload) as {userId?:string;expiresInHours?:number}|null;
           if(!input?.userId){json(res,400,buildApiError({message:"INVALID_PORTAL_CODE"},correlationId));return;}
-          try{json(res,201,buildApiSuccess("v1",correlationId,await issueOrganizationPortalCode(pool,{organizationId,actorUserId:userId,userId:input.userId,expiresInHours:input.expiresInHours}));}
+          try{json(res,201,buildApiSuccess("v1",correlationId,await issueOrganizationPortalCode(pool,{organizationId,actorUserId:userId,userId:input.userId,expiresInHours:input.expiresInHours})));}
           catch(error){const message=error instanceof Error?error.message:"PORTAL_CODE_FAILED";json(res,/PERMISSION_DENIED/.test(message)?403:400,buildApiError({message},correlationId));}
           return;
         }
