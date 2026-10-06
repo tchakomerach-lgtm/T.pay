@@ -10,6 +10,7 @@ import {
   type CommunityTontineMfSettlementInstruction
 } from "./community-tontine-management.js";
 import type { CommunityTontineMfAccessRepository, CommunityTontineMfReconciliationRepository } from "./community-tontine-mf-repositories.js";
+import type { CommunityTontineMfSettlementRepository } from "./community-tontine-mf-settlement-repository.js";
 
 export interface CommunityTontineMfPortfolioReader {
   getPortfolio(organizationId: UUID, groupId: UUID, microfinanceId: UUID): Promise<CommunityTontineMfPortfolio>;
@@ -17,7 +18,7 @@ export interface CommunityTontineMfPortfolioReader {
 }
 
 export interface CommunityTontineMfOperations {
-  prepareSettlement(access: CommunityTontineMfAccess, organizationId: UUID, instruction: CommunityTontineMfSettlementInstruction): CommunityTontineMfSettlementInstruction;
+  prepareSettlement(access: CommunityTontineMfAccess, organizationId: UUID, instruction: CommunityTontineMfSettlementInstruction): Promise<CommunityTontineMfSettlementInstruction>;
   listReconciliation(access: CommunityTontineMfAccess, organizationId: UUID, microfinanceId: UUID): Promise<CommunityTontineMfReconciliationItem[]>;
 }
 
@@ -29,7 +30,8 @@ function authorize(access: CommunityTontineMfAccess, capability: CommunityTontin
 export class CommunityTontineMfOperationsService implements CommunityTontineMfOperations {
   constructor(
     private readonly accessRepository: CommunityTontineMfAccessRepository,
-    private readonly reconciliationRepository: CommunityTontineMfReconciliationRepository
+    private readonly reconciliationRepository: CommunityTontineMfReconciliationRepository,
+    private readonly settlementRepository?: CommunityTontineMfSettlementRepository
   ) {}
 
   async listReconciliation(access: CommunityTontineMfAccess, organizationId: UUID, microfinanceId: UUID): Promise<CommunityTontineMfReconciliationItem[]> {
@@ -46,6 +48,6 @@ export class CommunityTontineMfOperationsService implements CommunityTontineMfOp
     if (instruction.state !== "prepared") throw new Error("COMMUNITY_TONTINE_SETTLEMENT_ALREADY_PROCESSED");
     if (instruction.amountMinor <= 0n) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_AMOUNT_INVALID");
     if (!instruction.destinationRef.trim()) throw new Error("COMMUNITY_TONTINE_DESTINATION_REQUIRED");
-    return { ...instruction, state: "prepared" };
+    const prepared = { ...instruction, state: "prepared" as const };\n    if (!this.settlementRepository) return prepared;\n    return this.settlementRepository.savePrepared(organizationId, prepared);
   }
 }
