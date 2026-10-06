@@ -15,7 +15,9 @@ test("signed pagination cursor rejects tampering and scope changes",()=>{
   const body=Buffer.from(parts[0],"base64url");
   const index=body.length-1;
   assert.ok(index>=0);
-  body[index]^=1;
+  const last=body[index];
+  assert.notEqual(last,undefined);
+  body[index]=last^1;
   assert.throws(()=>decodeCursor(body.toString("base64url")+"."+parts[1],secret,"org:user-1"),/INVALID_CURSOR/);
 });
 
