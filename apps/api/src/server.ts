@@ -58,7 +58,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
     let authClass:"anonymous"|"user"="anonymous";
     if(sessionToken&&pool){try{const session=await resolveSession(pool,sessionToken);userId=session.userId;authClass="user";}catch{authClass="anonymous";}}
     const actorSecret=String(req.headers["x-tpay-scope"]??"");
-    const decision=await gate.evaluate({method,route:url.pathname,authClass,channel:"web",origin,correlationId,scopeSecrets:{ip:String(req.socket.remoteAddress??"unknown"),channel:"web",...(authClass==="user"?{actor:userId??actorSecret||"authenticated"}:{})},now:new Date().toISOString(),...(req.headers["idempotency-key"]?{idempotencyKey:String(req.headers["idempotency-key"])}:{}),...(payload?{payloadHash:createHash("sha256").update(payload).digest("hex")}:{})});
+    const decision=await gate.evaluate({method,route:url.pathname,authClass,channel:origin?"web":"mobile",origin,correlationId,scopeSecrets:{ip:String(req.socket.remoteAddress??"unknown"),channel:"web",...(authClass==="user"?{actor:userId??actorSecret||"authenticated"}:{})},now:new Date().toISOString(),...(req.headers["idempotency-key"]?{idempotencyKey:String(req.headers["idempotency-key"])}:{}),...(payload?{payloadHash:createHash("sha256").update(payload).digest("hex")}:{})});
     if(!decision.allowed){json(res,decision.status,buildApiError({message:decision.code},correlationId),decision.retryAfterSeconds?{"retry-after":String(decision.retryAfterSeconds)}:{});return;}
     if(url.pathname==="/v1/auth/register"&&method==="POST"){
       if(!pool){json(res,503,buildApiError({message:"IDENTITY_DATABASE_UNAVAILABLE"},correlationId));return;}
