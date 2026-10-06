@@ -1,3 +1,4 @@
+import { renderErrorPage } from "./error-pages.js";
 export type Screen = "home" | "organizations" | "social" | "opportunities" | "tontine";
 
 export interface NavItem { id: Screen; label: string; icon: string; }
@@ -85,13 +86,14 @@ export function renderScreen(screen: Screen, signedIn: boolean): string {
 }
 
 export function startApp(root: HTMLElement): void {
-  const getScreen = (): Screen => {
+  const getScreen = (): Screen | null => {
     const value = location.hash.slice(1) as Screen;
-    return navigation.some((n) => n.id === value) ? value : "home";
+    return navigation.some((n) => n.id === value) ? value : null;
   };
   const render = () => {
     const signedIn = localStorage.getItem("tpay.demo.session") === "active";
-    root.innerHTML = renderScreen(getScreen(), signedIn);
+    const screen = getScreen();
+    root.innerHTML = screen ? renderScreen(screen, signedIn) : renderErrorPage(404);
     root.querySelectorAll<HTMLElement>("[data-action]").forEach((button) => button.addEventListener("click", () => {
       const action = button.dataset.action;
       if (action === "simulate") {
@@ -113,6 +115,8 @@ export function startApp(root: HTMLElement): void {
     render();
   };
   window.addEventListener("hashchange", render);
+  window.addEventListener("error", () => { root.innerHTML = renderErrorPage(500, "browser-runtime"); });
+  window.addEventListener("unhandledrejection", () => { root.innerHTML = renderErrorPage(500, "unhandled-promise"); });
   showToastOnLoad();
 }
 
