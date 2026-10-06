@@ -6,7 +6,7 @@ import { ApiRuntimeGate } from "../../../packages/api-gateway/src/runtime-gate.j
 import { buildApiError, buildApiSuccess } from "../../../packages/api-gateway/src/api-contract.js";
 import { runHealthProbes } from "../../../packages/api-gateway/src/health.js";
 import pg from "pg";
-import { assertCsrf, loginWithPassword, logout, registerWithPassword, resolveSession, buildSessionCookie } from "../../../packages/identity/src/postgres.js";
+import { assertCsrf, loginWithPassword, logout, registerWithPassword, resolveSession, buildSessionCookie, openOrganizationSession } from "../../../packages/identity/src/postgres.js";
 
 class MemoryRateDb implements RateDb {
   private readonly buckets = new Map<string,{count:number;windowStartedAt:string;max:number;seconds:number}>();
@@ -88,9 +88,15 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
         const cookies=parseCookies(req.headers.cookie);
         const sessionToken=nativeClient&&bearer?bearer:cookies["__Host-tpay_session"];
         let userId:string|undefined;
-        let authClass:"anonymous"|"user"="anonymous";
+        let authClass:"anonymous"|"user"|"member"="anonymous";
+        let authenticatedSession:{sessionId:string;userId:string;organizationId?:string;csrfToken:string;expiresAt:string;assurance:"standard"|"step_up"}|undefined;
         if(sessionToken&&pool){
-          try{const session=await resolveSession(pool,sessionToken);userId=session.userId;authClass="user";}catch{}
+          try{
+            const session=await resolveSession(pool,sessionToken);
+            authenticatedSession=session;
+            userId=session.userId;
+            authClass=session.organizationId?"member":"user";
+          }catch{}
         }
 
         const channel=nativeClient&&!origin?"mobile":"web";
@@ -196,6 +202,20 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           if(!input?.name||!input.type||!input.accessCode){json(res,400,buildApiError({message:"INVALID_ORGANIZATION_INPUT"},correlationId));return;}
           const created=await import("../../../packages/identity/src/postgres.js").then(m=>m.createOrganizationWithFounder(pool,{founderId:userId,name:input.name,type:input.type,accessCode:input.accessCode}));
           json(res,201,buildApiSuccess("v1",correlationId,created));
+          return;
+        }
+
+        if(/^\\/v1\\/organizations\\/[^/]+\\/session$/.test(url.pathname)&&method==="POST"){
+          if(!pool||!sessionToken||!userId){json(res,401,buildApiError({message:"SESSION_INVALID"},correlationId));return;}
+          const organizationId=url.pathname.split("/")[3]!;
+          const input=safeJson(payload) as {accessCode?:string}|null;
+          if(!input?.accessCode){json(res,400,buildApiError({message:"INVALID_ORGANIZATION_ACCESS_CODE"},correlationId));return;}
+          if(!nativeClient){
+            const csrfHeader=String(req.headers["x-csrf-token"]??"");
+            await requireBrowserCsrf(pool,{sessionId:authenticatedSession?.sessionId??""},origin,csrfHeader);
+          }
+          const session=await openOrganizationSession(pool,{sessionToken,organizationId,accessCode:input.accessCode});
+          json(res,200,buildApiSuccess("v1",correlationId,{organizationId,expiresAt:session.expiresAt}));
           return;
         }
 
