@@ -54,7 +54,8 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
   if(!input.tlsKey||!input.tlsCert)throw new Error("TLS_CERTIFICATE_REQUIRED");
   const databaseUrl=input.databaseUrl??process.env.TPAY_DATABASE_URL;
   const pool=databaseUrl?new pg.Pool({connectionString:databaseUrl,max:20}):undefined;
-  const gate=new ApiRuntimeGate(new ApiAbuseRepository(new MemoryRateDb()));
+  const gate=new ApiRuntimeGate(pool?new ApiAbuseRepository(pool):new ApiAbuseRepository(new MemoryRateDb()));
+  if(!pool && process.env.NODE_ENV==="production")throw new Error("RATE_LIMIT_DATABASE_REQUIRED");
 
   const server=createHttpsServer(
     {key:readFileSync(input.tlsKey),cert:readFileSync(input.tlsCert),minVersion:"TLSv1.3"},
@@ -158,17 +159,33 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
 
         if(url.pathname==="/v1/organizations"&&method==="GET"){
           if(!pool||!sessionToken||!userId){json(res,401,buildApiError({message:"SESSION_INVALID"},correlationId));return;}
+          const rawCursor=url.searchParams.get("cursor");
+          let cursorCreatedAt:string|undefined;
+          let cursorId:string|undefined;
+          if(rawCursor){
+            try{
+              const decoded=JSON.parse(Buffer.from(rawCursor,"base64url").toString("utf8")) as {createdAt?:string;id?:string};
+              if(!decoded.createdAt||!decoded.id)throw new Error("INVALID_CURSOR");
+              cursorCreatedAt=decoded.createdAt; cursorId=decoded.id;
+            }catch{json(res,400,buildApiError({message:"INVALID_CURSOR"},correlationId));return;}
+          }
+          const limit=Math.min(50,Math.max(1,Number(url.searchParams.get("limit")??"25")||25));
           const result=await pool.query(
-            `SELECT o.id,o.name,o.type,o.status,m.role_id,r.name AS role_name,m.status AS membership_status
+            `SELECT o.id,o.name,o.type,o.status,o.created_at,m.role_id,r.name AS role_name,m.status AS membership_status
                FROM organization_memberships m
                JOIN organizations o ON o.id=m.organization_id
                JOIN organization_roles r ON r.id=m.role_id
               WHERE m.user_id=$1 AND m.status='active' AND o.status='active'
-              ORDER BY o.created_at DESC`,[userId]);
-          json(res,200,buildApiSuccess("v1",correlationId,{items:result.rows.map(row=>({
+                AND ($2::timestamptz IS NULL OR (o.created_at,o.id)<($2::timestamptz,$3::uuid))
+              ORDER BY o.created_at DESC,o.id DESC LIMIT $4`,
+            [userId,cursorCreatedAt??null,cursorId??null,limit]);
+          const items=result.rows.map(row=>({
             id:String(row.id),name:String(row.name),type:String(row.type),status:String(row.status),
             roleId:String(row.role_id),roleName:String(row.role_name),membershipStatus:String(row.membership_status)
-          })),nextCursor:null}));
+          }));
+          const last=result.rows.at(-1);
+          const nextCursor=result.rows.length===limit&&last?Buffer.from(JSON.stringify({createdAt:new Date(String(last.created_at)).toISOString(),id:String(last.id)})).toString("base64url"):null;
+          json(res,200,buildApiSuccess("v1",correlationId,{items,nextCursor}));
           return;
         }
 
@@ -179,6 +196,15 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           if(!input?.name||!input.type||!input.accessCode){json(res,400,buildApiError({message:"INVALID_ORGANIZATION_INPUT"},correlationId));return;}
           const created=await import("../../../packages/identity/src/postgres.js").then(m=>m.createOrganizationWithFounder(pool,{founderId:userId,name:input.name,type:input.type,accessCode:input.accessCode}));
           json(res,201,buildApiSuccess("v1",correlationId,created));
+          return;
+        }
+
+        if(url.pathname==="/v1/client/telemetry"&&method==="POST"){
+          if(!pool||!sessionToken||!userId){json(res,401,buildApiError({message:"SESSION_INVALID"},correlationId));return;}
+          const input=safeJson(payload) as {events?:unknown[]}|null;
+          if(!input||!Array.isArray(input.events)||input.events.length>50){json(res,400,buildApiError({message:"INVALID_TELEMETRY_BATCH"},correlationId));return;}
+          console.info(JSON.stringify({event:"tpay.client.telemetry",correlationId,userId,count:input.events.length,events:input.events}));
+          json(res,202,buildApiSuccess("v1",correlationId,{accepted:input.events.length}));
           return;
         }
 
