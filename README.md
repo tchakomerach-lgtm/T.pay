@@ -63,3 +63,9 @@ npm install
 npm run check
 
 Les exigences réglementaires applicables au Togo/UMOA et à chaque marché cible doivent être vérifiées avant toute mise en production financière.
+
+### Sécurité Web Alpha
+
+La configuration de production exige des certificats TLS et refuse de démarrer sans eux. Le serveur utilise TLS 1.3 lorsqu'il est configuré en HTTPS. Les réponses appliquent notamment HSTS, CSP, nosniff, Referrer-Policy, Permissions-Policy, COOP et CORP. Ces contrôles suivent les recommandations OWASP actuelles sur TLS, HSTS, sessions et CSP.
+
+En développement local, HTTP peut rester disponible uniquement pour faciliter le premier test. Il ne doit jamais être utilisé pour une session ou des données réelles. En production, le certificat TLS est obligatoire et HTTP ne doit pas devenir un canal applicatif.
