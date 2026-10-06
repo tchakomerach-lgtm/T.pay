@@ -17,9 +17,19 @@
     "web:dev:https": "TPAY_WEB_SERVER_TEST=0 npm run web:build && node scripts/web-server.mjs",
     "web:check": "npm run typecheck && npm run web:build && npm run web:smoke && npm run web:security",
     "web:smoke": "npm run web:build && node --test dist/tests/web-smoke.test.js",
-    "web:security": "npm run build && node --test dist/tests/web-security.test.js"
+    "web:security": "npm run build && node --test dist/tests/web-security.test.js",
+    "api:security": "npm run build && node --test dist/tests/api-server.test.js",
+    "api:check": "npm run api:security"
   },
-  "engines": {"node": ">=22"},
-  "devDependencies": {"@types/node": "^22.15.0","typescript": "^5.8.3","@types/pg": "^8.15.5"},
-  "dependencies": {"pg": "^8.16.3"}
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.3",
+    "@types/pg": "^8.15.5"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
+  }
 }
