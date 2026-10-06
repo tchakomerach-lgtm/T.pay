@@ -20,7 +20,8 @@
     "web:security": "npm run build && node --test dist/tests/web-security.test.js",
     "api:security": "npm run build && node --test dist/tests/api-server.test.js",
     "api:check": "npm run api:security",
-    "e2e:web": "playwright test"
+    "e2e:web": "playwright test",
+    "universal:web:build": "npm --prefix apps/universal run build:web"
   },
   "engines": {
     "node": ">=22"
