@@ -1,13 +1,9 @@
 import type { UUID } from "../../domain/src/types.js";
 
 export type CommunityTontineMfRole =
-  | "portfolio_manager"
-  | "kyc_officer"
-  | "collection_supervisor"
-  | "settlement_officer"
-  | "reconciliation_officer"
-  | "risk_officer"
-  | "branch_manager";
+  | "portfolio_manager" | "kyc_officer" | "collection_supervisor"
+  | "settlement_officer" | "settlement_supervisor" | "reconciliation_officer"
+  | "risk_officer" | "branch_manager";
 
 export type CommunityTontineMfStatus = "invited" | "active" | "suspended" | "revoked";
 export type CommunityTontineMfCapability =
@@ -19,9 +15,10 @@ const ROLE_CAPABILITIES: Record<CommunityTontineMfRole, readonly CommunityTontin
   kyc_officer: ["portfolio.read", "member.read", "kyc.review"],
   collection_supervisor: ["portfolio.read", "member.read", "collection.manage"],
   settlement_officer: ["portfolio.read", "member.read", "payout.prepare"],
+  settlement_supervisor: ["portfolio.read", "member.read", "payout.approve", "risk.review"],
   reconciliation_officer: ["portfolio.read", "reconciliation.manage"],
   risk_officer: ["portfolio.read", "member.read", "risk.review"],
-  branch_manager: ["portfolio.read", "member.read", "collection.manage", "kyc.review", "payout.prepare", "reconciliation.manage", "risk.review"]
+  branch_manager: ["portfolio.read", "member.read", "collection.manage", "kyc.review", "payout.prepare", "payout.approve", "reconciliation.manage", "risk.review"]
 };
 
 export interface CommunityTontineMfAccess {
@@ -45,7 +42,7 @@ export interface CommunityTontineMfMemberView {
 export interface CommunityTontineMfSettlementInstruction {
   id: UUID; tontineGroupId: UUID; microfinanceId: UUID; payoutId: UUID; beneficiaryClientId: UUID;
   amountMinor: bigint; currency: string; destinationRef: string; requiresHumanApproval: boolean;
-  state: "prepared" | "approved" | "submitted" | "provider_pending" | "settled" | "exception"; createdAt: string;
+  preparedBy?: UUID; approvedBy?: UUID; state: "prepared" | "approved" | "submitted" | "provider_pending" | "settled" | "exception"; createdAt: string;
 }
 export interface CommunityTontineMfReconciliationItem {
   id: UUID; tontineGroupId: UUID; microfinanceId: UUID; externalReference: string;
@@ -81,6 +78,7 @@ export function assertSettlementMayProceed(instruction: CommunityTontineMfSettle
   if (instruction.state !== "approved") throw new Error("COMMUNITY_TONTINE_SETTLEMENT_NOT_APPROVED");
   if (policy.humanApprovalRequired && !instruction.requiresHumanApproval) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_HUMAN_APPROVAL_REQUIRED");
   if (!instruction.requiresHumanApproval && !canAutomateSettlement(policy, instruction.amountMinor)) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_AUTOMATION_NOT_ALLOWED");
+  if (!instruction.preparedBy || !instruction.approvedBy || instruction.preparedBy === instruction.approvedBy) throw new Error("COMMUNITY_TONTINE_MAKER_CHECKER_REQUIRED");
 }
 export function assertReconciliationRequired(expectedMinor: bigint, observedMinor: bigint): void {
   if (expectedMinor !== observedMinor) throw new Error("COMMUNITY_TONTINE_RECONCILIATION_REQUIRED");
