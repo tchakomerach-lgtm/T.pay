@@ -60,6 +60,33 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
     const actorSecret=String(req.headers["x-tpay-scope"]??"");
     const decision=await gate.evaluate({method,route:url.pathname,authClass,channel:"web",origin,correlationId,scopeSecrets:{ip:String(req.socket.remoteAddress??"unknown"),channel:"web",...(authClass==="user"?{actor:userId??actorSecret||"authenticated"}:{})},now:new Date().toISOString(),...(req.headers["idempotency-key"]?{idempotencyKey:String(req.headers["idempotency-key"])}:{}),...(payload?{payloadHash:createHash("sha256").update(payload).digest("hex")}:{})});
     if(!decision.allowed){json(res,decision.status,buildApiError({message:decision.code},correlationId),decision.retryAfterSeconds?{"retry-after":String(decision.retryAfterSeconds)}:{});return;}
+    if(url.pathname==="/v1/auth/register"&&method==="POST"){
+      if(!pool){json(res,503,buildApiError({message:"IDENTITY_DATABASE_UNAVAILABLE"},correlationId));return;}
+      const input=JSON.parse(payload) as {loginIdentifier:string;displayName:string;password:string};
+      const result=await registerWithPassword(pool,input);
+      json(res,201,buildApiSuccess("v1",correlationId,{userId:result.userId,csrfToken:result.session.csrfToken,expiresAt:result.session.expiresAt}),{"set-cookie":buildSessionCookie(result.sessionToken,3600)});
+      return;
+    }
+    if(url.pathname==="/v1/auth/login"&&method==="POST"){
+      if(!pool){json(res,503,buildApiError({message:"IDENTITY_DATABASE_UNAVAILABLE"},correlationId));return;}
+      const input=JSON.parse(payload) as {loginIdentifier:string;password:string};
+      const result=await loginWithPassword(pool,input);
+      json(res,200,buildApiSuccess("v1",correlationId,{userId:result.userId,csrfToken:result.session.csrfToken,expiresAt:result.session.expiresAt}),{"set-cookie":buildSessionCookie(result.sessionToken,3600)});
+      return;
+    }
+    if(url.pathname==="/v1/auth/me"&&method==="GET"){
+      if(!pool||!sessionToken)throw new Error("SESSION_INVALID");
+      const session=await resolveSession(pool,sessionToken);
+      const result=await pool.query("SELECT id,display_name FROM users WHERE id=$1 AND status='active'",[session.userId]);
+      if(!result.rowCount)throw new Error("SESSION_INVALID");
+      json(res,200,buildApiSuccess("v1",correlationId,{userId:String(result.rows[0].id),displayName:String(result.rows[0].display_name)}));
+      return;
+    }
+    if(url.pathname==="/v1/auth/logout"&&method==="POST"){
+      if(pool&&sessionToken)await logout(pool,sessionToken);
+      json(res,200,buildApiSuccess("v1",correlationId,{loggedOut:true}),{"set-cookie":"__Host-tpay_session=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=Strict"});
+      return;
+    }
     if(url.pathname==="/v1/profile"&&method==="GET"){
       json(res,200,buildApiSuccess("v1",correlationId,{status:"sandbox",message:"Identity persistence is not enabled in Web Alpha."}),{"strict-transport-security":"max-age=63072000; includeSubDomains"});
       return;
