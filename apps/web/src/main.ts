@@ -116,6 +116,18 @@ export function startApp(root: HTMLElement): void {
   showToastOnLoad();
 }
 
+async function refreshHealth(root: HTMLElement): Promise<void> {
+  const status = root.querySelector<HTMLElement>(".status-dot");
+  if (!status) return;
+  try {
+    const response = await fetch("/v1/health", { headers: { "accept": "application/json" } });
+    const data = await response.json() as { ready?: boolean };
+    status.textContent = data.ready ? "● Core connecté · Sandbox" : "● Core dégradé";
+  } catch {
+    status.textContent = "● Serveur indisponible";
+  }
+}
+
 function showToast(root: HTMLElement, message: string): void {
   const toast = root.querySelector<HTMLElement>("#toast");
   if (!toast) return;
@@ -138,5 +150,5 @@ function ensureStylesheet(): void {
 if (typeof document !== "undefined") {
   ensureStylesheet();
   const root = document.getElementById("app");
-  if (root) startApp(root);
+  if (root) { startApp(root); void refreshHealth(root); }
 }
