@@ -122,7 +122,7 @@ test("concurrent idempotency reservation yields one owner",async()=>{
       return {rows:[],rowCount:0};
     }
     if(sql.includes("SELECT id,request_hash,route,state,response_hash,response_body,status_code")){
-      return {rows:[{id:owner,request_hash:values[1],route:"/v1/test",state:"reserved"}],rowCount:1};
+      return {rows:[{id:owner,request_hash:"a".repeat(64),route:"/v1/test",state:"reserved"}],rowCount:1};
     }
     throw new Error("unexpected query");
   }};
