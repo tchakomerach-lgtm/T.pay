@@ -1,6 +1,6 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
-import { generateOpaqueToken, hashPassword, hashSecret, normalizeLoginIdentifier, sha256Hex, verifyPassword } from "./crypto.js";
+import { generateOpaqueToken, hashPassword, hashSecret, normalizeLoginIdentifier, sha256Hex, verifyPassword, verifySecret } from "./crypto.js";
 
 export interface AuthenticatedSession {
   sessionId: string;
@@ -186,6 +186,69 @@ export async function createOrganizationWithFounder(
   });
 }
 
+export async function openOrganizationSession(
+  pool: Pool,
+  input: { sessionToken: string; organizationId: string; accessCode: string },
+  config: { lockoutAfterFailures?: number; lockoutMs?: number } = {}
+): Promise<AuthenticatedSession> {
+  const threshold = config.lockoutAfterFailures ?? 5;
+  const lockoutMs = config.lockoutMs ?? 15 * 60 * 1000;
+  return withTx(pool, async client => {
+    const sessionResult = await client.query(
+      `SELECT id,user_id,organization_id,csrf_hash,expires_at,assurance
+         FROM identity_sessions
+        WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at > now()
+        FOR UPDATE`,
+      [sha256Hex(input.sessionToken)]
+    );
+    const session = sessionResult.rows[0];
+    if (!session) throw new Error("SESSION_INVALID");
+
+    const membership = await client.query(
+      `SELECT m.status
+         FROM organization_memberships m
+        WHERE m.organization_id=$1 AND m.user_id=$2
+        FOR SHARE`,
+      [input.organizationId, session.user_id]
+    );
+    if (!membership.rows[0] || membership.rows[0].status !== "active") {
+      throw new Error("ORGANIZATION_ACCESS_DENIED");
+    }
+
+    const organization = await client.query(
+      `SELECT access_code_hash,failed_access_attempts,access_locked_until,status
+         FROM organizations
+        WHERE id=$1
+        FOR UPDATE`,
+      [input.organizationId]
+    );
+    const row = organization.rows[0];
+    if (!row || row.status !== "active" || (row.access_locked_until && new Date(row.access_locked_until).getTime() > Date.now())) {
+      throw new Error("ORGANIZATION_ACCESS_DENIED");
+    }
+
+    if (!(await verifySecret(input.accessCode, row.access_code_hash))) {
+      const failures = row.failed_access_attempts + 1;
+      const locked = failures >= threshold ? new Date(Date.now() + lockoutMs) : null;
+      await client.query(
+        "UPDATE organizations SET failed_access_attempts=$2,access_locked_until=$3 WHERE id=$1",
+        [input.organizationId, failures, locked]
+      );
+      throw new Error("ORGANIZATION_ACCESS_DENIED");
+    }
+
+    await client.query(
+      "UPDATE organizations SET failed_access_attempts=0,access_locked_until=NULL WHERE id=$1",
+      [input.organizationId]
+    );
+    await client.query(
+      "UPDATE identity_sessions SET organization_id=$2 WHERE id=$1",
+      [session.id, input.organizationId]
+    );
+    return sessionResult({ ...session, organization_id: input.organizationId }, "");
+  });
+}
+
 export function buildSessionCookie(token: string, maxAgeSeconds: number): string {
   if (!token) throw new Error("SESSION_TOKEN_REQUIRED");
   return `__Host-tpay_session=${token}; Max-Age=${Math.max(1,Math.floor(maxAgeSeconds))}; Path=/; Secure; HttpOnly; SameSite=Strict`;
@@ -198,7 +261,7 @@ export function buildCsrfCookie(token: string, maxAgeSeconds: number): string {
 
 export function assertCsrf(requestOrigin: string | undefined, expectedOrigin: string, csrfCookie: string | undefined, csrfHeader: string | undefined): void {
   if (!requestOrigin || requestOrigin !== expectedOrigin) throw new Error("CSRF_ORIGIN_REJECTED");
-  if (!csrfCookie || !csrfHeader || csrfCookie.length < 32 || csrfHeader.length < 32 || !timingSafeEqual(Buffer.from(csrfCookie),Buffer.from(csrfHeader))) {
+  if (!csrfCookie || !csrfHeader || csrfCookie.length < 32 || csrfHeader.length < 32 || csrfCookie.length !== csrfHeader.length || !timingSafeEqual(Buffer.from(csrfCookie),Buffer.from(csrfHeader))) {
     throw new Error("CSRF_TOKEN_REJECTED");
   }
 }
