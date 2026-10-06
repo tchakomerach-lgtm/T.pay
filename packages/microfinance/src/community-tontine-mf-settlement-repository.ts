@@ -49,6 +49,7 @@ export class PostgresCommunityTontineMfSettlementRepository implements Community
          version=community_tontine_mf_settlement_instructions.version+1,
          last_modified_at=now()
        WHERE community_tontine_mf_settlement_instructions.organization_id=$2
+         AND community_tontine_mf_settlement_instructions.state='prepared'
        RETURNING *`,
       [instruction.id,organizationId,instruction.tontineGroupId,instruction.microfinanceId,instruction.payoutId,
        instruction.beneficiaryClientId,instruction.amountMinor.toString(),instruction.currency,instruction.destinationRef,
