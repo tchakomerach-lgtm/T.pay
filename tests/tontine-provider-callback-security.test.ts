@@ -20,6 +20,9 @@ test("community tontine rejects same provider event replay with substituted payl
         if (!receipt) return { rows: [] as Row[], rowCount: 0 };
         return { rows: [{ provider_event_id: "evt-1", payout_id: receipt.payoutId, payload_sha256: receipt.hash, state: "processed" }] as Row[], rowCount: 1 };
       }
+      if (sql.includes("SELECT payout_id,organization_id,state,idempotency_key")) {
+        return { rows: [{ payout_id: id, organization_id: id, state: "initiated", idempotency_key: "payout-1" }] as Row[], rowCount: 1 };
+      }
       if (sql.includes("INSERT INTO tontine_provider_callback_receipts")) {
         receipt = { hash: String(values?.[4]), payoutId: values?.[6] as UUID };
         return { rows: [], rowCount: 1 };
