@@ -9,14 +9,14 @@ const repos = {
   reconciliationRepository: { listOpen: async () => [], save: async () => undefined }
 };
 
-test("settlement preparation is scoped to the partner microfinance and tontine", () => {
+test("settlement preparation is scoped to the partner microfinance and tontine", async () => {
   const service = new CommunityTontineMfOperationsService(repos.accessRepository, repos.reconciliationRepository);
   const instruction = {
     id, tontineGroupId:id, microfinanceId:id, payoutId:id, beneficiaryClientId:id,
     amountMinor:1000n, currency:"XOF", destinationRef:"mf:c1",
     requiresHumanApproval:true, state:"prepared" as const, createdAt:"2026-10-05T12:00:00Z"
   };
-  assert.equal(service.prepareSettlement(access,id,instruction).state,"prepared");
+  assert.equal((await service.prepareSettlement(access,id,instruction)).state,"prepared");
   assert.throws(() => service.prepareSettlement(
     {...access, microfinanceId:"22222222-2222-4222-8222-222222222222" as any},
     id,instruction
