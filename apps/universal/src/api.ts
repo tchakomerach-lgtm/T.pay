@@ -54,7 +54,7 @@ export class TPayApi {
     await this.cache.set(key,result,15_000); return result;
   }
 
-  async createOrganization(input:{name:string;type:string;accessCode:string}):Promise<{organizationId:string;roleId:string}>{
+  async openOrganizationSession(organizationId:string,accessCode:string):Promise<{organizationId:string;expiresAt:string}>{\n    return this.request<{organizationId:string;expiresAt:string}>("/v1/organizations/"+encodeURIComponent(organizationId)+"/session",{method:"POST",body:JSON.stringify({accessCode}),headers:{"idempotency-key":makeIdempotencyKey()}});\n  }\n\n  async createOrganization(input:{name:string;type:string;accessCode:string}):Promise<{organizationId:string;roleId:string}>{
     return this.mutate<{organizationId:string;roleId:string}>("/v1/organizations","POST",input,makeIdempotencyKey(),{financial:false});
   }
 
