@@ -2,6 +2,46 @@
 
 T.Pay est un OS/SaaS modulaire pour particuliers et organisations : réseau social, opportunités, marketplace, wallet, microfinance, éducation, investissement et assistants IA spécialisés.
 
+## Web Alpha — première application testable
+
+La Web Alpha fournit désormais une véritable interface navigateur construite à partir du dépôt T.Pay. Elle est volontairement en **mode démonstration** : aucune opération financière réelle et aucun contournement des contrôles serveur.
+
+### Prérequis
+- Node.js 22+
+- npm 11+
+- Git
+
+### Lancement pour débutant
+
+```bash
+npm install
+npm run web:dev
+```
+
+Puis ouvrir **http://localhost:4173** dans Chrome.
+
+Pour arrêter le serveur : `Ctrl+C`.
+
+### Parcours de test
+1. Accueil : vérifier les métriques et le flux.
+2. Organisations : créer une organisation de démonstration.
+3. Réseau social : vérifier la navigation.
+4. Opportunités : vérifier la navigation.
+5. Tontine communautaire : vérifier qu'elle reste distincte de la tontine journalière intégrée aux microfinances.
+6. Recharger la page : les données de démonstration conservées dans le navigateur doivent rester disponibles.
+7. Tester sur Android : lancer le serveur sur l'ordinateur et ouvrir son adresse réseau locale depuis le téléphone connecté au même Wi-Fi.
+
+### Vérifications automatisées
+
+```bash
+npm run check
+npm run web:smoke
+npm run web:check
+```
+
+La Web Alpha ne constitue pas encore une mise en production. Le prochain raccordement doit connecter l'identité, l'API Gateway, PostgreSQL et les vrais services métier derrière des contrats serveur testés.
+
+
 ## Fondation implémentée
 - Monorepo TypeScript strict et CI.
 - Domaines organisations, rôles et sessions organisationnelles.
