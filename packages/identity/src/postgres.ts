@@ -297,7 +297,7 @@ export async function listOrganizationMembers(pool:Pool, organizationId:string, 
 export async function createOrganizationRole(pool:Pool,input:{organizationId:string;actorUserId:string;name:string;permissions:string[]}):Promise<{roleId:string}>{
   const name=input.name.trim();
   if(name.length<2||name.length>100)throw new Error("INVALID_ROLE_NAME");
-  const permissions=[...new Set(input.permissions.map(p=>p.trim()).filter(Boolean))].slice(0,100);
+  const permissions=normalizePermissions(input.permissions);
   return withTx(pool,async client=>{
     const actor=await client.query(`SELECT r.permissions FROM organization_memberships m JOIN organization_roles r ON r.id=m.role_id WHERE m.organization_id=$1 AND m.user_id=$2 AND m.status='active' FOR SHARE`,[input.organizationId,input.actorUserId]);
     const allowed=actor.rows[0]?.permissions?.includes("member.manage");
