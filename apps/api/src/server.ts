@@ -58,11 +58,12 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
 
       try{
         if(url.pathname==="/v1/health"&&method==="GET"){
-          const report=await runHealthProbes([
+          const probes=[
             {name:"api-server",check:async()=>true},
             {name:"api-runtime-gate",check:async()=>true},
-            {name:"postgres",check:async()=>{if(!pool)return false;await pool.query("SELECT 1");return true;}}
-          ]);
+            ...(pool?[{name:"postgres",check:async()=>{await pool.query("SELECT 1");return true;}}]:[])
+          ];
+          const report=await runHealthProbes(probes);
           json(res,report.ready?200:503,buildApiSuccess("v1",correlationId,report),{"strict-transport-security":"max-age=63072000; includeSubDomains"});
           return;
         }
