@@ -49,7 +49,7 @@ async function requireBrowserCsrf(pool:pg.Pool,session:{sessionId:string},origin
   const stored=await pool.query("SELECT csrf_hash FROM identity_sessions WHERE id=$1 AND revoked_at IS NULL",[session.sessionId]);
   assertCsrf(origin,expected,header,stored.rows[0]?.csrf_hash as string|undefined);
 }
-function safeJson(payload:string):Record<string,unknown>|null{
+function cursorSecret():string{\n  const value=process.env.TPAY_CURSOR_SECRET;\n  if(value) return value;\n  if(process.env.NODE_ENV==="production") throw new Error("CURSOR_SECRET_REQUIRED");\n  return "tpay-development-cursor-secret-012345678901234567";\n}\nfunction safeJson(payload:string):Record<string,unknown>|null{
   try{const value=JSON.parse(payload);return value&&typeof value==="object"?value:null;}catch{return null;}
 }
 
