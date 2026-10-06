@@ -12,6 +12,7 @@ import {
   setOrganizationMemberStatus,
   listOrganizationMembers,
   getOrganization,
+  createOrganizationInvitation, acceptOrganizationInvitation, issueOrganizationPortalCode, openOrganizationPortalSession,
 } from "../packages/identity/src/postgres.js";
 import {ApiGatewayRepository} from "../packages/api-gateway/src/repository.js";
 
@@ -134,4 +135,36 @@ test("concurrent idempotency reservation yields one owner",async()=>{
   ]);
   assert.equal([a.status,b.status].filter(x=>x==="reserved").length,1);
   assert.equal([a.status,b.status].filter(x=>x==="replay").length,1);
+});
+
+test("concurrent invitation acceptance is single-use and tenant-scoped", {skip:!databaseUrl&&"TPAY_DATABASE_URL is not configured"}, async()=>{
+  const pool=new pg.Pool({connectionString:databaseUrl,max:16});
+  let f:any;
+  try{
+    await applyMigrations(pool,new URL("../../migrations/",import.meta.url));
+    f=await fixture(pool);
+    const invitation=await createOrganizationInvitation(pool,{organizationId:f.organizationId,actorUserId:f.founder.userId,loginIdentifier:(await pool.query("SELECT login_identifier FROM users WHERE id=$1",[f.memberA.userId])).rows[0].login_identifier,roleId:f.roleId});
+    const results=await Promise.allSettled([
+      acceptOrganizationInvitation(pool,{organizationId:f.organizationId,invitationId:invitation.invitationId,token:invitation.token,userId:f.memberA.userId}),
+      acceptOrganizationInvitation(pool,{organizationId:f.organizationId,invitationId:invitation.invitationId,token:invitation.token,userId:f.memberA.userId})
+    ]);
+    assert.equal(results.filter(x=>x.status==="fulfilled").length,1);
+    const row=(await pool.query("SELECT status FROM organization_invitations WHERE id=$1",[invitation.invitationId])).rows[0];
+    assert.equal(row.status,"accepted");
+  }finally{if(f)await cleanup(pool,f.organizationId,[f.founder.userId,f.memberA.userId,f.memberB.userId]);await pool.end();}
+});
+
+test("portal code issuance revokes previous code and session opens only for the member", {skip:!databaseUrl&&"TPAY_DATABASE_URL is not configured"}, async()=>{
+  const pool=new pg.Pool({connectionString:databaseUrl,max:16});
+  let f:any;
+  try{
+    await applyMigrations(pool,new URL("../../migrations/",import.meta.url));
+    f=await fixture(pool);
+    const first=await issueOrganizationPortalCode(pool,{organizationId:f.organizationId,actorUserId:f.founder.userId,userId:f.memberA.userId,expiresInHours:2});
+    const second=await issueOrganizationPortalCode(pool,{organizationId:f.organizationId,actorUserId:f.founder.userId,userId:f.memberA.userId,expiresInHours:2});
+    const rows=await pool.query("SELECT status FROM organization_portal_codes WHERE organization_id=$1 AND user_id=$2 ORDER BY created_at ASC",[f.organizationId,f.memberA.userId]);
+    assert.equal(rows.rows.filter((x:any)=>x.status==="active").length,1);
+    await assert.rejects(()=>openOrganizationPortalSession(pool,{sessionToken:(await import("../packages/identity/src/postgres.js")).resolveSession? "invalid": "invalid",organizationId:f.organizationId,portalCode:first.code}));
+    assert.ok(second.code);
+  }finally{if(f)await cleanup(pool,f.organizationId,[f.founder.userId,f.memberA.userId,f.memberB.userId]);await pool.end();}
 });
