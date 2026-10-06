@@ -1,4 +1,4 @@
-import { escapeHtml } from "./safe-html.js";
+function escapeHtml(value:string):string { return value.replace(/[&<>"']/g,(x)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[x]??x)); }
 
 export function renderErrorPage(status:404|500, correlationId="local"):string {
   const title=status===404?"Page introuvable":"Une erreur est survenue";
