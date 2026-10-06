@@ -267,9 +267,14 @@ export function buildSessionCookie(token: string, maxAgeSeconds: number): string
   return `__Host-tpay_session=${token}; Max-Age=${Math.max(1,Math.floor(maxAgeSeconds))}; Path=/; Secure; HttpOnly; SameSite=Strict`;
 }
 
-export function assertCsrf(requestOrigin: string | undefined, expectedOrigin: string, csrfCookie: string | undefined, csrfHeader: string | undefined): void {
+export function assertCsrf(requestOrigin: string | undefined, expectedOrigin: string, csrfHeader: string | undefined, storedCsrfHash: string | undefined): void {
   if (!requestOrigin || requestOrigin !== expectedOrigin) throw new Error("CSRF_ORIGIN_REJECTED");
-  if (!csrfCookie || !csrfHeader || csrfCookie.length < 32 || csrfHeader.length < 32 || csrfCookie.length !== csrfHeader.length || !timingSafeEqual(Buffer.from(csrfCookie),Buffer.from(csrfHeader))) {
+  if (!csrfHeader || !storedCsrfHash || csrfHeader.length < 32 || !/^[a-f0-9]{64}$/.test(storedCsrfHash)) {
+    throw new Error("CSRF_TOKEN_REJECTED");
+  }
+  const presentedHash = Buffer.from(sha256Hex(csrfHeader), "utf8");
+  const expectedHash = Buffer.from(storedCsrfHash, "utf8");
+  if (presentedHash.length !== expectedHash.length || !timingSafeEqual(presentedHash, expectedHash)) {
     throw new Error("CSRF_TOKEN_REJECTED");
   }
 }
