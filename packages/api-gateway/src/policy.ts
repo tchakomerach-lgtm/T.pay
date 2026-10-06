@@ -8,6 +8,7 @@ export const API_ROUTE_POLICIES:readonly ApiRoutePolicy[]=[
  {route:"/v1/profile",methods:["GET","PATCH"],auth:"user",financial:false},
  {route:"/v1/organizations",methods:["GET","POST"],auth:"user",financial:false},
  {route:"/v1/organizations/:organizationId",methods:["GET","PATCH"],auth:"member",financial:false},
+ {route:"/v1/organizations/:organizationId/audit",methods:["GET"],auth:"member",financial:false},
  {route:"/v1/organizations/:organizationId/session",methods:["POST"],auth:"user",financial:false},
  {route:"/v1/organizations/:organizationId/members",methods:["GET"],auth:"member",financial:false},
  {route:"/v1/organizations/:organizationId/roles",methods:["POST"],auth:"member",financial:false},
