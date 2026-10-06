@@ -24,6 +24,7 @@ export interface IdentityConfig {
 }
 
 const defaults = { sessionTtlMs: 8 * 60 * 60 * 1000, lockoutAfterFailures: 5, lockoutMs: 15 * 60 * 1000 };
+const dummyPasswordHash = hashPassword("tpay-dummy-password-timing-v1");
 
 async function withTx<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
@@ -110,7 +111,10 @@ export async function loginWithPassword(
         FOR UPDATE`, [login]
     );
     const row = result.rows[0];
-    if (!row || row.status !== "active" || row.credential_status !== "active" || (row.locked_until && new Date(row.locked_until).getTime() > Date.now())) {
+    const usable = !!row && row.status === "active" && row.credential_status === "active" &&
+      !(row.locked_until && new Date(row.locked_until).getTime() > Date.now());
+    if (!usable) {
+      await verifyPassword(input.password, await dummyPasswordHash);
       throw new Error("AUTHENTICATION_FAILED");
     }
     const valid = await verifyPassword(input.password,row.secret_hash);
