@@ -11,9 +11,12 @@ test("signed pagination cursor rejects tampering and scope changes",()=>{
   assert.deepEqual(decodeCursor(cursor,secret,"org:user-1").id,"00000000-0000-0000-0000-000000000001");
   assert.throws(()=>decodeCursor(cursor,secret,"org:user-2"),/INVALID_CURSOR/);
   const parts=cursor.split(".");
-  const body=Buffer.from(parts[0]!,"base64url");
-  body[body.length-1]^=1;
-  assert.throws(()=>decodeCursor(body.toString("base64url")+"."+parts[1]!,secret,"org:user-1"),/INVALID_CURSOR/);
+  assert.ok(parts[0] && parts[1]);
+  const body=Buffer.from(parts[0],"base64url");
+  const index=body.length-1;
+  assert.ok(index>=0);
+  body[index]^=1;
+  assert.throws(()=>decodeCursor(body.toString("base64url")+"."+parts[1],secret,"org:user-1"),/INVALID_CURSOR/);
 });
 
 test("runtime modes fail closed for writes",()=>{
