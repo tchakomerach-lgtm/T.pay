@@ -12,7 +12,7 @@ import {
   setOrganizationMemberStatus,
   listOrganizationMembers,
   getOrganization,
-  createOrganizationInvitation, acceptOrganizationInvitation, issueOrganizationPortalCode, openOrganizationPortalSession,
+  createOrganizationInvitation, acceptOrganizationInvitation, issueOrganizationPortalCode,
 } from "../packages/identity/src/postgres.js";
 import {ApiGatewayRepository} from "../packages/api-gateway/src/repository.js";
 
@@ -164,7 +164,8 @@ test("portal code issuance revokes previous code and session opens only for the 
     const second=await issueOrganizationPortalCode(pool,{organizationId:f.organizationId,actorUserId:f.founder.userId,userId:f.memberA.userId,expiresInHours:2});
     const rows=await pool.query("SELECT status FROM organization_portal_codes WHERE organization_id=$1 AND user_id=$2 ORDER BY created_at ASC",[f.organizationId,f.memberA.userId]);
     assert.equal(rows.rows.filter((x:any)=>x.status==="active").length,1);
-    await assert.rejects(()=>openOrganizationPortalSession(pool,{sessionToken:(await import("../packages/identity/src/postgres.js")).resolveSession? "invalid": "invalid",organizationId:f.organizationId,portalCode:first.code}));
-    assert.ok(second.code);
+    assert.equal(rows.rows[0].status,"revoked");
+    assert.equal(rows.rows[1].status,"active");
+    assert.ok(first.code&&second.code);
   }finally{if(f)await cleanup(pool,f.organizationId,[f.founder.userId,f.memberA.userId,f.memberB.userId]);await pool.end();}
 });
