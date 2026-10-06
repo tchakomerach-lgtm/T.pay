@@ -490,7 +490,7 @@ export async function acceptOrganizationInvitation(
 ):Promise<void>{
   return withTx(pool,async client=>{
     const invitation=(await client.query(
-      `SELECT id,login_identifier,role_id,status,expires_at FROM organization_invitations
+      `SELECT id,login_identifier,role_id,token_hash,status,expires_at FROM organization_invitations
        WHERE id=$1 AND organization_id=$2 FOR UPDATE`,
       [input.invitationId,input.organizationId]
     )).rows[0];
