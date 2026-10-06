@@ -140,10 +140,11 @@ test("concurrent idempotency reservation yields one owner",async()=>{
 test("concurrent invitation acceptance is single-use and tenant-scoped", {skip:!databaseUrl&&"TPAY_DATABASE_URL is not configured"}, async()=>{
   const pool=new pg.Pool({connectionString:databaseUrl,max:16});
   let f:any;
+  let invitee:any;
   try{
     await applyMigrations(pool,new URL("../../migrations/",import.meta.url));
     f=await fixture(pool);
-    const invitee=await registerWithPassword(pool,{loginIdentifier:`invited-${randomUUID()}@test.invalid`,displayName:"Invited User",password:"correct horse battery staple 123"});
+    invitee=await registerWithPassword(pool,{loginIdentifier:`invited-${randomUUID()}@test.invalid`,displayName:"Invited User",password:"correct horse battery staple 123"});
     const invitation=await createOrganizationInvitation(pool,{organizationId:f.organizationId,actorUserId:f.founder.userId,loginIdentifier:(await pool.query("SELECT login_identifier FROM users WHERE id=$1",[invitee.userId])).rows[0].login_identifier,roleId:f.roleId});
     const results=await Promise.allSettled([
       acceptOrganizationInvitation(pool,{organizationId:f.organizationId,invitationId:invitation.invitationId,token:invitation.token,userId:invitee.userId}),
@@ -152,7 +153,7 @@ test("concurrent invitation acceptance is single-use and tenant-scoped", {skip:!
     assert.equal(results.filter(x=>x.status==="fulfilled").length,1);
     const row=(await pool.query("SELECT status FROM organization_invitations WHERE id=$1",[invitation.invitationId])).rows[0];
     assert.equal(row.status,"accepted");
-  }finally{if(f)await cleanup(pool,f.organizationId,[f.founder.userId,f.memberA.userId,f.memberB.userId]);await pool.end();}
+  }finally{if(f)await cleanup(pool,f.organizationId,[f.founder.userId,f.memberA.userId,f.memberB.userId]);if(invitee)await pool.query("DELETE FROM users WHERE id=$1",[invitee.userId]).catch(()=>undefined);await pool.end();}
 });
 
 test("portal code issuance revokes previous code and session opens only for the member", {skip:!databaseUrl&&"TPAY_DATABASE_URL is not configured"}, async()=>{
