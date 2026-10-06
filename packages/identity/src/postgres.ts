@@ -335,3 +335,111 @@ export async function setOrganizationMemberStatus(pool:Pool,input:{organizationI
     if(!result.rowCount)throw new Error("MEMBER_NOT_FOUND");
   });
 }
+
+export const ORGANIZATION_PERMISSIONS = [
+  "org.read","org.manage","member.manage","finance.read","finance.initiate","finance.approve",
+  "ledger.read","audit.read","security.manage","content.read","content.write","social.moderate",
+  "recruitment.manage","marketplace.manage","documents.read","documents.write"
+] as const;
+const ORGANIZATION_PERMISSION_SET = new Set<string>(ORGANIZATION_PERMISSIONS);
+
+function normalizePermissions(input:string[]):string[]{
+  const permissions=[...new Set(input.map(p=>p.trim()).filter(Boolean))];
+  if(permissions.some(p=>!ORGANIZATION_PERMISSION_SET.has(p))) throw new Error("INVALID_PERMISSION");
+  return permissions;
+}
+
+async function auditOrganizationChange(
+  client: PoolClient,
+  input:{organizationId:string;actorUserId?:string;action:string;targetType?:string;targetId?:string;metadata?:Record<string,unknown>}
+):Promise<void>{
+  await client.query(
+    `INSERT INTO organization_audit_events(id,organization_id,actor_user_id,action,target_type,target_id,metadata)
+     VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)`,
+    [randomUUID(),input.organizationId,input.actorUserId??null,input.action,input.targetType??null,input.targetId??null,JSON.stringify(input.metadata??{})]
+  );
+}
+
+export async function getOrganization(
+  pool:Pool,
+  input:{organizationId:string;actorUserId:string}
+):Promise<Record<string,unknown>>{
+  const result=await pool.query(
+    `SELECT o.id,o.name,o.type,o.status,o.founder_id,o.created_at,
+            m.status AS membership_status,r.id AS role_id,r.name AS role_name,r.permissions
+       FROM organizations o
+       JOIN organization_memberships m ON m.organization_id=o.id AND m.user_id=$2
+       JOIN organization_roles r ON r.id=m.role_id
+      WHERE o.id=$1`,
+    [input.organizationId,input.actorUserId]
+  );
+  const row=result.rows[0];
+  if(!row || row.membership_status!=="active" || row.status!=="active") throw new Error("ORGANIZATION_ACCESS_DENIED");
+  return {
+    id:String(row.id),name:String(row.name),type:String(row.type),status:String(row.status),
+    founderId:String(row.founder_id),createdAt:new Date(String(row.created_at)).toISOString(),
+    membershipStatus:String(row.membership_status),roleId:String(row.role_id),roleName:String(row.role_name),
+    permissions:Array.isArray(row.permissions)?row.permissions.map(String):[]
+  };
+}
+
+export async function updateOrganization(
+  pool:Pool,
+  input:{organizationId:string;actorUserId:string;name?:string;type?:string;status?:"active"|"suspended"|"closed"}
+):Promise<Record<string,unknown>>{
+  if(input.name!==undefined && (input.name.trim().length<2 || input.name.trim().length>160)) throw new Error("INVALID_ORGANIZATION_NAME");
+  return withTx(pool,async client=>{
+    const actor=await client.query(
+      `SELECT r.permissions FROM organization_memberships m
+       JOIN organization_roles r ON r.id=m.role_id
+       WHERE m.organization_id=$1 AND m.user_id=$2 AND m.status='active'
+       FOR SHARE`,
+      [input.organizationId,input.actorUserId]
+    );
+    if(!actor.rows[0]?.permissions?.includes("org.manage")) throw new Error("PERMISSION_DENIED");
+    const current=await client.query(
+      "SELECT id,name,type,status FROM organizations WHERE id=$1 FOR UPDATE",
+      [input.organizationId]
+    );
+    const row=current.rows[0];
+    if(!row) throw new Error("ORGANIZATION_NOT_FOUND");
+    const nextName=input.name?.trim()??String(row.name);
+    const nextType=input.type?.trim()??String(row.type);
+    const nextStatus=input.status??String(row.status);
+    if(!nextType || nextType.length>80) throw new Error("INVALID_ORGANIZATION_TYPE");
+    await client.query(
+      "UPDATE organizations SET name=$2,type=$3,status=$4 WHERE id=$1",
+      [input.organizationId,nextName,nextType,nextStatus]
+    );
+    await auditOrganizationChange(client,{
+      organizationId:input.organizationId,actorUserId:input.actorUserId,
+      action:"organization.updated",targetType:"organization",targetId:input.organizationId,
+      metadata:{before:{name:row.name,type:row.type,status:row.status},after:{name:nextName,type:nextType,status:nextStatus}}
+    });
+    return {id:String(input.organizationId),name:nextName,type:nextType,status:nextStatus};
+  });
+}
+
+export async function listOrganizationAudit(
+  pool:Pool,input:{organizationId:string;actorUserId:string;limit?:number}
+):Promise<Array<Record<string,unknown>>>{
+  const access=await pool.query(
+    `SELECT r.permissions FROM organization_memberships m JOIN organization_roles r ON r.id=m.role_id
+     WHERE m.organization_id=$1 AND m.user_id=$2 AND m.status='active'`,
+    [input.organizationId,input.actorUserId]
+  );
+  if(!access.rows[0]?.permissions?.includes("audit.read")) throw new Error("PERMISSION_DENIED");
+  const limit=Math.min(100,Math.max(1,input.limit??50));
+  const result=await pool.query(
+    `SELECT id,actor_user_id,action,target_type,target_id,metadata,created_at
+       FROM organization_audit_events WHERE organization_id=$1
+       ORDER BY created_at DESC,id DESC LIMIT $2`,
+    [input.organizationId,limit]
+  );
+  return result.rows.map(row=>({
+    id:String(row.id),actorUserId:row.actor_user_id?String(row.actor_user_id):null,
+    action:String(row.action),targetType:row.target_type?String(row.target_type):null,
+    targetId:row.target_id?String(row.target_id):null,metadata:row.metadata??{},
+    createdAt:new Date(String(row.created_at)).toISOString()
+  }));
+}
