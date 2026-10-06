@@ -26,7 +26,8 @@ async function fixture(pool:pg.Pool){
   return {founder,memberA,memberB,organizationId:org.organizationId,roleId:org.roleId};
 }
 
-async function cleanup(pool:pg.Pool,ids:string[]){
+async function cleanup(pool:pg.Pool,organizationId:string,ids:string[]){
+  await pool.query("DELETE FROM organizations WHERE id=$1",[organizationId]).catch(()=>undefined);
   for(const id of ids) await pool.query("DELETE FROM users WHERE id=$1",[id]).catch(()=>undefined);
 }
 
@@ -41,7 +42,7 @@ test("concurrent role creation preserves tenant uniqueness", {skip:!databaseUrl&
     assert.equal(successes.length,1);
     const rows=await pool.query("SELECT count(*)::int AS count FROM organization_roles WHERE organization_id=$1 AND name='Concurrent Role'",[f.organizationId]);
     assert.equal(rows.rows[0].count,1);
-  }finally{if(f)await cleanup(pool,[f.founder.userId,f.memberA.userId,f.memberB.userId]);await pool.end();}
+  }finally{if(f)await cleanup(pool,f.organizationId,[f.founder.userId,f.memberA.userId,f.memberB.userId]);await pool.end();}
 });
 
 test("concurrent role updates leave a valid single role state", {skip:!databaseUrl&&"TPAY_DATABASE_URL is not configured"}, async()=>{
