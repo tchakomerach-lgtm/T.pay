@@ -143,14 +143,16 @@ test("concurrent invitation acceptance is single-use and tenant-scoped", {skip:!
   try{
     await applyMigrations(pool,new URL("../../migrations/",import.meta.url));
     f=await fixture(pool);
-    const invitation=await createOrganizationInvitation(pool,{organizationId:f.organizationId,actorUserId:f.founder.userId,loginIdentifier:(await pool.query("SELECT login_identifier FROM users WHERE id=$1",[f.memberA.userId])).rows[0].login_identifier,roleId:f.roleId});
+    const invitee=await registerWithPassword(pool,{loginIdentifier:`invited-${randomUUID()}@test.invalid`,displayName:"Invited User",password:"correct horse battery staple 123"});
+    const invitation=await createOrganizationInvitation(pool,{organizationId:f.organizationId,actorUserId:f.founder.userId,loginIdentifier:(await pool.query("SELECT login_identifier FROM users WHERE id=$1",[invitee.userId])).rows[0].login_identifier,roleId:f.roleId});
     const results=await Promise.allSettled([
-      acceptOrganizationInvitation(pool,{organizationId:f.organizationId,invitationId:invitation.invitationId,token:invitation.token,userId:f.memberA.userId}),
-      acceptOrganizationInvitation(pool,{organizationId:f.organizationId,invitationId:invitation.invitationId,token:invitation.token,userId:f.memberA.userId})
+      acceptOrganizationInvitation(pool,{organizationId:f.organizationId,invitationId:invitation.invitationId,token:invitation.token,userId:invitee.userId}),
+      acceptOrganizationInvitation(pool,{organizationId:f.organizationId,invitationId:invitation.invitationId,token:invitation.token,userId:invitee.userId})
     ]);
     assert.equal(results.filter(x=>x.status==="fulfilled").length,1);
     const row=(await pool.query("SELECT status FROM organization_invitations WHERE id=$1",[invitation.invitationId])).rows[0];
     assert.equal(row.status,"accepted");
+    await pool.query("DELETE FROM users WHERE id=$1",[invitee.userId]).catch(()=>undefined);
   }finally{if(f)await cleanup(pool,f.organizationId,[f.founder.userId,f.memberA.userId,f.memberB.userId]);await pool.end();}
 });
 
