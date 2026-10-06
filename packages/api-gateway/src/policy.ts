@@ -1,5 +1,10 @@
 export type ApiRoutePolicy={route:string;methods:string[];auth:"anonymous"|"user"|"member"|"admin"|"service";financial:boolean};
 export const API_ROUTE_POLICIES:readonly ApiRoutePolicy[]=[
+ {route:"/v1/auth/register",methods:["POST"],auth:"anonymous",financial:false},
+ {route:"/v1/auth/login",methods:["POST"],auth:"anonymous",financial:false},
+ {route:"/v1/auth/me",methods:["GET"],auth:"user",financial:false},
+ {route:"/v1/auth/logout",methods:["POST"],auth:"user",financial:false},
+
  {route:"/v1/health",methods:["GET"],auth:"anonymous",financial:false},
  {route:"/v1/profile",methods:["GET","PATCH"],auth:"user",financial:false},
  {route:"/v1/organizations",methods:["GET","POST"],auth:"user",financial:false},
