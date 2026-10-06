@@ -7,6 +7,8 @@ ALTER TABLE organizations ADD COLUMN IF NOT EXISTS access_locked_until timestamp
 ALTER TABLE organizations ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
 UPDATE organizations SET status='active' WHERE status IS NULL;
 ALTER TABLE organizations ALTER COLUMN status SET DEFAULT 'active';
+UPDATE organizations SET created_at=now() WHERE created_at IS NULL;
+ALTER TABLE organizations ALTER COLUMN created_at SET DEFAULT now();
 ALTER TABLE organizations ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
 
 CREATE INDEX IF NOT EXISTS organization_memberships_user_idx
