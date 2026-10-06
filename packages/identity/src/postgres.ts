@@ -249,14 +249,22 @@ export async function openOrganizationSession(
   });
 }
 
+export async function rotateCsrfToken(pool: Pool, sessionToken: string): Promise<string> {
+  const csrfToken = generateOpaqueToken(32);
+  const result = await pool.query(
+    `UPDATE identity_sessions
+        SET csrf_hash=$2,last_seen_at=now()
+      WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at > now()
+      RETURNING id`,
+    [sha256Hex(sessionToken), sha256Hex(csrfToken)]
+  );
+  if (!result.rowCount) throw new Error("SESSION_INVALID");
+  return csrfToken;
+}
+
 export function buildSessionCookie(token: string, maxAgeSeconds: number): string {
   if (!token) throw new Error("SESSION_TOKEN_REQUIRED");
   return `__Host-tpay_session=${token}; Max-Age=${Math.max(1,Math.floor(maxAgeSeconds))}; Path=/; Secure; HttpOnly; SameSite=Strict`;
-}
-
-export function buildCsrfCookie(token: string, maxAgeSeconds: number): string {
-  if (!token) throw new Error("CSRF_TOKEN_REQUIRED");
-  return `__Host-tpay_csrf=${token}; Max-Age=${Math.max(1,Math.floor(maxAgeSeconds))}; Path=/; Secure; SameSite=Strict`;
 }
 
 export function assertCsrf(requestOrigin: string | undefined, expectedOrigin: string, csrfCookie: string | undefined, csrfHeader: string | undefined): void {
