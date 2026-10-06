@@ -4,7 +4,7 @@ T.Pay est un OS/SaaS modulaire pour particuliers et organisations : réseau soci
 
 ## Web Alpha — première application testable
 
-La Web Alpha fournit désormais une véritable interface navigateur construite à partir du dépôt T.Pay. Elle est volontairement en **mode démonstration** : aucune opération financière réelle et aucun contournement des contrôles serveur.
+La Web Alpha fournit désormais une véritable interface navigateur construite à partir du dépôt T.Pay, avec un endpoint HTTP `/v1/health` relié au module Health du core. Elle est volontairement en **mode démonstration** : aucune opération financière réelle et aucun contournement des contrôles serveur.
 
 ### Prérequis
 - Node.js 22+
