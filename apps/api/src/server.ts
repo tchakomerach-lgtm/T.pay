@@ -7,7 +7,7 @@ import { buildApiError, buildApiSuccess } from "../../../packages/api-gateway/sr
 import { ApiGatewayRepository, canonicalRequestHash } from "../../../packages/api-gateway/src/repository.js";
 import { runHealthProbes } from "../../../packages/api-gateway/src/health.js";
 import pg from "pg";
-import { assertCsrf, loginWithPassword, logout, registerWithPassword, resolveSession, buildSessionCookie, openOrganizationSession, listOrganizationMembers, createOrganizationRole, updateOrganizationRole, setOrganizationMemberRole, setOrganizationMemberStatus, getOrganization, updateOrganization, listOrganizationAudit } from "../../../packages/identity/src/postgres.js";
+import { assertCsrf, loginWithPassword, logout, registerWithPassword, resolveSession, buildSessionCookie, openOrganizationSession, listOrganizationMembers, createOrganizationRole, updateOrganizationRole, setOrganizationMemberRole, setOrganizationMemberStatus, getOrganization, updateOrganization, listOrganizationAudit, createOrganizationInvitation, acceptOrganizationInvitation, issueOrganizationPortalCode, openOrganizationPortalSession } from "../../../packages/identity/src/postgres.js";
 
 class MemoryRateDb implements RateDb {
   private readonly buckets = new Map<string,{count:number;windowStartedAt:string;max:number;seconds:number}>();
@@ -279,6 +279,49 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           const organizationId=orgAuditMatch[1]!;
           if(authenticatedSession?.organizationId!==organizationId){json(res,403,buildApiError({message:"ORGANIZATION_SESSION_REQUIRED"},correlationId));return;}
           try{json(res,200,buildApiSuccess("v1",correlationId,{items:await listOrganizationAudit(pool,{organizationId,actorUserId:userId,limit:Number(url.searchParams.get("limit")??"50")})}));}
+          catch(error){json(res,403,buildApiError(error,correlationId));}
+          return;
+        }
+
+        const orgInvitationMatch=url.pathname.match(/^\\/v1\\/organizations\\/([^/]+)\\/invitations$/);
+        if(pool&&userId&&orgInvitationMatch&&method==="POST"){
+          const organizationId=orgInvitationMatch[1]!;
+          if(authenticatedSession?.organizationId!==organizationId){json(res,403,buildApiError({message:"ORGANIZATION_SESSION_REQUIRED"},correlationId));return;}
+          if(!nativeClient)await requireBrowserCsrf(pool,{sessionId:authenticatedSession?.sessionId??""},origin,String(req.headers["x-csrf-token"]??""));
+          const input=safeJson(payload) as {loginIdentifier?:string;roleId?:string;expiresInHours?:number}|null;
+          if(!input?.loginIdentifier||!input.roleId){json(res,400,buildApiError({message:"INVALID_INVITATION"},correlationId));return;}
+          try{json(res,201,buildApiSuccess("v1",correlationId,await createOrganizationInvitation(pool,{organizationId,actorUserId:userId,loginIdentifier:input.loginIdentifier,roleId:input.roleId,expiresInHours:input.expiresInHours}));}
+          catch(error){const message=error instanceof Error?error.message:"INVITATION_FAILED";json(res,/PERMISSION_DENIED|MEMBER_ALREADY_ACTIVE/.test(message)?403:400,buildApiError({message},correlationId));}
+          return;
+        }
+        const orgInvitationAcceptMatch=url.pathname.match(/^\\/v1\\/organizations\\/([^/]+)\\/invitations\\/([^/]+)\\/accept$/);
+        if(pool&&userId&&orgInvitationAcceptMatch&&method==="POST"){
+          const organizationId=orgInvitationAcceptMatch[1]!,invitationId=orgInvitationAcceptMatch[2]!;
+          if(!nativeClient)await requireBrowserCsrf(pool,{sessionId:authenticatedSession?.sessionId??""},origin,String(req.headers["x-csrf-token"]??""));
+          const input=safeJson(payload) as {token?:string}|null;
+          if(!input?.token){json(res,400,buildApiError({message:"INVALID_INVITATION"},correlationId));return;}
+          try{await acceptOrganizationInvitation(pool,{organizationId,invitationId,token:input.token,userId});json(res,200,buildApiSuccess("v1",correlationId,{accepted:true}));}
+          catch(error){json(res,400,buildApiError(error,correlationId));}
+          return;
+        }
+        const orgPortalCodeMatch=url.pathname.match(/^\\/v1\\/organizations\\/([^/]+)\\/portal-codes$/);
+        if(pool&&userId&&orgPortalCodeMatch&&method==="POST"){
+          const organizationId=orgPortalCodeMatch[1]!;
+          if(authenticatedSession?.organizationId!==organizationId){json(res,403,buildApiError({message:"ORGANIZATION_SESSION_REQUIRED"},correlationId));return;}
+          if(!nativeClient)await requireBrowserCsrf(pool,{sessionId:authenticatedSession?.sessionId??""},origin,String(req.headers["x-csrf-token"]??""));
+          const input=safeJson(payload) as {userId?:string;expiresInHours?:number}|null;
+          if(!input?.userId){json(res,400,buildApiError({message:"INVALID_PORTAL_CODE"},correlationId));return;}
+          try{json(res,201,buildApiSuccess("v1",correlationId,await issueOrganizationPortalCode(pool,{organizationId,actorUserId:userId,userId:input.userId,expiresInHours:input.expiresInHours}));}
+          catch(error){const message=error instanceof Error?error.message:"PORTAL_CODE_FAILED";json(res,/PERMISSION_DENIED/.test(message)?403:400,buildApiError({message},correlationId));}
+          return;
+        }
+        const orgPortalSessionMatch=url.pathname.match(/^\\/v1\\/organizations\\/([^/]+)\\/portal-session$/);
+        if(pool&&userId&&orgPortalSessionMatch&&method==="POST"){
+          const organizationId=orgPortalSessionMatch[1]!;
+          if(!nativeClient)await requireBrowserCsrf(pool,{sessionId:authenticatedSession?.sessionId??""},origin,String(req.headers["x-csrf-token"]??""));
+          const input=safeJson(payload) as {portalCode?:string}|null;
+          if(!input?.portalCode){json(res,400,buildApiError({message:"INVALID_PORTAL_CODE"},correlationId));return;}
+          try{const session=await openOrganizationPortalSession(pool,{sessionToken:sessionToken!,organizationId,portalCode:input.portalCode});json(res,200,buildApiSuccess("v1",correlationId,{organizationId,expiresAt:session.expiresAt}));}
           catch(error){json(res,403,buildApiError(error,correlationId));}
           return;
         }
