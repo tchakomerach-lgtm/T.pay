@@ -2,7 +2,7 @@ import React,{useEffect,useMemo,useState} from "react";
 import {Platform,Pressable,ScrollView,StyleSheet,Text,TextInput,View} from "react-native";
 import {StatusBar} from "expo-status-bar";
 import * as SecureStore from "expo-secure-store";
-import {TPayApi,type Health,type Organization} from "./api";
+import {TPayApi,type Health,type Organization,type OrganizationDetail} from "./api";
 
 const API_URL=process.env.EXPO_PUBLIC_TPAY_API_URL ?? "https://api.tpay.tg";
 const api=new TPayApi(API_URL);
@@ -10,13 +10,13 @@ const screens=[["home","Accueil"],["organizations","Organisations"],["social","R
 type Screen=typeof screens[number][0];
 
 export default function App(){
- const [screen,setScreen]=useState<Screen>("home"),[health,setHealth]=useState<Health|null>(null),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[signedIn,setSignedIn]=useState(false),[organizations,setOrganizations]=useState<Organization[]>([]),[orgName,setOrgName]=useState(""),[orgType,setOrgType]=useState("Entreprise"),[orgAccessCode,setOrgAccessCode]=useState(""),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
+ const [screen,setScreen]=useState<Screen>("home"),[health,setHealth]=useState<Health|null>(null),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[signedIn,setSignedIn]=useState(false),[organizations,setOrganizations]=useState<Organization[]>([]),[orgName,setOrgName]=useState(""),[orgType,setOrgType]=useState("Entreprise"),[orgAccessCode,setOrgAccessCode]=useState(""),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[selectedOrganizationId,setSelectedOrganizationId]=useState<string|null>(null),[selectedOrganization,setSelectedOrganization]=useState<OrganizationDetail|null>(null),[portalCode,setPortalCode]=useState("");
  useEffect(()=>{void api.health().then(setHealth).catch(e=>setMessage(String(e.message)));},[]);
  useEffect(()=>{
   if(Platform.OS==="web"){
     const csrf=typeof sessionStorage!=="undefined"?sessionStorage.getItem("tpay.session.csrf"):null;
     if(csrf)api.setSession(undefined,csrf);
-    void api.me().then(()=>setSignedIn(true)).catch(()=>setSignedIn(false));
+    void api.me().then(profile=>{api.setSession(undefined,api.getSessionToken(),profile.userId);setSignedIn(true)}).catch(()=>setSignedIn(false));
     return;
   }
   void (async()=>{
@@ -24,7 +24,7 @@ export default function App(){
     const csrf=await SecureStore.getItemAsync("tpay.session.csrf");
     if(!token){setSignedIn(false);return;}
     api.setSession(token,csrf??undefined);
-    try{await api.me();setSignedIn(true);}catch{api.clearSession();await SecureStore.deleteItemAsync("tpay.session.token");await SecureStore.deleteItemAsync("tpay.session.csrf");setSignedIn(false);}
+    try{const profile=await api.me();api.setSession(token,csrf??undefined,profile.userId);setSignedIn(true);}catch{api.clearSession();await SecureStore.deleteItemAsync("tpay.session.token");await SecureStore.deleteItemAsync("tpay.session.csrf");setSignedIn(false);}
   })();
 },[]);
  useEffect(()=>{if(!signedIn)return;void api.organizations().then(page=>setOrganizations(page.items)).catch(()=>setOrganizations([]));},[signedIn]);
@@ -54,7 +54,8 @@ export default function App(){
    <ScrollView contentContainerStyle={styles.content}><Text style={styles.eyebrow}>T.PAY OS · UNIVERSAL</Text><Text style={styles.title}>{title}</Text><Text style={styles.description}>Interface React Native universelle Android, iOS et Web partageant les contrats API et composants métier.</Text>
    {!signedIn?<View style={styles.card}><Text style={styles.cardTitle}>Connexion serveur</Text><TextInput autoCapitalize="none" value={email} onChangeText={setEmail} placeholder="Identifiant" style={styles.input}/><TextInput secureTextEntry value={password} onChangeText={setPassword} placeholder="Mot de passe" style={styles.input}/><Pressable disabled={busy} onPress={()=>void login()} style={styles.primary}><Text style={styles.primaryText}>{busy?"Connexion…":"Se connecter"}</Text></Pressable></View>:<View style={styles.card}><Text style={styles.cardTitle}>Session active</Text><Text style={styles.muted}>L'identité est contrôlée côté serveur. Le client ne conserve pas le token web dans localStorage.</Text><Pressable disabled={busy} onPress={()=>void logout()} style={styles.secondary}><Text style={styles.secondaryText}>Se déconnecter</Text></Pressable></View>}
    {message?<Text accessibilityRole="alert" style={styles.message}>{message}</Text>:null}
-   {screen==="organizations"?<><View style={styles.card}><Text style={styles.cardTitle}>Créer une organisation</Text><TextInput value={orgName} onChangeText={setOrgName} placeholder="Nom de l'organisation" style={styles.input}/><TextInput value={orgType} onChangeText={setOrgType} placeholder="Type" style={styles.input}/><TextInput secureTextEntry value={orgAccessCode} onChangeText={setOrgAccessCode} placeholder="Code portail organisation (8+ caractères)" style={styles.input}/><Pressable disabled={busy||!signedIn} onPress={()=>void createOrganization()} style={styles.primary}><Text style={styles.primaryText}>{busy?"Création…":"Créer l'organisation"}</Text></Pressable></View><View style={styles.card}><Text style={styles.cardTitle}>Organisations persistantes</Text>{signedIn?organizations.length?organizations.map(org=><View key={org.id} style={styles.orgRow}><Text style={styles.orgName}>{org.name}</Text><Text style={styles.muted}>{org.type} · {org.roleName}</Text></View>):<Text style={styles.muted}>Aucune organisation active pour cette session.</Text>:<Text style={styles.muted}>Connectez-vous pour charger vos organisations.</Text>}</View></>:null}
+   {screen==="organizations"?<><View style={styles.card}><Text style={styles.cardTitle}>Créer une organisation</Text><TextInput value={orgName} onChangeText={setOrgName} placeholder="Nom de l'organisation" style={styles.input}/><TextInput value={orgType} onChangeText={setOrgType} placeholder="Type" style={styles.input}/><TextInput secureTextEntry value={orgAccessCode} onChangeText={setOrgAccessCode} placeholder="Code portail organisation (8+ caractères)" style={styles.input}/><Pressable disabled={busy||!signedIn} onPress={()=>void createOrganization()} style={styles.primary}><Text style={styles.primaryText}>{busy?"Création…":"Créer l'organisation"}</Text></Pressable></View><View style={styles.card}><Text style={styles.cardTitle}>Organisations persistantes</Text>{signedIn?organizations.length?organizations.map(org=><Pressable key={org.id} onPress={()=>void (async()=>{setSelectedOrganizationId(org.id);try{setSelectedOrganization(await api.organization(org.id));}catch(e){setMessage(e instanceof Error?e.message:"ORGANIZATION_LOAD_FAILED");}})()} style={styles.orgRow}><Text style={styles.orgName}>{org.name}</Text><Text style={styles.muted}>{org.type} · {org.roleName}</Text></Pressable>):<Text style={styles.muted}>Aucune organisation active pour cette session.</Text>:<Text style={styles.muted}>Connectez-vous pour charger vos organisations.</Text>}</View>
+   {selectedOrganization&&selectedOrganizationId?<View style={styles.card}><Text style={styles.cardTitle}>{selectedOrganization.name}</Text><Text style={styles.muted}>Type: {selectedOrganization.type} · Rôle: {selectedOrganization.roleName}</Text><Text style={styles.muted}>Permissions: {selectedOrganization.permissions.join(", ")}</Text><Pressable disabled={busy} onPress={()=>void (async()=>{try{await api.openOrganizationSession(selectedOrganization.id,orgAccessCode);setMessage("Session organisationnelle ouverte.");}catch(e){setMessage(e instanceof Error?e.message:"ORGANIZATION_SESSION_FAILED");}})()} style={styles.primary}><Text style={styles.primaryText}>Ouvrir la session organisationnelle</Text></Pressable><TextInput secureTextEntry value={portalCode} onChangeText={setPortalCode} placeholder="Code portail membre" style={styles.input}/><Pressable disabled={busy||!portalCode} onPress={()=>void (async()=>{try{await api.openPortalSession(selectedOrganization.id,portalCode);setPortalCode("");setMessage("Portail organisationnel ouvert.");}catch(e){setMessage(e instanceof Error?e.message:"PORTAL_SESSION_FAILED");}})()} style={styles.secondary}><Text style={styles.secondaryText}>Entrer avec le code portail</Text></Pressable><Text style={styles.muted}>Le portail charge ses membres et permissions depuis PostgreSQL; aucune donnée de démonstration n'est utilisée.</Text></View>:null}</>:null}
    <View style={styles.card}><Text style={styles.cardTitle}>Scalabilité</Text><Text style={styles.muted}>Aucune logique financière critique dans le client. Pagination, autorisation, idempotence et ledger restent côté serveur.</Text></View>
    </ScrollView></View></View>;
 }
