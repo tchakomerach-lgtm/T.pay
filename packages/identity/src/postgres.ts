@@ -443,3 +443,121 @@ export async function listOrganizationAudit(
     createdAt:new Date(String(row.created_at)).toISOString()
   }));
 }
+
+export async function createOrganizationInvitation(
+  pool:Pool,
+  input:{organizationId:string;actorUserId:string;loginIdentifier:string;roleId:string;expiresInHours?:number}
+):Promise<{invitationId:string;token:string;expiresAt:string}>{
+  const login=normalizeLoginIdentifier(input.loginIdentifier);
+  const expiresAt=new Date(Date.now()+Math.min(168,Math.max(1,input.expiresInHours??72))*60*60*1000);
+  return withTx(pool,async client=>{
+    const actor=await client.query(
+      `SELECT r.permissions FROM organization_memberships m JOIN organization_roles r ON r.id=m.role_id
+       WHERE m.organization_id=$1 AND m.user_id=$2 AND m.status='active' FOR SHARE`,
+      [input.organizationId,input.actorUserId]
+    );
+    if(!actor.rows[0]?.permissions?.includes("member.manage")) throw new Error("PERMISSION_DENIED");
+    const role=await client.query("SELECT id FROM organization_roles WHERE organization_id=$1 AND id=$2",[input.organizationId,input.roleId]);
+    if(!role.rowCount) throw new Error("ROLE_NOT_FOUND");
+    const user=await client.query("SELECT id FROM users WHERE login_identifier=$1 AND status='active'",[login]);
+    if(!user.rowCount) throw new Error("INVITED_USER_NOT_FOUND");
+    const existing=await client.query(
+      "SELECT status FROM organization_memberships WHERE organization_id=$1 AND user_id=$2",
+      [input.organizationId,user.rows[0].id]
+    );
+    if(existing.rows[0]?.status==="active") throw new Error("MEMBER_ALREADY_ACTIVE");
+    const invitationId=randomUUID();
+    const token=generateOpaqueToken(32);
+    await client.query(
+      `INSERT INTO organization_invitations(id,organization_id,invited_by_user_id,login_identifier,role_id,token_hash,expires_at)
+       VALUES($1,$2,$3,$4,$5,$6,$7)`,
+      [invitationId,input.organizationId,input.actorUserId,login,input.roleId,sha256Hex(token),expiresAt]
+    );
+    await auditOrganizationChange(client,{organizationId:input.organizationId,actorUserId:input.actorUserId,action:"member.invitation.created",targetType:"invitation",targetId:invitationId,metadata:{loginIdentifier:login,roleId:input.roleId}});
+    return {invitationId,token,expiresAt:expiresAt.toISOString()};
+  });
+}
+
+export async function acceptOrganizationInvitation(
+  pool:Pool,
+  input:{organizationId:string;invitationId:string;token:string;userId:string}
+):Promise<void>{
+  return withTx(pool,async client=>{
+    const invitation=(await client.query(
+      `SELECT id,login_identifier,role_id,status,expires_at FROM organization_invitations
+       WHERE id=$1 AND organization_id=$2 FOR UPDATE`,
+      [input.invitationId,input.organizationId]
+    )).rows[0];
+    if(!invitation || invitation.status!=="pending" || new Date(invitation.expires_at).getTime()<=Date.now()) throw new Error("INVITATION_INVALID");
+    const user=(await client.query("SELECT id,login_identifier,status FROM users WHERE id=$1",[input.userId])).rows[0];
+    if(!user || user.status!=="active" || String(user.login_identifier)!==String(invitation.login_identifier)) throw new Error("INVITATION_IDENTITY_MISMATCH");
+    const valid=await verifySecret(input.token,sha256Hex(input.token));
+    if(!valid) throw new Error("INVITATION_INVALID");
+    const role=(await client.query("SELECT id FROM organization_roles WHERE organization_id=$1 AND id=$2",[input.organizationId,invitation.role_id])).rows[0];
+    if(!role) throw new Error("ROLE_NOT_FOUND");
+    await client.query(
+      `INSERT INTO organization_memberships(organization_id,user_id,role_id,status)
+       VALUES($1,$2,$3,'active')
+       ON CONFLICT(organization_id,user_id) DO UPDATE SET role_id=EXCLUDED.role_id,status='active'`,
+      [input.organizationId,input.userId,invitation.role_id]
+    );
+    await client.query(
+      "UPDATE organization_invitations SET status='accepted',accepted_by_user_id=$2,accepted_at=now() WHERE id=$1",
+      [input.invitationId,input.userId]
+    );
+    await auditOrganizationChange(client,{organizationId:input.organizationId,actorUserId:input.userId,action:"member.invitation.accepted",targetType:"membership",targetId:input.userId,metadata:{invitationId:input.invitationId}});
+  });
+}
+
+export async function issueOrganizationPortalCode(
+  pool:Pool,
+  input:{organizationId:string;actorUserId:string;userId:string;expiresInHours?:number}
+):Promise<{codeId:string;code:string;expiresAt:string}>{
+  const expiresAt=new Date(Date.now()+Math.min(720,Math.max(1,input.expiresInHours??24))*60*60*1000);
+  return withTx(pool,async client=>{
+    const actor=await client.query(
+      `SELECT r.permissions FROM organization_memberships m JOIN organization_roles r ON r.id=m.role_id
+       WHERE m.organization_id=$1 AND m.user_id=$2 AND m.status='active' FOR SHARE`,
+      [input.organizationId,input.actorUserId]
+    );
+    if(!actor.rows[0]?.permissions?.includes("member.manage")) throw new Error("PERMISSION_DENIED");
+    const member=await client.query("SELECT status FROM organization_memberships WHERE organization_id=$1 AND user_id=$2",[input.organizationId,input.userId]);
+    if(member.rows[0]?.status!=="active") throw new Error("MEMBER_NOT_FOUND");
+    await client.query("UPDATE organization_portal_codes SET status='revoked',revoked_at=now() WHERE organization_id=$1 AND user_id=$2 AND status='active'",[input.organizationId,input.userId]);
+    const codeId=randomUUID();
+    const code=generateOpaqueToken(12);
+    await client.query(
+      "INSERT INTO organization_portal_codes(id,organization_id,user_id,code_hash,expires_at) VALUES($1,$2,$3,$4,$5)",
+      [codeId,input.organizationId,input.userId,sha256Hex(code),expiresAt]
+    );
+    await auditOrganizationChange(client,{organizationId:input.organizationId,actorUserId:input.actorUserId,action:"member.portal_code.issued",targetType:"portal_code",targetId:codeId,metadata:{userId:input.userId}});
+    return {codeId,code,expiresAt:expiresAt.toISOString()};
+  });
+}
+
+export async function openOrganizationPortalSession(
+  pool:Pool,
+  input:{sessionToken:string;organizationId:string;portalCode:string}
+):Promise<AuthenticatedSession>{
+  return withTx(pool,async client=>{
+    const session=(await client.query(
+      "SELECT id,user_id,csrf_hash,expires_at,assurance FROM identity_sessions WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at>now() FOR UPDATE",
+      [sha256Hex(input.sessionToken)]
+    )).rows[0];
+    if(!session) throw new Error("SESSION_INVALID");
+    const code=(await client.query(
+      `SELECT id,user_id,code_hash,status,expires_at FROM organization_portal_codes
+       WHERE organization_id=$1 AND user_id=$2 AND status='active' AND expires_at>now()
+       ORDER BY created_at DESC LIMIT 1 FOR UPDATE`,
+      [input.organizationId,session.user_id]
+    )).rows[0];
+    if(!code || sha256Hex(input.portalCode)!==String(code.code_hash)) throw new Error("PORTAL_CODE_INVALID");
+    const membership=(await client.query(
+      "SELECT status FROM organization_memberships WHERE organization_id=$1 AND user_id=$2",[input.organizationId,session.user_id]
+    )).rows[0];
+    if(membership?.status!=="active") throw new Error("ORGANIZATION_ACCESS_DENIED");
+    await client.query("UPDATE identity_sessions SET organization_id=$2,last_seen_at=now() WHERE id=$1",[session.id,input.organizationId]);
+    await auditOrganizationChange(client,{organizationId:input.organizationId,actorUserId:session.user_id,action:"member.portal_session.opened",targetType:"portal_code",targetId:String(code.id),metadata:{}});
+    return sessionResult({...session,organization_id:input.organizationId},"");
+  });
+}
