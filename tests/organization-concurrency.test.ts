@@ -80,7 +80,7 @@ test("concurrent role assignment never crosses tenants", {skip:!databaseUrl&&"TP
     const rows=await pool.query("SELECT user_id,role_id FROM organization_memberships WHERE organization_id=$1 AND user_id=ANY($2::uuid[])",[f.organizationId,[f.memberA.userId,f.memberB.userId]]);
     assert.equal(rows.rowCount,2);
     assert.deepEqual(new Set(rows.rows.map((x:any)=>x.role_id)),new Set([roleA,roleB]));
-  }finally{if(f)await cleanup(pool,[f.founder.userId,f.memberA.userId,f.memberB.userId]);await pool.end();}
+  }finally{if(f)await cleanup(pool,f.organizationId,[f.founder.userId,f.memberA.userId,f.memberB.userId]);await pool.end();}
 });
 
 test("concurrent suspension and reactivation leaves membership in an allowed state", {skip:!databaseUrl&&"TPAY_DATABASE_URL is not configured"}, async()=>{
@@ -97,7 +97,7 @@ test("concurrent suspension and reactivation leaves membership in an allowed sta
     assert.ok(["active","suspended"].includes(row.status));
     const members=await listOrganizationMembers(pool,f.organizationId,f.founder.userId);
     assert.equal(members.find(x=>x.userId===f.memberA.userId)?.status,row.status);
-  }finally{if(f)await cleanup(pool,[f.founder.userId,f.memberA.userId,f.memberB.userId]);await pool.end();}
+  }finally{if(f)await cleanup(pool,f.organizationId,[f.founder.userId,f.memberA.userId,f.memberB.userId]);await pool.end();}
 });
 
 test("organization GET and PATCH remain tenant-scoped and audited", {skip:!databaseUrl&&"TPAY_DATABASE_URL is not configured"}, async()=>{
@@ -112,7 +112,7 @@ test("organization GET and PATCH remain tenant-scoped and audited", {skip:!datab
     assert.equal(after.name,"Renamed Organization");
     const audit=await pool.query("SELECT action FROM organization_audit_events WHERE organization_id=$1 ORDER BY created_at DESC LIMIT 1",[f.organizationId]);
     assert.equal(audit.rows[0].action,"organization.updated");
-  }finally{if(f)await cleanup(pool,[f.founder.userId,f.memberA.userId,f.memberB.userId]);await pool.end();}
+  }finally{if(f)await cleanup(pool,f.organizationId,[f.founder.userId,f.memberA.userId,f.memberB.userId]);await pool.end();}
 });
 
 test("concurrent idempotency reservation yields one owner",async()=>{
