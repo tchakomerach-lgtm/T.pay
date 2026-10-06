@@ -52,6 +52,8 @@ export async function applyMigrations(clientOrPool:Client|Pool,migrationDirector
     }
   }finally{
     if(locked) await client.query("DELETE FROM deployment_locks WHERE lock_name=$1 AND owner_id=$2",["schema-migrations",ownerId]);
+  }
+  }finally{
     release();
   }
 }
