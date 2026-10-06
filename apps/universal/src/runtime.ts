@@ -123,19 +123,20 @@ export type OutboxItem = {
 
 export class OfflineOutbox {
   private loaded = false;
+  constructor(private readonly ownerKey:string) {}
   private items: OutboxItem[] = [];
 
   private async load(): Promise<void> {
     if (this.loaded) return;
     this.loaded = true;
     try {
-      const raw = await AsyncStorage.getItem(OUTBOX_KEY);
+      const raw = await AsyncStorage.getItem(OUTBOX_KEY + "." + this.ownerKey);
       if (raw) this.items = JSON.parse(raw) as OutboxItem[];
     } catch { this.items = []; }
   }
 
   private async persist(): Promise<void> {
-    await AsyncStorage.setItem(OUTBOX_KEY, JSON.stringify(this.items.slice(-OUTBOX_MAX_ITEMS)));
+    await AsyncStorage.setItem(OUTBOX_KEY + "." + this.ownerKey, JSON.stringify(this.items.slice(-OUTBOX_MAX_ITEMS)));
   }
 
   async list(): Promise<OutboxItem[]> {
