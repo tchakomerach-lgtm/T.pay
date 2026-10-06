@@ -1,6 +1,6 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
-import { generateOpaqueToken, hashPassword, normalizeLoginIdentifier, sha256Hex, verifyPassword } from "./crypto.js";
+import { generateOpaqueToken, hashPassword, hashSecret, normalizeLoginIdentifier, sha256Hex, verifyPassword } from "./crypto.js";
 
 export interface AuthenticatedSession {
   sessionId: string;
@@ -166,7 +166,7 @@ export async function createOrganizationWithFounder(
     const roleId = randomUUID();
     await client.query(
       "INSERT INTO organizations(id,name,type,founder_id,access_code_hash) VALUES($1,$2,$3,$4,$5)",
-      [organizationId,name,input.type,input.founderId,sha256Hex(input.accessCode)]
+      [organizationId,name,input.type,input.founderId,await hashSecret(input.accessCode)]
     );
     await client.query(
       "INSERT INTO organization_roles(id,organization_id,name,permissions) VALUES($1,$2,'Fondateur',$3)",
