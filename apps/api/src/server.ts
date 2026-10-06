@@ -270,7 +270,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           if(!nativeClient)await requireBrowserCsrf(pool,{sessionId:authenticatedSession?.sessionId??""},origin,String(req.headers["x-csrf-token"]??""));
           const input=safeJson(payload) as {name?:string;type?:string;status?:"active"|"suspended"|"closed"}|null;
           if(!input || (input.name===undefined&&input.type===undefined&&input.status===undefined)){json(res,400,buildApiError({message:"INVALID_ORGANIZATION_UPDATE"},correlationId));return;}
-          try{json(res,200,buildApiSuccess("v1",correlationId,await updateOrganization(pool,{organizationId,actorUserId:userId,...input,name:input.name,type:input.type,status:input.status}.name===undefined ? {organizationId,actorUserId:userId} : {organizationId,actorUserId:userId,name:input.name,type:input.type,status:input.status})));}
+          try{\n            const updateInput:{organizationId:string;actorUserId:string;name?:string;type?:string;status?:"active"|"suspended"|"closed"}={organizationId,actorUserId:userId,...(input.name!==undefined?{name:input.name}:{}),...(input.type!==undefined?{type:input.type}:{}),...(input.status!==undefined?{status:input.status}: {})};\n            json(res,200,buildApiSuccess("v1",correlationId,await updateOrganization(pool,updateInput)));\n          }
           catch(error){const message=error instanceof Error?error.message:"ORGANIZATION_UPDATE_FAILED";const status=message==="PERMISSION_DENIED"?403:/^INVALID_/.test(message)?400:404;json(res,status,buildApiError({message},correlationId));}
           return;
         }
