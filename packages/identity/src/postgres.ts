@@ -311,12 +311,14 @@ export async function createOrganizationRole(pool:Pool,input:{organizationId:str
 export async function updateOrganizationRole(pool:Pool,input:{organizationId:string;actorUserId:string;roleId:string;name:string;permissions:string[]}):Promise<void>{
   const name=input.name.trim();
   if(name.length<2||name.length>100)throw new Error("INVALID_ROLE_NAME");
-  const permissions=[...new Set(input.permissions.map(p=>p.trim()).filter(Boolean))].slice(0,100);
-  const actor=await pool.query(`SELECT r.permissions FROM organization_memberships m JOIN organization_roles r ON r.id=m.role_id WHERE m.organization_id=$1 AND m.user_id=$2 AND m.status='active'`,[input.organizationId,input.actorUserId]);
-  if(!actor.rows[0]?.permissions?.includes("member.manage"))throw new Error("PERMISSION_DENIED");
-  const result=await pool.query("UPDATE organization_roles SET name=$3,permissions=$4 WHERE organization_id=$1 AND id=$2",[input.organizationId,input.roleId,name,permissions]);
-  if(!result.rowCount)throw new Error("ROLE_NOT_FOUND");
-  await pool.query("INSERT INTO organization_audit_events(id,organization_id,actor_user_id,action,target_type,target_id,metadata) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)",[randomUUID(),input.organizationId,input.actorUserId,"role.updated","role",input.roleId,JSON.stringify({name,permissions})]);
+  const permissions=normalizePermissions(input.permissions);
+  return withTx(pool,async client=>{
+    const actor=await client.query(`SELECT r.permissions FROM organization_memberships m JOIN organization_roles r ON r.id=m.role_id WHERE m.organization_id=$1 AND m.user_id=$2 AND m.status='active' FOR SHARE`,[input.organizationId,input.actorUserId]);
+    if(!actor.rows[0]?.permissions?.includes("member.manage"))throw new Error("PERMISSION_DENIED");
+    const result=await client.query("UPDATE organization_roles SET name=$3,permissions=$4 WHERE organization_id=$1 AND id=$2",[input.organizationId,input.roleId,name,permissions]);
+    if(!result.rowCount)throw new Error("ROLE_NOT_FOUND");
+    await auditOrganizationChange(client,{organizationId:input.organizationId,actorUserId:input.actorUserId,action:"role.updated",targetType:"role",targetId:input.roleId,metadata:{name,permissions}});
+  });
 }
 export async function setOrganizationMemberRole(pool:Pool,input:{organizationId:string;actorUserId:string;userId:string;roleId:string}):Promise<void>{
   return withTx(pool,async client=>{
