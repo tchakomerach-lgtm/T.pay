@@ -42,15 +42,23 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
     const method=req.method??"GET";
     const url=new URL(req.url??"/","https://tpay.local");
     if(url.pathname==="/v1/health"&&method==="GET"){
-      const report=await runHealthProbes([{name:"api-server",check:async()=>true},{name:"api-runtime-gate",check:async()=>true}]);
+      const report=await runHealthProbes([
+      {name:"api-server",check:async()=>true},
+      {name:"api-runtime-gate",check:async()=>true},
+      {name:"postgres",check:async()=>{if(!pool)return false;await pool.query("SELECT 1");return true;}}
+    ]);
       json(res,report.ready?200:503,buildApiSuccess("v1",correlationId,report),{"strict-transport-security":"max-age=63072000; includeSubDomains"});
       return;
     }
     let payload="";
     for await(const chunk of req){payload+=chunk.toString();if(Buffer.byteLength(payload)>64*1024){json(res,413,{status:413,code:"PAYLOAD_TOO_LARGE",correlationId});return;}}
-    const authClass=(req.headers.authorization?.startsWith("Bearer ")?"user":"anonymous") as "anonymous"|"user";
+    const cookies=parseCookies(req.headers.cookie);
+    const sessionToken=cookies["__Host-tpay_session"];
+    let userId:string|undefined;
+    let authClass:"anonymous"|"user"="anonymous";
+    if(sessionToken&&pool){try{const session=await resolveSession(pool,sessionToken);userId=session.userId;authClass="user";}catch{authClass="anonymous";}}
     const actorSecret=String(req.headers["x-tpay-scope"]??"");
-    const decision=await gate.evaluate({method,route:url.pathname,authClass,channel:"web",origin,correlationId,scopeSecrets:{ip:String(req.socket.remoteAddress??"unknown"),channel:"web",...(authClass==="user"?{actor:actorSecret||"authenticated"}:{})},now:new Date().toISOString(),...(req.headers["idempotency-key"]?{idempotencyKey:String(req.headers["idempotency-key"])}:{}),...(payload?{payloadHash:createHash("sha256").update(payload).digest("hex")}:{})});
+    const decision=await gate.evaluate({method,route:url.pathname,authClass,channel:"web",origin,correlationId,scopeSecrets:{ip:String(req.socket.remoteAddress??"unknown"),channel:"web",...(authClass==="user"?{actor:userId??actorSecret||"authenticated"}:{})},now:new Date().toISOString(),...(req.headers["idempotency-key"]?{idempotencyKey:String(req.headers["idempotency-key"])}:{}),...(payload?{payloadHash:createHash("sha256").update(payload).digest("hex")}:{})});
     if(!decision.allowed){json(res,decision.status,buildApiError({message:decision.code},correlationId),decision.retryAfterSeconds?{"retry-after":String(decision.retryAfterSeconds)}:{});return;}
     if(url.pathname==="/v1/profile"&&method==="GET"){
       json(res,200,buildApiSuccess("v1",correlationId,{status:"sandbox",message:"Identity persistence is not enabled in Web Alpha."}),{"strict-transport-security":"max-age=63072000; includeSubDomains"});
