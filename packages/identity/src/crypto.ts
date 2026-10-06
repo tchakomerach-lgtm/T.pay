@@ -27,7 +27,7 @@ function parseEncoded(encoded:string):{n:number;r:number;p:number;salt:Buffer;ex
   if(parts.length!==4||parts[0]!=="scrypt")return null;
   const params=Object.fromEntries((parts[1]??"").split(",").map(item=>item.split("=") as [string,string]));
   const n=Number(params.N),r=Number(params.r),p=Number(params.p);
-  const salt=Buffer.from(parts[3]??"","base64url"),expected=Buffer.from(parts[4]??"","base64url");
+  const salt=Buffer.from(parts[2]??"","base64url"),expected=Buffer.from(parts[3]??"","base64url");
   if(!Number.isSafeInteger(n)||!Number.isSafeInteger(r)||!Number.isSafeInteger(p)||expected.length!==KEY_LENGTH||salt.length!==16)return null;
   return {n,r,p,salt,expected};
 }
