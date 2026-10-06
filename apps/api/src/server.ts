@@ -7,7 +7,7 @@ import { buildApiError, buildApiSuccess } from "../../../packages/api-gateway/sr
 import { ApiGatewayRepository, canonicalRequestHash } from "../../../packages/api-gateway/src/repository.js";
 import { runHealthProbes } from "../../../packages/api-gateway/src/health.js";
 import pg from "pg";
-import { assertCsrf, loginWithPassword, logout, registerWithPassword, resolveSession, buildSessionCookie, openOrganizationSession } from "../../../packages/identity/src/postgres.js";
+import { assertCsrf, loginWithPassword, logout, registerWithPassword, resolveSession, buildSessionCookie, openOrganizationSession, listOrganizationMembers, createOrganizationRole, updateOrganizationRole, setOrganizationMemberRole, setOrganizationMemberStatus } from "../../../packages/identity/src/postgres.js";
 
 class MemoryRateDb implements RateDb {
   private readonly buckets = new Map<string,{count:number;windowStartedAt:string;max:number;seconds:number}>();
@@ -253,6 +253,51 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           }
           const session=await openOrganizationSession(pool,{sessionToken,organizationId,accessCode:input.accessCode});
           json(res,200,buildApiSuccess("v1",correlationId,{organizationId,expiresAt:session.expiresAt}));
+          return;
+        }
+
+        const orgMemberMatch=url.pathname.match(/^\\/v1\\/organizations\\/([^/]+)\\/members$/);
+        const orgRoleMatch=url.pathname.match(/^\\/v1\\/organizations\\/([^/]+)\\/roles$/);
+        const orgRoleItemMatch=url.pathname.match(/^\\/v1\\/organizations\\/([^/]+)\\/roles\\/([^/]+)$/);
+        const orgMemberItemMatch=url.pathname.match(/^\\/v1\\/organizations\\/([^/]+)\\/members\\/([^/]+)$/);
+        if(pool&&userId&&orgMemberMatch&&method==="GET"){
+          const organizationId=orgMemberMatch[1]!;
+          if(authenticatedSession?.organizationId!==organizationId){json(res,403,buildApiError({message:"ORGANIZATION_SESSION_REQUIRED"},correlationId));return;}
+          try{const items=await listOrganizationMembers(pool,organizationId,userId);json(res,200,buildApiSuccess("v1",correlationId,{items,nextCursor:null}));}
+          catch(error){json(res,403,buildApiError(error,correlationId));}
+          return;
+        }
+        if(pool&&userId&&orgRoleMatch&&method==="POST"){
+          const organizationId=orgRoleMatch[1]!;
+          if(authenticatedSession?.organizationId!==organizationId){json(res,403,buildApiError({message:"ORGANIZATION_SESSION_REQUIRED"},correlationId));return;}
+          if(!nativeClient)await requireBrowserCsrf(pool,{sessionId:authenticatedSession?.sessionId??""},origin,String(req.headers["x-csrf-token"]??""));
+          const input=safeJson(payload) as {name?:string;permissions?:string[]}|null;
+          if(!input?.name||!Array.isArray(input.permissions)){json(res,400,buildApiError({message:"INVALID_ROLE"},correlationId));return;}
+          try{const result=await createOrganizationRole(pool,{organizationId,actorUserId:userId,name:input.name,permissions:input.permissions});json(res,201,buildApiSuccess("v1",correlationId,result));}
+          catch(error){json(res,403,buildApiError(error,correlationId));}
+          return;
+        }
+        if(pool&&userId&&orgRoleItemMatch&&method==="PATCH"){
+          const organizationId=orgRoleItemMatch[1]!,roleId=orgRoleItemMatch[2]!;
+          if(authenticatedSession?.organizationId!==organizationId){json(res,403,buildApiError({message:"ORGANIZATION_SESSION_REQUIRED"},correlationId));return;}
+          if(!nativeClient)await requireBrowserCsrf(pool,{sessionId:authenticatedSession?.sessionId??""},origin,String(req.headers["x-csrf-token"]??""));
+          const input=safeJson(payload) as {name?:string;permissions?:string[]}|null;
+          if(!input?.name||!Array.isArray(input.permissions)){json(res,400,buildApiError({message:"INVALID_ROLE"},correlationId));return;}
+          try{await updateOrganizationRole(pool,{organizationId,actorUserId:userId,roleId,name:input.name,permissions:input.permissions});json(res,200,buildApiSuccess("v1",correlationId,{updated:true}));}
+          catch(error){json(res,403,buildApiError(error,correlationId));}
+          return;
+        }
+        if(pool&&userId&&orgMemberItemMatch&&method==="PATCH"){
+          const organizationId=orgMemberItemMatch[1]!,targetUserId=orgMemberItemMatch[2]!;
+          if(authenticatedSession?.organizationId!==organizationId){json(res,403,buildApiError({message:"ORGANIZATION_SESSION_REQUIRED"},correlationId));return;}
+          if(!nativeClient)await requireBrowserCsrf(pool,{sessionId:authenticatedSession?.sessionId??""},origin,String(req.headers["x-csrf-token"]??""));
+          const input=safeJson(payload) as {roleId?:string;status?:"active"|"suspended"|"revoked"}|null;
+          if(!input?.roleId&&!input?.status){json(res,400,buildApiError({message:"INVALID_MEMBER_UPDATE"},correlationId));return;}
+          try{
+            if(input.roleId)await setOrganizationMemberRole(pool,{organizationId,actorUserId:userId,userId:targetUserId,roleId:input.roleId});
+            if(input.status)await setOrganizationMemberStatus(pool,{organizationId,actorUserId:userId,userId:targetUserId,status:input.status});
+            json(res,200,buildApiSuccess("v1",correlationId,{updated:true}));
+          }catch(error){json(res,403,buildApiError(error,correlationId));}
           return;
         }
 
