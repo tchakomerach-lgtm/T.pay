@@ -91,7 +91,7 @@ export async function registerWithPassword(
       [randomUUID(),userId,passwordHash]
     );
     const created = await createSession(client,userId,cfg);
-    return { userId, session: created.session, sessionToken: created.token };
+    return { userId, session: created.session, sessionToken: created.sessionToken };
   });
 }
 
@@ -126,7 +126,7 @@ export async function loginWithPassword(
     }
     await client.query("UPDATE identity_credentials SET failed_attempts=0,locked_until=NULL WHERE id=$1",[row.credential_id]);
     const created = await createSession(client,row.user_id,cfg);
-    return { userId: row.user_id, session: created.session, sessionToken: created.token };
+    return { userId: row.user_id, session: created.session, sessionToken: created.sessionToken };
   });
 }
 
@@ -198,7 +198,7 @@ export async function openOrganizationSession(
   const threshold = config.lockoutAfterFailures ?? 5;
   const lockoutMs = config.lockoutMs ?? 15 * 60 * 1000;
   return withTx(pool, async client => {
-    const sessionResult = await client.query(
+    const sessionLookup = await client.query(
       `SELECT id,user_id,organization_id,csrf_hash,expires_at,assurance
          FROM identity_sessions
         WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at > now()
