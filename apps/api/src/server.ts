@@ -66,6 +66,8 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
   const gate=new ApiRuntimeGate(pool?new ApiAbuseRepository(pool):new ApiAbuseRepository(new MemoryRateDb()));
   const requestGovernance=pool?new ApiGatewayRepository(pool):undefined;
   if(!pool && process.env.NODE_ENV==="production")throw new Error("RATE_LIMIT_DATABASE_REQUIRED");
+  const metrics=new MetricsRegistry();
+  const runtimeMode=resolveRuntimeMode();
 
   const server=createHttpsServer(
     {key:readFileSync(input.tlsKey),cert:readFileSync(input.tlsCert),minVersion:"TLSv1.3"},
@@ -267,7 +269,8 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           if(!nativeClient)await requireBrowserCsrf(pool,{sessionId:(await resolveSession(pool,sessionToken)).sessionId},origin,String(req.headers["x-csrf-token"]??""));
           const input=safeJson(payload) as {name?:string;type?:string;accessCode?:string}|null;
           if(!input?.name||!input.type||!input.accessCode){json(res,400,buildApiError({message:"INVALID_ORGANIZATION_INPUT"},correlationId));return;}
-          const created=await import("../../../packages/identity/src/postgres.js").then(m=>m.createOrganizationWithFounder(pool,{founderId:userId,name:input.name,type:input.type,accessCode:input.accessCode}));
+          const name=input.name; const type=input.type; const accessCode=input.accessCode;
+          const created=await import("../../../packages/identity/src/postgres.js").then(m=>m.createOrganizationWithFounder(pool,{founderId:userId,name,type,accessCode}));
           json(res,201,buildApiSuccess("v1",correlationId,created));
           return;
         }
