@@ -34,7 +34,7 @@ test("HTTPS runtime negotiates TLS 1.3 and emits security headers",async()=>{
  try{
    createCertificate(dir);
    process.env.TPAY_WEB_SERVER_TEST="1";
-   const {createWebServer}=await import("../scripts/web-server.mjs");
+   const {createWebServer}=await import("../../scripts/web-server.mjs");
    const {server}=createWebServer({port:0,tlsKey:join(dir,"key.pem"),tlsCert:join(dir,"cert.pem"),production:true});
    await new Promise<void>((resolve)=>server.listen(0,"127.0.0.1",()=>resolve()));
    const address=server.address();
