@@ -5,7 +5,10 @@ import type { Client, Pool, PoolClient } from "pg";
 
 function checksum(sql:string):string{return createHash("sha256").update(sql).digest("hex");}
 
-export async function applyMigrations(client:Client,migrationDirectory:URL):Promise<void>{
+export async function applyMigrations(clientOrPool:Client|Pool,migrationDirectory:URL):Promise<void>{
+  const client:Client|PoolClient="connect" in clientOrPool ? await clientOrPool.connect() : clientOrPool;
+  const release="release" in client ? () => client.release() : () => {};
+  try{
   await client.query("CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now(), checksum text, applied_by text)");
   await client.query("ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS checksum text");
   await client.query("ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS applied_by text");
@@ -49,5 +52,6 @@ export async function applyMigrations(client:Client,migrationDirectory:URL):Prom
     }
   }finally{
     if(locked) await client.query("DELETE FROM deployment_locks WHERE lock_name=$1 AND owner_id=$2",["schema-migrations",ownerId]);
+    release();
   }
 }
