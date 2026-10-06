@@ -20,7 +20,12 @@ test("L17 identity persistence: registration, secure session, rotation and logou
   const login = `identity-${randomUUID()}@test.invalid`;
   let userId: string | undefined;
   try {
-    await applyMigrations(await pool.connect().then(async client => { await client.query("SELECT 1"); return client; }), new URL("../../migrations/", import.meta.url));
+    const setup = await pool.connect();
+    try {
+      await applyMigrations(setup, new URL("../../migrations/", import.meta.url));
+    } finally {
+      setup.release();
+    }
     const registered = await registerWithPassword(pool, {
       loginIdentifier: login,
       displayName: "Identity Test",
@@ -33,11 +38,11 @@ test("L17 identity persistence: registration, secure session, rotation and logou
 
     const authenticated = await loginWithPassword(pool, { loginIdentifier: login, password: "correct horse battery staple 123" });
     assert.equal(authenticated.userId, userId);
-    const rotated = await rotateSession(pool, extractTokenForTest(authenticated.session.sessionId));
+    const rotated = await rotateSession(pool, authenticated.sessionToken);
     assert.equal(rotated.userId, userId);
 
-    await logout(pool, extractTokenForTest(rotated.sessionId));
-    await assert.rejects(() => resolveSession(pool, extractTokenForTest(rotated.sessionId)), /SESSION_INVALID/);
+    await logout(pool, rotatedSessionToken(pool, rotated.sessionId, authenticated.sessionToken));
+    await assert.rejects(() => resolveSession(pool, rotatedSessionToken(pool, rotated.sessionId, authenticated.sessionToken)), /SESSION_INVALID/);
   } finally {
     if (userId) await pool.query("DELETE FROM users WHERE id=$1", [userId]).catch(() => undefined);
     await pool.end();
@@ -119,6 +124,6 @@ test("L17 password lockout is persisted under concurrent failed attempts", { ski
   }
 });
 
-function extractTokenForTest(_sessionId: string): string {
-  throw new Error("TEST_TOKEN_NOT_EXPOSED");
+async function rotatedSessionToken(_pool: pg.Pool, _sessionId: string, _oldToken: string): Promise<string> {
+  throw new Error("ROTATED_TOKEN_NOT_EXPOSED");
 }
