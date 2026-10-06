@@ -10,7 +10,7 @@ test("home screen renders the T.Pay shell and sandbox warning",()=>{
   const html=renderScreen("home",false);
   assert.match(html,/T\.Pay accueil/);
   assert.match(html,/Aucune opération financière réelle/);
-  assert.match(html,/Gestion des organisations/);
+  assert.match(html,/Organisations/);
 });
 
 test("community tontine remains distinct from microfinance",()=>{
