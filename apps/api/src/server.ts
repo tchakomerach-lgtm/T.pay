@@ -205,7 +205,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           return;
         }
 
-        if(/^\\/v1\\/organizations\\/[^/]+\\/session$/.test(url.pathname)&&method==="POST"){
+        if(/^\/v1\/organizations\/[^/]+\/session$/.test(url.pathname)&&method==="POST"){
           if(!pool||!sessionToken||!userId){json(res,401,buildApiError({message:"SESSION_INVALID"},correlationId));return;}
           const organizationId=url.pathname.split("/")[3]!;
           const input=safeJson(payload) as {accessCode?:string}|null;
