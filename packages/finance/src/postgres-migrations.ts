@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { Client } from "pg";
+import type { Client, Pool, PoolClient } from "pg";
 
 function checksum(sql:string):string{return createHash("sha256").update(sql).digest("hex");}
 
