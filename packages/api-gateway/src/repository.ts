@@ -13,7 +13,7 @@ export class ApiGatewayRepository{
  async reserveOrReplay(input:{organizationId?:string;key:string;requestHash:string;route:string;expiresAt:string}):Promise<IdempotencyResult>{
   if(!input.key||input.key.length>200||!HEX64.test(input.requestHash)) throw new Error("API_IDEMPOTENCY_INVALID");
   const id=randomUUID();
-  const r=await this.db.query("INSERT INTO api_request_deduplication(id,organization_id,idempotency_key,request_hash,route,state,created_at,expires_at) VALUES($1,$2,$3,$4,$5,'reserved',now(),$6::timestamptz) ON CONFLICT(organization_id,idempotency_key) DO NOTHING RETURNING id",[id,input.organizationId??null,input.key,input.requestHash,input.route,input.expiresAt]);
+  const r=await this.db.query("INSERT INTO api_request_deduplication(id,organization_id,idempotency_key,request_hash,route,state,created_at,expires_at) VALUES($1,$2,$3,$4,$5,'reserved',now(),$6::timestamptz) ON CONFLICT DO NOTHING RETURNING id",[id,input.organizationId??null,input.key,input.requestHash,input.route,input.expiresAt]);
   if(r.rows.length===1)return {status:"reserved",requestId:id};
   const existing=await this.db.query("SELECT id,request_hash,route,state,response_hash,response_body,status_code FROM api_request_deduplication WHERE organization_id IS NOT DISTINCT FROM $1 AND idempotency_key=$2",[input.organizationId??null,input.key]);
   const row=existing.rows[0];
