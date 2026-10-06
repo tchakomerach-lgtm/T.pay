@@ -19,6 +19,7 @@ export type CursorPage<T> = { items:T[]; nextCursor:string|null };
 export class TPayApi {
   private sessionToken:string|undefined;
   private csrfToken:string|undefined;
+  private userId:string|undefined;
   private readonly cache = new RuntimeCache();
   private outbox = new OfflineOutbox("anonymous");
   private readonly telemetry = new ClientObservability();
@@ -29,8 +30,8 @@ export class TPayApi {
     this.retryPolicy = {...DEFAULT_RETRY_POLICY, ...options.retryPolicy};
   }
 
-  setSession(token:string|undefined,csrfToken?:string,userId?:string):void{ this.sessionToken=token; if(csrfToken!==undefined)this.csrfToken=csrfToken; if(userId)this.outbox=new OfflineOutbox(userId); }
-  clearSession():void{this.sessionToken=undefined;this.csrfToken=undefined;}
+  setSession(token:string|undefined,csrfToken?:string,userId?:string):void{ this.sessionToken=token; if(csrfToken!==undefined)this.csrfToken=csrfToken; this.userId=userId; if(userId)this.outbox=new OfflineOutbox(userId); }
+  clearSession():void{this.sessionToken=undefined;this.csrfToken=undefined;this.userId=undefined;}
   getSessionToken():string|undefined{return this.sessionToken;}
   metrics():ClientMetric[]{return this.telemetry.snapshot();}
 
@@ -47,7 +48,7 @@ export class TPayApi {
   }
 
   async organizations(cursor?:string):Promise<CursorPage<Organization>>{
-    const key="organizations:"+String(cursor??"");
+    const key="organizations:"+String(this.userId??"anonymous")+":"+String(cursor??"");
     const cached=await this.cache.get<CursorPage<Organization>>(key); if(cached)return cached;
     const query=cursor?"?cursor="+encodeURIComponent(cursor):"";
     const result=await this.request<CursorPage<Organization>>("/v1/organizations"+query);
