@@ -256,10 +256,10 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           return;
         }
 
-        const orgMemberMatch=url.pathname.match(/^\\/v1\\/organizations\\/([^/]+)\\/members$/);
-        const orgRoleMatch=url.pathname.match(/^\\/v1\\/organizations\\/([^/]+)\\/roles$/);
-        const orgRoleItemMatch=url.pathname.match(/^\\/v1\\/organizations\\/([^/]+)\\/roles\\/([^/]+)$/);
-        const orgMemberItemMatch=url.pathname.match(/^\\/v1\\/organizations\\/([^/]+)\\/members\\/([^/]+)$/);
+        const orgMemberMatch=url.pathname.match(/^\/v1\/organizations\/([^/]+)\/members$/);
+        const orgRoleMatch=url.pathname.match(/^\/v1\/organizations\/([^/]+)\/roles$/);
+        const orgRoleItemMatch=url.pathname.match(/^\/v1\/organizations\/([^/]+)\/roles\/([^/]+)$/);
+        const orgMemberItemMatch=url.pathname.match(/^\/v1\/organizations\/([^/]+)\/members\/([^/]+)$/);
         if(pool&&userId&&orgMemberMatch&&method==="GET"){
           const organizationId=orgMemberMatch[1]!;
           if(authenticatedSession?.organizationId!==organizationId){json(res,403,buildApiError({message:"ORGANIZATION_SESSION_REQUIRED"},correlationId));return;}
