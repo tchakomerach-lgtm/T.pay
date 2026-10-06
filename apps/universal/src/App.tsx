@@ -16,7 +16,7 @@ export default function App(){
   if(Platform.OS==="web"){
     const csrf=typeof sessionStorage!=="undefined"?sessionStorage.getItem("tpay.session.csrf"):null;
     if(csrf)api.setSession(undefined,csrf);
-    void api.me().then(profile=>{api.setSession(undefined,api.getSessionToken(),profile.userId);setSignedIn(true)}).catch(()=>setSignedIn(false));
+    void api.me().then(profile=>{api.setSession(api.getSessionToken(),csrf??undefined,profile.userId);setSignedIn(true)}).catch(()=>setSignedIn(false));
     return;
   }
   void (async()=>{
