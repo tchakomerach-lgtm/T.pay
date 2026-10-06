@@ -62,7 +62,7 @@ test("concurrent role updates leave a valid single role state", {skip:!databaseU
     assert.ok(["Mutable A","Mutable B"].includes(row.name));
     assert.ok(Array.isArray(row.permissions));
     assert.ok(row.permissions.includes("org.read"));
-  }finally{if(f)await cleanup(pool,[f.founder.userId,f.memberA.userId,f.memberB.userId]);await pool.end();}
+  }finally{if(f)await cleanup(pool,f.organizationId,[f.founder.userId,f.memberA.userId,f.memberB.userId]);await pool.end();}
 });
 
 test("concurrent role assignment never crosses tenants", {skip:!databaseUrl&&"TPAY_DATABASE_URL is not configured"}, async()=>{
