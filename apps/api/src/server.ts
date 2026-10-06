@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { ApiAbuseRepository, type RateDb } from "../../../packages/api-gateway/src/rate-abuse.js";
 import { ApiRuntimeGate } from "../../../packages/api-gateway/src/runtime-gate.js";
 import { buildApiError, buildApiSuccess } from "../../../packages/api-gateway/src/api-contract.js";
+import { ApiGatewayRepository, canonicalRequestHash } from "../../../packages/api-gateway/src/repository.js";
 import { runHealthProbes } from "../../../packages/api-gateway/src/health.js";
 import pg from "pg";
 import { assertCsrf, loginWithPassword, logout, registerWithPassword, resolveSession, buildSessionCookie, openOrganizationSession } from "../../../packages/identity/src/postgres.js";
@@ -55,6 +56,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
   const databaseUrl=input.databaseUrl??process.env.TPAY_DATABASE_URL;
   const pool=databaseUrl?new pg.Pool({connectionString:databaseUrl,max:20}):undefined;
   const gate=new ApiRuntimeGate(pool?new ApiAbuseRepository(pool):new ApiAbuseRepository(new MemoryRateDb()));
+  const requestGovernance=pool?new ApiGatewayRepository(pool):undefined;
   if(!pool && process.env.NODE_ENV==="production")throw new Error("RATE_LIMIT_DATABASE_REQUIRED");
 
   const server=createHttpsServer(
@@ -108,6 +110,41 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           ...(req.headers["idempotency-key"]?{idempotencyKey:String(req.headers["idempotency-key"])}:{}),
           ...(payload?{payloadHash:createHash("sha256").update(payload).digest("hex")}:{})
         });
+        let idempotencyRequestId:string|undefined;
+        if(requestGovernance && method!=="GET" && method!=="HEAD" && req.headers["idempotency-key"]){
+          const rawKey=String(req.headers["idempotency-key"]);
+          const scopedKey=(userId??"anonymous")+":"+rawKey;
+          const requestHash=canonicalRequestHash(method,url.pathname,payload);
+          const replay=await requestGovernance.reserveOrReplay({
+            organizationId:authenticatedSession?.organizationId,
+            key:scopedKey,
+            requestHash,
+            route:url.pathname,
+            expiresAt:new Date(Date.now()+24*60*60*1000).toISOString()
+          });
+          if(replay.status==="conflict"){
+            json(res,409,buildApiError({message:"IDEMPOTENCY_KEY_CONFLICT"},correlationId));return;
+          }
+          if(replay.status==="replay"){
+            if(replay.responseBody && replay.statusCode){
+              res.writeHead(replay.statusCode,{"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-idempotent-replay":"true"});
+              res.end(replay.responseBody);
+              return;
+            }
+            json(res,409,buildApiError({message:"IDEMPOTENCY_IN_PROGRESS"},correlationId));return;
+          }
+          idempotencyRequestId=replay.requestId;
+          const originalEnd=res.end.bind(res);
+          const governanceId=idempotencyRequestId;
+          (res as any).end=async(chunk?:any,encoding?:any,callback?:any)=>{
+            const body=chunk===undefined?"":Buffer.isBuffer(chunk)?chunk.toString("utf8"):String(chunk);
+            const responseHash=createHash("sha256").update(body).digest("hex");
+            const state=res.statusCode>=200&&res.statusCode<500?"succeeded":"failed";
+            try{await requestGovernance.completeIdempotency({requestId:governanceId,state,responseHash,responseBody:body,statusCode:res.statusCode||200});}
+            finally{originalEnd(chunk,encoding,callback);}
+          };
+        }
+
         if(!decision.allowed){
           json(res,decision.status,buildApiError({message:decision.code},correlationId),decision.retryAfterSeconds?{"retry-after":String(decision.retryAfterSeconds)}:{});
           return;
