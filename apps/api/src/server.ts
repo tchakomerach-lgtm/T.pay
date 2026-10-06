@@ -256,7 +256,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           return;
         }
 
-        const orgItemMatch=url.pathname.match(/^\\/v1\\/organizations\\/([^/]+)$/);
+        const orgItemMatch=url.pathname.match(/^\/v1\/organizations\/([^/]+)$/);
         if(pool&&userId&&orgItemMatch&&method==="GET"){
           const organizationId=orgItemMatch[1]!;
           if(authenticatedSession?.organizationId!==organizationId){json(res,403,buildApiError({message:"ORGANIZATION_SESSION_REQUIRED"},correlationId));return;}
@@ -274,7 +274,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           catch(error){const message=error instanceof Error?error.message:"ORGANIZATION_UPDATE_FAILED";const status=message==="PERMISSION_DENIED"?403:/^INVALID_/.test(message)?400:404;json(res,status,buildApiError({message},correlationId));}
           return;
         }
-        const orgAuditMatch=url.pathname.match(/^\\/v1\\/organizations\\/([^/]+)\\/audit$/);
+        const orgAuditMatch=url.pathname.match(/^\/v1\/organizations\/([^/]+)\/audit$/);
         if(pool&&userId&&orgAuditMatch&&method==="GET"){
           const organizationId=orgAuditMatch[1]!;
           if(authenticatedSession?.organizationId!==organizationId){json(res,403,buildApiError({message:"ORGANIZATION_SESSION_REQUIRED"},correlationId));return;}
