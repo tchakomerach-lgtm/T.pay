@@ -80,7 +80,7 @@ export class TPayApi {
   async flushTelemetry():Promise<void>{
     await this.telemetry.flush(async events=>{
       if(!this.sessionToken && !isNative()) return;
-      await this.request("/v1/client/telemetry",{method:"POST",body:JSON.stringify({events})},{queueIfOffline:false});
+      await this.request("/v1/client/telemetry",{method:"POST",body:JSON.stringify({events})});
     });
   }
 
@@ -96,7 +96,7 @@ export class TPayApi {
     }
   }
 
-  private async request<T>(path:string,init:RequestInit={},options:{queueIfOffline?:boolean}={queueIfOffline:true}):Promise<T>{
+  private async request<T>(path:string,init:RequestInit={}):Promise<T>{
     const started=Date.now();
     const headers:Record<string,string>={"content-type":"application/json",Accept:"application/json"};
     if(init.headers)Object.assign(headers,init.headers);
