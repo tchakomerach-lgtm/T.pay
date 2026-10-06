@@ -27,7 +27,7 @@ export class ApiRuntimeGate {
     payloadHash?:string;
     now:string;
   }):Promise<RuntimeDecision>{
-    if (!(input.channel==="mobile" && input.origin==="")) assertHttpsOrigin(input.origin);
+    if (!(input.channel==="native" && input.origin==="")) assertHttpsOrigin(input.origin);
     try{
       assertApiVersionCompatibility(input.route);
     }catch(error){
