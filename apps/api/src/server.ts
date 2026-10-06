@@ -93,5 +93,6 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
     }
     json(res,404,buildApiError({message:"API_ROUTE_NOT_FOUND"},correlationId));
   });
+  server.on("close",()=>{void pool?.end();});
   return {server,port:input.port??0};
 }
