@@ -82,7 +82,25 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
             ...(pool?[{name:"postgres",check:async()=>{await pool.query("SELECT 1");return true;}}]:[])
           ];
           const report=await runHealthProbes(probes);
-          json(res,report.ready?200:503,buildApiSuccess("v1",correlationId,report),{"strict-transport-security":"max-age=63072000; includeSubDomains"});
+          json(res,report.ready?200:503,buildApiSuccess("v1",correlationId,{...report,mode:runtimeMode}),{"strict-transport-security":"max-age=63072000; includeSubDomains"});
+          return;
+        }
+
+        if(url.pathname==="/v1/metrics"&&method==="GET"){
+          const configured=process.env.TPAY_METRICS_TOKEN;
+          if(!configured){json(res,404,buildApiError({message:"METRICS_NOT_EXPOSED"},correlationId));return;}
+          const supplied=String(req.headers.authorization??"").replace(/^Bearer\s+/i,"");
+          const a=createHash("sha256").update(supplied).digest("hex");
+          const b=createHash("sha256").update(configured).digest("hex");
+          if(a!==b){json(res,401,buildApiError({message:"METRICS_UNAUTHORIZED"},correlationId));return;}
+          res.writeHead(200,{"content-type":"text/plain; version=0.0.4; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff"});
+          res.end(metrics.toPrometheus());
+          return;
+        }
+
+        const modeDecision=evaluateRuntimeMode(runtimeMode,method,url.pathname);
+        if(!modeDecision.allowed){
+          json(res,modeDecision.status,buildApiError({message:modeDecision.code},correlationId),modeDecision.retryAfterSeconds?{"retry-after":String(modeDecision.retryAfterSeconds)}:{});
           return;
         }
 
