@@ -6,8 +6,10 @@ import type { Client, Pool, PoolClient } from "pg";
 function checksum(sql:string):string{return createHash("sha256").update(sql).digest("hex");}
 
 export async function applyMigrations(clientOrPool:Client|Pool,migrationDirectory:URL):Promise<void>{
-  const client:Client|PoolClient="connect" in clientOrPool ? await clientOrPool.connect() : clientOrPool;
-  const release="release" in client ? () => client.release() : () => {};
+  let client:Client|PoolClient;
+  let release:()=>void=()=>{};
+  if("connect" in clientOrPool){ const connected=await clientOrPool.connect(); client=connected; release=()=>connected.release(); }
+  else client=clientOrPool;
   try{
   await client.query("CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now(), checksum text, applied_by text)");
   await client.query("ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS checksum text");
