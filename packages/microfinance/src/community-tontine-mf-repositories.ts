@@ -27,7 +27,8 @@ function reconciliationFromRow(row: Record<string, unknown>): CommunityTontineMf
     externalReference: String(row.external_reference), expectedMinor: BigInt(String(row.expected_minor)),
     observedMinor: BigInt(String(row.observed_minor)), currency: String(row.currency),
     state: row.state as CommunityTontineMfReconciliationItem["state"],
-    openedAt: new Date(String(row.opened_at)).toISOString(),\n    ...(row.idempotency_key != null ? { idempotencyKey: String(row.idempotency_key) } : {})
+    openedAt: new Date(String(row.opened_at)).toISOString(),
+    ...(row.idempotency_key != null ? { idempotencyKey: String(row.idempotency_key) } : {})
   };
 }
 export class PostgresCommunityTontineMfAccessRepository implements CommunityTontineMfAccessRepository {
