@@ -79,7 +79,7 @@ export class TPayApi {
     const items=await this.outbox.list(); let processed=0;
     for(const item of items){
       try{
-        await this.request(item.path,{method:item.method,body:item.body,headers:{"idempotency-key":item.idempotencyKey}});
+        await this.request(item.path,{method:item.method,headers:{"idempotency-key":item.idempotencyKey},...(item.body!==undefined?{body:item.body}:{})});
         await this.outbox.remove(item.id); processed++;
       }catch{break;}
     }
