@@ -78,7 +78,7 @@ export function assertSettlementMayProceed(instruction: CommunityTontineMfSettle
   if (instruction.state !== "approved") throw new Error("COMMUNITY_TONTINE_SETTLEMENT_NOT_APPROVED");
   if (policy.humanApprovalRequired && !instruction.requiresHumanApproval) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_HUMAN_APPROVAL_REQUIRED");
   if (!instruction.requiresHumanApproval && !canAutomateSettlement(policy, instruction.amountMinor)) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_AUTOMATION_NOT_ALLOWED");
-  if (!instruction.preparedBy || !instruction.approvedBy || instruction.preparedBy === instruction.approvedBy) throw new Error("COMMUNITY_TONTINE_MAKER_CHECKER_REQUIRED");
+  if (instruction.requiresHumanApproval && (!instruction.preparedBy || !instruction.approvedBy || instruction.preparedBy === instruction.approvedBy)) throw new Error("COMMUNITY_TONTINE_MAKER_CHECKER_REQUIRED");
 }
 export function assertReconciliationRequired(expectedMinor: bigint, observedMinor: bigint): void {
   if (expectedMinor !== observedMinor) throw new Error("COMMUNITY_TONTINE_RECONCILIATION_REQUIRED");
