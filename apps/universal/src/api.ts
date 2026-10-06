@@ -20,7 +20,7 @@ export class TPayApi {
   private sessionToken:string|undefined;
   private csrfToken:string|undefined;
   private readonly cache = new RuntimeCache();
-  private readonly outbox = new OfflineOutbox();
+  private outbox = new OfflineOutbox("anonymous");
   private readonly telemetry = new ClientObservability();
   private readonly retryPolicy: RetryPolicy;
 
@@ -29,7 +29,7 @@ export class TPayApi {
     this.retryPolicy = {...DEFAULT_RETRY_POLICY, ...options.retryPolicy};
   }
 
-  setSession(token:string|undefined,csrfToken?:string):void{ this.sessionToken=token; if(csrfToken!==undefined)this.csrfToken=csrfToken; }
+  setSession(token:string|undefined,csrfToken?:string,userId?:string):void{ this.sessionToken=token; if(csrfToken!==undefined)this.csrfToken=csrfToken; if(userId)this.outbox=new OfflineOutbox(userId); }
   clearSession():void{this.sessionToken=undefined;this.csrfToken=undefined;}
   getSessionToken():string|undefined{return this.sessionToken;}
   metrics():ClientMetric[]{return this.telemetry.snapshot();}
@@ -38,7 +38,7 @@ export class TPayApi {
 
   async register(input:{loginIdentifier:string;displayName:string;password:string}):Promise<AuthResponse>{
     const result=await this.request<AuthResponse>("/v1/auth/register",{method:"POST",body:JSON.stringify(input)});
-    this.setSession(result.sessionToken,result.csrfToken); return result;
+    this.setSession(result.sessionToken,result.csrfToken,result.userId); return result;
   }
 
   async login(input:{loginIdentifier:string;password:string}):Promise<AuthResponse>{
