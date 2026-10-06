@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 
 export type Health = { ready:boolean; checks?:Array<{name:string;ok:boolean}> };
-export type AuthResponse = { userId:string; csrfToken:string; expiresAt:string; sessionToken?:string };
+export type AuthResponse = { userId:string; csrfToken:string; expiresAt:string; sessionToken?:string };\nexport type Organization = { id:string; name:string; type:string; status:string; roleId:string; roleName:string; membershipStatus:string };
 
 export class TPayApi {
   private sessionToken:string|undefined;
@@ -35,7 +35,7 @@ export class TPayApi {
     return result;
   }
 
-  async me():Promise<{userId:string;displayName:string}>{
+  async organizations():Promise<Organization[]>{\n    const result=await this.request<{items:Organization[];nextCursor:string|null}>("/v1/organizations");\n    return result.items;\n  }\n\n  async me():Promise<{userId:string;displayName:string}>{
     return this.request<{userId:string;displayName:string}>("/v1/auth/me");
   }
 
