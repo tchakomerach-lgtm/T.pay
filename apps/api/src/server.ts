@@ -71,7 +71,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
       if(!pool){json(res,503,buildApiError({message:"IDENTITY_DATABASE_UNAVAILABLE"},correlationId));return;}
       const input=JSON.parse(payload) as {loginIdentifier:string;password:string};
       const result=await loginWithPassword(pool,input);
-      json(res,200,buildApiSuccess("v1",correlationId,{userId:result.userId,csrfToken:result.session.csrfToken,expiresAt:result.session.expiresAt}),{"set-cookie":buildSessionCookie(result.sessionToken,3600)});
+      json(res,200,buildApiSuccess("v1",correlationId,{userId:result.userId,csrfToken:result.session.csrfToken,expiresAt:result.session.expiresAt,...(origin?{}:{sessionToken:result.sessionToken})}),{"set-cookie":buildSessionCookie(result.sessionToken,3600)});
       return;
     }
     if(url.pathname==="/v1/auth/me"&&method==="GET"){
