@@ -13,5 +13,13 @@
     "sourceMap": true,
     "outDir": "dist"
   },
-  "include": ["apps/**/*.ts", "packages/**/*.ts", "tests/**/*.ts"]
+  "include": [
+    "apps/**/*.ts",
+    "packages/**/*.ts",
+    "tests/**/*.ts"
+  ],
+  "exclude": [
+    "apps/universal/**/*.ts",
+    "apps/universal/**/*.tsx"
+  ]
 }
