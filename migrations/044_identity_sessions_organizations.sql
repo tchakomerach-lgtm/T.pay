@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS organizations (
   type text NOT NULL,
   founder_id uuid NOT NULL REFERENCES users(id),
   access_code_hash text NOT NULL,
+  failed_access_attempts integer NOT NULL DEFAULT 0 CHECK (failed_access_attempts >= 0),
+  access_locked_until timestamptz,
   status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended','closed')),
   created_at timestamptz NOT NULL DEFAULT now()
 );
