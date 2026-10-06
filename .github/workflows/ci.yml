@@ -42,4 +42,5 @@ jobs:
       - run: npm run check
       - run: npm run web:smoke
       - run: npm run web:check
+      - run: npm run api:check
       - run: npm audit --omit=dev --audit-level=high
