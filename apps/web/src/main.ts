@@ -124,5 +124,18 @@ function showToast(root: HTMLElement, message: string): void {
   window.setTimeout(() => toast.classList.remove("show"), 2400);
 }
 
+
+function ensureStylesheet(): void {
+  const existing = document.querySelector('link[data-tpay-styles]');
+  if (existing) return;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "/apps/web/src/styles.css";
+  link.dataset.tpayStyles = "true";
+  document.head.appendChild(link);
+}
+
+ensureStylesheet();
+
 const root = document.getElementById("app");
 if (root) startApp(root);
