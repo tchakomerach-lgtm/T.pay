@@ -102,7 +102,7 @@ export async function loginWithPassword(
 ): Promise<RegistrationResult> {
   const cfg = { ...defaults, ...config };
   const login = normalizeLoginIdentifier(input.loginIdentifier);
-  return withTx(pool, async client => {
+  const outcome = await withTx(pool, async client => {
     const result = await client.query(
       `SELECT u.id AS user_id,u.status,c.id AS credential_id,c.status AS credential_status,
               c.secret_hash,c.failed_attempts,c.locked_until
@@ -115,19 +115,21 @@ export async function loginWithPassword(
       !(row.locked_until && new Date(row.locked_until).getTime() > Date.now());
     if (!usable) {
       await verifyPassword(input.password, await dummyPasswordHash);
-      throw new Error("AUTHENTICATION_FAILED");
+      return { kind:"failure" as const };
     }
     const valid = await verifyPassword(input.password,row.secret_hash);
     if (!valid) {
       const failures = row.failed_attempts + 1;
       const locked = failures >= cfg.lockoutAfterFailures ? new Date(Date.now()+cfg.lockoutMs) : null;
       await client.query("UPDATE identity_credentials SET failed_attempts=$2,locked_until=$3 WHERE id=$1",[row.credential_id,failures,locked]);
-      throw new Error("AUTHENTICATION_FAILED");
+      return { kind:"failure" as const };
     }
     await client.query("UPDATE identity_credentials SET failed_attempts=0,locked_until=NULL WHERE id=$1",[row.credential_id]);
     const created = await createSession(client,row.user_id,cfg);
-    return { userId: row.user_id, session: created.session, sessionToken: created.sessionToken };
+    return { kind:"success" as const, userId: row.user_id, session: created.session, sessionToken: created.sessionToken };
   });
+  if (outcome.kind === "failure") throw new Error("AUTHENTICATION_FAILED");
+  return { userId: outcome.userId, session: outcome.session, sessionToken: outcome.sessionToken };
 }
 
 export async function resolveSession(pool: Pool, token: string): Promise<AuthenticatedSession> {
