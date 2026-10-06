@@ -1,8 +1,10 @@
 export type Health = { ready:boolean; checks?:Array<{name:string;ok:boolean}> };
-export type AuthResponse = { userId:string; csrfToken:string; expiresAt:string };
+export type AuthResponse = { userId:string; csrfToken:string; expiresAt:string; sessionToken?:string };
 
 export class TPayApi {
+  private sessionToken:string|undefined;
   constructor(private readonly baseUrl:string){ if(!/^https:\/\//.test(baseUrl)) throw new Error("API_HTTPS_REQUIRED"); }
+  setSessionToken(token:string|undefined):void{this.sessionToken=token;}
 
   async health():Promise<Health>{
     const r=await fetch(this.baseUrl+"/v1/health",{headers:{Accept:"application/json"}});
@@ -12,11 +14,11 @@ export class TPayApi {
   }
 
   async register(input:{loginIdentifier:string;displayName:string;password:string}):Promise<AuthResponse>{
-    return this.request<AuthResponse>("/v1/auth/register",{method:"POST",body:JSON.stringify(input)});
+    const result=await this.request<AuthResponse>("/v1/auth/register",{method:"POST",body:JSON.stringify(input)});if(result.sessionToken)this.sessionToken=result.sessionToken;return result;
   }
 
   async login(input:{loginIdentifier:string;password:string}):Promise<AuthResponse>{
-    return this.request<AuthResponse>("/v1/auth/login",{method:"POST",body:JSON.stringify(input)});
+    const result=await this.request<AuthResponse>("/v1/auth/login",{method:"POST",body:JSON.stringify(input)});if(result.sessionToken)this.sessionToken=result.sessionToken;return result;
   }
 
   async me():Promise<{userId:string;displayName:string}>{
