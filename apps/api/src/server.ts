@@ -110,6 +110,11 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           ...(req.headers["idempotency-key"]?{idempotencyKey:String(req.headers["idempotency-key"])}:{}),
           ...(payload?{payloadHash:createHash("sha256").update(payload).digest("hex")}:{})
         });
+        if(!decision.allowed){
+          json(res,decision.status,buildApiError({message:decision.code},correlationId),decision.retryAfterSeconds?{"retry-after":String(decision.retryAfterSeconds)}:{});
+          return;
+        }
+
         let idempotencyRequestId:string|undefined;
         if(requestGovernance && method!=="GET" && method!=="HEAD" && req.headers["idempotency-key"]){
           const rawKey=String(req.headers["idempotency-key"]);
@@ -143,11 +148,6 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
             try{await requestGovernance.completeIdempotency({requestId:governanceId,state,responseHash,responseBody:body,statusCode:res.statusCode||200});}
             finally{originalEnd(chunk,encoding,callback);}
           };
-        }
-
-        if(!decision.allowed){
-          json(res,decision.status,buildApiError({message:decision.code},correlationId),decision.retryAfterSeconds?{"retry-after":String(decision.retryAfterSeconds)}:{});
-          return;
         }
 
         if(url.pathname==="/v1/auth/register"&&method==="POST"){
