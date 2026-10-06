@@ -36,6 +36,16 @@ function json(res:import("node:http").ServerResponse,status:number,body:unknown,
   res.writeHead(status,{"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff","x-frame-options":"DENY","referrer-policy":"no-referrer","cross-origin-opener-policy":"same-origin","cross-origin-resource-policy":"same-origin","content-security-policy":"default-src 'none'; frame-ancestors 'none'; base-uri 'none'",...extra});
   res.end(JSON.stringify(body));
 }
+function expectedWebOrigin():string{
+  const value=process.env.TPAY_WEB_ORIGIN??"https://app.tpay.tg";
+  if(!/^https:\/\/[^/]+$/.test(value))throw new Error("WEB_ORIGIN_INVALID");
+  return value;
+}
+async function requireBrowserCsrf(pool:pg.Pool,session:{sessionId:string},origin:string,header:string|undefined):Promise<void>{
+  const expected=expectedWebOrigin();
+  const stored=await pool.query("SELECT csrf_hash FROM identity_sessions WHERE id=$1 AND revoked_at IS NULL",[session.sessionId]);
+  assertCsrf(origin,expected,header,stored.rows[0]?.csrf_hash as string|undefined);
+}
 function safeJson(payload:string):Record<string,unknown>|null{
   try{const value=JSON.parse(payload);return value&&typeof value==="object"?value:null;}catch{return null;}
 }
@@ -143,6 +153,32 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
             return;
           }
           json(res,200,buildApiSuccess("v1",correlationId,{loggedOut:true}),{"set-cookie":"__Host-tpay_session=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=Strict"});
+          return;
+        }
+
+        if(url.pathname==="/v1/organizations"&&method==="GET"){
+          if(!pool||!sessionToken||!userId){json(res,401,buildApiError({message:"SESSION_INVALID"},correlationId));return;}
+          const result=await pool.query(
+            `SELECT o.id,o.name,o.type,o.status,m.role_id,r.name AS role_name,m.status AS membership_status
+               FROM organization_memberships m
+               JOIN organizations o ON o.id=m.organization_id
+               JOIN organization_roles r ON r.id=m.role_id
+              WHERE m.user_id=$1 AND m.status='active' AND o.status='active'
+              ORDER BY o.created_at DESC`,[userId]);
+          json(res,200,buildApiSuccess("v1",correlationId,{items:result.rows.map(row=>({
+            id:String(row.id),name:String(row.name),type:String(row.type),status:String(row.status),
+            roleId:String(row.role_id),roleName:String(row.role_name),membershipStatus:String(row.membership_status)
+          })),nextCursor:null}));
+          return;
+        }
+
+        if(url.pathname==="/v1/organizations"&&method==="POST"){
+          if(!pool||!sessionToken||!userId){json(res,401,buildApiError({message:"SESSION_INVALID"},correlationId));return;}
+          if(!nativeClient)await requireBrowserCsrf(pool,{sessionId:(await resolveSession(pool,sessionToken)).sessionId},origin,String(req.headers["x-csrf-token"]??""));
+          const input=safeJson(payload) as {name?:string;type?:string;accessCode?:string}|null;
+          if(!input?.name||!input.type||!input.accessCode){json(res,400,buildApiError({message:"INVALID_ORGANIZATION_INPUT"},correlationId));return;}
+          const created=await import("../../../packages/identity/src/postgres.js").then(m=>m.createOrganizationWithFounder(pool,{founderId:userId,name:input.name,type:input.type,accessCode:input.accessCode}));
+          json(res,201,buildApiSuccess("v1",correlationId,created));
           return;
         }
 
