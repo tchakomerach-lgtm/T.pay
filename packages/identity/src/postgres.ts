@@ -491,7 +491,7 @@ export async function acceptOrganizationInvitation(
     if(!invitation || invitation.status!=="pending" || new Date(invitation.expires_at).getTime()<=Date.now()) throw new Error("INVITATION_INVALID");
     const user=(await client.query("SELECT id,login_identifier,status FROM users WHERE id=$1",[input.userId])).rows[0];
     if(!user || user.status!=="active" || String(user.login_identifier)!==String(invitation.login_identifier)) throw new Error("INVITATION_IDENTITY_MISMATCH");
-    const valid=await verifySecret(input.token,sha256Hex(input.token));
+    const valid=sha256Hex(input.token)===String(invitation.token_hash);
     if(!valid) throw new Error("INVITATION_INVALID");
     const role=(await client.query("SELECT id FROM organization_roles WHERE organization_id=$1 AND id=$2",[input.organizationId,invitation.role_id])).rows[0];
     if(!role) throw new Error("ROLE_NOT_FOUND");
