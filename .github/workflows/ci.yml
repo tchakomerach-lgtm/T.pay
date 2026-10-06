@@ -40,4 +40,6 @@ jobs:
           node-version: 22
       - run: npm install --no-audit --no-fund
       - run: npm run check
+      - run: npm run web:smoke
+      - run: npm run web:check
       - run: npm audit --omit=dev --audit-level=high
