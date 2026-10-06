@@ -30,7 +30,7 @@ export default function App(){
  useEffect(()=>{if(!signedIn)return;void api.organizations().then(page=>setOrganizations(page.items)).catch(()=>setOrganizations([]));},[signedIn]);
  useEffect(()=>{
   if(!signedIn)return;
-  const sync=()=>{void api.sync().then(()=>api.organizations()).then(page=>setOrganizations(page.items)).catch(()=>undefined);};
+  const sync=()=>{void api.sync().then(()=>api.organizations()).then(page=>setOrganizations(page.items)).then(()=>api.flushTelemetry()).catch(()=>undefined);};
   sync();
   const timer=setInterval(sync,15000);
   if(Platform.OS==="web"&&typeof window!=="undefined")window.addEventListener("online",sync);
