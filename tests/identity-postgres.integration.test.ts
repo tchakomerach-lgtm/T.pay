@@ -90,7 +90,7 @@ test("L17 identity persistence: founder organization membership is atomic and te
     const access = await pool.query("SELECT access_code_hash FROM organizations WHERE id=$1", [organizationId]);
     assert.ok(access.rows[0].access_code_hash);
     assert.notEqual(access.rows[0].access_code_hash, "secure-org-access-123");
-    assert.match(access.rows[0].access_code_hash, /^scrypt\\$/);
+    assert.match(access.rows[0].access_code_hash, /^scrypt\$/);
   } finally {
     if (organizationId) await pool.query("DELETE FROM organizations WHERE id=$1", [organizationId]).catch(() => undefined);
     if (userId) await pool.query("DELETE FROM users WHERE id=$1", [userId]).catch(() => undefined);
