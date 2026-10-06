@@ -6,7 +6,7 @@ const id = "11111111-1111-4111-8111-111111111111" as any;
 const access = { id, organizationId:id, tontineGroupId:id, microfinanceId:id, role:"settlement_officer" as const, status:"active" as const, grantedBy:id, createdAt:"2026-10-05T00:00:00Z" };
 const repos = {
   accessRepository: {} as any,
-  reconciliationRepository: { listOpen: async () => [] }
+  reconciliationRepository: { listOpen: async () => [], save: async () => undefined }
 };
 
 test("settlement preparation is scoped to the partner microfinance and tontine", () => {
