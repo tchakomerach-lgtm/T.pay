@@ -138,7 +138,7 @@ export async function resolveSession(pool: Pool, token: string): Promise<Authent
   return sessionResult(row, "");
 }
 
-export async function rotateSession(pool: Pool, token: string): Promise<AuthenticatedSession> {
+export async function rotateSession(pool: Pool, token: string): Promise<{ session: AuthenticatedSession; sessionToken: string }> {
   return withTx(pool, async client => {
     const result = await client.query(
       `SELECT id,user_id,organization_id,expires_at,assurance
@@ -150,7 +150,7 @@ export async function rotateSession(pool: Pool, token: string): Promise<Authenti
     if (!row) throw new Error("SESSION_INVALID");
     await client.query("UPDATE identity_sessions SET revoked_at=now() WHERE id=$1",[row.id]);
     const created = await createSession(client,row.user_id,{...defaults},row.organization_id,row.id);
-    return created.session;
+    return created;
   });
 }
 
