@@ -3,7 +3,12 @@ import type { CommunityTontineMfAccess, CommunityTontineMfSettlementInstruction 
 import { assertMfScope, assertMfCapability, assertSettlementMayProceed } from "./community-tontine-management.js";
 
 export interface CommunityTontineMfApprovalRepository {
-  markApproved(instructionId: UUID, approverId: UUID, expectedState: CommunityTontineMfSettlementInstruction["state"]): Promise<CommunityTontineMfSettlementInstruction>;
+  markApproved(
+    organizationId: UUID,
+    instructionId: UUID,
+    approverId: UUID,
+    expectedState: CommunityTontineMfSettlementInstruction["state"]
+  ): Promise<CommunityTontineMfSettlementInstruction>;
 }
 
 export class CommunityTontineMfApprovalService {
@@ -20,8 +25,10 @@ export class CommunityTontineMfApprovalService {
     assertMfCapability(access, "payout.approve");
     if (instruction.state !== "prepared") throw new Error("COMMUNITY_TONTINE_PAYOUT_NOT_PREPARED");
     if (instruction.preparedBy && instruction.preparedBy === approverId) throw new Error("COMMUNITY_TONTINE_MAKER_CHECKER_REQUIRED");
+
     const approved = { ...instruction, approvedBy: approverId, state: "approved" as const };
     assertSettlementMayProceed(approved);
-    return this.approvals.markApproved(instruction.id, approverId, "prepared");
+
+    return this.approvals.markApproved(organizationId, instruction.id, approverId, "prepared");
   }
 }
