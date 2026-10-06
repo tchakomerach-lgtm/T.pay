@@ -20,7 +20,8 @@ export class ApiGatewayRepository{
   if(!row)throw new Error("API_IDEMPOTENCY_RACE_UNRESOLVED");
   if(row.request_hash!==input.requestHash||row.route!==input.route)return {status:"conflict",requestId:String(row.id),state:String(row.state)};
   const replay:IdempotencyResult={status:"replay",requestId:String(row.id),state:String(row.state)};
-  if(row.response_hash!=null) replay.responseHash=String(row.response_hash);\n  if(row.response_body!=null) replay.responseBody=String(row.response_body);
+  if(row.response_hash!=null) replay.responseHash=String(row.response_hash);
+  if(row.response_body!=null) replay.responseBody=String(row.response_body);
   if(row.status_code!=null) replay.statusCode=Number(row.status_code);
   return replay;
  }
