@@ -96,7 +96,9 @@ export function startApp(root: HTMLElement): void {
     root.innerHTML = screen ? renderScreen(screen, signedIn) : renderErrorPage(404);
     root.querySelectorAll<HTMLElement>("[data-action]").forEach((button) => button.addEventListener("click", () => {
       const action = button.dataset.action;
-      if (action === "simulate") {
+      if (action === "reload") {
+        window.location.reload();
+      } else if (action === "simulate") {
         localStorage.setItem("tpay.demo.session", "active");
         showToast(root, "Session de démonstration activée.");
       } else if (action === "create-org") {
