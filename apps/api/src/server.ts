@@ -283,7 +283,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           return;
         }
 
-        const orgInvitationMatch=url.pathname.match(/^\\/v1\\/organizations\\/([^/]+)\\/invitations$/);
+        const orgInvitationMatch=url.pathname.match(/^\/v1\/organizations\/([^/]+)\/invitations$/);
         if(pool&&userId&&orgInvitationMatch&&method==="POST"){
           const organizationId=orgInvitationMatch[1]!;
           if(authenticatedSession?.organizationId!==organizationId){json(res,403,buildApiError({message:"ORGANIZATION_SESSION_REQUIRED"},correlationId));return;}
@@ -294,7 +294,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           catch(error){const message=error instanceof Error?error.message:"INVITATION_FAILED";json(res,/PERMISSION_DENIED|MEMBER_ALREADY_ACTIVE/.test(message)?403:400,buildApiError({message},correlationId));}
           return;
         }
-        const orgInvitationAcceptMatch=url.pathname.match(/^\\/v1\\/organizations\\/([^/]+)\\/invitations\\/([^/]+)\\/accept$/);
+        const orgInvitationAcceptMatch=url.pathname.match(/^\/v1\/organizations\/([^/]+)\/invitations\/([^/]+)\/accept$/);
         if(pool&&userId&&orgInvitationAcceptMatch&&method==="POST"){
           const organizationId=orgInvitationAcceptMatch[1]!,invitationId=orgInvitationAcceptMatch[2]!;
           if(!nativeClient)await requireBrowserCsrf(pool,{sessionId:authenticatedSession?.sessionId??""},origin,String(req.headers["x-csrf-token"]??""));
@@ -304,7 +304,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           catch(error){json(res,400,buildApiError(error,correlationId));}
           return;
         }
-        const orgPortalCodeMatch=url.pathname.match(/^\\/v1\\/organizations\\/([^/]+)\\/portal-codes$/);
+        const orgPortalCodeMatch=url.pathname.match(/^\/v1\/organizations\/([^/]+)\/portal-codes$/);
         if(pool&&userId&&orgPortalCodeMatch&&method==="POST"){
           const organizationId=orgPortalCodeMatch[1]!;
           if(authenticatedSession?.organizationId!==organizationId){json(res,403,buildApiError({message:"ORGANIZATION_SESSION_REQUIRED"},correlationId));return;}
@@ -315,7 +315,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           catch(error){const message=error instanceof Error?error.message:"PORTAL_CODE_FAILED";json(res,/PERMISSION_DENIED/.test(message)?403:400,buildApiError({message},correlationId));}
           return;
         }
-        const orgPortalSessionMatch=url.pathname.match(/^\\/v1\\/organizations\\/([^/]+)\\/portal-session$/);
+        const orgPortalSessionMatch=url.pathname.match(/^\/v1\/organizations\/([^/]+)\/portal-session$/);
         if(pool&&userId&&orgPortalSessionMatch&&method==="POST"){
           const organizationId=orgPortalSessionMatch[1]!;
           if(!nativeClient)await requireBrowserCsrf(pool,{sessionId:authenticatedSession?.sessionId??""},origin,String(req.headers["x-csrf-token"]??""));
