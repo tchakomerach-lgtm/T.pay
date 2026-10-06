@@ -24,7 +24,7 @@ export async function hashSecret(secret:string):Promise<string>{
 }
 function parseEncoded(encoded:string):{n:number;r:number;p:number;salt:Buffer;expected:Buffer}|null{
   const parts=encoded.split("$");
-  if(parts.length!==5||parts[0]!=="scrypt")return null;
+  if(parts.length!==4||parts[0]!=="scrypt")return null;
   const params=Object.fromEntries((parts[1]??"").split(",").map(item=>item.split("=") as [string,string]));
   const n=Number(params.N),r=Number(params.r),p=Number(params.p);
   const salt=Buffer.from(parts[3]??"","base64url"),expected=Buffer.from(parts[4]??"","base64url");
