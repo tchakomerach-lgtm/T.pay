@@ -8,7 +8,7 @@ function checksum(sql:string):string{return createHash("sha256").update(sql).dig
 export async function applyMigrations(clientOrPool:Client|Pool,migrationDirectory:URL):Promise<void>{
   let client:Client|PoolClient;
   let release:()=>void=()=>{};
-  if("connect" in clientOrPool){ const connected=await clientOrPool.connect(); client=connected; release=()=>connected.release(); }
+  if("totalCount" in clientOrPool){ const connected=await (clientOrPool as Pool).connect(); client=connected; release=()=>connected.release(); }
   else client=clientOrPool;
   try{
   await client.query("CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now(), checksum text, applied_by text)");
