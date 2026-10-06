@@ -64,7 +64,7 @@ async function createSession(client: PoolClient, userId: string, config: Require
   );
   return {
     session: { sessionId, userId, ...(organizationId ? {organizationId} : {}), csrfToken, expiresAt: expires.toISOString(), assurance:"standard" },
-    token
+    sessionToken: token
   };
 }
 
