@@ -49,7 +49,13 @@ async function requireBrowserCsrf(pool:pg.Pool,session:{sessionId:string},origin
   const stored=await pool.query("SELECT csrf_hash FROM identity_sessions WHERE id=$1 AND revoked_at IS NULL",[session.sessionId]);
   assertCsrf(origin,expected,header,stored.rows[0]?.csrf_hash as string|undefined);
 }
-function cursorSecret():string{\n  const value=process.env.TPAY_CURSOR_SECRET;\n  if(value) return value;\n  if(process.env.NODE_ENV==="production") throw new Error("CURSOR_SECRET_REQUIRED");\n  return "tpay-development-cursor-secret-012345678901234567";\n}\nfunction safeJson(payload:string):Record<string,unknown>|null{
+function cursorSecret():string{
+  const value=process.env.TPAY_CURSOR_SECRET;
+  if(value) return value;
+  if(process.env.NODE_ENV==="production") throw new Error("CURSOR_SECRET_REQUIRED");
+  return "tpay-development-cursor-secret-012345678901234567";
+}
+function safeJson(payload:string):Record<string,unknown>|null{
   try{const value=JSON.parse(payload);return value&&typeof value==="object"?value:null;}catch{return null;}
 }
 
@@ -294,7 +300,10 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           if(!nativeClient)await requireBrowserCsrf(pool,{sessionId:authenticatedSession?.sessionId??""},origin,String(req.headers["x-csrf-token"]??""));
           const input=safeJson(payload) as {name?:string;type?:string;status?:"active"|"suspended"|"closed"}|null;
           if(!input || (input.name===undefined&&input.type===undefined&&input.status===undefined)){json(res,400,buildApiError({message:"INVALID_ORGANIZATION_UPDATE"},correlationId));return;}
-          try{\n            const updateInput:{organizationId:string;actorUserId:string;name?:string;type?:string;status?:"active"|"suspended"|"closed"}={organizationId,actorUserId:userId,...(input.name!==undefined?{name:input.name}:{}),...(input.type!==undefined?{type:input.type}:{}),...(input.status!==undefined?{status:input.status}: {})};\n            json(res,200,buildApiSuccess("v1",correlationId,await updateOrganization(pool,updateInput)));\n          }
+          try{
+            const updateInput:{organizationId:string;actorUserId:string;name?:string;type?:string;status?:"active"|"suspended"|"closed"}={organizationId,actorUserId:userId,...(input.name!==undefined?{name:input.name}:{}),...(input.type!==undefined?{type:input.type}:{}),...(input.status!==undefined?{status:input.status}: {})};
+            json(res,200,buildApiSuccess("v1",correlationId,await updateOrganization(pool,updateInput)));
+          }
           catch(error){const message=error instanceof Error?error.message:"ORGANIZATION_UPDATE_FAILED";const status=message==="PERMISSION_DENIED"?403:/^INVALID_/.test(message)?400:404;json(res,status,buildApiError({message},correlationId));}
           return;
         }
