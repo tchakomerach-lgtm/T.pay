@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hashPassword, verifyPassword, generateOpaqueToken, buildSessionCookie, assertCsrf } from "../packages/identity/src/index.js";
+import { hashPassword, verifyPassword, generateOpaqueToken, buildSessionCookie, assertCsrf, sha256Hex } from "../packages/identity/src/index.js";
 
 test("password hashing is salted and verifiable", async () => {
   const a = await hashPassword("correct horse battery staple 123");
@@ -28,7 +28,8 @@ test("session cookie is hardened", () => {
 });
 
 test("CSRF requires same origin and matching token", () => {
-  assert.doesNotThrow(() => assertCsrf("https://app.tpay.test","https://app.tpay.test","a".repeat(40),"a".repeat(40)));
-  assert.throws(() => assertCsrf("https://evil.example","https://app.tpay.test","a".repeat(40),"a".repeat(40)),/CSRF_ORIGIN_REJECTED/);
-  assert.throws(() => assertCsrf("https://app.tpay.test","https://app.tpay.test","a".repeat(40),"b".repeat(40)),/CSRF_TOKEN_REJECTED/);
+  const token = "a".repeat(40);
+  assert.doesNotThrow(() => assertCsrf("https://app.tpay.test","https://app.tpay.test",token,sha256Hex(token)));
+  assert.throws(() => assertCsrf("https://evil.example","https://app.tpay.test",token,sha256Hex(token)),/CSRF_ORIGIN_REJECTED/);
+  assert.throws(() => assertCsrf("https://app.tpay.test","https://app.tpay.test","b".repeat(40),sha256Hex(token)),/CSRF_TOKEN_REJECTED/);
 });
