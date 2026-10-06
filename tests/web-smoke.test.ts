@@ -8,7 +8,7 @@ test("web alpha exposes the five core navigation areas",()=>{
 
 test("home screen renders the T.Pay shell and sandbox warning",()=>{
   const html=renderScreen("home",false);
-  assert.match(html,/T\.pay/);
+  assert.match(html,/T\.Pay accueil/);
   assert.match(html,/Aucune opération financière réelle/);
   assert.match(html,/Gestion des organisations/);
 });
