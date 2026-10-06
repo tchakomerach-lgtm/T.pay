@@ -175,11 +175,14 @@ export function requiredVoiceFactors(
   actionKind: VoiceActionKind,
 ): readonly VerificationFactor[] {
   const factors = [...policy.allowedFactors[risk]];
-  const minimum = policy.minimumFactors[risk];
-  if (policy.humanApprovalRequiredFor.includes(actionKind) && !factors.includes("human_approval")) {
-    factors.push("human_approval");
+  const minimum = Math.max(0, policy.minimumFactors[risk]);
+  const humanRequired = policy.humanApprovalRequiredFor.includes(actionKind);
+  if (humanRequired) {
+    const nonHuman = factors.filter((factor) => factor !== "human_approval");
+    if (minimum === 0) return ["human_approval"];
+    return ["human_approval", ...nonHuman.slice(0, minimum - 1)];
   }
-  return factors.slice(0, Math.max(minimum, policy.humanApprovalRequiredFor.includes(actionKind) ? factors.length : minimum));
+  return factors.slice(0, minimum);
 }
 
 export function authorizeVoiceAction(input: {
