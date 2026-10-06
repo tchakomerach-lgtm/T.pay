@@ -14,6 +14,7 @@ export interface AuthenticatedSession {
 export interface RegistrationResult {
   userId: string;
   session: AuthenticatedSession;
+  sessionToken: string;
 }
 
 export interface IdentityConfig {
@@ -50,7 +51,7 @@ function sessionResult(row: any, csrfToken: string): AuthenticatedSession {
   };
 }
 
-async function createSession(client: PoolClient, userId: string, config: Required<IdentityConfig>, organizationId?: string, rotatedFromId?: string): Promise<AuthenticatedSession> {
+async function createSession(client: PoolClient, userId: string, config: Required<IdentityConfig>, organizationId?: string, rotatedFromId?: string): Promise<{ session: AuthenticatedSession; token: string }> {
   const sessionId = randomUUID();
   const token = generateOpaqueToken(32);
   const csrfToken = generateOpaqueToken(32);
@@ -60,7 +61,10 @@ async function createSession(client: PoolClient, userId: string, config: Require
      VALUES($1,$2,$3,$4,$5,$6,$7)`,
     [sessionId,userId,organizationId ?? null,sha256Hex(token),sha256Hex(csrfToken),expires,rotatedFromId ?? null]
   );
-  return { sessionId, userId, ...(organizationId ? {organizationId} : {}), csrfToken, expiresAt: expires.toISOString(), assurance:"standard", };
+  return {
+    session: { sessionId, userId, ...(organizationId ? {organizationId} : {}), csrfToken, expiresAt: expires.toISOString(), assurance:"standard" },
+    token
+  };
 }
 
 export async function registerWithPassword(
@@ -85,7 +89,8 @@ export async function registerWithPassword(
       "INSERT INTO identity_credentials(id,user_id,kind,secret_hash) VALUES($1,$2,'password',$3)",
       [randomUUID(),userId,passwordHash]
     );
-    return { userId, session: await createSession(client,userId,cfg) };
+    const created = await createSession(client,userId,cfg);
+    return { userId, session: created.session, sessionToken: created.token };
   });
 }
 
@@ -116,7 +121,8 @@ export async function loginWithPassword(
       throw new Error("AUTHENTICATION_FAILED");
     }
     await client.query("UPDATE identity_credentials SET failed_attempts=0,locked_until=NULL WHERE id=$1",[row.credential_id]);
-    return { userId: row.user_id, session: await createSession(client,row.user_id,cfg) };
+    const created = await createSession(client,row.user_id,cfg);
+    return { userId: row.user_id, session: created.session, sessionToken: created.token };
   });
 }
 
@@ -143,8 +149,8 @@ export async function rotateSession(pool: Pool, token: string): Promise<Authenti
     const row = result.rows[0];
     if (!row) throw new Error("SESSION_INVALID");
     await client.query("UPDATE identity_sessions SET revoked_at=now() WHERE id=$1",[row.id]);
-    const session = await createSession(client,row.user_id,{...defaults},row.organization_id,row.id);
-    return session;
+    const created = await createSession(client,row.user_id,{...defaults},row.organization_id,row.id);
+    return created.session;
   });
 }
 
