@@ -2,7 +2,7 @@ import {createHash,randomUUID} from "node:crypto";
 export type ApiAuthClass="anonymous"|"user"|"member"|"admin"|"service";
 export type ApiOutcome="accepted"|"rejected"|"rate_limited"|"failed";
 export interface ApiDb{query(sql:string,values?:unknown[]):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;}
-export type IdempotencyResult={status:"reserved"|"replay"|"conflict";requestId:string;responseHash?:string;statusCode?:number;state?:string};
+export type IdempotencyResult={status:"reserved"|"replay"|"conflict";requestId:string;responseHash?:string;responseBody?:string;statusCode?:number;state?:string};
 const HEX64=/^[a-f0-9]{64}$/;
 const sha=(s:string)=>createHash("sha256").update(s).digest("hex");
 export function canonicalRequestHash(method:string,route:string,body:string):string{return sha(method.toUpperCase()+"\n"+route+"\n"+body);}
@@ -15,12 +15,12 @@ export class ApiGatewayRepository{
   const id=randomUUID();
   const r=await this.db.query("INSERT INTO api_request_deduplication(id,organization_id,idempotency_key,request_hash,route,state,created_at,expires_at) VALUES($1,$2,$3,$4,$5,'reserved',now(),$6::timestamptz) ON CONFLICT(organization_id,idempotency_key) DO NOTHING RETURNING id",[id,input.organizationId??null,input.key,input.requestHash,input.route,input.expiresAt]);
   if(r.rows.length===1)return {status:"reserved",requestId:id};
-  const existing=await this.db.query("SELECT id,request_hash,route,state,response_hash,status_code FROM api_request_deduplication WHERE organization_id IS NOT DISTINCT FROM $1 AND idempotency_key=$2",[input.organizationId??null,input.key]);
+  const existing=await this.db.query("SELECT id,request_hash,route,state,response_hash,response_body,status_code FROM api_request_deduplication WHERE organization_id IS NOT DISTINCT FROM $1 AND idempotency_key=$2",[input.organizationId??null,input.key]);
   const row=existing.rows[0];
   if(!row)throw new Error("API_IDEMPOTENCY_RACE_UNRESOLVED");
   if(row.request_hash!==input.requestHash||row.route!==input.route)return {status:"conflict",requestId:String(row.id),state:String(row.state)};
   const replay:IdempotencyResult={status:"replay",requestId:String(row.id),state:String(row.state)};
-  if(row.response_hash!=null) replay.responseHash=String(row.response_hash);
+  if(row.response_hash!=null) replay.responseHash=String(row.response_hash);\n  if(row.response_body!=null) replay.responseBody=String(row.response_body);
   if(row.status_code!=null) replay.statusCode=Number(row.status_code);
   return replay;
  }
