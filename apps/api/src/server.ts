@@ -230,12 +230,13 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           let cursorId:string|undefined;
           if(rawCursor){
             try{
-              const decoded=JSON.parse(Buffer.from(rawCursor,"base64url").toString("utf8")) as {createdAt?:string;id?:string};
-              if(!decoded.createdAt||!decoded.id)throw new Error("INVALID_CURSOR");
+              const decoded=decodeCursor(rawCursor,cursorSecret(),"orgs:"+userId);
               cursorCreatedAt=decoded.createdAt; cursorId=decoded.id;
             }catch{json(res,400,buildApiError({message:"INVALID_CURSOR"},correlationId));return;}
           }
-          const limit=Math.min(50,Math.max(1,Number(url.searchParams.get("limit")??"25")||25));
+          const requestedLimit=Number(url.searchParams.get("limit")??"25");
+          if(!Number.isInteger(requestedLimit)||requestedLimit<1||requestedLimit>50){json(res,400,buildApiError({message:"INVALID_PAGE_LIMIT"},correlationId));return;}
+          const limit=requestedLimit;
           const result=await pool.query(
             `SELECT o.id,o.name,o.type,o.status,o.created_at,m.role_id,r.name AS role_name,m.status AS membership_status
                FROM organization_memberships m
@@ -250,7 +251,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
             roleId:String(row.role_id),roleName:String(row.role_name),membershipStatus:String(row.membership_status)
           }));
           const last=result.rows.at(-1);
-          const nextCursor=result.rows.length===limit&&last?Buffer.from(JSON.stringify({createdAt:new Date(String(last.created_at)).toISOString(),id:String(last.id)})).toString("base64url"):null;
+          const nextCursor=result.rows.length===limit&&last?encodeCursor({createdAt:new Date(String(last.created_at)).toISOString(),id:String(last.id),scope:"orgs:"+userId},cursorSecret()):null;
           json(res,200,buildApiSuccess("v1",correlationId,{items,nextCursor}));
           return;
         }
