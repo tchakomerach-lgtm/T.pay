@@ -304,6 +304,7 @@ export async function createOrganizationRole(pool:Pool,input:{organizationId:str
     if(!allowed)throw new Error("PERMISSION_DENIED");
     const roleId=randomUUID();
     await client.query("INSERT INTO organization_roles(id,organization_id,name,permissions) VALUES($1,$2,$3,$4)",[roleId,input.organizationId,name,permissions]);
+    await auditOrganizationChange(client,{organizationId:input.organizationId,actorUserId:input.actorUserId,action:"role.created",targetType:"role",targetId:roleId,metadata:{name,permissions}});
     return {roleId};
   });
 }
@@ -315,6 +316,7 @@ export async function updateOrganizationRole(pool:Pool,input:{organizationId:str
   if(!actor.rows[0]?.permissions?.includes("member.manage"))throw new Error("PERMISSION_DENIED");
   const result=await pool.query("UPDATE organization_roles SET name=$3,permissions=$4 WHERE organization_id=$1 AND id=$2",[input.organizationId,input.roleId,name,permissions]);
   if(!result.rowCount)throw new Error("ROLE_NOT_FOUND");
+  await pool.query("INSERT INTO organization_audit_events(id,organization_id,actor_user_id,action,target_type,target_id,metadata) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)",[randomUUID(),input.organizationId,input.actorUserId,"role.updated","role",input.roleId,JSON.stringify({name,permissions})]);
 }
 export async function setOrganizationMemberRole(pool:Pool,input:{organizationId:string;actorUserId:string;userId:string;roleId:string}):Promise<void>{
   return withTx(pool,async client=>{
@@ -324,6 +326,7 @@ export async function setOrganizationMemberRole(pool:Pool,input:{organizationId:
     if(!role.rowCount)throw new Error("ROLE_NOT_FOUND");
     const result=await client.query("UPDATE organization_memberships SET role_id=$3 WHERE organization_id=$1 AND user_id=$2 AND status!='revoked'",[input.organizationId,input.userId,input.roleId]);
     if(!result.rowCount)throw new Error("MEMBER_NOT_FOUND");
+    await auditOrganizationChange(client,{organizationId:input.organizationId,actorUserId:input.actorUserId,action:"member.role_changed",targetType:"membership",targetId:input.userId,metadata:{roleId:input.roleId}});
   });
 }
 export async function setOrganizationMemberStatus(pool:Pool,input:{organizationId:string;actorUserId:string;userId:string;status:"active"|"suspended"|"revoked"}):Promise<void>{
@@ -333,6 +336,7 @@ export async function setOrganizationMemberStatus(pool:Pool,input:{organizationI
     if(!actor.rows[0]?.permissions?.includes("member.manage"))throw new Error("PERMISSION_DENIED");
     const result=await client.query("UPDATE organization_memberships SET status=$3 WHERE organization_id=$1 AND user_id=$2",[input.organizationId,input.userId,input.status]);
     if(!result.rowCount)throw new Error("MEMBER_NOT_FOUND");
+    await auditOrganizationChange(client,{organizationId:input.organizationId,actorUserId:input.actorUserId,action:"member.status_changed",targetType:"membership",targetId:input.userId,metadata:{status:input.status}});
   });
 }
 
