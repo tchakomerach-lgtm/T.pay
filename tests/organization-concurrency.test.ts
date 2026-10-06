@@ -43,7 +43,7 @@ test("concurrent role creation preserves tenant uniqueness", {skip:!databaseUrl&
     assert.equal(successes.length,1);
     const rows=await pool.query("SELECT count(*)::int AS count FROM organization_roles WHERE organization_id=$1 AND name='Concurrent Role'",[f.organizationId]);
     assert.equal(rows.rows[0].count,1);
-  }finally{if(f)await cleanup(pool,f.organizationId,[f.founder.userId,f.memberA.userId,f.memberB.userId]);await pool.end();}
+  }finally{if(f){await cleanup(pool,f.organizationId,[f.founder.userId,f.memberA.userId,f.memberB.userId]);} if(typeof invitee!=="undefined")await pool.query("DELETE FROM users WHERE id=$1",[invitee.userId]).catch(()=>undefined);await pool.end();}
 });
 
 test("concurrent role updates leave a valid single role state", {skip:!databaseUrl&&"TPAY_DATABASE_URL is not configured"}, async()=>{
@@ -152,7 +152,6 @@ test("concurrent invitation acceptance is single-use and tenant-scoped", {skip:!
     assert.equal(results.filter(x=>x.status==="fulfilled").length,1);
     const row=(await pool.query("SELECT status FROM organization_invitations WHERE id=$1",[invitation.invitationId])).rows[0];
     assert.equal(row.status,"accepted");
-    await pool.query("DELETE FROM users WHERE id=$1",[invitee.userId]).catch(()=>undefined);
   }finally{if(f)await cleanup(pool,f.organizationId,[f.founder.userId,f.memberA.userId,f.memberB.userId]);await pool.end();}
 });
 
