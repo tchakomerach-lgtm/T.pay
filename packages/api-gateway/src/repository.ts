@@ -24,9 +24,11 @@ export class ApiGatewayRepository{
   if(row.status_code!=null) replay.statusCode=Number(row.status_code);
   return replay;
  }
- async completeIdempotency(input:{requestId:string;state:"succeeded"|"failed";responseHash?:string;statusCode:number}):Promise<void>{
+ async completeIdempotency(input:{requestId:string;state:"succeeded"|"failed";responseHash?:string;responseBody?:string;statusCode:number}):Promise<void>{
   if(!HEX64.test(input.responseHash??""))throw new Error("API_RESPONSE_HASH_INVALID");
-  await this.db.query("UPDATE api_request_deduplication SET state=$2,response_hash=$3,status_code=$4 WHERE id=$1",[input.requestId,input.state,input.responseHash,input.statusCode]);
+  const responseBody=input.responseBody??"";
+  if(responseBody.length>262144) throw new Error("API_RESPONSE_BODY_TOO_LARGE");
+  await this.db.query("UPDATE api_request_deduplication SET state=$2,response_hash=$3,response_body=$4,status_code=$5 WHERE id=$1",[input.requestId,input.state,input.responseHash, responseBody, input.statusCode]);
  }
  async audit(input:{organizationId?:string;requestId:string;route:string;actorId?:string;authClass:ApiAuthClass;outcome:ApiOutcome;correlationId:string;metadata:string}):Promise<void>{
   const metadataHash=sha(input.metadata);
