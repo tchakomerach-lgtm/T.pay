@@ -5,6 +5,8 @@ import { ApiAbuseRepository, type RateDb } from "../../../packages/api-gateway/s
 import { ApiRuntimeGate } from "../../../packages/api-gateway/src/runtime-gate.js";
 import { buildApiError, buildApiSuccess } from "../../../packages/api-gateway/src/api-contract.js";
 import { runHealthProbes } from "../../../packages/api-gateway/src/health.js";
+import pg from "pg";
+import { loginWithPassword, logout, registerWithPassword, resolveSession, buildSessionCookie } from "../../../packages/identity/src/postgres.js";
 
 class MemoryRateDb implements RateDb {
   private readonly buckets = new Map<string,{count:number;windowStartedAt:string;max:number;seconds:number}>();
@@ -23,13 +25,16 @@ class MemoryRateDb implements RateDb {
   }
 }
 
+function parseCookies(value:string|undefined):Record<string,string>{const out:Record<string,string>={};for(const item of (value??"").split(";")){const i=item.indexOf("=");if(i>0)out[item.slice(0,i).trim()]=decodeURIComponent(item.slice(i+1).trim());}return out;}
 function json(res:import("node:http").ServerResponse,status:number,body:unknown,extra:Record<string,string>={}){
   res.writeHead(status,{"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff","x-frame-options":"DENY","referrer-policy":"no-referrer","cross-origin-opener-policy":"same-origin","cross-origin-resource-policy":"same-origin","content-security-policy":"default-src 'none'; frame-ancestors 'none'; base-uri 'none'",...extra});
   res.end(JSON.stringify(body));
 }
 
-export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number}):{server:Server;port:number}{
+export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number;databaseUrl?:string}):{server:Server;port:number}{
   if(!input.tlsKey||!input.tlsCert) throw new Error("TLS_CERTIFICATE_REQUIRED");
+  const databaseUrl=input.databaseUrl??process.env.TPAY_DATABASE_URL;
+  const pool=databaseUrl?new pg.Pool({connectionString:databaseUrl,max:20}):undefined;
   const gate=new ApiRuntimeGate(new ApiAbuseRepository(new MemoryRateDb()));
   const server=createHttpsServer({key:readFileSync(input.tlsKey),cert:readFileSync(input.tlsCert),minVersion:"TLSv1.3"},async(req,res)=>{
     const origin=String(req.headers.origin??"");
