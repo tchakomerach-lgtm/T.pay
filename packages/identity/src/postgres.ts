@@ -52,7 +52,7 @@ function sessionResult(row: any, csrfToken: string): AuthenticatedSession {
   };
 }
 
-async function createSession(client: PoolClient, userId: string, config: Required<IdentityConfig>, organizationId?: string, rotatedFromId?: string): Promise<{ session: AuthenticatedSession; token: string }> {
+async function createSession(client: PoolClient, userId: string, config: Required<IdentityConfig>, organizationId?: string, rotatedFromId?: string): Promise<{ session: AuthenticatedSession; sessionToken: string }> {
   const sessionId = randomUUID();
   const token = generateOpaqueToken(32);
   const csrfToken = generateOpaqueToken(32);
@@ -205,7 +205,7 @@ export async function openOrganizationSession(
         FOR UPDATE`,
       [sha256Hex(input.sessionToken)]
     );
-    const session = sessionResult.rows[0];
+    const session = sessionLookup.rows[0];
     if (!session) throw new Error("SESSION_INVALID");
 
     const membership = await client.query(
