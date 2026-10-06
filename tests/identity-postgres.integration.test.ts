@@ -39,10 +39,11 @@ test("L17 identity persistence: registration, secure session, rotation and logou
     const authenticated = await loginWithPassword(pool, { loginIdentifier: login, password: "correct horse battery staple 123" });
     assert.equal(authenticated.userId, userId);
     const rotated = await rotateSession(pool, authenticated.sessionToken);
-    assert.equal(rotated.userId, userId);
+    assert.equal(rotated.session.userId, userId);
+    assert.notEqual(rotated.sessionToken, authenticated.sessionToken);
 
-    await logout(pool, rotatedSessionToken(pool, rotated.sessionId, authenticated.sessionToken));
-    await assert.rejects(() => resolveSession(pool, rotatedSessionToken(pool, rotated.sessionId, authenticated.sessionToken)), /SESSION_INVALID/);
+    await logout(pool, rotated.sessionToken);
+    await assert.rejects(() => resolveSession(pool, rotated.sessionToken), /SESSION_INVALID/);
   } finally {
     if (userId) await pool.query("DELETE FROM users WHERE id=$1", [userId]).catch(() => undefined);
     await pool.end();
@@ -124,6 +125,3 @@ test("L17 password lockout is persisted under concurrent failed attempts", { ski
   }
 });
 
-async function rotatedSessionToken(_pool: pg.Pool, _sessionId: string, _oldToken: string): Promise<string> {
-  throw new Error("ROTATED_TOKEN_NOT_EXPOSED");
-}
