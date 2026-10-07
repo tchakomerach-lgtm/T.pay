@@ -21,6 +21,7 @@ export function verifyWebAuthnAssertion(input:{
  authenticatorData:Buffer;
  signature:Buffer;
  publicKeyDer:Buffer;
+ algorithm:"ES256"|"Ed25519";
  requireUserVerification?:boolean;
 }):{signCount:number;userVerified:boolean}{
  assertChallengeUsable(input.challenge,{userId:input.challenge.userId,rpId:input.challenge.rpId,origin:input.challenge.origin});
@@ -37,6 +38,7 @@ export function verifyWebAuthnAssertion(input:{
  const clientHash=createHash("sha256").update(input.clientDataJSON).digest();
  const signed=Buffer.concat([input.authenticatorData,clientHash]);
  const key=createPublicKey({key:input.publicKeyDer,format:"der",type:"spki"});
- if(!verify("sha256",signed,key,input.signature))throw new Error("WEBAUTHN_ASSERTION_INVALID");
+ const valid=input.algorithm==="Ed25519" ? verify(null,signed,key,input.signature) : verify("sha256",signed,key,input.signature);
+ if(!valid)throw new Error("WEBAUTHN_ASSERTION_INVALID");
  return {signCount:input.authenticatorData.readUInt32BE(33),userVerified};
 }
