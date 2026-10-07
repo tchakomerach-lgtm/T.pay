@@ -9,7 +9,8 @@ import { buildApiError, buildApiSuccess } from "../../../packages/api-gateway/sr
 import { ApiGatewayRepository, canonicalRequestHash } from "../../../packages/api-gateway/src/repository.js";
 import { runHealthProbes } from "../../../packages/api-gateway/src/health.js";
 import pg from "pg";
-import { resolveAdminPrincipal, getRuntimeControl, createRuntimeChangeRequest, approveRuntimeChange, listAdminAudit } from "../../../packages/security/src/admin-runtime.js";
+import { resolveAdminPrincipal, assertPrivilegedCandidate, getRuntimeControl, createRuntimeChangeRequest, approveRuntimeChange, listAdminAudit } from "../../../packages/security/src/admin-runtime.js";
+import { createPersistedStepUpChallenge, completePersistedStepUp } from "../../../packages/security/src/webauthn-stepup.js";
 import { assertCsrf, loginWithPassword, logout, registerWithPassword, resolveSession, buildSessionCookie, openOrganizationSession, listOrganizationMembers, createOrganizationRole, updateOrganizationRole, setOrganizationMemberRole, setOrganizationMemberStatus, getOrganization, updateOrganization, listOrganizationAudit, createOrganizationInvitation, acceptOrganizationInvitation, issueOrganizationPortalCode, openOrganizationPortalSession } from "../../../packages/identity/src/postgres.js";
 
 class MemoryRateDb implements RateDb {
@@ -185,6 +186,28 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
             try{await requestGovernance.completeIdempotency({requestId:governanceId,state,responseHash,responseBody:body,statusCode:res.statusCode||200});}
             finally{originalEnd(chunk,encoding,callback);}
           };
+        }
+
+        if(url.pathname==="/v1/admin/auth/webauthn/challenge"&&method==="POST"){
+          if(!pool||!authenticatedSession||!userId){json(res,401,buildApiError({message:"SESSION_INVALID"},correlationId));return;}
+          try{
+            await requireBrowserCsrf(pool,authenticatedSession,origin,String(req.headers["x-csrf-token"]??""));
+            await assertPrivilegedCandidate(pool,userId);
+            const rpId=new URL(expectedWebOrigin()).hostname;
+            const challenge=await createPersistedStepUpChallenge(pool,{userId,rpId,origin:expectedWebOrigin()});
+            json(res,201,buildApiSuccess("v1",correlationId,{challengeId:challenge.id,challenge:challenge.challenge,rpId:challenge.rpId,origin:challenge.origin,expiresAt:challenge.expiresAt}));return;
+          }catch(error){json(res,403,buildApiError({message:error instanceof Error?error.message:"WEBAUTHN_CHALLENGE_DENIED"},correlationId));return;}
+        }
+        if(url.pathname==="/v1/admin/auth/webauthn/step-up"&&method==="POST"){
+          if(!pool||!authenticatedSession||!userId){json(res,401,buildApiError({message:"SESSION_INVALID"},correlationId));return;}
+          try{
+            await requireBrowserCsrf(pool,authenticatedSession,origin,String(req.headers["x-csrf-token"]??""));
+            const input=safeJson(payload) as any;
+            if(!input?.challengeId||!input?.credentialId||!input?.clientDataJSON||!input?.authenticatorData||!input?.signature)throw new Error("WEBAUTHN_INPUT_INVALID");
+            const decode=(v:string)=>Buffer.from(v,"base64url");
+            const result=await completePersistedStepUp(pool,{sessionId:authenticatedSession.sessionId,userId,challengeId:String(input.challengeId),credentialId:String(input.credentialId),clientDataJSON:decode(String(input.clientDataJSON)),authenticatorData:decode(String(input.authenticatorData)),signature:decode(String(input.signature)),publicKeyDer:Buffer.alloc(0),algorithm:"ES256",requireUserVerification:true});
+            json(res,200,buildApiSuccess("v1",correlationId,{assurance:"step_up",signCount:result.usedAt?1:0}));return;
+          }catch(error){json(res,403,buildApiError({message:error instanceof Error?error.message:"WEBAUTHN_STEP_UP_DENIED"},correlationId));return;}
         }
 
         if(url.pathname==="/v1/admin/overview"&&method==="GET"){
