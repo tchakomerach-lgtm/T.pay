@@ -1,4 +1,4 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http";
 import { randomUUID } from "node:crypto";
 import { assertAuthorized } from "../../security/src/authorization.js";
 import type { Principal, Permission } from "../../security/src/policy.js";
@@ -47,11 +47,16 @@ function route(path:string){
  return null;
 }
 function permissionFor(kind:string):Permission{return kind==="actor"?"org.read":"member.manage";}
-export function createSchoolApiServer(deps:SchoolApiDependencies){
- return createServer(async(req,res)=>{
+export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
+
+export function createSchoolApiServer(deps:SchoolApiDependencies, options:SchoolApiServerOptions={}){
+ const serverFactory=options.serverFactory??((handler)=>(createServer(handler)));
+ return serverFactory(async(req,res)=>{
   const correlationId=String(req.headers["x-correlation-id"]??newCorrelationId());
   try{
    const method=(req.method??"GET").toUpperCase(), path=((req.url??"/").split("?")[0]??"/"), r=route(path);
+   if(path==="/health/live" && method==="GET"){json(res,200,{ok:true,status:"live"},correlationId);return;}
+   if(path==="/health/ready" && method==="GET"){await deps.db.query("SELECT 1");json(res,200,{ok:true,status:"ready"},correlationId);return;}
    if(!r){json(res,404,buildApiError(new Error("API_ROUTE_NOT_ALLOWLISTED"),correlationId),correlationId);return;}
    const auth=await deps.authenticate(req); assertSessionActive(auth.session); assertSessionOrganization(auth.session,auth.principal.organizationId??"");
    const routeAuth=authorizeRoute({method,route:path,authClass:"member"});
