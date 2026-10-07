@@ -1,6 +1,7 @@
 import type { Client } from "pg";
 import type { SyncEvent, SyncState } from "./sync-fabric.js";
 import { computeSyncPayloadHash, serializeSyncPayload, validateEventEnvelope } from "./sync-fabric.js";
+import { createHash } from "node:crypto";
 
 export type DurableSyncResult = {
   state: SyncState;
@@ -112,6 +113,7 @@ export class PostgresEducationSyncStore {
            ON CONFLICT (tenant_id,organization_id,event_id) DO NOTHING`,
           [event.tenantId,event.organizationId,row.event_id,row.event_type,JSON.stringify(row.payload),row.payload_hash,row.occurred_at]
         );
+        await this.insertRealtime(row.event_id, event.tenantId, event.organizationId, row.event_type, row.occurred_at, row.payload, BigInt(row.sequence));
         accepted=BigInt(row.sequence);
         drained++;
       }
@@ -141,6 +143,23 @@ export class PostgresEducationSyncStore {
        (id,tenant_id,organization_id,event_id,event_type,payload,payload_hash,occurred_at)
        VALUES (gen_random_uuid()::text,$1,$2,$3,$4,$5::jsonb,$6,$7)`,
       [event.tenantId,event.organizationId,event.eventId,event.eventType,serializeSyncPayload(event.payload),event.payloadHash,event.occurredAt]
+    );
+    await this.insertRealtime(event.eventId,event.tenantId,event.organizationId,event.eventType,event.occurredAt,event.payload,event.sequence);
+  }
+
+  private async insertRealtime(eventId:string,tenantId:string,organizationId:string,eventType:string,occurredAt:string,payload:unknown,version:bigint):Promise<void>{
+    const data = payload !== null && typeof payload === "object" && !Array.isArray(payload) ? payload : {payload};
+    const payloadHash=createHash("sha256").update(serializeSyncPayload(data),"utf8").digest("hex");
+    const type = eventType==="attendance" ? "attendance.changed"
+      : eventType==="work_item" ? "work_item.changed"
+      : eventType==="service_request" ? "service_request.changed"
+      : "sync.accepted";
+    await this.client.query(
+      `INSERT INTO education_realtime_events
+       (id,tenant_id,organization_id,stream_sequence,event_type,occurred_at,entity_id,version,data,payload_hash)
+       VALUES ($1,$2,$3,nextval('education_realtime_stream_sequence'),$4,$5,$6,$7,$8::jsonb,$9)
+       ON CONFLICT (tenant_id,organization_id,id) DO NOTHING`,
+      [eventId,tenantId,organizationId,type,occurredAt,eventId,version.toString(),JSON.stringify(data),payloadHash]
     );
   }
 }
