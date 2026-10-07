@@ -29,7 +29,11 @@ export function buildMobileAdapter(input: TPayMobileAdapterInput): TPayMobileAda
   return {
     surface: input.surface,
     fieldMode: input.fieldMode,
-    spacingScale: tpayTokens.spacing.values,
+    spacingScale: [
+      tpayTokens.spacing.xs, tpayTokens.spacing.sm, tpayTokens.spacing.md,
+      tpayTokens.spacing.lg, tpayTokens.spacing.xl, tpayTokens.spacing.xxl,
+      tpayTokens.spacing.xxxl,
+    ],
     minTouchTargetPx: tpayTokens.target.minTouchPx,
     ...(input.object ? { objectType: input.object.objectType } : {}),
     ...(input.action ? { actionId: input.action.actionId } : {}),
