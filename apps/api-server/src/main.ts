@@ -4,13 +4,13 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import pg, { type Pool, type PoolClient, type QueryResultRow } from "pg";
 import type { IncomingMessage, Server, RequestListener } from "node:http";
-import { applyMigrations } from "../../../packages/finance/src/postgres-migrations.js";
-import { DeviceTrustRepository } from "../../packages/api-gateway/src/auth-device.js";
-import { createSchoolApiServer } from "../../packages/education/src/education-http.js";
-import { PostgresEducationSyncStore, type PostgresTransactionClient } from "../../packages/education/src/postgres-sync-fabric.js";
-import { PostgresSchoolRealtimeStore } from "../../packages/education/src/postgres-realtime-store.js";
-import { SchoolRealtimeHub } from "../../packages/education/src/school-realtime.js";
-import type { Permission } from "../../packages/security/src/policy.js";
+import { applyMigrations } from "../../../../packages/finance/src/postgres-migrations.js";
+import { DeviceTrustRepository } from "../../../packages/api-gateway/src/auth-device.js";
+import { createSchoolApiServer } from "../../../packages/education/src/education-http.js";
+import { PostgresEducationSyncStore, type PostgresTransactionClient } from "../../../packages/education/src/postgres-sync-fabric.js";
+import { PostgresSchoolRealtimeStore } from "../../../packages/education/src/postgres-realtime-store.js";
+import { SchoolRealtimeHub } from "../../../packages/education/src/school-realtime.js";
+import type { Permission } from "../../../packages/security/src/policy.js";
 
 const REQUIRED_ENV=["TPAY_DATABASE_URL","TPAY_TLS_KEY_FILE","TPAY_TLS_CERT_FILE"] as const;
 const permissionSet=new Set<Permission>([
