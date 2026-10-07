@@ -19,7 +19,9 @@ const FORBIDDEN_HEADERS=new Set(["host","connection","upgrade","transfer-encodin
 export function createFetchHttpsTransport():HttpsTransport{
   return async request=>{
     if(new URL(request.url).protocol!=="https:")throw new Error("HTTPS_REQUIRED");
-    const response=await fetch(request.url,{method:request.method,headers:request.headers,body:request.body,signal:request.signal,redirect:"error"});
+    const init:RequestInit={method:request.method,headers:request.headers,signal:request.signal,redirect:"error"};
+    if(request.body!==undefined)init.body=Buffer.from(request.body);
+    const response=await fetch(request.url,init);
     return {status:response.status,headers:Object.fromEntries(response.headers.entries()),body:new Uint8Array(await response.arrayBuffer())};
   };
 }
