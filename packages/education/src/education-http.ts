@@ -8,6 +8,7 @@ import { buildApiError, buildApiSuccess } from "../../api-gateway/src/api-contra
 import { canonicalRequestHash, newCorrelationId, ApiGatewayRepository, type ApiDb } from "../../api-gateway/src/repository.js";
 import { PostgresEducationSyncStore } from "./postgres-sync-fabric.js";
 import { computeSyncPayloadHash } from "./sync-fabric.js";
+import { SchoolRealtimeHub, toSseMessage } from "./school-realtime.js";
 import { reconcileAttendance, claimWorkItem, resolveWorkItem, type AttendanceRecord, type WorkItem } from "./school-operations.js";
 import { assignService, transitionService, type ActorRef, type ServiceRequest } from "./actor-services.js";
 
@@ -17,6 +18,7 @@ export interface SchoolApiDependencies {
   authenticate(request: IncomingMessage): Promise<SchoolAuthContext>;
   syncClient(): ConstructorParameters<typeof PostgresEducationSyncStore>[0];
   now?: () => Date;
+  realtime?: SchoolRealtimeHub;
 }
 const json=(res:ServerResponse,status:number,body:unknown,correlationId:string)=>{
   const data=JSON.stringify(body); res.statusCode=status; res.setHeader("content-type","application/json; charset=utf-8"); res.setHeader("x-correlation-id",correlationId); res.setHeader("connection","close"); res.end(data);
@@ -37,6 +39,7 @@ function route(path:string){
  if(parts[2]==="work-items"&&parts.length===5&&parts[3]&&(parts[4]==="claim"||parts[4]==="resolve"))return ["work",parts[3],parts[4]] as const;
  if(parts[2]==="service-requests"&&parts.length===3)return ["service-create"] as const;
  if(parts[2]==="service-requests"&&parts.length===5&&parts[3]&&parts[4]==="transition")return ["service-transition",parts[3]] as const;
+ if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
 function permissionFor(kind:string):Permission{return kind==="actor"?"org.read":"member.manage";}
@@ -52,6 +55,13 @@ export function createSchoolApiServer(deps:SchoolApiDependencies){
    const organizationId=auth.principal.organizationId;
    if(!organizationId)throw new Error("ORGANIZATION_CONTEXT_REQUIRED");
    assertAuthorized(auth.principal,{organizationId,requestedPermission:permissionFor(r[0])});
+   if(r[0]==="stream"){
+    if(method!=="GET")throw new Error("REALTIME_METHOD_NOT_ALLOWED");
+    if(!deps.realtime)throw new Error("REALTIME_NOT_CONFIGURED");
+    res.statusCode=200;res.setHeader("content-type","text/event-stream; charset=utf-8");res.setHeader("cache-control","no-cache, no-transform");res.setHeader("connection","keep-alive");res.write(": connected\\n\\n");
+    const unsubscribe=deps.realtime.subscribe({id:correlationId,tenantId:auth.session.organizationId,organizationId,send:message=>res.write(toSseMessage(message)),close:()=>res.end()});
+    req.on("close",()=>unsubscribe());return;
+   }
    const body=parse(await readBody(req));
    const requestHash=canonicalRequestHash(method,path,JSON.stringify(body));
    const idem=String(req.headers["x-idempotency-key"]??"");
