@@ -233,7 +233,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
             json(res,201,buildApiSuccess("v1",correlationId,result));return;
           }catch(error){json(res,403,buildApiError({message:error instanceof Error?error.message:"ADMIN_RUNTIME_DENIED"},correlationId));return;}
         }
-        if(url.pathname.startsWith("/v1/admin/runtime/change-requests/")&&url.endsWith("/approve")&&method==="POST"){
+        if(url.pathname.startsWith("/v1/admin/runtime/change-requests/")&&url.pathname.endsWith("/approve")&&method==="POST"){
           if(!pool||!authenticatedSession||authClass!=="admin"){json(res,403,buildApiError({message:"ADMIN_ACCESS_DENIED"},correlationId));return;}
           try{
             await requireBrowserCsrf(pool,authenticatedSession,origin,String(req.headers["x-csrf-token"]??""));
