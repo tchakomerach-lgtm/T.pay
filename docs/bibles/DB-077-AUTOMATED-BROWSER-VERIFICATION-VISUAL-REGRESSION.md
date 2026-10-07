@@ -117,3 +117,7 @@ DB-077 is not production-ready until:
 - offline/reconnect checks pass;
 - mobile adapter contract tests pass;
 - security review and low-end field evidence are recorded.
+
+
+## CI certification trigger
+The authoritative `.github/workflows/ci.yml` on `main` includes the DB-077 browser job. Any synchronization of this branch against `main` must produce a real `quality` then `browser` execution before DB-077 can advance to visual, security, or Android certification.
