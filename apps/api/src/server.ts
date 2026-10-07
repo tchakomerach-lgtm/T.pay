@@ -80,8 +80,9 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
       const method=req.method??"GET";
       const url=new URL(req.url??"/","https://tpay.local");
       const startedAt=process.hrtime.bigint();
-      res.on("finish",()=>metrics.inc("tpay_http_requests_total",{route:url.pathname,method,status:String(res.statusCode),mode:runtimeMode,channel:nativeClient?"native":"web"}));
-      res.on("finish",()=>metrics.observe("tpay_http_request_duration_seconds",Number(process.hrtime.bigint()-startedAt)/1e9,{route:url.pathname,method,mode:runtimeMode}));
+      let requestRuntimeMode=configuredRuntimeMode;
+      res.on("finish",()=>metrics.inc("tpay_http_requests_total",{route:url.pathname,method,status:String(res.statusCode),mode:requestRuntimeMode,channel:nativeClient?"native":"web"}));
+      res.on("finish",()=>metrics.observe("tpay_http_request_duration_seconds",Number(process.hrtime.bigint()-startedAt)/1e9,{route:url.pathname,method,mode:requestRuntimeMode}));
 
       try{
         if(url.pathname==="/v1/health"&&method==="GET"){
@@ -109,8 +110,8 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
         }
 
         const isAdminRoute=url.pathname.startsWith("/v1/admin/");
-        const runtimeMode=pool ? (await getRuntimeControl(pool).catch(()=>({mode:configuredRuntimeMode} as {mode:typeof configuredRuntimeMode}))).mode : configuredRuntimeMode;
-        const modeDecision=evaluateRuntimeMode(runtimeMode,method,url.pathname);
+        requestRuntimeMode=pool ? (await getRuntimeControl(pool).catch(()=>({mode:configuredRuntimeMode} as {mode:typeof configuredRuntimeMode}))).mode : configuredRuntimeMode;
+        const modeDecision=evaluateRuntimeMode(requestRuntimeMode,method,url.pathname);
         if(!isAdminRoute && !modeDecision.allowed){
           json(res,modeDecision.status,buildApiError({message:modeDecision.code},correlationId),modeDecision.retryAfterSeconds?{"retry-after":String(modeDecision.retryAfterSeconds)}:{});
           return;
