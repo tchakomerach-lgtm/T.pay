@@ -32,7 +32,7 @@ export function verifyWebAuthnAssertion(input:{
  if(input.authenticatorData.length<37)throw new Error("WEBAUTHN_AUTHENTICATOR_DATA_INVALID");
  const rpHash=createHash("sha256").update(input.challenge.rpId).digest();
  if(!rpHash.equals(input.authenticatorData.subarray(0,32)))throw new Error("WEBAUTHN_RP_ID_INVALID");
- const flags=input.authenticatorData[32];
+ const flags=input.authenticatorData[32] ?? 0;
  const userPresent=(flags&0x01)!==0;
  const userVerified=(flags&0x04)!==0;
  if(!userPresent||Boolean(input.requireUserVerification)&&!userVerified)throw new Error("WEBAUTHN_USER_VERIFICATION_REQUIRED");
