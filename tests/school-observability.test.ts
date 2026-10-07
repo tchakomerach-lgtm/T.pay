@@ -15,4 +15,6 @@ test("P046 School telemetry is bounded and privacy-safe",()=>{
     operation:"x",outcome:"accepted",durationMs:1,freshnessMs:null,confidence:null,queueDepth:0,eventLagMs:null,realtimeHealth:"UNKNOWN",syncState:"UNKNOWN"
   });
   assert.equal(redacted.actor_id,undefined);
+  assert.throws(()=>schoolTelemetry({serviceName:"x",traceId:"t",correlationId:"c"},{operation:"x",outcome:"accepted",durationMs:1,freshnessMs:-1,confidence:null,queueDepth:0,eventLagMs:null,realtimeHealth:"UNKNOWN",syncState:"UNKNOWN"}),/SCHOOL_TELEMETRY_FRESHNESS_INVALID/);
+  assert.throws(()=>schoolTelemetry({serviceName:"x",traceId:"t",correlationId:"c"},{operation:"x",outcome:"accepted",durationMs:1,freshnessMs:null,confidence:null,queueDepth:0,eventLagMs:-1,realtimeHealth:"UNKNOWN",syncState:"UNKNOWN"}),/SCHOOL_TELEMETRY_LAG_INVALID/);
 });
