@@ -5,7 +5,7 @@ export interface RootApprovalInput{actorId:string;domain:string;algorithm:"ES256
 export interface RootTrustProvider{kind:"HSM"|"KMS"|"SOFTWARE_TEST";verify(input:{algorithm:"ES256"|"Ed25519";publicKeyDer:Buffer;signature:Buffer;digest:string}):Promise<boolean>;signingKeyRef:string;}
 export class NodeVerificationProvider implements RootTrustProvider{
  kind="SOFTWARE_TEST" as const; constructor(public signingKeyRef="software-test-only"){}
- async verify(i:RootTrustProvider["verify"] extends (...a:any)=>any?Parameters<RootTrustProvider["verify"]>[0]:never){const key=createPublicKey({key:i.publicKeyDer,format:"der",type:"spki"});return i.algorithm==="Ed25519"?verify(null,Buffer.from(i.digest),key,i.signature):verify("sha256",Buffer.from(i.digest),key,i.signature);}
+ async verify(i:{algorithm:"ES256"|"Ed25519";publicKeyDer:Buffer;signature:Buffer;digest:string}):Promise<boolean>{const key=createPublicKey({key:i.publicKeyDer,format:"der",type:"spki"});return i.algorithm==="Ed25519"?verify(null,Buffer.from(i.digest),key,i.signature):verify("sha256",Buffer.from(i.digest),key,i.signature);}
 }
 export async function authorizeRootOperationWithQuorum(pool:Pool,input:{operation:string;request:unknown;expiresAt:Date;approvals:RootApprovalInput[];provider:RootTrustProvider}){
  if(input.approvals.length<3)throw new Error("ROOT_QUORUM_REQUIRED");
@@ -22,4 +22,8 @@ export async function authorizeRootOperationWithQuorum(pool:Pool,input:{operatio
   for(const a of input.approvals)await c.query("INSERT INTO tpay_root_approvals(operation_id,actor_id,independent_domain,signature_format,signature,signed_digest) VALUES($1,$2,$3,$4,$5,$6)",[id,a.actorId,a.domain,a.algorithm,a.signature,digest]);
   await c.query("COMMIT");return{operationId:String(id),digest,status:"AUTHORIZED" as const};
  }catch(e){await c.query("ROLLBACK");throw e}finally{c.release();}
+}
+
+export function assertProductionRootProvider(provider:RootTrustProvider){
+ if(process.env.NODE_ENV==="production"&&provider.kind==="SOFTWARE_TEST")throw new Error("ROOT_HARDWARE_PROVIDER_REQUIRED");
 }
