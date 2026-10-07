@@ -23,7 +23,7 @@ test("P047 realtime queue overflow fails closed with resync requirement",()=>{
 class Mem implements SecureOfflineStorage{
  records:SecureOfflineEnvelope[]=[];async getLastSequence(){return this.records.filter(x=>x.state==="QUEUED").reduce((m,x)=>x.sequence>m?x.sequence:m,0n)}
  async append(r:SecureOfflineEnvelope,p:bigint){if(p!==await this.getLastSequence())throw new Error("CONCURRENT_WRITE");this.records.push(r)}
- async list(s:any){return this.records.filter(x=>x.deviceId===s.deviceId&&x.tenantId===s.tenantId&&x.organizationId===s.organizationId)}
+ async list(deviceId:string){return this.records.filter(x=>x.deviceId===deviceId)}
  async quarantine(r:SecureOfflineEnvelope){r.state="QUARANTINED"} async remove(id:string){this.records=this.records.filter(x=>x.eventId!==id)}
 }
 test("P047 offline records reject tenant tampering and rollback",async()=>{
