@@ -19,7 +19,7 @@ android {
         require(terrainWebUrl.startsWith("https://")) {
             "T.Pay Android requires an HTTPS frontend URL"
         }
-        buildConfigField("String", "TPAY_WEB_URL", ""$terrainWebUrl"")
+        buildConfigField("String", "TPAY_WEB_URL", "\\"$terrainWebUrl\\"")
     }
 
     compileOptions {
