@@ -37,6 +37,7 @@ The matrix is intentionally small enough for every PR while covering the princip
 ## Accessibility verification
 
 The browser gate verifies:
+- automated axe-core accessibility scan for serious/critical violations;
 - named navigation;
 - keyboard focus;
 - visible focus target;
