@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { requestDigest } from "./super-admin-control.js";
-import { encodeCursor, decodeCursor } from "../platform/src/pagination.js";
+import { encodeCursor, decodeCursor } from "../../platform/src/pagination.js";
 export type AdminRuntimeMode="normal"|"degraded"|"readonly"|"maintenance";
 export interface AdminPrincipal{userId:string;privilegedLevel:"L4_SUPER_ADMIN"|"L5_ROOT_TRUST";assurance:"step_up";}
 async function privileged(pool:Pool,userId:string){const r=await pool.query("SELECT 1 FROM tpay_privileged_identities WHERE human_user_id=$1 AND active=true AND expires_at>now() AND privileged_level IN ('L4_SUPER_ADMIN','L5_ROOT_TRUST')",[userId]);if(!r.rowCount)throw new Error("ADMIN_PRIVILEGE_REQUIRED");}
