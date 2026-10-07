@@ -1,6 +1,6 @@
 export type SchoolRealtimeEvent={
  id:string; tenantId:string; organizationId:string; type:"student.changed"|"attendance.changed"|"work_item.changed"|"service_request.changed"|"sync.accepted"|"sync.pending";
- occurredAt:string; entityId:string; version:number; data:Record<string,unknown>;
+ occurredAt:string; entityId:string; version:number; data:Record<string,unknown>; streamSequence?:string;
 };
 export type SchoolRealtimeMessage={kind:"event";event:SchoolRealtimeEvent}|{kind:"resync_required";reason:"QUEUE_OVERFLOW"|"CURSOR_EXPIRED";lastEventId:string|null};
 export type SchoolSubscriber={id:string;tenantId:string;organizationId:string;send(message:SchoolRealtimeMessage):void;close():void};
@@ -28,5 +28,5 @@ export class SchoolRealtimeHub{
  }
 }
 export function toSseMessage(message:SchoolRealtimeMessage):string{
- return `id: ${message.kind==="event"?message.event.id:"resync"}\nevent: ${message.kind}\ndata: ${JSON.stringify(message)}\n\n`;
+ return `id: ${message.kind==="event"?(message.event.streamSequence??message.event.id):"resync"}\nevent: ${message.kind}\ndata: ${JSON.stringify(message)}\n\n`;
 }
