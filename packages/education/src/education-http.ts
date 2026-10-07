@@ -21,7 +21,7 @@ export interface SchoolApiDependencies {
   syncClient(): ConstructorParameters<typeof PostgresEducationSyncStore>[0] | Promise<ConstructorParameters<typeof PostgresEducationSyncStore>[0]>;
   now?: () => Date;
   realtime?: SchoolRealtimeHub;
-  realtimeStore?: PostgresSchoolRealtimeStore;
+  realtimeStore?: Pick<PostgresSchoolRealtimeStore,"replay">;
 }
 const json=(res:ServerResponse,status:number,body:unknown,correlationId:string)=>{
   if(res.headersSent||res.writableEnded)return false;
