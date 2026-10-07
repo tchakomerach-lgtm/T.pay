@@ -1,3 +1,4 @@
+import { startAdminConsole, type AdminSection } from "./admin-console.js";
 import { renderErrorPage } from "./error-pages.js";
 export type Screen = "home" | "organizations" | "social" | "opportunities" | "tontine";
 
@@ -91,6 +92,7 @@ export function startApp(root: HTMLElement): void {
     return navigation.some((n) => n.id === value) ? value : null;
   };
   const render = () => {
+    if (location.hash.startsWith("#admin")) { const rootSection = location.hash.split("/")[1] as AdminSection | undefined; startAdminConsole(root, rootSection); return; }
     const signedIn = localStorage.getItem("tpay.demo.session") === "active";
     const screen = getScreen();
     root.innerHTML = screen ? renderScreen(screen, signedIn) : renderErrorPage(404);
