@@ -1,0 +1,109 @@
+name: T.Pay Terrain Certification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  terrain:
+    runs-on: [self-hosted, tpay-terrain]
+    timeout-minutes: 30
+    steps:
+      - name: Verify terrain runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${RUNNER_ENVIRONMENT}" = "self-hosted"
+          command -v node
+          command -v npm
+          command -v adb
+          command -v gradle
+          node --version
+          npm --version
+          adb version
+          gradle --version | head -n 5
+
+      - uses: actions/checkout@v5
+
+      - name: Validate local terrain environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for v in TPAY_TERRAIN_WEB_URL TPAY_TERRAIN_API_URL TPAY_TERRAIN_CA_FILE TPAY_TERRAIN_APK_PATH TPAY_DATABASE_URL TPAY_TLS_KEY_FILE TPAY_TLS_CERT_FILE TPAY_WEB_TLS_KEY_FILE TPAY_WEB_TLS_CERT_FILE; do
+            test -n "${!v}" || { echo "Missing runner environment variable: $v"; exit 1; }
+          done
+          test -f "$TPAY_TERRAIN_CA_FILE"
+          test -f "$TPAY_TLS_KEY_FILE"
+          test -f "$TPAY_TLS_CERT_FILE"
+          test -f "$TPAY_WEB_TLS_KEY_FILE"
+          test -f "$TPAY_WEB_TLS_CERT_FILE"
+          adb devices
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web and Android
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run web:build
+          gradle -p android/tpay-shell :app:assembleDebug --no-daemon -PtpayWebUrl="$TPAY_TERRAIN_WEB_URL"
+          export TPAY_TERRAIN_APK_PATH="$GITHUB_WORKSPACE/android/tpay-shell/app/build/outputs/apk/debug/app-debug.apk"
+          echo "TPAY_TERRAIN_APK_PATH=$TPAY_TERRAIN_APK_PATH" >> "$GITHUB_ENV"
+
+      - name: Start local HTTPS API
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TPAY_ALLOW_LOCAL_TEST_SEED=true
+          export TPAY_API_HOST=0.0.0.0
+          export TPAY_API_PORT=8443
+          export TPAY_WEB_ORIGINS="$TPAY_TERRAIN_WEB_URL"
+          npm run api:start > "$RUNNER_TEMP/tpay-api.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/tpay-api.pid"
+
+      - name: Start local HTTPS frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TPAY_WEB_TLS_KEY_FILE="$TPAY_WEB_TLS_KEY_FILE"
+          export TPAY_WEB_TLS_CERT_FILE="$TPAY_WEB_TLS_CERT_FILE"
+          npm run web:dev > "$RUNNER_TEMP/tpay-web.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/tpay-web.pid"
+
+      - name: Bootstrap test session
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TPAY_ALLOW_LOCAL_TEST_SEED=true
+          npm run api:seed:test > "$RUNNER_TEMP/tpay-seed.log"
+          cat "$RUNNER_TEMP/tpay-seed.log"
+          token="$(sed -n 's/^token=//p' "$RUNNER_TEMP/tpay-seed.log" | tail -n 1)"
+          test -n "$token"
+          echo "::add-mask::$token"
+          echo "TPAY_TERRAIN_ACCESS_TOKEN=$token" >> "$GITHUB_ENV"
+
+      - name: Run physical Android terrain harness
+        shell: bash
+        run: node scripts/terrain-certification.mjs
+
+      - name: Upload terrain diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: tpay-terrain-diagnostics
+          path: |
+            ${{ runner.temp }}/tpay-api.log
+            ${{ runner.temp }}/tpay-web.log
+            ${{ runner.temp }}/tpay-seed.log
+          if-no-files-found: ignore
+
+      - name: Stop local services
+        if: always()
+        shell: bash
+        run: |
+          for f in "$RUNNER_TEMP/tpay-api.pid" "$RUNNER_TEMP/tpay-web.pid"; do
+            if test -f "$f"; then kill "$(cat "$f")" 2>/dev/null || true; fi
+          done
