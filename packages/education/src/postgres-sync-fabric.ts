@@ -163,9 +163,12 @@ export class PostgresEducationSyncStore {
     const inserted=await this.client.query(
       `INSERT INTO education_sync_inbox
        (id,tenant_id,organization_id,event_id,device_id,actor_id,sequence,occurred_at,event_type,priority,payload,payload_hash,idempotency_key,schema_version,state,accepted_at)
-       VALUES (gen_random_uuid()::text,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,'ACCEPTED',now())`,
+       VALUES (gen_random_uuid()::text,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,'ACCEPTED',now())
+       ON CONFLICT DO NOTHING
+       RETURNING event_id`,
       [event.tenantId,event.organizationId,event.eventId,event.deviceId,event.actorId,event.sequence,event.occurredAt,event.eventType,event.priority,serializeSyncPayload(event.payload),event.payloadHash,event.idempotencyKey,event.schemaVersion]
     );
+    if((inserted.rowCount??0)===0)return false;
     await this.client.query(
       `INSERT INTO education_sync_outbox
        (id,tenant_id,organization_id,event_id,event_type,payload,payload_hash,occurred_at)
