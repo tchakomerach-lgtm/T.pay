@@ -1,4 +1,4 @@
-import type { SecureHttpsAdapter, SecureHttpResponse } from "./secure-http-adapter.js";
+import type { SecureHttpResponse } from "./secure-http-adapter.js";
 
 export type ProviderEnvironment="sandbox"|"staging"|"production";
 export type ProviderHealth="UNKNOWN"|"HEALTHY"|"DEGRADED"|"BLOCKED";
