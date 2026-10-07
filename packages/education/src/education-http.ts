@@ -41,8 +41,8 @@ export function createSchoolApiServer(deps:SchoolApiDependencies){
  return createServer(async(req,res)=>{
   const correlationId=String(req.headers["x-correlation-id"]??newCorrelationId());
   try{
-   const method=(req.method??"GET").toUpperCase(), path=(req.url??"/").split("?")[0], r=route(path);
-   if(!r){json(res,404,buildApiError(new Error("API_ROUTE_NOT_ALLOWLISTED"),correlationId));return;}
+   const method=(req.method??"GET").toUpperCase(), path=((req.url??"/").split("?")[0]??"/"), r=route(path);
+   if(!r){json(res,404,buildApiError(new Error("API_ROUTE_NOT_ALLOWLISTED"),correlationId),correlationId);return;}
    const auth=await deps.authenticate(req); assertSessionActive(auth.session); assertSessionOrganization(auth.session,auth.principal.organizationId??"");
    const routeAuth=authorizeRoute({method,route:path,authClass:"member"});
    if(!routeAuth.allowed)throw new Error(routeAuth.reason);
@@ -60,10 +60,10 @@ export function createSchoolApiServer(deps:SchoolApiDependencies){
    let data:unknown;
    if(r[0]==="actor"){
     const q=await deps.db.query("SELECT actor_id,organization_id,kind,active,data,version,updated_at FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.session.organizationId,organizationId,r[1]]);
-    if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("ACTOR_NOT_FOUND"),correlationId));return;}
+    if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("ACTOR_NOT_FOUND"),correlationId),correlationId);return;}
     data=q.rows[0];
    } else if(r[0]==="sync"){
-    const event={...body,payloadHash:computeSyncPayloadHash(body.payload)};
+    const event={...body,payloadHash:computeSyncPayloadHash((body as any).payload)};
     data=await new PostgresEducationSyncStore(deps.syncClient()).accept(event as any);
    } else if(r[0]==="attendance"){
     const incoming=body as AttendanceRecord; incoming.organizationId=organizationId;
