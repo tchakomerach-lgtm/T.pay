@@ -15,7 +15,7 @@ test("School HTTP actor route enforces auth context and returns versioned contra
  const port=(server.address() as any).port; server.unref(); server.unref();
  const res=await fetch(`http://127.0.0.1:${port}/v1/education/actors/teacher-1`);
  const body=await res.json() as any;
- assert.equal(res.status,200); assert.equal(body.ok,true); assert.equal(body.version,"v1"); assert.equal(body.data.actor_id,"teacher-1");
+ assert.equal(res.status,200,JSON.stringify(body)); assert.equal(body.ok,true); assert.equal(body.version,"v1"); assert.equal(body.data.actor_id,"teacher-1");
  server.closeAllConnections(); await new Promise<void>(resolve=>server.close(()=>resolve()));
 });
 test("School HTTP rejects mutation without idempotency key",async()=>{
