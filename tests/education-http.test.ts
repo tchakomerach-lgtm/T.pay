@@ -24,3 +24,15 @@ test("School HTTP rejects mutation without idempotency key",async()=>{
  const res=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"application/json"},body:"{}"});
  assert.equal(res.status,400); await new Promise<void>(resolve=>server.close(()=>resolve()));
 });
+
+
+test("P047 HTTP rejects oversized payloads and malformed realtime cursors",async()=>{
+ const server=createSchoolApiServer({db:db() as any,authenticate:async()=>auth(),syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any,realtime:{subscribe(){throw new Error("unexpected-subscribe");}} as any,realtimeStore:{replay:async()=>{throw new Error("unexpected-replay");}} as any});
+ await new Promise<void>(resolve=>server.listen(0,resolve)); const port=(server.address() as any).port;
+ try{
+  const oversized=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"047-large"},body:JSON.stringify({blob:"x".repeat(1024*1024+1)})});
+  assert.equal(oversized.status,400);
+  const malformed=await fetch(`http://127.0.0.1:${port}/v1/education/events/stream`,{headers:{"last-event-id":"not-a-sequence"}});
+  assert.equal(malformed.status,400);
+ }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});
