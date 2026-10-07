@@ -1,6 +1,7 @@
 import { createServer as createHttpsServer } from "node:https";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import pg, { type Pool, type PoolClient } from "pg";
 import type { IncomingMessage, Server } from "node:http";
 import { applyMigrations } from "../../packages/finance/src/postgres-migrations.js";
@@ -109,7 +110,7 @@ async function authenticateFactory(pool:Pool){
 export async function buildProductionApiServer(config:RuntimeConfig):Promise<{server:Server;pool:Pool}>{
   const pool=new pg.Pool({connectionString:config.databaseUrl,max:20,ssl:process.env.TPAY_DATABASE_SSL==="require"?{rejectUnauthorized:true}:undefined});
   const migrationClient=await pool.connect();
-  try{await applyMigrations(migrationClient, new URL("file://"+join(process.cwd(),"migrations")+"/"));}
+  try{await applyMigrations(migrationClient, pathToFileURL(join(process.cwd(),"migrations")+"/"));}
   finally{migrationClient.release();}
   const authenticate=await authenticateFactory(pool);
   const realtime=new SchoolRealtimeHub(Number(process.env.TPAY_REALTIME_QUEUE_LIMIT??"100"));
