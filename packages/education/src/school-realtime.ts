@@ -23,7 +23,6 @@ export class SchoolRealtimeHub{
     sub.close();this.subscribers.delete(id);this.queues.delete(id);continue;
    }
    this.queues.set(id,depth);sub.send({kind:"event",event});
-   this.queues.set(id,Math.max(0,depth-1));
   }
  }
 }
