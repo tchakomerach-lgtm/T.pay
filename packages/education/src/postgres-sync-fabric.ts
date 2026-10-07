@@ -19,6 +19,22 @@ export class PostgresEducationSyncStore {
 
     await this.client.query("BEGIN");
     try {
+      await this.client.query(
+        `INSERT INTO education_sync_device_cursors
+           (tenant_id,organization_id,device_id,last_accepted_sequence)
+         VALUES ($1,$2,$3,0)
+         ON CONFLICT DO NOTHING`,
+        [event.tenantId,event.organizationId,event.deviceId]
+      );
+      const cursor=await this.client.query<{last_accepted_sequence:string}>(
+        `SELECT last_accepted_sequence::text
+           FROM education_sync_device_cursors
+          WHERE tenant_id=$1 AND organization_id=$2 AND device_id=$3
+          FOR UPDATE`,
+        [event.tenantId,event.organizationId,event.deviceId]
+      );
+      const last=BigInt(cursor.rows[0]!.last_accepted_sequence);
+
       const existingEvent = await this.client.query<{event_id:string;payload_hash:string;state:SyncState}>(
         `SELECT event_id,payload_hash,state
            FROM education_sync_inbox
@@ -37,8 +53,7 @@ export class PostgresEducationSyncStore {
         return {state:"DUPLICATE",eventId:row.event_id,acceptedSequence:event.sequence,drainedPending:0};
       }
 
-      await this.client.query(
-        `INSERT INTO education_sync_device_cursors
+      if (event.sequence <= last) {
            (tenant_id,organization_id,device_id,last_accepted_sequence)
          VALUES ($1,$2,$3,0)
          ON CONFLICT DO NOTHING`,
