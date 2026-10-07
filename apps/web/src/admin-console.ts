@@ -45,7 +45,7 @@ async function load(section:AdminSection,root:HTMLElement){
       const cred=await browser.navigator.credentials.get({publicKey:{challenge:b64(cj.data.challenge),rpId:cj.data.rpId,userVerification:"required",timeout:120000}});
       if(!cred)throw new Error("WEBAUTHN_CANCELLED");
       const response=(cred as any).response;
-      const enc=(x:ArrayBuffer)=>{let s="";new Uint8Array(x).forEach(v=>s+=String.fromCharCode(v));return btoa(s).replace(/\\+/g,"-").replace(/\\//g,"_").replace(/=+$/,"");};
+      const enc=(x:ArrayBuffer)=>{const bytes=new Uint8Array(x);let s="";for(const v of bytes)s+=String.fromCharCode(v);return btoa(s).split("+").join("-").split("/").join("_").replace(/=+$/,"");};
       const vr=await api("/v1/admin/auth/webauthn/step-up",{method:"POST",headers:{"x-csrf-token":csrf},body:JSON.stringify({challengeId:cj.data.challengeId,credentialId:(cred as any).id,clientDataJSON:enc(response.clientDataJSON),authenticatorData:enc(response.authenticatorData),signature:enc(response.signature)})});
       if(!vr.ok)throw new Error("WEBAUTHN_VERIFY_FAILED");
       await load(section,root);
