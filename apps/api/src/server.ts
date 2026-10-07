@@ -91,7 +91,8 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
             ...(pool?[{name:"postgres",check:async()=>{await pool.query("SELECT 1");return true;}}]:[])
           ];
           const report=await runHealthProbes(probes);
-          json(res,report.ready?200:503,buildApiSuccess("v1",correlationId,{...report,mode:runtimeMode}),{"strict-transport-security":"max-age=63072000; includeSubDomains"});
+          const healthMode=pool ? (await getRuntimeControl(pool).catch(()=>({mode:configuredRuntimeMode} as {mode:typeof configuredRuntimeMode}))).mode : configuredRuntimeMode;
+          json(res,report.ready?200:503,buildApiSuccess("v1",correlationId,{...report,mode:healthMode}),{"strict-transport-security":"max-age=63072000; includeSubDomains"});
           return;
         }
 
