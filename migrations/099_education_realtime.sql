@@ -1,4 +1,10 @@
-CREATE SEQUENCE IF NOT EXISTS education_realtime_stream_sequence;
+CREATE TABLE IF NOT EXISTS education_realtime_stream_cursors (
+  tenant_id text NOT NULL,
+  organization_id text NOT NULL,
+  last_sequence bigint NOT NULL DEFAULT 0 CHECK (last_sequence >= 0),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (tenant_id, organization_id)
+);
 
 CREATE TABLE IF NOT EXISTS education_realtime_events (
   id text PRIMARY KEY,
