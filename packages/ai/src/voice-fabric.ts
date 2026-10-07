@@ -174,12 +174,20 @@ export function requiredVoiceFactors(
   policy: VoicePolicy,
   actionKind: VoiceActionKind,
 ): readonly VerificationFactor[] {
-  const factors = [...policy.allowedFactors[risk]];
-  const minimum = policy.minimumFactors[risk];
-  if (policy.humanApprovalRequiredFor.includes(actionKind) && !factors.includes("human_approval")) {
-    factors.push("human_approval");
+  const allowed = [...policy.allowedFactors[risk]];
+  const minimum = Math.max(0, policy.minimumFactors[risk]);
+  const requiresHumanApproval = policy.humanApprovalRequiredFor.includes(actionKind);
+  if (requiresHumanApproval && !allowed.includes("human_approval")) {
+    throw new Error("VOICE_POLICY_MISSING_HUMAN_APPROVAL_FACTOR");
   }
-  return factors.slice(0, Math.max(minimum, policy.humanApprovalRequiredFor.includes(actionKind) ? factors.length : minimum));
+  const selected = requiresHumanApproval
+    ? [
+        "human_approval" as const,
+        ...allowed.filter(factor => factor !== "human_approval").slice(0, Math.max(0, minimum - 1)),
+      ]
+    : allowed.slice(0, minimum);
+  if (selected.length < minimum) throw new Error("VOICE_POLICY_INSUFFICIENT_FACTORS");
+  return [...new Set(selected)];
 }
 
 export function authorizeVoiceAction(input: {

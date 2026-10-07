@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export type SyncPriority = "P0" | "P1" | "P2" | "P3";
 export type SyncState = "PENDING" | "ACCEPTED" | "REJECTED" | "DUPLICATE" | "CONFLICTED" | "UNKNOWN";
 export type DeviceState = "HEALTHY" | "DEGRADED" | "STALE" | "BACKLOGGED" | "CONFLICTED" | "UNTRUSTED" | "QUARANTINED" | "OFFLINE" | "RECOVERING" | "UNKNOWN";
@@ -38,6 +40,31 @@ export interface DeviceSyncHealth {
   clockDriftMs: number;
 }
 
+function canonicalizePayload(value: unknown): string {
+  if (value === undefined) throw new Error("SYNC_UNSUPPORTED_PAYLOAD");
+  if (typeof value === "bigint") return JSON.stringify(value.toString());
+  if (value === null || typeof value !== "object") {
+    const encoded = JSON.stringify(value);
+    if (encoded === undefined) throw new Error("SYNC_UNSUPPORTED_PAYLOAD");
+    return encoded;
+  }
+  if (Array.isArray(value)) return "[" + value.map(canonicalizePayload).join(",") + "]";
+  const record = value as Record<string, unknown>;
+  return "{" + Object.keys(record).sort().map(key => JSON.stringify(key) + ":" + canonicalizePayload(record[key])).join(",") + "}";
+}
+
+export function computeSyncPayloadHash(payload: unknown): string {
+  return createHash("sha256").update(canonicalizePayload(payload), "utf8").digest("hex");
+}
+
+export function serializeSyncPayload(payload: unknown): string {
+  return canonicalizePayload(payload);
+}
+
+export function verifySyncPayloadHash(payload: unknown, expectedHash: string): boolean {
+  return computeSyncPayloadHash(payload).toLowerCase() === expectedHash.toLowerCase();
+}
+
 export function assertTenantScope(event: SyncEvent, expectedTenantId: string, expectedOrganizationId: string): void {
   if (event.tenantId !== expectedTenantId) throw new Error("SYNC_CROSS_TENANT");
   if (event.organizationId !== expectedOrganizationId) throw new Error("SYNC_CROSS_ORGANIZATION");
@@ -66,6 +93,8 @@ export function validateEventEnvelope(event: SyncEvent): void {
   if (!event.eventId || !event.tenantId || !event.organizationId || !event.deviceId || !event.actorId) {
     throw new Error("SYNC_INVALID_IDENTITY");
   }
+  if (!event.eventType || event.eventType.length > 200) throw new Error("SYNC_INVALID_EVENT_TYPE");
+  if (!["P0","P1","P2","P3"].includes(event.priority)) throw new Error("SYNC_INVALID_PRIORITY");
   if (event.sequence < 0n) throw new Error("SYNC_INVALID_SEQUENCE");
   if (!Number.isInteger(event.schemaVersion) || event.schemaVersion < 1) throw new Error("SYNC_INVALID_SCHEMA_VERSION");
   if (!/^([a-f0-9]{64})$/i.test(event.payloadHash)) throw new Error("SYNC_INVALID_PAYLOAD_HASH");
