@@ -155,12 +155,30 @@ export class PostgresEducationSyncStore {
       : eventType==="service_request" ? "service_request.changed"
       : "sync.accepted";
     await this.client.query(
+      `INSERT INTO education_realtime_stream_cursors(tenant_id,organization_id,last_sequence)
+       VALUES($1,$2,0) ON CONFLICT(tenant_id,organization_id) DO NOTHING`,
+      [tenantId,organizationId]
+    );
+    const cursor=await this.client.query<{last_sequence:string}>(
+      `SELECT last_sequence::text FROM education_realtime_stream_cursors
+        WHERE tenant_id=$1 AND organization_id=$2 FOR UPDATE`,
+      [tenantId,organizationId]
+    );
+    const next=BigInt(cursor.rows[0]!.last_sequence)+1n;
+    const inserted=await this.client.query(
       `INSERT INTO education_realtime_events
        (id,tenant_id,organization_id,stream_sequence,event_type,occurred_at,entity_id,version,data,payload_hash)
-       VALUES ($1,$2,$3,nextval('education_realtime_stream_sequence'),$4,$5,$6,$7,$8::jsonb,$9)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)
        ON CONFLICT (tenant_id,organization_id,id) DO NOTHING`,
-      [eventId,tenantId,organizationId,type,occurredAt,eventId,version.toString(),JSON.stringify(data),payloadHash]
+      [eventId,tenantId,organizationId,next.toString(),type,occurredAt,eventId,version.toString(),JSON.stringify(data),payloadHash]
     );
+    if((inserted.rowCount??0)>0){
+      await this.client.query(
+        `UPDATE education_realtime_stream_cursors SET last_sequence=$3,updated_at=now()
+         WHERE tenant_id=$1 AND organization_id=$2`,
+        [tenantId,organizationId,next.toString()]
+      );
+    }
   }
 }
 
