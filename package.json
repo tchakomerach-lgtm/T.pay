@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node --test --test-concurrency=1 --test-timeout=120000 dist/tests/*.test.js",
+    "test": "npm run build && node scripts/run-tests-sequentially.mjs",
     "check": "npm run typecheck && npm test",
     "db:migrate": "node dist/scripts/migrate.js",
     "test:postgres": "npm run build && node --test dist/tests/postgres-live.integration.test.js",
