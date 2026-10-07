@@ -14,5 +14,5 @@ test("P045 School web client enforces HTTPS and session expiry",async()=>{
     assert.equal(headers.get("x-tenant-id"),null);
   }finally{globalThis.fetch=original;}
   assert.throws(()=>createSchoolWebClient({apiBaseUrl:"http://school.example",session:config.session}),/WEB_HTTPS_REQUIRED/);
-  assert.throws(()=>createSchoolWebClient({apiBaseUrl:"https://school.example",session:{...config.session,expiresAt:new Date(Date.now()-1).toISOString()}}).request("/v1/education/actors/current"),/WEB_SESSION_EXPIRED/);
+  await assert.rejects(createSchoolWebClient({apiBaseUrl:"https://school.example",session:{...config.session,expiresAt:new Date(Date.now()-1).toISOString()}}).request("/v1/education/actors/current"),/WEB_SESSION_EXPIRED/);
 });
