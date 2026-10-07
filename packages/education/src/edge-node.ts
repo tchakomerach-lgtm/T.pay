@@ -1,3 +1,7 @@
+import { SecureHttpsAdapter } from "../../integrations/src/secure-http-adapter.js";
+
+export type EdgeHttpsConfig={baseUrl:string;adapter:SecureHttpsAdapter};
+
 export type EdgeDeliveryState="IDLE"|"SENDING"|"BACKOFF"|"UNKNOWN"|"QUARANTINED";
 export type EdgeTransportResponse={status:"ACCEPTED"|"DUPLICATE"|"PENDING"|"REJECTED"|"UNKNOWN";acceptedSequence:bigint};
 export interface EdgeEnvelope{deviceId:string;tenantId:string;organizationId:string;eventId:string;idempotencyKey:string;actorId:string;eventType:string;schemaVersion:number;priority:number;sequence:bigint;occurredAt:string;payloadHash:string;payload:Record<string,unknown>;}
