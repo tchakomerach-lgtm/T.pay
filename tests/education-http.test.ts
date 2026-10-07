@@ -12,7 +12,7 @@ function db(){
 test("School HTTP actor route enforces auth context and returns versioned contract",async()=>{
  const server=createSchoolApiServer({db:db() as any,authenticate:async()=>auth(),syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any});
  await new Promise<void>(resolve=>server.listen(0,resolve));
- const port=(server.address() as any).port;
+ const port=(server.address() as any).port; server.unref(); server.unref();
  const res=await fetch(`http://127.0.0.1:${port}/v1/education/actors/teacher-1`);
  const body=await res.json() as any;
  assert.equal(res.status,200); assert.equal(body.ok,true); assert.equal(body.version,"v1"); assert.equal(body.data.actor_id,"teacher-1");
