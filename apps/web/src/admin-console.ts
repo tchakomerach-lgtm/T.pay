@@ -24,7 +24,23 @@ async function load(section:AdminSection,root:HTMLElement){
  const content=root.querySelector<HTMLElement>("#admin-content"),status=root.querySelector<HTMLElement>("#admin-status"); if(!content||!status)return;
  try{
   const r=await api("/v1/admin/overview"); const j=await r.json() as any;
-  if(!r.ok){content.innerHTML=`<div class="admin-denied"><b>403 · Console verrouillée</b><p>Cette interface exige une identité privilégiée L4/L5 et une session step-up. Aucun contrôle sensible n'est exposé tant que l'autorisation serveur n'est pas satisfaite.</p></div>`;status.textContent="Accès privilégié requis";return;}
+  if(!r.ok){content.innerHTML=`<div class="admin-denied"><b>403 · Console verrouillée</b><p>Cette interface exige une identité privilégiée L4/L5 et une session WebAuthn step-up.</p><button id="admin-stepup">Activer le step-up FIDO2 / passkey</button></div>`;status.textContent="Step-up privilégié requis";
+      const btn=root.querySelector<HTMLButtonElement>("#admin-stepup"); if(btn) btn.onclick=async()=>{
+       try{
+        const csrf=sessionStorage.getItem("tpay.csrf"); if(!csrf) throw new Error("CSRF_SESSION_MISSING");
+        const ch=await api("/v1/admin/auth/webauthn/challenge",{method:"POST",headers:{"x-csrf-token":csrf}});
+        const cj=await ch.json() as any; if(!ch.ok) throw new Error("CHALLENGE_DENIED");
+        const b64=(v:string)=>{const pad="=".repeat((4-v.length%4)%4),s=(v+pad).replace(/-/g,"+").replace(/_/g,"/");return Uint8Array.from(atob(s),x=>x.charCodeAt(0));};
+        if(!window.PublicKeyCredential||!navigator.credentials) throw new Error("WEBAUTHN_UNSUPPORTED");
+        const cred=await navigator.credentials.get({publicKey:{challenge:b64(cj.data.challenge),rpId:cj.data.rpId,userVerification:"required",timeout:120000}}) as PublicKeyCredential|null;
+        if(!cred) throw new Error("WEBAUTHN_CANCELLED");
+        const r=cred.response as AuthenticatorAssertionResponse;
+        const enc=(x:ArrayBuffer)=>{let s="";new Uint8Array(x).forEach(v=>s+=String.fromCharCode(v));return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");};
+        const vr=await api("/v1/admin/auth/webauthn/step-up",{method:"POST",headers:{"x-csrf-token":csrf},body:JSON.stringify({challengeId:cj.data.challengeId,credentialId:cred.id,clientDataJSON:enc(r.clientDataJSON),authenticatorData:enc(r.authenticatorData),signature:enc(r.signature)})});
+        if(!vr.ok) throw new Error("WEBAUTHN_VERIFY_FAILED");
+        await load(section,root);
+       }catch(e){alert(e instanceof Error?e.message:"WEBAUTHN_STEP_UP_FAILED");}
+      };return;}
   status.textContent="● Plan de contrôle connecté";
   const runtime=j.data.runtime;
   if(section==="dashboard") content.innerHTML=`<div class="admin-grid">${card("Mode système",runtime.mode,"Version "+runtime.version,runtime.mode==="normal"?"good":"critical")}${card("Identité privilégiée",j.data.privileged?.[0]?.level??"—","assurance contrôlée")}${card("Demandes runtime",String(j.data.pendingRequests),"requièrent 2 approbateurs")}${card("Trust model","L4/L5","deny-by-default","good")}</div><div class="admin-panel"><h2>État de confiance</h2><div class="trust-row"><span>Runtime</span><b>${esc(runtime.mode)}</b></div><div class="trust-row"><span>Contrôle d'accès</span><b>Step-up requis</b></div><div class="trust-row"><span>Actions critiques</span><b>Audit + double approbation</b></div><div class="trust-row"><span>Clés privées</span><b>Hors console</b></div></div>`;
