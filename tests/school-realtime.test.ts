@@ -6,7 +6,7 @@ test("realtime isolates tenant and organization subscribers",()=>{
  const hub=new SchoolRealtimeHub(); const a:any[]=[];const b:any[]=[];
  const unsub=hub.subscribe({id:"a",tenantId:"t1",organizationId:"o1",send:m=>a.push(m),close:()=>{}});
  hub.subscribe({id:"b",tenantId:"t1",organizationId:"o2",send:m=>b.push(m),close:()=>{}});
- hub.publish(event("e1","o1")); assert.equal(a.length,1);assert.equal(b.length,0);unsub();
+ hub.publish(event("e1","o1")); assert.equal(a.length,1);assert.equal(b.length,0);hub.ack("a");unsub();
 });
 test("realtime emits deterministic SSE frames",()=>{
  const s=toSseMessage({kind:"event",event:event("e2")}); assert.match(s,/^id: e2\nevent: event\ndata:/);assert.match(s,/\n\n$/);
