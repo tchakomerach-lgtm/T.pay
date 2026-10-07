@@ -9,6 +9,7 @@ import { buildApiError, buildApiSuccess } from "../../../packages/api-gateway/sr
 import { ApiGatewayRepository, canonicalRequestHash } from "../../../packages/api-gateway/src/repository.js";
 import { runHealthProbes } from "../../../packages/api-gateway/src/health.js";
 import pg from "pg";
+import { resolveAdminPrincipal, getRuntimeControl, createRuntimeChangeRequest, approveRuntimeChange, listAdminAudit } from "../../../packages/security/src/admin-runtime.js";
 import { assertCsrf, loginWithPassword, logout, registerWithPassword, resolveSession, buildSessionCookie, openOrganizationSession, listOrganizationMembers, createOrganizationRole, updateOrganizationRole, setOrganizationMemberRole, setOrganizationMemberStatus, getOrganization, updateOrganization, listOrganizationAudit, createOrganizationInvitation, acceptOrganizationInvitation, issueOrganizationPortalCode, openOrganizationPortalSession } from "../../../packages/identity/src/postgres.js";
 
 class MemoryRateDb implements RateDb {
@@ -67,7 +68,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
   const requestGovernance=pool?new ApiGatewayRepository(pool):undefined;
   if(!pool && process.env.NODE_ENV==="production")throw new Error("RATE_LIMIT_DATABASE_REQUIRED");
   const metrics=new MetricsRegistry();
-  const runtimeMode=resolveRuntimeMode();
+  const configuredRuntimeMode=resolveRuntimeMode();
 
   const server=createHttpsServer(
     {key:readFileSync(input.tlsKey),cert:readFileSync(input.tlsCert),minVersion:"TLSv1.3"},
@@ -106,8 +107,10 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           return;
         }
 
+        const isAdminRoute=url.pathname.startsWith("/v1/admin/");
+        const runtimeMode=pool ? (await getRuntimeControl(pool).catch(()=>({mode:configuredRuntimeMode} as {mode:typeof configuredRuntimeMode}))).mode : configuredRuntimeMode;
         const modeDecision=evaluateRuntimeMode(runtimeMode,method,url.pathname);
-        if(!modeDecision.allowed){
+        if(!isAdminRoute && !modeDecision.allowed){
           json(res,modeDecision.status,buildApiError({message:modeDecision.code},correlationId),modeDecision.retryAfterSeconds?{"retry-after":String(modeDecision.retryAfterSeconds)}:{});
           return;
         }
@@ -121,7 +124,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
         const cookies=parseCookies(req.headers.cookie);
         const sessionToken=nativeClient&&bearer?bearer:cookies["__Host-tpay_session"];
         let userId:string|undefined;
-        let authClass:"anonymous"|"user"|"member"="anonymous";
+        let authClass:"anonymous"|"user"|"member"|"admin"="anonymous";
         let authenticatedSession:{sessionId:string;userId:string;organizationId?:string;csrfToken:string;expiresAt:string;assurance:"standard"|"step_up"}|undefined;
         if(sessionToken&&pool){
           try{
@@ -129,6 +132,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
             authenticatedSession=session;
             userId=session.userId;
             authClass=session.organizationId?"member":"user";
+            if(!session.organizationId){ try { await resolveAdminPrincipal(pool,session.userId,session.assurance); authClass="admin"; } catch {} }
           }catch{}
         }
 
@@ -179,6 +183,45 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
             try{await requestGovernance.completeIdempotency({requestId:governanceId,state,responseHash,responseBody:body,statusCode:res.statusCode||200});}
             finally{originalEnd(chunk,encoding,callback);}
           };
+        }
+
+        if(url.pathname==="/v1/admin/overview"&&method==="GET"){
+          if(!pool||!authenticatedSession||authClass!=="admin"){json(res,403,buildApiError({message:"ADMIN_ACCESS_DENIED"},correlationId));return;}
+          const runtime=await getRuntimeControl(pool);
+          const privileged=await pool.query("SELECT privileged_level,assurance,expires_at FROM tpay_privileged_identities WHERE human_user_id=$1 AND active=true AND expires_at>now() ORDER BY privileged_level DESC",[userId]);
+          const pending=await pool.query("SELECT count(*)::int AS count FROM tpay_runtime_change_requests WHERE status='PENDING' AND expires_at>now()");
+          json(res,200,buildApiSuccess("v1",correlationId,{runtime,privileged:privileged.rows.map(x=>({level:String(x.privileged_level),assurance:String(x.assurance),expiresAt:new Date(x.expires_at).toISOString()})),pendingRequests:Number(pending.rows[0]?.count??0)}));return;
+        }
+        if(url.pathname==="/v1/admin/runtime"&&method==="GET"){
+          if(!pool||!authenticatedSession||authClass!=="admin"){json(res,403,buildApiError({message:"ADMIN_ACCESS_DENIED"},correlationId));return;}
+          json(res,200,buildApiSuccess("v1",correlationId,await getRuntimeControl(pool)));return;
+        }
+        if(url.pathname==="/v1/admin/runtime/change-requests"&&method==="POST"){
+          if(!pool||!authenticatedSession||authClass!=="admin"){json(res,403,buildApiError({message:"ADMIN_ACCESS_DENIED"},correlationId));return;}
+          try{
+            await requireBrowserCsrf(pool,authenticatedSession,origin,String(req.headers["x-csrf-token"]??""));
+            const input=safeJson(payload) as {mode?:string;reason?:string}|null;
+            const mode=input?.mode as any;
+            if(!["normal","degraded","readonly","maintenance"].includes(mode)||!input?.reason)throw new Error("RUNTIME_INPUT_INVALID");
+            const actor=await resolveAdminPrincipal(pool,userId!,authenticatedSession.assurance);
+            const result=await createRuntimeChangeRequest(pool,{actor,mode,reason:input.reason,expiresAt:new Date(Date.now()+10*60*1000)});
+            json(res,201,buildApiSuccess("v1",correlationId,result));return;
+          }catch(error){json(res,403,buildApiError({message:error instanceof Error?error.message:"ADMIN_RUNTIME_DENIED"},correlationId));return;}
+        }
+        if(url.pathname.startsWith("/v1/admin/runtime/change-requests/")&&url.endsWith("/approve")&&method==="POST"){
+          if(!pool||!authenticatedSession||authClass!=="admin"){json(res,403,buildApiError({message:"ADMIN_ACCESS_DENIED"},correlationId));return;}
+          try{
+            await requireBrowserCsrf(pool,authenticatedSession,origin,String(req.headers["x-csrf-token"]??""));
+            const requestId=url.pathname.split("/")[5];
+            const actor=await resolveAdminPrincipal(pool,userId!,authenticatedSession.assurance);
+            const result=await approveRuntimeChange(pool,{actor,requestId});
+            json(res,200,buildApiSuccess("v1",correlationId,result));return;
+          }catch(error){json(res,403,buildApiError({message:error instanceof Error?error.message:"ADMIN_APPROVAL_DENIED"},correlationId));return;}
+        }
+        if(url.pathname==="/v1/admin/audit"&&method==="GET"){
+          if(!pool||!authenticatedSession||authClass!=="admin"){json(res,403,buildApiError({message:"ADMIN_ACCESS_DENIED"},correlationId));return;}
+          const limit=Math.min(Number(url.searchParams.get("limit")??25)||25,100);
+          json(res,200,buildApiSuccess("v1",correlationId,await listAdminAudit(pool,{limit})));return;
         }
 
         if(url.pathname==="/v1/auth/register"&&method==="POST"){
