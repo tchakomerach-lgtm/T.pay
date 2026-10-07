@@ -1,4 +1,4 @@
-import type { Client } from "pg";
+export interface PostgresTransactionClient { query<T=Record<string,unknown>>(sql:string,values?:unknown[]):Promise<{rows:T[];rowCount:number|null}>; }
 import type { SyncEvent, SyncState } from "./sync-fabric.js";
 import { computeSyncPayloadHash, serializeSyncPayload, validateEventEnvelope } from "./sync-fabric.js";
 import { createHash } from "node:crypto";
@@ -11,7 +11,7 @@ export type DurableSyncResult = {
 };
 
 export class PostgresEducationSyncStore {
-  constructor(private readonly client: Client) {}
+  constructor(private readonly client: PostgresTransactionClient) {}
 
   async accept(event: SyncEvent): Promise<DurableSyncResult> {
     validateEventEnvelope(event);
