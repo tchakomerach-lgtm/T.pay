@@ -9,6 +9,7 @@ on:
       - main
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
+  # Keep PR validation explicit for the construction branch; no pull_request_target is used.
 permissions:
   contents: read
 concurrency:
