@@ -54,7 +54,7 @@ export class SecureHttpsAdapter{
     private readonly sleep:(ms:number)=>Promise<void>=ms=>new Promise(resolve=>setTimeout(resolve,ms)),
     private readonly random=()=>Math.random()
   ){}
-  async request(input:Omit<HttpsRequest,"signal"> & {idempotent:boolean;correlationId:string}):Promise<SecureHttpResponse>{
+  async request(input:Omit<HttpsRequest,"signal"> & {idempotent:boolean;correlationId:string;signal?:AbortSignal}):Promise<SecureHttpResponse>{
     const url=new URL(input.url);
     if(url.protocol!=="https:")throw new Error("HTTPS_REQUIRED");
     if(!this.endpoints.some(e=>url.origin===e.origin&&url.pathname.startsWith(e.pathPrefix)))throw new Error("ENDPOINT_NOT_ALLOWLISTED");
@@ -64,6 +64,9 @@ export class SecureHttpsAdapter{
     for(let attempt=1;attempt<=attempts;attempt++){
       if(!this.breaker.allow())return {state:"UNKNOWN",status:null,body:null,retryable:true,attempts:attempt-1,correlationId:input.correlationId};
       const controller=new AbortController();
+      const abortFromCaller=()=>controller.abort();
+      if(input.signal?.aborted) return {state:"UNKNOWN",status:null,body:null,retryable:true,attempts:attempt-1,correlationId:input.correlationId};
+      input.signal?.addEventListener("abort",abortFromCaller,{once:true});
       const timer=setTimeout(()=>controller.abort(),this.timeoutMs);
       try{
         const response=await this.transport({...input,signal:controller.signal});
@@ -75,7 +78,7 @@ export class SecureHttpsAdapter{
       }catch{
         this.breaker.failure();
         if(!input.idempotent)return {state:"UNKNOWN",status:lastStatus,body:null,retryable:true,attempts:attempt,correlationId:input.correlationId};
-      }finally{clearTimeout(timer);}
+      }finally{clearTimeout(timer);input.signal?.removeEventListener("abort",abortFromCaller);}
       if(attempt<attempts)await this.sleep(Math.min(2000,250*2**(attempt-1)+Math.floor(this.random()*100)));
     }
     return {state:"UNKNOWN",status:lastStatus,body:null,retryable:true,attempts,correlationId:input.correlationId};
