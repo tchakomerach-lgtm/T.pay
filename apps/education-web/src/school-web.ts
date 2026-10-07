@@ -1,5 +1,5 @@
 export type SchoolWebSession={accessToken:string;expiresAt:string};
-export type SchoolWebConfig={apiBaseUrl:string;session:SchoolWebSession};
+export type SchoolWebConfig={apiBaseUrl:string;session:SchoolWebSession;demo?:boolean};
 export type SchoolWebEvent={id:string;event:string;data:unknown};
 
 function assertHttps(url:string):URL{const parsed=new URL(url);if(parsed.protocol!=="https:")throw new Error("WEB_HTTPS_REQUIRED");return parsed;}
