@@ -32,7 +32,7 @@ test("P047 offline records reject tenant tampering and rollback",async()=>{
  const q=new SecureOfflineQueue(storage,provider);const scope={deviceId:"d",tenantId:"t",organizationId:"o"};
  await q.append(scope,{eventId:"e",sequence:1n,occurredAt:"2026-10-07T00:00:00Z",payload:{x:1}});
  const tampered={...storage.records[0]!,tenantId:"evil"};storage.records[0]=tampered;
- const isolated=await q.read(scope); assert.deepEqual(isolated,[]);
+ await assert.rejects(q.read(scope),/OFFLINE_SCOPE_MISMATCH|OFFLINE_SIGNATURE_INVALID|OFFLINE_SEQUENCE_REPLAY/); assert.equal(storage.records[0]!.state,"QUARANTINED");
 });
 
 test("P047 malformed realtime events are not accepted by application validation boundary",()=>{
