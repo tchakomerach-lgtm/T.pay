@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import pg, { type Pool, type PoolClient, type QueryResultRow } from "pg";
 import type { IncomingMessage, Server, RequestListener } from "node:http";
-import { applyMigrations } from "../../../../packages/finance/src/postgres-migrations.js";
+import { applyMigrations } from "../../../packages/finance/src/postgres-migrations.js";
 import { DeviceTrustRepository } from "../../../packages/api-gateway/src/auth-device.js";
 import { createSchoolApiServer } from "../../../packages/education/src/education-http.js";
 import { PostgresEducationSyncStore, type PostgresTransactionClient } from "../../../packages/education/src/postgres-sync-fabric.js";
