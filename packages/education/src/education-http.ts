@@ -24,7 +24,8 @@ export interface SchoolApiDependencies {
   realtimeStore?: PostgresSchoolRealtimeStore;
 }
 const json=(res:ServerResponse,status:number,body:unknown,correlationId:string)=>{
-  const data=JSON.stringify(body); res.statusCode=status; res.setHeader("content-type","application/json; charset=utf-8"); res.setHeader("x-correlation-id",correlationId); res.setHeader("connection","close"); res.end(data);
+  if(res.headersSent||res.writableEnded)return false;
+  const data=JSON.stringify(body); res.statusCode=status; res.setHeader("content-type","application/json; charset=utf-8"); res.setHeader("x-correlation-id",correlationId); res.setHeader("connection","close"); res.end(data); return true;
 };
 async function readBody(req:IncomingMessage):Promise<string>{
   let out="",size=0;
