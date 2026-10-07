@@ -15,7 +15,8 @@
     "web:dev": "vite --config apps/education-web/vite.config.ts",
     "web:build": "vite build --config apps/education-web/vite.config.ts",
     "api:start": "npm run build && node dist/apps/api-server/src/main.js",
-    "api:build": "npm run build"
+    "api:build": "npm run build",
+    "api:seed:test": "npm run build && node dist/scripts/bootstrap-local-test.js"
   },
   "engines": {
     "node": ">=22"
