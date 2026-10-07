@@ -2,9 +2,9 @@ import { createServer as createHttpsServer } from "node:https";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import pg, { type Pool, type PoolClient } from "pg";
-import type { IncomingMessage, Server } from "node:http";
-import { applyMigrations } from "../../packages/finance/src/postgres-migrations.js";
+import pg, { type Pool, type PoolClient, type QueryResultRow } from "pg";
+import type { IncomingMessage, Server, RequestListener } from "node:http";
+import { applyMigrations } from "../../../packages/finance/src/postgres-migrations.js";
 import { DeviceTrustRepository } from "../../packages/api-gateway/src/auth-device.js";
 import { createSchoolApiServer } from "../../packages/education/src/education-http.js";
 import { PostgresEducationSyncStore, type PostgresTransactionClient } from "../../packages/education/src/postgres-sync-fabric.js";
@@ -46,9 +46,9 @@ export function readRuntimeConfig(source=process.env):RuntimeConfig{
 }
 
 class PooledTransactionClient implements PostgresTransactionClient{
-  private client?:PoolClient;
+  private client:PoolClient|undefined;
   constructor(private readonly pool:Pool){}
-  async query<T=Record<string,unknown>>(sql:string,values?:unknown[]):Promise<{rows:T[];rowCount:number|null}>{
+  async query<T extends QueryResultRow=Record<string,unknown>>(sql:string,values?:unknown[]):Promise<{rows:T[];rowCount:number|null}>{
     if(!this.client)this.client=await this.pool.connect();
     try{
       const result=await this.client.query<T>(sql,values);
@@ -108,6 +108,8 @@ async function authenticateFactory(pool:Pool){
 }
 
 export async function buildProductionApiServer(config:RuntimeConfig):Promise<{server:Server;pool:Pool}>{
+  const tlsKey=await readFile(config.tlsKeyFile);
+  const tlsCert=await readFile(config.tlsCertFile);
   const pool=new pg.Pool({connectionString:config.databaseUrl,max:20,ssl:process.env.TPAY_DATABASE_SSL==="require"?{rejectUnauthorized:true}:undefined});
   const migrationClient=await pool.connect();
   try{await applyMigrations(migrationClient, pathToFileURL(join(process.cwd(),"migrations")+"/"));}
@@ -120,12 +122,12 @@ export async function buildProductionApiServer(config:RuntimeConfig):Promise<{se
     syncClient:()=>new PooledTransactionClient(pool),
     realtime,
     realtimeStore:{
-      replay:(tenantId,organizationId,afterSequence)=>new PostgresSchoolRealtimeStore(new PooledTransactionClient(pool)).replay(tenantId,organizationId,afterSequence)
+      replay:(tenantId:string,organizationId:string,afterSequence:bigint)=>new PostgresSchoolRealtimeStore(new PooledTransactionClient(pool)).replay(tenantId,organizationId,afterSequence)
     }
   },{
-    serverFactory:(handler)=>createHttpsServer({
-      key:await readFile(config.tlsKeyFile),
-      cert:await readFile(config.tlsCertFile),
+    serverFactory:(handler:RequestListener)=>createHttpsServer({
+      key:tlsKey,
+      cert:tlsCert,
       minVersion:"TLSv1.3"
     },handler)
   });
