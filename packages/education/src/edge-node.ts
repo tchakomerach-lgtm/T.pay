@@ -1,6 +1,6 @@
 export type EdgeDeliveryState="IDLE"|"SENDING"|"BACKOFF"|"UNKNOWN"|"QUARANTINED";
 export type EdgeTransportResponse={status:"ACCEPTED"|"DUPLICATE"|"PENDING"|"REJECTED"|"UNKNOWN";acceptedSequence:bigint};
-export interface EdgeEnvelope{deviceId:string;tenantId:string;organizationId:string;eventId:string;sequence:bigint;payloadHash:string;payload:Record<string,unknown>;}
+export interface EdgeEnvelope{deviceId:string;tenantId:string;organizationId:string;eventId:string;idempotencyKey:string;actorId:string;eventType:string;schemaVersion:number;priority:number;sequence:bigint;occurredAt:string;payloadHash:string;payload:Record<string,unknown>;}
 export interface EdgeTransport{send(envelope:EdgeEnvelope,signal:AbortSignal):Promise<EdgeTransportResponse>;}
 export interface EdgeClock{now():number;}
 export interface EdgePolicy{maxAttempts:number;requestTimeoutMs:number;baseBackoffMs:number;maxBackoffMs:number;}
@@ -32,4 +32,25 @@ export class SchoolEdgeNode{
   return {state:"UNKNOWN",attempts,eventId:envelope.eventId,reason:"EDGE_RETRY_EXHAUSTED"};
  }
  private backoff(attempt:number):number{const exp=Math.min(this.policy.maxBackoffMs,this.policy.baseBackoffMs*2**Math.max(0,attempt-1));const jitter=Math.floor(exp*0.2);return exp+Math.floor(Math.random()*(jitter+1));}
+}
+
+export function createHttpsEdgeTransport(config:EdgeHttpsConfig):EdgeTransport{
+ const base=new URL(config.baseUrl);
+ if(base.protocol!=="https:")throw new Error("EDGE_HTTPS_REQUIRED");
+ return {send:async(envelope,signal)=>{
+  const response=await config.adapter.request({
+   url:new URL("/v1/education/sync/events",base).toString(),method:"POST",idempotent:true,correlationId:envelope.eventId,signal,
+   headers:{"content-type":"application/json","x-correlation-id":envelope.eventId,"x-idempotency-key":envelope.idempotencyKey},
+   body:Buffer.from(JSON.stringify({...envelope,sequence:envelope.sequence.toString()}))
+  });
+  if(response.state==="UNKNOWN")return {status:"UNKNOWN",acceptedSequence:envelope.sequence};
+  if(response.state==="PENDING")return {status:"PENDING",acceptedSequence:envelope.sequence};
+  if(response.state==="FAILED")return {status:"REJECTED",acceptedSequence:envelope.sequence};
+  let body:any={};try{body=response.body?JSON.parse(Buffer.from(response.body).toString("utf8")):{};}catch{return {status:"UNKNOWN",acceptedSequence:envelope.sequence};}
+  const state=body?.data?.state??body?.state;
+  if(state==="ACCEPTED")return {status:"ACCEPTED",acceptedSequence:BigInt(body?.data?.acceptedSequence??envelope.sequence)};
+  if(state==="DUPLICATE")return {status:"DUPLICATE",acceptedSequence:BigInt(body?.data?.acceptedSequence??envelope.sequence)};
+  if(state==="PENDING")return {status:"PENDING",acceptedSequence:BigInt(body?.data?.acceptedSequence??envelope.sequence)};
+  return {status:"UNKNOWN",acceptedSequence:envelope.sequence};
+ }};
 }
