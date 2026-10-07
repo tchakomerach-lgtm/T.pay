@@ -27,13 +27,16 @@ async function readBody(req:IncomingMessage):Promise<string>{
   return out;
 }
 const parse=(s:string)=>s?JSON.parse(s):{};
-function route(path:string){const m=path.match(/^\/v1\/education\/actors\/([^/]+)$/);if(m)return ["actor",m[1]] as const;
- if(path==="/v1/education/sync/events")return ["sync"] as const;
- if(path==="/v1/education/attendance")return ["attendance"] as const;
- if(path==="/v1/education/work-items")return ["work-create"] as const;
- let x=path.match(/^\/v1\/education\/work-items\/([^/]+)\/(claim|resolve)$/);if(x)return ["work",x[1],x[2]] as const;
- if(path==="/v1/education/service-requests")return ["service-create"] as const;
- x=path.match(/^\/v1\/education\/service-requests\/([^/]+)\/transition$/);if(x)return ["service-transition",x[1]] as const;
+function route(path:string){
+ const parts=path.split("/").filter(Boolean);
+ if(parts[0]!=="v1"||parts[1]!=="education")return null;
+ if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
+ if(parts[2]==="sync"&&parts[3]==="events"&&parts.length===4)return ["sync"] as const;
+ if(parts[2]==="attendance"&&parts.length===3)return ["attendance"] as const;
+ if(parts[2]==="work-items"&&parts.length===3)return ["work-create"] as const;
+ if(parts[2]==="work-items"&&parts.length===5&&parts[3]&&(parts[4]==="claim"||parts[4]==="resolve"))return ["work",parts[3],parts[4]] as const;
+ if(parts[2]==="service-requests"&&parts.length===3)return ["service-create"] as const;
+ if(parts[2]==="service-requests"&&parts.length===5&&parts[3]&&parts[4]==="transition")return ["service-transition",parts[3]] as const;
  return null;
 }
 function permissionFor(kind:string):Permission{return kind==="actor"?"org.read":"member.manage";}
