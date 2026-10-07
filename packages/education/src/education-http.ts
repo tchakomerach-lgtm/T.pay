@@ -8,7 +8,7 @@ import { buildApiError, buildApiSuccess } from "../../api-gateway/src/api-contra
 import { canonicalRequestHash, newCorrelationId, ApiGatewayRepository, type ApiDb } from "../../api-gateway/src/repository.js";
 import { PostgresEducationSyncStore } from "./postgres-sync-fabric.js";
 import { computeSyncPayloadHash } from "./sync-fabric.js";
-import { SchoolRealtimeHub, toSseMessage } from "./school-realtime.js";
+import { SchoolRealtimeHub, toSseMessage, type SchoolRealtimeEvent } from "./school-realtime.js";
 import { reconcileAttendance, claimWorkItem, resolveWorkItem, type AttendanceRecord, type WorkItem } from "./school-operations.js";
 import { assignService, transitionService, type ActorRef, type ServiceRequest } from "./actor-services.js";
 
@@ -104,6 +104,11 @@ export function createSchoolApiServer(deps:SchoolApiDependencies){
     const next=transitionService(q.rows[0] as unknown as ServiceRequest,body as any);
     const updated=await deps.db.query("UPDATE education_service_requests SET status=$1,version=$2,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND request_id=$5 AND version=$6 RETURNING *",[next.status,next.version,auth.session.organizationId,organizationId,r[1],Number((q.rows[0] as any).version)]);
     if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
+   }
+   if(deps.realtime && r[0]!=="actor" && r[0]!=="stream"){
+    const typeMap:Record<string,SchoolRealtimeEvent["type"]>={sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
+    const eventType=typeMap[r[0]];
+    if(eventType) deps.realtime.publish({id:correlationId,tenantId:auth.session.organizationId,organizationId,type:eventType,occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String((data as any)?.id??(data as any)?.request_id??(data as any)?.work_item_id??(data as any)?.eventId??correlationId),version:Number((data as any)?.version??1),data:{operation:method,route:path}});
    }
    const response=buildApiSuccess("v1",correlationId,data);
    if(dedupe?.status==="reserved")await gateway.completeIdempotency({requestId:dedupe.requestId,state:"succeeded",responseHash:canonicalRequestHash("RESPONSE",path,JSON.stringify(response)),statusCode:200});
