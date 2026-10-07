@@ -31,7 +31,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for v in TPAY_TERRAIN_WEB_URL TPAY_TERRAIN_API_URL TPAY_TERRAIN_CA_FILE TPAY_TERRAIN_APK_PATH TPAY_DATABASE_URL TPAY_TLS_KEY_FILE TPAY_TLS_CERT_FILE TPAY_WEB_TLS_KEY_FILE TPAY_WEB_TLS_CERT_FILE; do
+          for v in TPAY_TERRAIN_WEB_URL TPAY_TERRAIN_API_URL TPAY_TERRAIN_CA_FILE TPAY_DATABASE_URL TPAY_TLS_KEY_FILE TPAY_TLS_CERT_FILE TPAY_WEB_TLS_KEY_FILE TPAY_WEB_TLS_CERT_FILE; do
             test -n "${!v}" || { echo "Missing runner environment variable: $v"; exit 1; }
           done
           test -f "$TPAY_TERRAIN_CA_FILE"
@@ -63,6 +63,12 @@ jobs:
           export TPAY_WEB_ORIGINS="$TPAY_TERRAIN_WEB_URL"
           npm run api:start > "$RUNNER_TEMP/tpay-api.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/tpay-api.pid"
+          for i in $(seq 1 30); do
+            if curl --silent --show-error --fail --cacert "$TPAY_TERRAIN_CA_FILE" "$TPAY_TERRAIN_API_URL/health/ready" >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/tpay-api.log"
+          exit 1
 
       - name: Start local HTTPS frontend
         shell: bash
@@ -72,6 +78,12 @@ jobs:
           export TPAY_WEB_TLS_CERT_FILE="$TPAY_WEB_TLS_CERT_FILE"
           npm run web:dev > "$RUNNER_TEMP/tpay-web.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/tpay-web.pid"
+          for i in $(seq 1 30); do
+            if curl --silent --show-error --fail --cacert "$TPAY_TERRAIN_CA_FILE" "$TPAY_TERRAIN_WEB_URL/" >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/tpay-web.log"
+          exit 1
 
       - name: Bootstrap test session
         shell: bash
