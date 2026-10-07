@@ -9,6 +9,7 @@ export class SchoolRealtimeHub{
  private readonly maxQueue:number;
  private readonly queues=new Map<string,number>();
  constructor(maxQueue=100){if(maxQueue<1)throw new Error("REALTIME_INVALID_QUEUE_LIMIT");this.maxQueue=maxQueue;}
+ ack(subscriberId:string):void{ const depth=this.queues.get(subscriberId); if(depth!==undefined)this.queues.set(subscriberId,Math.max(0,depth-1)); }
  subscribe(subscriber:SchoolSubscriber):()=>void{
   if(this.subscribers.has(subscriber.id))throw new Error("REALTIME_DUPLICATE_SUBSCRIBER");
   this.subscribers.set(subscriber.id,subscriber);this.queues.set(subscriber.id,0);
