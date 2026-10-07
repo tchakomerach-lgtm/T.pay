@@ -123,26 +123,17 @@ export async function buildProductionApiServer(config:RuntimeConfig):Promise<{se
     }
   },{
     serverFactory:(handler)=>createHttpsServer({
-      key:requireBuffer(config.tlsKeyFile),
-      cert:requireBuffer(config.tlsCertFile),
+      key:await readFile(config.tlsKeyFile),
+      cert:await readFile(config.tlsCertFile),
       minVersion:"TLSv1.3"
     },handler)
   });
   return {server,pool};
 }
 
-let bufferCache=new Map<string,Buffer>();
-function requireBuffer(path:string):Buffer{
-  const cached=bufferCache.get(path);if(cached)return cached;
-  throw new Error("TPAY_TLS_BUFFER_NOT_INITIALIZED");
-}
 
 export async function startProductionApi():Promise<void>{
   const config=readRuntimeConfig();
-  bufferCache=new Map([
-    [config.tlsKeyFile,await readFile(config.tlsKeyFile)],
-    [config.tlsCertFile,await readFile(config.tlsCertFile)]
-  ]);
   const {server,pool}=await buildProductionApiServer(config);
   const shutdown=async(signal:string)=>{
     server.close();
