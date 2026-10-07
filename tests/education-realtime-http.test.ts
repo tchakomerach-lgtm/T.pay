@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createSchoolApiServer } from "../packages/education/src/education-http.js";
 import { SchoolRealtimeHub } from "../packages/education/src/school-realtime.js";
-const auth=()=>({principal:{userId:"teacher-1",organizationId:"org-1",permissions:["member.manage","org.read"] as const,sessionId:"s1"},session:{sessionId:"s1",userId:"teacher-1",organizationId:"org-1",createdAt:0,expiresAt:Date.now()+60000,assurance:"standard" as const}});
+const auth=()=>({principal:{userId:"teacher-1",organizationId:"org-1",permissions:["member.manage","org.read"] as const,sessionId:"s1"},tenantId:"tenant-1",session:{sessionId:"s1",userId:"teacher-1",organizationId:"org-1",createdAt:0,expiresAt:Date.now()+60000,assurance:"standard" as const}});
 test("authenticated School SSE stream receives only its organization events",async()=>{
  const hub=new SchoolRealtimeHub(); const db={async query(){return {rows:[],rowCount:0}}};
  const server=createSchoolApiServer({db:db as any,authenticate:async()=>auth(),syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any,realtime:hub});
