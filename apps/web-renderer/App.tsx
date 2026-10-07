@@ -104,7 +104,7 @@ export function App() {
   };
 
   return (
-    <div className={fieldMode === "offline" ? "tpay app offline" : "tpay app"}>
+    <div data-testid="renderer-runtime" className={fieldMode === "offline" ? "tpay app offline" : "tpay app"}>
       <aside className="sidebar" aria-label="Navigation principale">
         <div className="brand"><span className="brand-mark">↗</span><span>T.Pay</span></div>
         <div className="context">Personnel <span>●</span></div>
@@ -132,7 +132,7 @@ export function App() {
             <button className="mode" onClick={() => setFieldMode(fieldMode === "standard" ? "low-bandwidth" : fieldMode === "low-bandwidth" ? "offline" : "standard")}>
               Mode : {fieldMode}
             </button>
-            <span className={"live " + runtime.connection} aria-live="polite">{connectionLabel(runtime.connection)}</span>
+            <span data-testid="connection-status" className={"live " + runtime.connection} role="status" aria-label="État de connexion" aria-live="polite">{connectionLabel(runtime.connection)}</span>
           </div>
         </header>
 
@@ -146,7 +146,7 @@ export function App() {
         </section>
 
         <section className="grid">
-          <article className="card object-card">
+          <article data-testid="object-card" className="card object-card">
             <div className="card-head"><span>Objet universel</span><span className="status">● {demoObject.status}</span></div>
             <h3>{demoObject.title}</h3>
             <p>{demoObject.subtitle}</p>
@@ -180,6 +180,8 @@ export function App() {
         </section>
 
         <div className="toast" role="status" aria-live="polite">{notice}</div>
+        {fieldMode === "offline" && <div data-testid="offline-authority" className="offline-note">Aucune confirmation serveur : les actions locales restent en attente.</div>}
+        {fieldMode !== "offline" && <div data-testid="remote-success" hidden>Serveur connecté</div>}
       </main>
     </div>
   );
