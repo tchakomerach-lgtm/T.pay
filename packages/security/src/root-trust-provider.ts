@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import { verify, createPublicKey } from "node:crypto";
 import { requestDigest } from "./super-admin-control.js";
-export interface RootApprovalInput{actorId:string;domain:string;algorithm:"ES256"|"Ed25519";signature:Buffer;publicKeyDer:Buffer;}
+export interface RootApprovalInput{actorId:string;domain:string;algorithm:"ES256"|"Ed25519";signature:Buffer;publicKeyDer?:Buffer;credentialId?:string;}
 export interface RootTrustProvider{kind:"HSM"|"KMS"|"SOFTWARE_TEST";verify(input:{algorithm:"ES256"|"Ed25519";publicKeyDer:Buffer;signature:Buffer;digest:string}):Promise<boolean>;signingKeyRef:string;}
 export class NodeVerificationProvider implements RootTrustProvider{
  kind="SOFTWARE_TEST" as const; constructor(public signingKeyRef="software-test-only"){}
@@ -14,9 +14,18 @@ export async function authorizeRootOperationWithQuorum(pool:Pool,input:{operatio
  const c=await pool.connect();try{await c.query("BEGIN");
   const duplicate=await c.query("SELECT 1 FROM tpay_root_operations WHERE request_digest=$1 AND status IN ('AUTHORIZED','EXECUTED') FOR UPDATE",[digest]);if(duplicate.rowCount)throw new Error("ROOT_REQUEST_REPLAY");
   for(const a of input.approvals){
-   const ok=await input.provider.verify({algorithm:a.algorithm,publicKeyDer:a.publicKeyDer,signature:a.signature,digest});if(!ok)throw new Error("ROOT_SIGNATURE_INVALID");
    const identity=(await c.query("SELECT id,active,expires_at,privileged_level FROM tpay_privileged_identities WHERE id=$1",[a.actorId])).rows[0];
    if(!identity?.active||new Date(identity.expires_at)<=new Date()||!["L5_ROOT_TRUST","L4_SUPER_ADMIN"].includes(String(identity.privileged_level)))throw new Error("ROOT_APPROVER_INVALID");
+   let publicKeyDer=a.publicKeyDer;
+   if(a.credentialId){
+    const key=(await c.query("SELECT public_key_der,algorithm,hardware_backed,active FROM tpay_privileged_verification_keys WHERE privileged_identity_id=$1 AND credential_id=$2",[a.actorId,a.credentialId])).rows[0];
+    if(!key?.active||String(key.algorithm)!==a.algorithm)throw new Error("ROOT_VERIFICATION_KEY_INVALID");
+    publicKeyDer=Buffer.from(key.public_key_der);
+   }else if(process.env.NODE_ENV==="production"){
+    throw new Error("ROOT_REGISTERED_KEY_REQUIRED");
+   }
+   if(!publicKeyDer)throw new Error("ROOT_PUBLIC_KEY_REQUIRED");
+   const ok=await input.provider.verify({algorithm:a.algorithm,publicKeyDer,signature:a.signature,digest});if(!ok)throw new Error("ROOT_SIGNATURE_INVALID");
   }
   const id=(await c.query("INSERT INTO tpay_root_operations(id,operation,actor_ids,independent_domains,request_digest,created_at,expires_at,status,quorum_required) VALUES(gen_random_uuid(),$1,$2,$3,$4,now(),$5,'AUTHORIZED',3) RETURNING id",[input.operation,JSON.stringify(input.approvals.map(x=>x.actorId)),JSON.stringify([...domains]),digest,input.expiresAt])).rows[0].id;
   for(const a of input.approvals)await c.query("INSERT INTO tpay_root_approvals(operation_id,actor_id,independent_domain,signature_format,signature,signed_digest) VALUES($1,$2,$3,$4,$5,$6)",[id,a.actorId,a.domain,a.algorithm,a.signature,digest]);
