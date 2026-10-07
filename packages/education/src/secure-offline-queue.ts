@@ -11,7 +11,7 @@ export interface SecureOfflineEnvelope {
 export interface SecureOfflineStorage {
   getLastSequence(scope:{deviceId:string;tenantId:string;organizationId:string}):Promise<bigint>;
   append(record:SecureOfflineEnvelope,expectedPreviousSequence:bigint):Promise<void>;
-  list(scope:{deviceId:string;tenantId:string;organizationId:string}):Promise<SecureOfflineEnvelope[]>;
+  list(deviceId:string):Promise<SecureOfflineEnvelope[]>;
   quarantine(record:SecureOfflineEnvelope,reason:string):Promise<void>;
   remove(eventId:string):Promise<void>;
 }
@@ -62,7 +62,7 @@ export class SecureOfflineQueue{
     assertScope(scope);
     const key=await this.keys.getEncryptionKey(scope);assertKey(key);
     const signing=await this.keys.getSigningKeys(scope);
-    const records=(await this.storage.list(scope)).sort((a,b)=>a.sequence<b.sequence?-1:a.sequence>b.sequence?1:0);
+    const records=(await this.storage.list(scope.deviceId)).sort((a,b)=>a.sequence<b.sequence?-1:a.sequence>b.sequence?1:0);
     const out=[];
     let previous=0n;
     for(const record of records){
