@@ -13,7 +13,13 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
-        buildConfigField("String", "TPAY_WEB_URL", "\"https://127.0.0.1:5173/\"")
+        val terrainWebUrl = providers.gradleProperty("tpayWebUrl")
+            .orElse("https://127.0.0.1:5173/")
+            .get()
+        require(terrainWebUrl.startsWith("https://")) {
+            "T.Pay Android requires an HTTPS frontend URL"
+        }
+        buildConfigField("String", "TPAY_WEB_URL", ""$terrainWebUrl"")
     }
 
     compileOptions {
