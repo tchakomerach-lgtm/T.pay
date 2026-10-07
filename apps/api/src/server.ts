@@ -206,7 +206,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
             if(!input?.challengeId||!input?.credentialId||!input?.clientDataJSON||!input?.authenticatorData||!input?.signature)throw new Error("WEBAUTHN_INPUT_INVALID");
             const decode=(v:string)=>Buffer.from(v,"base64url");
             const result=await completePersistedStepUp(pool,{sessionId:authenticatedSession.sessionId,userId,challengeId:String(input.challengeId),credentialId:String(input.credentialId),clientDataJSON:decode(String(input.clientDataJSON)),authenticatorData:decode(String(input.authenticatorData)),signature:decode(String(input.signature)),publicKeyDer:Buffer.alloc(0),algorithm:"ES256",requireUserVerification:true});
-            json(res,200,buildApiSuccess("v1",correlationId,{assurance:"step_up",signCount:result.usedAt?1:0}));return;
+            json(res,200,buildApiSuccess("v1",correlationId,{assurance:"step_up",signCount:result.signCount,userVerified:result.userVerified}));return;
           }catch(error){json(res,403,buildApiError({message:error instanceof Error?error.message:"WEBAUTHN_STEP_UP_DENIED"},correlationId));return;}
         }
 
