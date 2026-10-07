@@ -592,3 +592,69 @@ test("P041 live PostgreSQL durable realtime replay is ordered, tenant-isolated a
     await admin.end();
   }
 });
+
+
+test("P042 live PostgreSQL serializes School sync concurrency and preserves idempotency", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const admin = new pg.Client({ connectionString: databaseUrl });
+  await admin.connect();
+  const tenantId = randomUUID();
+  const otherTenantId = randomUUID();
+  const organizationId = randomUUID();
+  const deviceId = randomUUID();
+  const otherDeviceId = randomUUID();
+  try {
+    await applyMigrations(admin, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    const { PostgresEducationSyncStore } = await import("../packages/education/src/postgres-sync-fabric.js");
+    const { computeSyncPayloadHash } = await import("../packages/education/src/sync-fabric.js");
+    const clients = await Promise.all(Array.from({length: 4}, async () => {
+      const client = new pg.Client({ connectionString: databaseUrl });
+      await client.connect();
+      return client;
+    }));
+    const makeEvent=(overrides:Partial<any>={})=>{
+      const payload={studentId:randomUUID(),status:"PRESENT",...overrides.payload};
+      return {
+        eventId:randomUUID(),tenantId,organizationId,deviceId,actorId:randomUUID(),sequence:1n,
+        occurredAt:new Date().toISOString(),eventType:"attendance",priority:"P1" as const,payload,
+        payloadHash:computeSyncPayloadHash(payload),idempotencyKey:"idem-"+randomUUID(),schemaVersion:1,
+        ...overrides
+      };
+    };
+    try {
+      const first=makeEvent();
+      const duplicateA=new PostgresEducationSyncStore(clients[0]!).accept(first);
+      const duplicateB=new PostgresEducationSyncStore(clients[1]!).accept({...first,deviceId:randomUUID()});
+      const [a,b]=await Promise.all([duplicateA,duplicateB]);
+      assert.deepEqual(new Set([a.state,b.state]),new Set(["ACCEPTED","DUPLICATE"]));
+
+      await assert.rejects(
+        new PostgresEducationSyncStore(clients[2]!).accept({...first,payload:{studentId:first.payload.studentId,status:"ABSENT"},payloadHash:computeSyncPayloadHash({studentId:first.payload.studentId,status:"ABSENT"})}),
+        /SYNC_REPLAY_PAYLOAD_COLLISION/
+      );
+
+      const concurrentOne=makeEvent({eventId:randomUUID(),deviceId:otherDeviceId,sequence:1n});
+      const concurrentTwo=makeEvent({eventId:randomUUID(),deviceId:otherDeviceId,sequence:2n});
+      concurrentTwo.payloadHash=computeSyncPayloadHash(concurrentTwo.payload);
+      const [one,two]=await Promise.all([
+        new PostgresEducationSyncStore(clients[0]!).accept(concurrentOne),
+        new PostgresEducationSyncStore(clients[1]!).accept(concurrentTwo)
+      ]);
+      assert.ok(["ACCEPTED","PENDING"].includes(one.state));
+      assert.ok(["ACCEPTED","PENDING"].includes(two.state));
+      const cursor=await admin.query("SELECT last_accepted_sequence::text AS sequence FROM education_sync_device_cursors WHERE tenant_id=$1 AND organization_id=$2 AND device_id=$3",[tenantId,organizationId,otherDeviceId]);
+      assert.equal(cursor.rows[0]?.sequence,"2");
+
+      const otherTenantEvent={...makeEvent({eventId:first.eventId}),tenantId:otherTenantId,organizationId,deviceId:randomUUID(),sequence:1n};
+      const isolated=await new PostgresEducationSyncStore(clients[3]!).accept(otherTenantEvent);
+      assert.equal(isolated.state,"ACCEPTED");
+    } finally {
+      await Promise.all(clients.map(client => client.end()));
+    }
+  } finally {
+    await admin.query("DELETE FROM education_realtime_events WHERE tenant_id IN ($1,$2) AND organization_id=$3",[tenantId,otherTenantId,organizationId]);
+    await admin.query("DELETE FROM education_sync_outbox WHERE tenant_id IN ($1,$2) AND organization_id=$3",[tenantId,otherTenantId,organizationId]);
+    await admin.query("DELETE FROM education_sync_inbox WHERE tenant_id IN ($1,$2) AND organization_id=$3",[tenantId,otherTenantId,organizationId]);
+    await admin.query("DELETE FROM education_sync_device_cursors WHERE tenant_id IN ($1,$2) AND organization_id=$3",[tenantId,otherTenantId,organizationId]);
+    await admin.end();
+  }
+});
