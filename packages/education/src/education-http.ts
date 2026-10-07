@@ -22,6 +22,7 @@ export interface SchoolApiDependencies {
   now?: () => Date;
   realtime?: SchoolRealtimeHub;
   realtimeStore?: Pick<PostgresSchoolRealtimeStore,"replay">;
+  corsOrigins?: readonly string[];
 }
 const json=(res:ServerResponse,status:number,body:unknown,correlationId:string)=>{
   if(res.headersSent||res.writableEnded)return false;
@@ -55,6 +56,19 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
   const correlationId=String(req.headers["x-correlation-id"]??newCorrelationId());
   try{
    const method=(req.method??"GET").toUpperCase(), path=((req.url??"/").split("?")[0]??"/"), r=route(path);
+   const origin=String(req.headers.origin??"").trim();
+   if(origin){
+     if(!(deps.corsOrigins??[]).includes(origin)){
+       json(res,403,buildApiError(new Error("CORS_ORIGIN_NOT_ALLOWED"),correlationId),correlationId);return;
+     }
+     res.setHeader("access-control-allow-origin",origin);
+     res.setHeader("vary","Origin");
+     res.setHeader("access-control-allow-methods","GET,POST,OPTIONS");
+     res.setHeader("access-control-allow-headers","Authorization,Content-Type,Last-Event-ID,X-Correlation-ID,X-Idempotency-Key");
+     res.setHeader("access-control-expose-headers","X-Correlation-ID");
+     res.setHeader("access-control-max-age","600");
+     if(method==="OPTIONS"){res.statusCode=204;res.end();return;}
+   }
    if(path==="/health/live" && method==="GET"){json(res,200,{ok:true,status:"live"},correlationId);return;}
    if(path==="/health/ready" && method==="GET"){await deps.db.query("SELECT 1");json(res,200,{ok:true,status:"ready"},correlationId);return;}
    if(!r){json(res,404,buildApiError(new Error("API_ROUTE_NOT_ALLOWLISTED"),correlationId),correlationId);return;}
