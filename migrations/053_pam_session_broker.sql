@@ -22,3 +22,13 @@ CREATE TABLE IF NOT EXISTS tpay_pam_commands(
  occurred_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_tpay_pam_commands_session_time ON tpay_pam_commands(pam_session_id,occurred_at DESC);
+
+CREATE TABLE IF NOT EXISTS tpay_maintenance_control(
+ singleton_id integer PRIMARY KEY DEFAULT 1 CHECK(singleton_id=1),
+ mode text NOT NULL CHECK(mode IN ('normal','degraded','readonly','maintenance')),
+ version bigint NOT NULL DEFAULT 0 CHECK(version>=0),
+ updated_by text,
+ updated_at timestamptz NOT NULL DEFAULT now()
+);
+INSERT INTO tpay_maintenance_control(singleton_id,mode,version)
+VALUES(1,'normal',0) ON CONFLICT(singleton_id) DO NOTHING;
