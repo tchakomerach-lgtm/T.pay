@@ -134,3 +134,17 @@ Construction gate:
 CONTRACTS -> RUNTIME ADAPTER -> RESPONSIVE -> ACCESSIBILITY -> OFFLINE/RECONNECT -> ERROR CONTAINMENT -> TEST -> SECURITY REVIEW -> PERFORMANCE -> VISUAL REGRESSION -> CI -> RECORD.
 
 Do not introduce renderer-local semantic colors, object states, authorization rules or financial success semantics.
+
+
+## DB-077 Automated Browser Verification & Visual Regression Runtime
+
+DB-077 adds a real Playwright browser verification surface for the DB-075/076 React renderer. Work is structured across architect, frontend, accessibility, realtime, QA, security, performance, cost and integrator lanes.
+
+Gate:
+CONTRACTS -> BROWSER BUILD -> BROWSER SMOKE -> ACCESSIBILITY -> RESPONSIVE -> OFFLINE/RECONNECT -> VISUAL CAPTURE/REGRESSION -> MOBILE-ADAPTER CONTRACT -> SECURITY REVIEW -> PERFORMANCE -> CI -> RECORD.
+
+The browser suite covers Chromium desktop/tablet/mobile, keyboard/focus/live-region semantics, offline/reconnect behavior, deterministic screenshot artifacts and layout geometry. A true approved pixel-golden baseline is not fabricated; DB-077 remains verification-gated until reviewed baseline artifacts exist.
+
+apps/design/* remains the single semantic source of truth. The mobile adapter only projects canonical tokens/object/action contracts; it does not introduce a second Design System.
+
+DB-077 status: IMPLEMENTED ON CONSTRUCTION BRANCH / CI AND VISUAL BASELINE VERIFICATION PENDING.
