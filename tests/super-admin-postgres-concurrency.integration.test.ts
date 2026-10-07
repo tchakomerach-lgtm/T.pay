@@ -12,7 +12,7 @@ import { requestDigest } from "../packages/security/src/super-admin-control.js";
 import { changeMaintenanceAtomically } from "../packages/security/src/maintenance-repository.js";
 
 const url=process.env.TPAY_DATABASE_URL;
-test("PostgreSQL adversarial control-plane concurrency",{skip:!url&&"TPAY_DATABASE_URL not configured"},async()=>{
+test("PostgreSQL adversarial control-plane concurrency",{skip:!url&&"TPAY_DATABASE_URL not configured",timeout:60_000},async()=>{
  const admin=new pg.Client({connectionString:url});const pool=new pg.Pool({connectionString:url,max:20});
  await admin.connect();
  const ids:string[]=[];const grants:string[]=[];const runs:string[]=[];const roots:string[]=[];
