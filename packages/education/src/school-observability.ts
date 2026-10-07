@@ -13,6 +13,9 @@ export function schoolMetric(domain:string,operation:string):string{
 export function schoolTelemetry(context:TelemetryContext,observation:SchoolObservation):Record<string,unknown>{
   if(!Number.isFinite(observation.durationMs)||observation.durationMs<0)throw new Error("SCHOOL_TELEMETRY_DURATION_INVALID");
   if(observation.queueDepth<0||!Number.isInteger(observation.queueDepth))throw new Error("SCHOOL_TELEMETRY_QUEUE_INVALID");
+  if(observation.freshnessMs!==null&&(!Number.isFinite(observation.freshnessMs)||observation.freshnessMs<0))throw new Error("SCHOOL_TELEMETRY_FRESHNESS_INVALID");
+  if(observation.eventLagMs!==null&&(!Number.isFinite(observation.eventLagMs)||observation.eventLagMs<0))throw new Error("SCHOOL_TELEMETRY_LAG_INVALID");
+  if(!/^[a-z0-9_.:-]{1,96}$/i.test(observation.operation))throw new Error("SCHOOL_TELEMETRY_OPERATION_INVALID");
   if(observation.confidence!==null&&(observation.confidence<0||observation.confidence>1))throw new Error("SCHOOL_TELEMETRY_CONFIDENCE_INVALID");
   const raw={
     service_name:context.serviceName,trace_id:context.traceId,correlation_id:context.correlationId,
