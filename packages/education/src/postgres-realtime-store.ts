@@ -12,17 +12,41 @@ export class PostgresSchoolRealtimeStore {
   async append(event: SchoolRealtimeEvent): Promise<bigint> {
     const payload = JSON.stringify(event.data);
     const payloadHash = createHash("sha256").update(payload, "utf8").digest("hex");
-    const result = await this.client.query<{ stream_sequence: string }>(
-      `INSERT INTO education_realtime_events
-       (id,tenant_id,organization_id,stream_sequence,event_type,occurred_at,entity_id,version,data,payload_hash)
-       VALUES ($1,$2,$3,nextval('education_realtime_stream_sequence'),$4,$5,$6,$7,$8::jsonb,$9)
-       ON CONFLICT (tenant_id,organization_id,id) DO UPDATE
-         SET id=EXCLUDED.id
-       RETURNING stream_sequence::text`,
-      [event.id,event.tenantId,event.organizationId,event.type,event.occurredAt,event.entityId,event.version,payload,payloadHash]
-    );
-    if (!result.rows[0]) throw new Error("REALTIME_EVENT_PERSIST_FAILED");
-    return BigInt(result.rows[0].stream_sequence);
+    await this.client.query("BEGIN");
+    try {
+      const existing = await this.client.query<{stream_sequence:string}>(
+        `SELECT stream_sequence::text FROM education_realtime_events
+          WHERE tenant_id=$1 AND organization_id=$2 AND id=$3 FOR UPDATE`,
+        [event.tenantId,event.organizationId,event.id]
+      );
+      if(existing.rows[0]){await this.client.query("COMMIT");return BigInt(existing.rows[0].stream_sequence);}
+      await this.client.query(
+        `INSERT INTO education_realtime_stream_cursors(tenant_id,organization_id,last_sequence)
+         VALUES($1,$2,0) ON CONFLICT(tenant_id,organization_id) DO NOTHING`,
+        [event.tenantId,event.organizationId]
+      );
+      const cursor=await this.client.query<{last_sequence:string}>(
+        `SELECT last_sequence::text FROM education_realtime_stream_cursors
+          WHERE tenant_id=$1 AND organization_id=$2 FOR UPDATE`,
+        [event.tenantId,event.organizationId]
+      );
+      const next=BigInt(cursor.rows[0]!.last_sequence)+1n;
+      const inserted=await this.client.query<{stream_sequence:string}>(
+        `INSERT INTO education_realtime_events
+         (id,tenant_id,organization_id,stream_sequence,event_type,occurred_at,entity_id,version,data,payload_hash)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)
+         RETURNING stream_sequence::text`,
+        [event.id,event.tenantId,event.organizationId,next.toString(),event.type,event.occurredAt,event.entityId,event.version,payload,payloadHash]
+      );
+      await this.client.query(
+        `UPDATE education_realtime_stream_cursors SET last_sequence=$3,updated_at=now()
+          WHERE tenant_id=$1 AND organization_id=$2`,
+        [event.tenantId,event.organizationId,next.toString()]
+      );
+      await this.client.query("COMMIT");
+      if(!inserted.rows[0])throw new Error("REALTIME_EVENT_PERSIST_FAILED");
+      return BigInt(inserted.rows[0].stream_sequence);
+    }catch(error){await this.client.query("ROLLBACK");throw error;}
   }
 
   async replay(
