@@ -237,7 +237,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           if(!pool||!authenticatedSession||authClass!=="admin"){json(res,403,buildApiError({message:"ADMIN_ACCESS_DENIED"},correlationId));return;}
           try{
             await requireBrowserCsrf(pool,authenticatedSession,origin,String(req.headers["x-csrf-token"]??""));
-            const requestId=url.pathname.split("/")[5];
+            const requestId=url.pathname.split("/")[5] ?? "";
             const actor=await resolveAdminPrincipal(pool,userId!,authenticatedSession.assurance);
             const result=await approveRuntimeChange(pool,{actor,requestId});
             json(res,200,buildApiSuccess("v1",correlationId,result));return;
