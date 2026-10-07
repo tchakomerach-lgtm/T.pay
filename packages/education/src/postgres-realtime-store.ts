@@ -62,7 +62,7 @@ export class PostgresSchoolRealtimeStore {
       state:"OK",
       oldestSequence:oldest,
       latestSequence:latest,
-      events:rows.map(row=>({
+      events:rows.rows.map(row=>({
         id:row.id,tenantId,organizationId,type:row.event_type,occurredAt:new Date(row.occurred_at).toISOString(),streamSequence:row.stream_sequence,
         entityId:row.entity_id,version:Number(row.version),data:row.data
       }))
