@@ -150,6 +150,6 @@ export async function startProductionApi():Promise<void>{
   console.log(`T.Pay API HTTPS listening on https://${config.host}:${config.port}`);
 }
 
-if(import.meta.url===new URL(process.argv[1]??"", "file:").href){
+if(process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href){
   await startProductionApi();
 }
