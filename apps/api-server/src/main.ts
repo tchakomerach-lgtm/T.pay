@@ -42,7 +42,8 @@ export function readRuntimeConfig(source=process.env):RuntimeConfig{
     tlsKeyFile:source.TPAY_TLS_KEY_FILE!.trim(),
     tlsCertFile:source.TPAY_TLS_CERT_FILE!.trim(),
     host:source.TPAY_API_HOST?.trim()||"0.0.0.0",
-    port
+    port,
+    webOrigins:(source.TPAY_WEB_ORIGINS??"").split(",").map(value=>value.trim()).filter(Boolean)
   };
 }
 
