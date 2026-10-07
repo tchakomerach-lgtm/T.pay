@@ -1,4 +1,4 @@
-export interface PostgresTransactionClient { query<T=Record<string,unknown>>(sql:string,values?:unknown[]):Promise<{rows:T[];rowCount:number|null}>; }
+export interface PostgresTransactionClient { query<T=Record<string,unknown>>(sql:string,values?:unknown[]):Promise<{rows:T[];rowCount:number|null}>; release?:()=>void; }
 import type { SyncEvent, SyncState } from "./sync-fabric.js";
 import { computeSyncPayloadHash, serializeSyncPayload, validateEventEnvelope } from "./sync-fabric.js";
 import { createHash } from "node:crypto";
