@@ -9,6 +9,8 @@ import { canonicalRequestHash, newCorrelationId, ApiGatewayRepository, type ApiD
 import { PostgresEducationSyncStore } from "./postgres-sync-fabric.js";
 import { computeSyncPayloadHash } from "./sync-fabric.js";
 import { SchoolRealtimeHub, toSseMessage, type SchoolRealtimeEvent } from "./school-realtime.js";
+import { PostgresSchoolRealtimeStore } from "./postgres-realtime-store.js";
+import type { SchoolRealtimeMessage } from "./school-realtime.js";
 import { reconcileAttendance, claimWorkItem, resolveWorkItem, type AttendanceRecord, type WorkItem } from "./school-operations.js";
 import { assignService, transitionService, type ActorRef, type ServiceRequest } from "./actor-services.js";
 
@@ -19,6 +21,7 @@ export interface SchoolApiDependencies {
   syncClient(): ConstructorParameters<typeof PostgresEducationSyncStore>[0];
   now?: () => Date;
   realtime?: SchoolRealtimeHub;
+  realtimeStore?: PostgresSchoolRealtimeStore;
 }
 const json=(res:ServerResponse,status:number,body:unknown,correlationId:string)=>{
   const data=JSON.stringify(body); res.statusCode=status; res.setHeader("content-type","application/json; charset=utf-8"); res.setHeader("x-correlation-id",correlationId); res.setHeader("connection","close"); res.end(data);
@@ -59,7 +62,40 @@ export function createSchoolApiServer(deps:SchoolApiDependencies){
     if(method!=="GET")throw new Error("REALTIME_METHOD_NOT_ALLOWED");
     if(!deps.realtime)throw new Error("REALTIME_NOT_CONFIGURED");
     res.statusCode=200;res.setHeader("content-type","text/event-stream; charset=utf-8");res.setHeader("cache-control","no-cache, no-transform");res.setHeader("connection","keep-alive");res.write(": connected\\n\\n");
-    const unsubscribe=deps.realtime.subscribe({id:correlationId,tenantId:auth.tenantId,organizationId,send:message=>{const accepted=res.write(toSseMessage(message));if(accepted)deps.realtime?.ack(correlationId);else res.once("drain",()=>deps.realtime?.ack(correlationId));},close:()=>res.end()});
+    let replaying=true;
+    const buffered: SchoolRealtimeEvent[]=[];
+    const seen=new Set<string>();
+    const sendNow=(message:SchoolRealtimeMessage)=>{
+      if(message.kind==="event"){
+        if(seen.has(message.event.id))return;
+        seen.add(message.event.id);
+      }
+      const accepted=res.write(toSseMessage(message));
+      if(accepted)deps.realtime?.ack(correlationId);else res.once("drain",()=>deps.realtime?.ack(correlationId));
+    };
+    const unsubscribe=deps.realtime.subscribe({
+      id:correlationId,tenantId:auth.tenantId,organizationId,
+      send:message=>{if(replaying){if(message.kind==="event")buffered.push(message.event);else sendNow(message);}else sendNow(message);},
+      close:()=>res.end()
+    });
+    try{
+      const lastEventId=String(req.headers["last-event-id"]??"").trim();
+      if(lastEventId){
+        if(!deps.realtimeStore)throw new Error("REALTIME_DURABLE_REPLAY_NOT_CONFIGURED");
+        let cursor:bigint;
+        try{cursor=BigInt(lastEventId);}catch{throw new Error("REALTIME_INVALID_CURSOR");}
+        const replay=await deps.realtimeStore.replay(auth.tenantId,organizationId,cursor);
+        if(replay.state==="CURSOR_EXPIRED"){
+          sendNow({kind:"resync_required",reason:"CURSOR_EXPIRED",lastEventId:lastEventId});
+          unsubscribe();res.end();return;
+        }
+        for(const event of replay.events)sendNow({kind:"event",event});
+      }
+      replaying=false;
+      for(const event of buffered)sendNow({kind:"event",event});
+    }catch(error){
+      replaying=false;unsubscribe();res.end();return;
+    }
     req.on("close",()=>unsubscribe());return;
    }
    const body=parse(await readBody(req));

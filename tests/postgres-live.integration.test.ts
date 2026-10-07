@@ -541,3 +541,54 @@ test("L7 live PostgreSQL enforces organization-scoped payout idempotency and app
     await client.query("DELETE FROM organizations WHERE id IN ($1,$2)",[a,b]); await client.end();
   }
 });
+
+
+test("P041 live PostgreSQL durable realtime replay is ordered, tenant-isolated and cursor-expiring", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const admin = new pg.Client({ connectionString: databaseUrl });
+  await admin.connect();
+  const tenantId = randomUUID();
+  const organizationId = randomUUID();
+  const otherTenantId = randomUUID();
+  const now = new Date();
+  try {
+    await applyMigrations(admin, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    const { PostgresSchoolRealtimeStore } = await import("../packages/education/src/postgres-realtime-store.js");
+    const clients = await Promise.all(Array.from({length: 8}, async () => {
+      const client = new pg.Client({ connectionString: databaseUrl });
+      await client.connect();
+      return client;
+    }));
+    try {
+      await Promise.all(clients.map((client,i) => new PostgresSchoolRealtimeStore(client).append({
+        id: randomUUID(), tenantId, organizationId, type:"attendance.changed",
+        occurredAt: now.toISOString(), entityId:`student-${i}`, version:1,
+        data:{source:"P041",index:i}
+      })));
+      await new PostgresSchoolRealtimeStore(clients[0]!).append({
+        id: randomUUID(), tenantId: otherTenantId, organizationId, type:"attendance.changed",
+        occurredAt: now.toISOString(), entityId:"other", version:1, data:{source:"other"}
+      });
+      const store = new PostgresSchoolRealtimeStore(admin);
+      const replay = await store.replay(tenantId, organizationId, 0n, 100);
+      assert.equal(replay.state, "OK");
+      assert.equal(replay.events.length, 8);
+      assert.equal(new Set(replay.events.map(event => event.id)).size, 8);
+      for (let i=1;i<replay.events.length;i++) {
+        assert.ok(BigInt(replay.events[i]!.streamSequence!) > BigInt(replay.events[i-1]!.streamSequence!));
+      }
+      assert.ok(replay.events.every(event => event.tenantId === tenantId && event.organizationId === organizationId));
+
+      const firstSequence = BigInt(replay.events[0]!.streamSequence!);
+      await admin.query("UPDATE education_realtime_events SET created_at=now()-interval '2 days' WHERE tenant_id=$1 AND organization_id=$2 AND stream_sequence=$3",[tenantId,organizationId,firstSequence.toString()]);
+      await store.compact(tenantId,organizationId,new Date(Date.now()-24*60*60*1000));
+      const expired = await store.replay(tenantId, organizationId, firstSequence-1n, 100);
+      assert.equal(expired.state, "CURSOR_EXPIRED");
+    } finally {
+      await Promise.all(clients.map(client => client.end()));
+    }
+  } finally {
+    await admin.query("DELETE FROM education_realtime_events WHERE tenant_id IN ($1,$2) OR organization_id=$3",[tenantId,otherTenantId,organizationId]);
+    await admin.query("DELETE FROM education_realtime_stream_cursors WHERE tenant_id IN ($1,$2) OR organization_id=$3",[tenantId,otherTenantId,organizationId]);
+    await admin.end();
+  }
+});
