@@ -61,6 +61,13 @@ export function createSchoolApiServer(deps:SchoolApiDependencies){
    if(r[0]==="stream"){
     if(method!=="GET")throw new Error("REALTIME_METHOD_NOT_ALLOWED");
     if(!deps.realtime)throw new Error("REALTIME_NOT_CONFIGURED");
+    const lastEventId=String(req.headers["last-event-id"]??"").trim();
+    let replayCursor:bigint|undefined;
+    if(lastEventId){
+      if(!deps.realtimeStore)throw new Error("REALTIME_DURABLE_REPLAY_NOT_CONFIGURED");
+      try{replayCursor=BigInt(lastEventId);}catch{throw new Error("REALTIME_INVALID_CURSOR");}
+      if(replayCursor<0n)throw new Error("REALTIME_INVALID_CURSOR");
+    }
     res.statusCode=200;res.setHeader("content-type","text/event-stream; charset=utf-8");res.setHeader("cache-control","no-cache, no-transform");res.setHeader("connection","keep-alive");res.write(": connected\\n\\n");
     let replaying=true;
     const buffered: SchoolRealtimeEvent[]=[];
@@ -79,12 +86,8 @@ export function createSchoolApiServer(deps:SchoolApiDependencies){
       close:()=>res.end()
     });
     try{
-      const lastEventId=String(req.headers["last-event-id"]??"").trim();
-      if(lastEventId){
-        if(!deps.realtimeStore)throw new Error("REALTIME_DURABLE_REPLAY_NOT_CONFIGURED");
-        let cursor:bigint;
-        try{cursor=BigInt(lastEventId);}catch{throw new Error("REALTIME_INVALID_CURSOR");}
-        const replay=await deps.realtimeStore.replay(auth.tenantId,organizationId,cursor);
+      if(replayCursor!==undefined){
+        const replay=await deps.realtimeStore!.replay(auth.tenantId,organizationId,replayCursor);
         if(replay.state==="CURSOR_EXPIRED"){
           sendNow({kind:"resync_required",reason:"CURSOR_EXPIRED",lastEventId:lastEventId});
           unsubscribe();res.end();return;
