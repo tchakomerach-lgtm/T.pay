@@ -90,3 +90,17 @@ Code + tests + security controls + observability + documentation + migration/rol
 Prompt 020 Voice Fabric is now present in `packages/ai/src/voice-fabric.ts`, with targeted regression coverage in `tests/voice-fabric.test.ts`. Migration `043_l16_voice_fabric.sql` adds durable voice sessions, capability leases, transaction challenges, consent/security metadata, media metadata and a PostgreSQL GiST exclusion constraint preventing overlapping confirmed appointments per organization/resource. The implementation record is `docs/construction/L16-VOICE-FABRIC-RECORD.md`.
 
 The production gate remains fail-closed until provider-specific telephony contracts, signed callback/replay controls, PostgreSQL concurrency integration tests, API Gateway routes, media retention workers, end-to-end voice red-team tests and CI green are verified. No production readiness claim is made from the domain/reference implementation alone.
+
+## SUPER ADMIN BIBLE — CURRENT CONSTRUCTION STATE
+The branch `construction/super-admin-bible-008` adds the first executable Super Admin control-plane foundation from Prompts 003/004/005/007/008:
+- privileged identity assurance with bounded expiry;
+- 15-minute maximum JIT grants and one-shot consumption;
+- Root Trust quorum requiring three distinct actors across three independent domains;
+- SHA-256 request-digest binding for root operations;
+- explicit recovery state machine;
+- fail-closed financial reopening gate requiring infrastructure, identity, keys, ledger, reconciliation, security validation and quorum;
+- durable PostgreSQL control-plane tables in migration `045_super_admin_control_plane.sql`;
+- unit and live PostgreSQL regression tests;
+- construction record `docs/construction/SUPER-ADMIN-008-RECORD.md`.
+
+This is IMPLEMENTED, not VERIFIED/PRODUCTION-READY. Remaining gates: concrete PAM/session broker, hardware-backed root-key integration, PostgreSQL concurrency/adversarial tests, independent recovery plane/clean room, immutable backup validation, authoritative audit/provenance integration, recovery orchestration, red-team exercises and green exact-head CI.
