@@ -1,4 +1,4 @@
-import type { Client } from "pg";
+import type { PostgresTransactionClient } from "./postgres-sync-fabric.js";
 import { createHash } from "node:crypto";
 import type { SchoolRealtimeEvent } from "./school-realtime.js";
 
@@ -7,7 +7,7 @@ export type DurableRealtimeReplay =
   | { state: "CURSOR_EXPIRED"; events: []; oldestSequence: bigint | null; latestSequence: bigint | null };
 
 export class PostgresSchoolRealtimeStore {
-  constructor(private readonly client: Client) {}
+  constructor(private readonly client: PostgresTransactionClient) {}
 
   async append(event: SchoolRealtimeEvent): Promise<bigint> {
     const payload = JSON.stringify(event.data);
