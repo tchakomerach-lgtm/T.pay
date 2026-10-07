@@ -100,7 +100,20 @@ export class PostgresEducationSyncStore {
         return {state:"PENDING",eventId:event.eventId,acceptedSequence:last,drainedPending:0};
       }
 
-      await this.insertAccepted(event);
+      const inserted = await this.insertAccepted(event);
+      if(!inserted){
+        const existing=await this.client.query<{event_id:string;payload_hash:string}>(
+          `SELECT event_id,payload_hash FROM education_sync_inbox
+            WHERE tenant_id=$1 AND organization_id=$2 AND (event_id=$3 OR idempotency_key=$4)
+            FOR UPDATE`,
+          [event.tenantId,event.organizationId,event.eventId,event.idempotencyKey]
+        );
+        const row=existing.rows[0];
+        if(!row) throw new Error("SYNC_IDEMPOTENCY_STATE_UNKNOWN");
+        if(row.payload_hash!==event.payloadHash) throw new Error("SYNC_REPLAY_PAYLOAD_COLLISION");
+        await this.client.query("COMMIT");
+        return {state:"DUPLICATE",eventId:row.event_id,acceptedSequence:event.sequence,drainedPending:0};
+      }
       let accepted=event.sequence;
       let drained=0;
       while (true) {
@@ -146,8 +159,8 @@ export class PostgresEducationSyncStore {
     }
   }
 
-  private async insertAccepted(event: SyncEvent): Promise<void> {
-    await this.client.query(
+  private async insertAccepted(event: SyncEvent): Promise<boolean> {
+    const inserted=await this.client.query(
       `INSERT INTO education_sync_inbox
        (id,tenant_id,organization_id,event_id,device_id,actor_id,sequence,occurred_at,event_type,priority,payload,payload_hash,idempotency_key,schema_version,state,accepted_at)
        VALUES (gen_random_uuid()::text,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,'ACCEPTED',now())`,
@@ -160,6 +173,7 @@ export class PostgresEducationSyncStore {
       [event.tenantId,event.organizationId,event.eventId,event.eventType,serializeSyncPayload(event.payload),event.payloadHash,event.occurredAt]
     );
     await this.insertRealtime(event.eventId,event.tenantId,event.organizationId,event.eventType,event.occurredAt,event.payload,event.sequence);
+    return true;
   }
 
   private async insertRealtime(eventId:string,tenantId:string,organizationId:string,eventType:string,occurredAt:string,payload:unknown,version:bigint):Promise<void>{
