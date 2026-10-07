@@ -90,3 +90,17 @@ Code + tests + security controls + observability + documentation + migration/rol
 Prompt 020 Voice Fabric is now present in `packages/ai/src/voice-fabric.ts`, with targeted regression coverage in `tests/voice-fabric.test.ts`. Migration `043_l16_voice_fabric.sql` adds durable voice sessions, capability leases, transaction challenges, consent/security metadata, media metadata and a PostgreSQL GiST exclusion constraint preventing overlapping confirmed appointments per organization/resource. The implementation record is `docs/construction/L16-VOICE-FABRIC-RECORD.md`.
 
 The production gate remains fail-closed until provider-specific telephony contracts, signed callback/replay controls, PostgreSQL concurrency integration tests, API Gateway routes, media retention workers, end-to-end voice red-team tests and CI green are verified. No production readiness claim is made from the domain/reference implementation alone.
+
+## SUPER ADMIN CONSOLE — CURRENT CONSTRUCTION STATE
+Branch: `construction/super-admin-console-009`, PR #97.
+
+Integrated on top of the existing Web Alpha rather than creating a second frontend:
+- protected L4/L5 Super Admin console with Dashboard, Runtime, Privileged Identities, Recovery, PAM and Audit surfaces;
+- existing signed cursor pagination and runtime modes remain the canonical platform primitives;
+- durable PostgreSQL runtime control for normal/degraded/readonly/maintenance;
+- maintenance changes use expiring requests and two distinct privileged approvers;
+- admin API routes are allowlisted and deny-by-default;
+- admin session requires step-up assurance plus active non-expired L4/L5 identity;
+- administrative audit is durable and queryable from the console.
+
+Verification state: IMPLEMENTED + statically inspected; exact-head GitHub Actions run is not yet observable. Production gates still open: real FIDO2/WebAuthn step-up, PAM/session broker, HSM/KMS/root-key integration, adversarial PostgreSQL concurrency, recovery clean-room/immutable backup certification, red-team and exact-head CI green.
