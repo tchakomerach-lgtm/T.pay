@@ -50,47 +50,49 @@ export class PostgresSchoolRealtimeStore {
   }
 
   async replay(
-    tenantId: string,
-    organizationId: string,
-    afterSequence: bigint,
-    limit = 100
-  ): Promise<DurableRealtimeReplay> {
-    if (!tenantId || !organizationId) throw new Error("REALTIME_SCOPE_REQUIRED");
-    if (afterSequence < 0n) throw new Error("REALTIME_INVALID_CURSOR");
-    if (!Number.isInteger(limit) || limit < 1 || limit > 1000) throw new Error("REALTIME_INVALID_LIMIT");
-
-    const bounds = await this.client.query<{oldest:string|null;latest:string|null}>(
-      `SELECT min(stream_sequence)::text AS oldest,max(stream_sequence)::text AS latest
-         FROM education_realtime_events
-        WHERE tenant_id=$1 AND organization_id=$2`,
-      [tenantId,organizationId]
-    );
-    const oldest = bounds.rows[0]?.oldest ? BigInt(bounds.rows[0].oldest) : null;
-    const latest = bounds.rows[0]?.latest ? BigInt(bounds.rows[0].latest) : null;
-    if (oldest !== null && afterSequence < oldest - 1n) {
-      return {state:"CURSOR_EXPIRED",events:[],oldestSequence:oldest,latestSequence:latest};
-    }
-
-    const rows = await this.client.query<{
-      id:string;stream_sequence:string;event_type:SchoolRealtimeEvent["type"];
-      occurred_at:string;entity_id:string;version:string;data:Record<string,unknown>;
-    }>(
-      `SELECT id,stream_sequence::text,event_type,occurred_at,entity_id,version::text,data
-         FROM education_realtime_events
-        WHERE tenant_id=$1 AND organization_id=$2 AND stream_sequence>$3
-        ORDER BY stream_sequence ASC
-        LIMIT $4`,
-      [tenantId,organizationId,afterSequence.toString(),limit]
-    );
-    return {
-      state:"OK",
-      oldestSequence:oldest,
-      latestSequence:latest,
-      events:rows.rows.map(row=>({
-        id:row.id,tenantId,organizationId,type:row.event_type,occurredAt:new Date(row.occurred_at).toISOString(),streamSequence:row.stream_sequence,
-        entityId:row.entity_id,version:Number(row.version),data:row.data
-      }))
-    };
+    tenantId:string,
+    organizationId:string,
+    afterSequence:bigint,
+    limit=100
+  ):Promise<DurableRealtimeReplay>{
+    if(!tenantId||!organizationId)throw new Error("REALTIME_SCOPE_REQUIRED");
+    if(afterSequence<0n)throw new Error("REALTIME_INVALID_CURSOR");
+    if(!Number.isInteger(limit)||limit<1||limit>1000)throw new Error("REALTIME_INVALID_LIMIT");
+    await this.client.query("BEGIN ISOLATION LEVEL REPEATABLE READ");
+    try{
+      const bounds=await this.client.query<{oldest:string|null;latest:string|null}>(
+        `SELECT min(stream_sequence)::text AS oldest,max(stream_sequence)::text AS latest
+           FROM education_realtime_events
+          WHERE tenant_id=$1 AND organization_id=$2`,
+        [tenantId,organizationId]
+      );
+      const oldest=bounds.rows[0]?.oldest?BigInt(bounds.rows[0].oldest):null;
+      const latest=bounds.rows[0]?.latest?BigInt(bounds.rows[0].latest):null;
+      if(oldest!==null&&afterSequence<oldest-1n){
+        await this.client.query("COMMIT");
+        return {state:"CURSOR_EXPIRED",events:[],oldestSequence:oldest,latestSequence:latest};
+      }
+      const rows=await this.client.query<{
+        id:string;stream_sequence:string;event_type:SchoolRealtimeEvent["type"];
+        occurred_at:string;entity_id:string;version:string;data:Record<string,unknown>;
+      }>(
+        `SELECT id,stream_sequence::text,event_type,occurred_at,entity_id,version::text,data
+           FROM education_realtime_events
+          WHERE tenant_id=$1 AND organization_id=$2 AND stream_sequence>$3
+          ORDER BY stream_sequence ASC
+          LIMIT $4`,
+        [tenantId,organizationId,afterSequence.toString(),limit]
+      );
+      await this.client.query("COMMIT");
+      return {
+        state:"OK",oldestSequence:oldest,latestSequence:latest,
+        events:rows.rows.map(row=>({
+          id:row.id,tenantId,organizationId,type:row.event_type,
+          occurredAt:new Date(row.occurred_at).toISOString(),streamSequence:row.stream_sequence,
+          entityId:row.entity_id,version:Number(row.version),data:row.data
+        }))
+      };
+    }catch(error){await this.client.query("ROLLBACK");throw error;}
   }
 
   async compact(tenantId:string,organizationId:string,olderThan:Date):Promise<number>{
