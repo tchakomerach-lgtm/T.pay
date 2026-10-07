@@ -7,7 +7,7 @@ class MemoryStorage implements SecureOfflineStorage{
   records:SecureOfflineEnvelope[]=[]; quarantined:string[]=[];
   async getLastSequence(){return this.records.filter(r=>r.state==="QUEUED").reduce((m,r)=>r.sequence>m?r.sequence:m,0n);}
   async append(record:SecureOfflineEnvelope,expected:number|bigint){const last=await this.getLastSequence();if(last!==BigInt(expected))throw new Error("OFFLINE_STORAGE_CONCURRENCY");this.records.push(record);}
-  async list(scope:any){return this.records.filter(r=>r.deviceId===scope.deviceId&&r.tenantId===scope.tenantId&&r.organizationId===scope.organizationId);}
+  async list(deviceId:string){return this.records.filter(r=>r.deviceId===deviceId);}
   async quarantine(record:SecureOfflineEnvelope,reason:string){record.state="QUARANTINED";this.quarantined.push(reason);}
   async remove(eventId:string){this.records=this.records.filter(r=>r.eventId!==eventId);}
 }
