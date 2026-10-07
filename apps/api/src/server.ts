@@ -223,7 +223,8 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
         if(url.pathname==="/v1/admin/audit"&&method==="GET"){
           if(!pool||!authenticatedSession||authClass!=="admin"){json(res,403,buildApiError({message:"ADMIN_ACCESS_DENIED"},correlationId));return;}
           const limit=Math.min(Number(url.searchParams.get("limit")??25)||25,100);
-          json(res,200,buildApiSuccess("v1",correlationId,await listAdminAudit(pool,{limit})));return;
+          const cursor=url.searchParams.get("cursor")??undefined;
+          json(res,200,buildApiSuccess("v1",correlationId,await listAdminAudit(pool,{limit,cursor})));return;
         }
 
         if(url.pathname==="/v1/auth/register"&&method==="POST"){
