@@ -59,7 +59,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies){
     if(method!=="GET")throw new Error("REALTIME_METHOD_NOT_ALLOWED");
     if(!deps.realtime)throw new Error("REALTIME_NOT_CONFIGURED");
     res.statusCode=200;res.setHeader("content-type","text/event-stream; charset=utf-8");res.setHeader("cache-control","no-cache, no-transform");res.setHeader("connection","keep-alive");res.write(": connected\\n\\n");
-    const unsubscribe=deps.realtime.subscribe({id:correlationId,tenantId:auth.tenantId,organizationId,send:message=>res.write(toSseMessage(message)),close:()=>res.end()});
+    const unsubscribe=deps.realtime.subscribe({id:correlationId,tenantId:auth.tenantId,organizationId,send:message=>{const accepted=res.write(toSseMessage(message));if(accepted)deps.realtime?.ack(correlationId);else res.once("drain",()=>deps.realtime?.ack(correlationId));},close:()=>res.end()});
     req.on("close",()=>unsubscribe());return;
    }
    const body=parse(await readBody(req));
