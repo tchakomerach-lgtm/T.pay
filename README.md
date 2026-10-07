@@ -2,6 +2,58 @@
 
 T.Pay est un OS/SaaS modulaire pour particuliers et organisations : réseau social, opportunités, marketplace, wallet, microfinance, éducation, investissement et assistants IA spécialisés.
 
+## Client Universal Web + Mobile — nouvelle fondation scalable
+
+Le dépôt contient désormais `apps/universal`, un client React Native/Expo commun Android, iOS et Web. Il ne remplace pas encore la Web Alpha historique : il constitue la nouvelle trajectoire de rendu destinée à remplacer progressivement le renderer DOM de démonstration.
+
+Le client est conçu comme un **client mince** : aucune logique financière critique, aucun ledger local et aucune décision d'autorisation. Les données et permissions viennent de l'API Gateway. Expo SDK 57 cible React Native 0.86 et React 19.2.3 et fournit une base commune Android/iOS/Web.
+
+L'objectif de migration est :
+
+`DOM Alpha → React Native/Expo Universal → API Gateway → Identity → services métier → PostgreSQL`
+
+Cette séparation permet d'ajouter des instances web, Android et iOS sans dupliquer les règles métier.
+
+## Web Alpha — première application testable
+
+La Web Alpha fournit désormais une véritable interface navigateur construite à partir du dépôt T.Pay, avec un endpoint HTTP `/v1/health` relié au module Health du core. Elle est volontairement en **mode démonstration** : aucune opération financière réelle et aucun contournement des contrôles serveur.
+
+### Prérequis
+- Node.js 22+
+- npm 11+
+- Git
+
+### Lancement pour débutant
+
+```bash
+npm install
+npm run web:dev
+```
+
+Puis ouvrir **http://localhost:4173** dans Chrome.
+
+Pour arrêter le serveur : `Ctrl+C`.
+
+### Parcours de test
+1. Accueil : vérifier les métriques et le flux.
+2. Organisations : créer une organisation de démonstration.
+3. Réseau social : vérifier la navigation.
+4. Opportunités : vérifier la navigation.
+5. Tontine communautaire : vérifier qu'elle reste distincte de la tontine journalière intégrée aux microfinances.
+6. Recharger la page : les données de démonstration conservées dans le navigateur doivent rester disponibles.
+7. Tester sur Android : lancer le serveur sur l'ordinateur et ouvrir son adresse réseau locale depuis le téléphone connecté au même Wi-Fi.
+
+### Vérifications automatisées
+
+```bash
+npm run check
+npm run web:smoke
+npm run web:check
+```
+
+La Web Alpha ne constitue pas encore une mise en production. Le prochain raccordement doit connecter l'identité, l'API Gateway, PostgreSQL et les vrais services métier derrière des contrats serveur testés.
+
+
 ## Fondation implémentée
 - Monorepo TypeScript strict et CI.
 - Domaines organisations, rôles et sessions organisationnelles.
@@ -23,3 +75,9 @@ npm install
 npm run check
 
 Les exigences réglementaires applicables au Togo/UMOA et à chaque marché cible doivent être vérifiées avant toute mise en production financière.
+
+### Sécurité Web Alpha
+
+La configuration de production exige des certificats TLS et refuse de démarrer sans eux. Le serveur utilise TLS 1.3 lorsqu'il est configuré en HTTPS. Les réponses appliquent notamment HSTS, CSP, nosniff, Referrer-Policy, Permissions-Policy, COOP et CORP. Ces contrôles suivent les recommandations OWASP actuelles sur TLS, HSTS, sessions et CSP.
+
+En développement local, HTTP peut rester disponible uniquement pour faciliter le premier test. Il ne doit jamais être utilisé pour une session ou des données réelles. En production, le certificat TLS est obligatoire et HTTP ne doit pas devenir un canal applicatif.

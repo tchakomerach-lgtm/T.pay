@@ -12,12 +12,12 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: tpay-ci-${{ github.workflow }}-${{ github.ref }}
+  group: tpay-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:17
@@ -39,5 +39,13 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
+      - run: npm --prefix apps/universal install --no-audit --no-fund
       - run: npm run check
+      - run: npm run web:smoke
+      - run: npm run web:check
+      - run: npm run api:check
+      - run: npm --prefix apps/universal run typecheck
+      - run: npm run universal:web:build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e:web
       - run: npm audit --omit=dev --audit-level=high

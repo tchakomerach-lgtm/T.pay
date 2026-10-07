@@ -32,3 +32,7 @@ When external research is needed, prefer primary sources and record the version/
 
 ## Review rule
 Security and finance gates have veto authority for their respective risks. The integrator resolves conflicts explicitly in an ADR rather than bypassing a gate.
+
+| Super Admin, Root Trust, privileged access, cyber recovery | `docs/skills/TPAY-SUPER-ADMIN-001.md` + Super Admin Bible Prompts 003/004/005/007/008 |
+
+| Super Admin Console, runtime governance, maintenance, audit | `apps/web/src/admin-console.ts` + `packages/security/src/admin-runtime.ts` + Prompt 008 runtime/recovery governance |

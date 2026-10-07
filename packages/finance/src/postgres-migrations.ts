@@ -1,11 +1,16 @@
 import { createHash, randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { Client } from "pg";
+import type { Client, Pool, PoolClient } from "pg";
 
 function checksum(sql:string):string{return createHash("sha256").update(sql).digest("hex");}
 
-export async function applyMigrations(client:Client,migrationDirectory:URL):Promise<void>{
+export async function applyMigrations(clientOrPool:Client|Pool,migrationDirectory:URL):Promise<void>{
+  let client:Client|PoolClient;
+  let release:()=>void=()=>{};
+  if("totalCount" in clientOrPool){ const connected=await (clientOrPool as Pool).connect(); client=connected; release=()=>connected.release(); }
+  else client=clientOrPool;
+  try{
   await client.query("CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now(), checksum text, applied_by text)");
   await client.query("ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS checksum text");
   await client.query("ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS applied_by text");
@@ -49,5 +54,8 @@ export async function applyMigrations(client:Client,migrationDirectory:URL):Prom
     }
   }finally{
     if(locked) await client.query("DELETE FROM deployment_locks WHERE lock_name=$1 AND owner_id=$2",["schema-migrations",ownerId]);
+  }
+  }finally{
+    release();
   }
 }

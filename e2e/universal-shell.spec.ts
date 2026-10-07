@@ -1,0 +1,15 @@
+import {test,expect} from "@playwright/test";
+
+test("universal shell renders and navigates core areas",async({page})=>{
+ await page.goto("/");
+ await expect(page.getByText("T.PAY OS · UNIVERSAL")).toBeVisible();
+ await expect(page.getByText("Connexion serveur")).toBeVisible();
+ await page.getByText("Organisations",{exact:true}).first().click();
+ await expect(page.getByText("Créer une organisation")).toBeVisible();
+ await page.getByText("Réseau social",{exact:true}).first().click();
+ await expect(page.getByText("Réseau social",{exact:true})).toBeVisible();
+ await page.getByText("Opportunités",{exact:true}).first().click();
+ await expect(page.getByText("Opportunités",{exact:true})).toBeVisible();
+ await page.getByText("Tontine communautaire",{exact:true}).first().click();
+ await expect(page.getByText("Tontine communautaire",{exact:true})).toBeVisible();
+});

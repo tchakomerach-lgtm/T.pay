@@ -1,0 +1,15 @@
+{
+  "expo":{
+    "name":"T.Pay",
+    "slug":"tpay",
+    "version":"0.1.0",
+    "orientation":"portrait",
+    "userInterfaceStyle":"automatic",
+    "newArchEnabled":true,
+    "scheme":"tpay",
+    "web":{"bundler":"metro","output":"single"},
+    "android":{"package":"tg.tpay.app"},
+    "ios":{"bundleIdentifier":"tg.tpay.app"},
+    "plugins":[["expo-secure-store",{"configureAndroidBackup":true}]]
+  }
+}

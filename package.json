@@ -8,10 +8,20 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node --test dist/tests/*.test.js",
+    "test": "npm run build && node scripts/run-tests-sequentially.mjs",
     "check": "npm run typecheck && npm test",
     "db:migrate": "node dist/scripts/migrate.js",
-    "test:postgres": "npm run build && node --test dist/tests/postgres-live.integration.test.js"
+    "test:postgres": "npm run build && node --test dist/tests/postgres-live.integration.test.js",
+    "web:build": "npm run build && node scripts/copy-web-assets.mjs",
+    "web:dev": "npm run web:build && node scripts/web-server.mjs",
+    "web:dev:https": "TPAY_WEB_SERVER_TEST=0 npm run web:build && node scripts/web-server.mjs",
+    "web:check": "npm run typecheck && npm run web:build && npm run web:smoke && npm run web:security",
+    "web:smoke": "npm run web:build && node --test dist/tests/web-smoke.test.js",
+    "web:security": "npm run build && node --test dist/tests/web-security.test.js",
+    "api:security": "npm run build && node --test dist/tests/api-server.test.js",
+    "api:check": "npm run api:security",
+    "e2e:web": "playwright test",
+    "universal:web:build": "npm --prefix apps/universal run build:web"
   },
   "engines": {
     "node": ">=22"
@@ -19,7 +29,8 @@
   "devDependencies": {
     "@types/node": "^22.15.0",
     "typescript": "^5.8.3",
-    "@types/pg": "^8.15.5"
+    "@types/pg": "^8.15.5",
+    "@playwright/test": "^1.55.0"
   },
   "dependencies": {
     "pg": "^8.16.3"
