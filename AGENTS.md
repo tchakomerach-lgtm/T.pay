@@ -143,7 +143,7 @@ DB-077 adds a real Playwright browser verification surface for the DB-075/076 Re
 Gate:
 CONTRACTS -> BROWSER BUILD -> BROWSER SMOKE -> ACCESSIBILITY -> RESPONSIVE -> OFFLINE/RECONNECT -> VISUAL CAPTURE/REGRESSION -> MOBILE-ADAPTER CONTRACT -> SECURITY REVIEW -> PERFORMANCE -> CI -> RECORD.
 
-The browser suite covers Chromium desktop/tablet/mobile, keyboard/focus/live-region semantics, offline/reconnect behavior, deterministic screenshot artifacts and layout geometry. A true approved pixel-golden baseline is not fabricated; DB-077 remains verification-gated until reviewed baseline artifacts exist.
+The browser suite covers Chromium desktop/tablet/mobile, axe-core accessibility checks, keyboard/focus/live-region semantics, offline/reconnect behavior, deterministic screenshot artifacts and layout geometry. A true approved pixel-golden baseline is not fabricated; DB-077 remains verification-gated until reviewed baseline artifacts exist.
 
 apps/design/* remains the single semantic source of truth. The mobile adapter only projects canonical tokens/object/action contracts; it does not introduce a second Design System.
 
