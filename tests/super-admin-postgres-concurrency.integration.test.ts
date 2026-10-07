@@ -20,10 +20,11 @@ test("PostgreSQL adversarial control-plane concurrency",{skip:!url&&"TPAY_DATABA
   await applyMigrations(admin,pathToFileURL(join(process.cwd(),"migrations")+"/"));
   const principal=randomUUID(),a=randomUUID(),b=randomUUID(),c=randomUUID();ids.push(principal,a,b,c);
   for(const id of ids)await admin.query("INSERT INTO tpay_privileged_identities(id,human_user_id,privileged_level,device_id,assurance,expires_at) VALUES($1,$2,'L4_SUPER_ADMIN',$3,'FIDO2',now()+interval '1 hour')",[id,"concurrency-"+id,"device-"+id]);
-  const grant=randomUUID();grants.push(grant);
-  await admin.query("INSERT INTO tpay_privileged_grants(id,principal_id,resource,action,justification,issued_at,expires_at,one_shot,approval_count,required_approvals) VALUES($1,$2,'prod/db','read','concurrency',now(),now()+interval '10 minutes',true,0,2)",[grant,principal]);
-  const same=await Promise.allSettled([approveJitGrant(pool,{grantId:grant,approverId:a}),approveJitGrant(pool,{grantId:grant,approverId:a})]);
+  const duplicateGrant=randomUUID(),grant=randomUUID();grants.push(duplicateGrant,grant);
+  await admin.query("INSERT INTO tpay_privileged_grants(id,principal_id,resource,action,justification,issued_at,expires_at,one_shot,approval_count,required_approvals) VALUES($1,$2,'prod/db','read','duplicate approval race',now(),now()+interval '10 minutes',true,0,1)",[duplicateGrant,principal]);
+  const same=await Promise.allSettled([approveJitGrant(pool,{grantId:duplicateGrant,approverId:a}),approveJitGrant(pool,{grantId:duplicateGrant,approverId:a})]);
   assert.equal(same.filter(x=>x.status==="fulfilled").length,1);
+  await admin.query("INSERT INTO tpay_privileged_grants(id,principal_id,resource,action,justification,issued_at,expires_at,one_shot,approval_count,required_approvals) VALUES($1,$2,'prod/db','read','dual approval race',now(),now()+interval '10 minutes',true,0,2)",[grant,principal]);
   const different=await Promise.allSettled([approveJitGrant(pool,{grantId:grant,approverId:b}),approveJitGrant(pool,{grantId:grant,approverId:c})]);
   assert.equal(different.filter(x=>x.status==="fulfilled").length,2);
   assert.equal(Number((await admin.query("SELECT approval_count FROM tpay_privileged_grants WHERE id=$1",[grant])).rows[0].approval_count),2);
