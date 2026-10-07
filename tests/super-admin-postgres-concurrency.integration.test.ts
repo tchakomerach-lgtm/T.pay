@@ -36,8 +36,9 @@ test("PostgreSQL adversarial control-plane concurrency",{skip:!url&&"TPAY_DATABA
 
   const keyData=[a,b,c].map(actor=>{const k=generateKeyPairSync("ed25519");return{actor,k,der:k.publicKey.export({type:"spki",format:"der"}) as Buffer}});
   const request={operation:"maintenance-root",nonce:randomUUID()};const digest=requestDigest(request);
-  for(let i=0;i<keyData.length;i++)await admin.query("INSERT INTO tpay_privileged_verification_keys(id,privileged_identity_id,credential_id,algorithm,public_key_der,hardware_backed) VALUES($1,$2,$3,'Ed25519',$4,false)",[randomUUID(),keyData[i].actor,"root-"+i,keyData[i].der]);
-  const approvals=keyData.map((x,i)=>({actorId:x.actor,domain:["identity","security","infrastructure"][i],algorithm:"Ed25519" as const,signature:sign(null,Buffer.from(digest),x.k.privateKey),credentialId:"root-"+i}));
+  for(const [i,x] of keyData.entries())await admin.query("INSERT INTO tpay_privileged_verification_keys(id,privileged_identity_id,credential_id,algorithm,public_key_der,hardware_backed) VALUES($1,$2,$3,'Ed25519',$4,false)",[randomUUID(),x.actor,"root-"+i,x.der]);
+  const domains=["identity","security","infrastructure"] as const;
+  const approvals=keyData.map((x,i)=>({actorId:x.actor,domain:domains[i] ?? "identity",algorithm:"Ed25519" as const,signature:sign(null,Buffer.from(digest),x.k.privateKey),credentialId:"root-"+i}));
   const rootResults=await Promise.allSettled([authorizeRootOperationWithQuorum(pool,{operation:"TEST",request,expiresAt:new Date(Date.now()+60000),approvals,provider:new NodeVerificationProvider() }),authorizeRootOperationWithQuorum(pool,{operation:"TEST",request,expiresAt:new Date(Date.now()+60000),approvals,provider:new NodeVerificationProvider() })]);
   assert.equal(rootResults.filter(x=>x.status==="fulfilled").length,1);
   roots.push(String(rootResults.find(x=>x.status==="fulfilled")?.status==="fulfilled" ? (rootResults.find(x=>x.status==="fulfilled") as PromiseFulfilledResult<any>).value.operationId : ""));
