@@ -13,7 +13,7 @@ This registry makes the project's Bibles discoverable before implementation and 
 |---|---|
 | Money, balances, fees, payment, ledger | `docs/skills/TPAY-FIN-002.md` + finance architecture/ADR |
 | Microfinance, collection, field agent | `docs/skills/TPAY-MF-002.md` + microfinance ADRs |
-| Identity, authorization, secrets, abuse | `docs/skills/TPAY-SEC-001.md` + `docs/security/THREAT-MODEL.md` |
+| Identity, authorization, secrets, abuse | `docs/skills/TPAY-SEC-001.md` + `docs/security/THREAT-MODEL.md` |\n| Super Admin, Root Trust, privileged access, cyber recovery | `docs/skills/TPAY-SUPER-ADMIN-001.md` + Super Admin Bible Prompts 003/004/005/007/008 |
 | AI, agents, tools, prompts | `docs/skills/TPAY-AI-001.md` + AI Bible |
 | Voice, telephony, call automation, appointments | `docs/skills/TPAY-VOICE-001.md` + `docs/bibles/TPAY-AI-PROMPT-020-VOICE-FABRIC.md` + AI + Security skills |
 | Authentication/session | `docs/skills/TPAY-AUTH-002.md` |
