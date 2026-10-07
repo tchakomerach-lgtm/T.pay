@@ -20,11 +20,14 @@ export const API_ROUTE_POLICIES:readonly ApiRoutePolicy[]=[
  {route:"/v1/education/service-requests",methods:["POST"],auth:"member",financial:false},
  {route:"/v1/education/service-requests/:requestId/transition",methods:["POST"],auth:"member",financial:false},
 ];
-const normalize=(route:string)=>route.split("/").filter(Boolean).map(s=>s.startsWith(":")?":param":s).join("/");
-const normalizedPolicyRoute=(route:string)=>"/"+normalize(route);
+const segments=(route:string)=>route.split("/").filter(Boolean);
+const routeMatches=(pattern:string,actual:string):boolean=>{
+ const p=segments(pattern), a=segments(actual);
+ if(p.length!==a.length)return false;
+ return p.every((part,index)=>part.startsWith(":")||part===a[index]);
+};
 export function resolveRoutePolicy(method:string,route:string):ApiRoutePolicy|null{
- const normalized="/"+normalize(route);
- const candidate=API_ROUTE_POLICIES.find(p=>normalizedPolicyRoute(p.route)===normalized&&p.methods.includes(method.toUpperCase()));
+ const candidate=API_ROUTE_POLICIES.find(p=>routeMatches(p.route,route)&&p.methods.includes(method.toUpperCase()));
  return candidate??null;
 }
 export function isFinancialRoute(route:string):boolean{return /(^|\/)\b(payments?|wallets?|ledger|credit|loans?|transfers?|cash|withdrawals?|deposits?|tontines?)\b/i.test(route);}
