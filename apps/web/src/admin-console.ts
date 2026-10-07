@@ -31,10 +31,11 @@ async function load(section:AdminSection,root:HTMLElement){
         const ch=await api("/v1/admin/auth/webauthn/challenge",{method:"POST",headers:{"x-csrf-token":csrf}});
         const cj=await ch.json() as any; if(!ch.ok) throw new Error("CHALLENGE_DENIED");
         const b64=(v:string)=>{const pad="=".repeat((4-v.length%4)%4),s=(v+pad).replace(/-/g,"+").replace(/_/g,"/");return Uint8Array.from(atob(s),x=>x.charCodeAt(0));};
-        if(!window.PublicKeyCredential||!navigator.credentials) throw new Error("WEBAUTHN_UNSUPPORTED");
-        const cred=await navigator.credentials.get({publicKey:{challenge:b64(cj.data.challenge),rpId:cj.data.rpId,userVerification:"required",timeout:120000}}) as PublicKeyCredential|null;
+        const browser=globalThis as any;
+        if(!browser.PublicKeyCredential||!browser.navigator?.credentials) throw new Error("WEBAUTHN_UNSUPPORTED");
+        const cred=await browser.navigator.credentials.get({publicKey:{challenge:b64(cj.data.challenge),rpId:cj.data.rpId,userVerification:"required",timeout:120000}});
         if(!cred) throw new Error("WEBAUTHN_CANCELLED");
-        const r=cred.response as AuthenticatorAssertionResponse;
+        const r=cred.response;
         const enc=(x:ArrayBuffer)=>{let s="";new Uint8Array(x).forEach(v=>s+=String.fromCharCode(v));return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");};
         const vr=await api("/v1/admin/auth/webauthn/step-up",{method:"POST",headers:{"x-csrf-token":csrf},body:JSON.stringify({challengeId:cj.data.challengeId,credentialId:cred.id,clientDataJSON:enc(r.clientDataJSON),authenticatorData:enc(r.authenticatorData),signature:enc(r.signature)})});
         if(!vr.ok) throw new Error("WEBAUTHN_VERIFY_FAILED");
