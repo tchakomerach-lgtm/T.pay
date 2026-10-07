@@ -588,6 +588,7 @@ test("P041 live PostgreSQL durable realtime replay is ordered, tenant-isolated a
     }
   } finally {
     await admin.query("DELETE FROM education_realtime_events WHERE tenant_id IN ($1,$2) OR organization_id=$3",[tenantId,otherTenantId,organizationId]);
+    await admin.query("DELETE FROM education_realtime_stream_cursors WHERE tenant_id IN ($1,$2) OR organization_id=$3",[tenantId,otherTenantId,organizationId]);
     await admin.end();
   }
 });
