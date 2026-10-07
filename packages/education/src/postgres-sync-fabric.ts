@@ -180,7 +180,7 @@ export class PostgresEducationSyncStore {
       `INSERT INTO education_realtime_events
        (id,tenant_id,organization_id,stream_sequence,event_type,occurred_at,entity_id,version,data,payload_hash)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)
-       ON CONFLICT (tenant_id,organization_id,id) DO NOTHING`,
+       ON CONFLICT (id) DO NOTHING`,
       [eventId,tenantId,organizationId,next.toString(),type,occurredAt,eventId,version.toString(),JSON.stringify(data),payloadHash]
     );
     if((inserted.rowCount??0)>0){
