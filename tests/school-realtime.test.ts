@@ -16,3 +16,11 @@ test("realtime closes slow subscribers after bounded queue overflow",()=>{
  hub.subscribe({id:"slow",tenantId:"t1",organizationId:"o1",send:m=>{received.push(m)},close:()=>closed++});
  hub.publish(event("e1")); hub.publish(event("e2")); assert.equal(closed,1); assert.equal(received.at(-1)?.kind,"resync_required");
 });
+
+test("P052 uses durable stream sequence as SSE Last-Event-ID cursor",()=>{
+ const e={...event("uuid-event"),streamSequence:"42"};
+ const s=toSseMessage({kind:"event",event:e});assert.match(s,/^id: 42\nevent: event/);
+});
+test("P052 falls back to event id only for transient events without durable sequence",()=>{
+ const s=toSseMessage({kind:"event",event:event("transient")});assert.match(s,/^id: transient\nevent: event/);
+});
