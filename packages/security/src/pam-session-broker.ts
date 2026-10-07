@@ -54,7 +54,7 @@ export class PamSessionBroker{
  async terminate(input:{pamSessionId:string;connector:PamConnector;secretRef?:string}){
   const s=(await this.pool.query("SELECT * FROM tpay_pam_sessions WHERE id=$1 FOR UPDATE",[input.pamSessionId])).rows[0];
   if(!s)return;
-  if(s.state==="ACTIVE"&&s.connector_session_ref)await input.connector.terminate(String(s.connector_session_ref));
+  if(s.state==="ACTIVE"&&s.connector_session_ref)await input.connector.terminate({sessionRef:String(s.connector_session_ref)});
   await this.pool.query("UPDATE tpay_pam_sessions SET state='TERMINATED',terminated_at=now() WHERE id=$1 AND state='ACTIVE'",[input.pamSessionId]);
   if(input.secretRef)await this.credentials.revoke({secretRef:input.secretRef});
  }
