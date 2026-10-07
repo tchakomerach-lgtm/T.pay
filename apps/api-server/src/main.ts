@@ -30,6 +30,7 @@ export interface RuntimeConfig{
   tlsCertFile:string;
   host:string;
   port:number;
+  webOrigins:readonly string[];
 }
 
 export function readRuntimeConfig(source=process.env):RuntimeConfig{
@@ -121,6 +122,7 @@ export async function buildProductionApiServer(config:RuntimeConfig):Promise<{se
     authenticate,
     syncClient:()=>new PooledTransactionClient(pool),
     realtime,
+    corsOrigins:config.webOrigins,
     realtimeStore:{
       replay:(tenantId:string,organizationId:string,afterSequence:bigint)=>new PostgresSchoolRealtimeStore(new PooledTransactionClient(pool)).replay(tenantId,organizationId,afterSequence)
     }
