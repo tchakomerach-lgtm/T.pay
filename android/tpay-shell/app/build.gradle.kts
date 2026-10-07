@@ -16,6 +16,11 @@ android {
         buildConfigField("String", "TPAY_WEB_URL", "\"https://127.0.0.1:5173/\"")
     }
 
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
@@ -28,6 +33,10 @@ android {
     }
 
     buildFeatures { buildConfig = true }
+}
+
+kotlin {
+    jvmToolchain(17)
 }
 
 dependencies {
