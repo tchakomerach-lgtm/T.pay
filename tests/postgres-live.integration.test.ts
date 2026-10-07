@@ -623,7 +623,7 @@ test("P042 live PostgreSQL serializes School sync concurrency and preserves idem
     try {
       const first=makeEvent();
       const duplicateA=new PostgresEducationSyncStore(clients[0]!).accept(first);
-      const duplicateB=new PostgresEducationSyncStore(clients[1]!).accept({...first});
+      const duplicateB=new PostgresEducationSyncStore(clients[1]!).accept({...first,deviceId:randomUUID()});
       const [a,b]=await Promise.all([duplicateA,duplicateB]);
       assert.deepEqual(new Set([a.state,b.state]),new Set(["ACCEPTED","DUPLICATE"]));
 
