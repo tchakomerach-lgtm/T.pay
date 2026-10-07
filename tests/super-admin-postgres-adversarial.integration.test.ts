@@ -24,7 +24,6 @@ test("PostgreSQL adversarial JIT: concurrent consumption permits exactly one ses
   assert.ok(row.rows[0].consumed_at);
   const sessions=await admin.query("SELECT count(*)::int AS n FROM tpay_privileged_sessions WHERE grant_id=$1",[grant]);
   assert.equal(sessions.rows[0].n,1);
-  await pool.end();
  }finally{
   await admin.query("DELETE FROM tpay_privileged_sessions WHERE grant_id=$1",[grant]);
   await admin.query("DELETE FROM tpay_jit_approvals WHERE grant_id=$1",[grant]);
