@@ -57,12 +57,12 @@ export async function completePersistedStepUp(pool:Pool,input:{sessionId:string;
  const used=consumeChallenge(challenge,{userId:input.userId,rpId:challenge.rpId,origin:challenge.origin});
  const key=(await c.query("SELECT privileged_identity_id,algorithm,public_key_der FROM tpay_privileged_verification_keys WHERE credential_id=$1 AND active=true",[input.credentialId])).rows[0];
  if(!key)throw new Error("WEBAUTHN_CREDENTIAL_NOT_FOUND");
- verifyWebAuthnAssertion({...input,challenge,publicKeyDer:Buffer.from(key.public_key_der),algorithm:String(key.algorithm) as "ES256"|"Ed25519"});
+ const assertion=verifyWebAuthnAssertion({...input,challenge,publicKeyDer:Buffer.from(key.public_key_der),algorithm:String(key.algorithm) as "ES256"|"Ed25519"});
  const identity=(await c.query("SELECT id FROM tpay_privileged_identities WHERE id=$1 AND human_user_id=$2 AND active=true AND expires_at>now()",[key.privileged_identity_id,input.userId])).rows[0];
  if(!identity)throw new Error("PRIVILEGED_IDENTITY_REQUIRED");
  await c.query("UPDATE tpay_webauthn_stepup_challenges SET used_at=now() WHERE id=$1",[input.challengeId]);
  const updated=await c.query("UPDATE identity_sessions SET assurance='step_up',last_seen_at=now() WHERE id=$1 AND user_id=$2 AND revoked_at IS NULL AND expires_at>now() RETURNING id",[input.sessionId,input.userId]);
  if(!updated.rowCount)throw new Error("SESSION_INVALID");
- await c.query("COMMIT");return used;
+ await c.query("COMMIT");return {...used,signCount:assertion.signCount,userVerified:assertion.userVerified};
  }catch(e){await c.query("ROLLBACK");throw e}finally{c.release();}
 }
