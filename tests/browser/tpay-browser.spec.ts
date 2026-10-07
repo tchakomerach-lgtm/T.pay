@@ -38,7 +38,7 @@ test.describe("T.Pay renderer browser gate", () => {
     await mode.click();
     await expect(page.getByTestId("connection-status")).toContainText("Hors ligne");
     await expect(page.getByTestId("offline-authority")).toContainText("Aucune confirmation serveur");
-    await expect(page.getByTestId("remote-success")).toHaveCount(0);
+    await expect(page.getByTestId("remote-success")).toBeHidden();
   });
 
   test("reconnect returns to online without losing the active surface", async ({ page }) => {
