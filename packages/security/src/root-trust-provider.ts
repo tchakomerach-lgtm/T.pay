@@ -28,7 +28,7 @@ export async function authorizeRootOperationWithQuorum(pool:Pool,input:{operatio
    const ok=await input.provider.verify({algorithm:a.algorithm,publicKeyDer,signature:a.signature,digest});if(!ok)throw new Error("ROOT_SIGNATURE_INVALID");
   }
   const id=(await c.query("INSERT INTO tpay_root_operations(id,operation,actor_ids,independent_domains,request_digest,created_at,expires_at,status,quorum_required) VALUES(gen_random_uuid(),$1,$2,$3,$4,now(),$5,'AUTHORIZED',3) RETURNING id",[input.operation,JSON.stringify(input.approvals.map(x=>x.actorId)),JSON.stringify([...domains]),digest,input.expiresAt])).rows[0].id;
-  for(const a of input.approvals)await c.query("INSERT INTO tpay_root_approvals(operation_id,actor_id,independent_domain,signature_format,signature,signed_digest) VALUES($1,$2,$3,$4,$5,$6)",[id,a.actorId,a.domain,a.algorithm,a.signature,digest]);
+  for(const a of input.approvals)await c.query("INSERT INTO tpay_root_approvals(operation_id,actor_id,independent_domain,signature_format,signature,signed_digest) VALUES($1,$2,$3,$4,$5,$6)",[id,a.actorId,a.domain,a.algorithm==="Ed25519"?"ED25519":"ECDSA_P256_SHA256",a.signature,digest]);
   await c.query("COMMIT");return{operationId:String(id),digest,status:"AUTHORIZED" as const};
  }catch(e){await c.query("ROLLBACK");throw e}finally{c.release();}
 }
