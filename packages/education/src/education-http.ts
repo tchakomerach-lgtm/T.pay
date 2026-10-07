@@ -18,7 +18,7 @@ export interface SchoolAuthContext { principal: Principal; session: Organization
 export interface SchoolApiDependencies {
   db: ApiDb & { query(sql:string,values?:unknown[]):Promise<{rows:Record<string,unknown>[];rowCount:number|null}> };
   authenticate(request: IncomingMessage): Promise<SchoolAuthContext>;
-  syncClient(): ConstructorParameters<typeof PostgresEducationSyncStore>[0];
+  syncClient(): ConstructorParameters<typeof PostgresEducationSyncStore>[0] | Promise<ConstructorParameters<typeof PostgresEducationSyncStore>[0]>;
   now?: () => Date;
   realtime?: SchoolRealtimeHub;
   realtimeStore?: PostgresSchoolRealtimeStore;
@@ -122,7 +122,9 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     data=q.rows[0];
    } else if(r[0]==="sync"){
     const event={...body,tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,payloadHash:computeSyncPayloadHash((body as any).payload)};
-    data=await new PostgresEducationSyncStore(deps.syncClient()).accept(event as any);
+    const syncClient=await deps.syncClient();
+    try{ data=await new PostgresEducationSyncStore(syncClient).accept(event as any); }
+    finally{ syncClient.release?.(); }
    } else if(r[0]==="attendance"){
     const incoming=body as AttendanceRecord; incoming.organizationId=organizationId;
     const q=await deps.db.query("SELECT * FROM education_attendance WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3 AND class_id=$4",[auth.tenantId,organizationId,incoming.studentId,incoming.classId]);
