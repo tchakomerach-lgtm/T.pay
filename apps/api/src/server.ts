@@ -247,7 +247,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           if(!pool||!authenticatedSession||authClass!=="admin"){json(res,403,buildApiError({message:"ADMIN_ACCESS_DENIED"},correlationId));return;}
           const limit=Math.min(Number(url.searchParams.get("limit")??25)||25,100);
           const cursor=url.searchParams.get("cursor")??undefined;
-          json(res,200,buildApiSuccess("v1",correlationId,await listAdminAudit(pool,{limit,cursor})));return;
+          json(res,200,buildApiSuccess("v1",correlationId,await listAdminAudit(pool,cursor===undefined?{limit}:{limit,cursor})));return;
         }
 
         if(url.pathname==="/v1/auth/register"&&method==="POST"){
