@@ -33,6 +33,9 @@ Home feed/social graph; opportunity/recruitment; marketplace/e-commerce; adverti
 ## Gate J — Organization Vertical Modules
 Enterprise/PME/PMI/startup; restaurant/hotel/boutique/supermarket; clinic/hospital/pharmacy/laboratory; farm/agriculture/cooperative; NGO/association/public administration; transport; real estate; industry/media/sport/culture; other. Each vertical inherits the same security contract and cannot create a parallel authorization or financial truth.
 
+## Gate K-F — T.Pay Fortress
+Vault identities, per-vault cryptographic boundaries, controlled bridges, compromise quarantine, persistent vault/bridge metadata under RLS, external HSM/KMS adapter and adversarial isolation tests. This gate is required before any cross-vault production side effect.
+
 ## Gate K — Platform Operations
 Observability; SIEM/SOC/SOAR integration; incident response; backups/restore; DR/BCP; TASS; chaos/canary; supply-chain security; dependency and secret scanning; vulnerability/exception lifecycle; security drills; cost controls; production runbooks.
 
