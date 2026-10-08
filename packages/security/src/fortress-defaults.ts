@@ -41,13 +41,13 @@ const OFFLINE_SUBVAULTS = [["offline-queue","offline-queue"]] as const;
 const AUDIT_SUBVAULTS = [["audit-security","audit-security"],["audit-financial","audit-financial"]] as const;
 
 export const ADMIN_SUBVAULTS = [
- ["administrator-identity","identity"],["administrator-authentication","authentication"],["administrator-sessions","sessions"],
- ["administrator-super-admin","super-admin"],["administrator-roles","roles"],["administrator-permissions","permissions"],
- ["administrator-policies","policies"],["administrator-platform","platform"],["administrator-configuration","configuration"],
- ["administrator-feature-flags","feature-flags"],["administrator-approvals","approvals"],["administrator-security","security"],
- ["administrator-incidents","incidents"],["administrator-audit","audit"],["administrator-evidence","evidence"],
- ["administrator-compliance","compliance"],["administrator-keys","keys"],["administrator-recovery","recovery"],
- ["administrator-operations","operations"],["administrator-emergency","emergency"]
+ ["administrator-identity","security"],["administrator-authentication","security"],["administrator-sessions","security"],
+ ["administrator-super-admin","security"],["administrator-roles","security"],["administrator-permissions","security"],
+ ["administrator-policies","security"],["administrator-platform","security"],["administrator-configuration","security"],
+ ["administrator-feature-flags","security"],["administrator-approvals","security"],["administrator-security","security"],
+ ["administrator-incidents","security"],["administrator-audit","security"],["administrator-evidence","security"],
+ ["administrator-compliance","security"],["administrator-keys","security"],["administrator-recovery","security"],
+ ["administrator-operations","security"],["administrator-emergency","security"]
 ] as const;
 
 export const FORTRESS_USER_MODULES = [
