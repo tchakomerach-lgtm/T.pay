@@ -35,7 +35,7 @@ jobs:
       TPAY_DATABASE_URL: postgresql://postgres:tpay_ci@127.0.0.1:5432/tpay_ci
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
