@@ -21,7 +21,7 @@ export interface SchoolApiDependencies {
   syncClient(): ConstructorParameters<typeof PostgresEducationSyncStore>[0] | Promise<ConstructorParameters<typeof PostgresEducationSyncStore>[0]>;
   now?: () => Date;
   realtime?: SchoolRealtimeHub;
-  realtimeStore?: Pick<PostgresSchoolRealtimeStore,"replay">;
+  realtimeStore?: Pick<PostgresSchoolRealtimeStore,"replay"|"append">;
   corsOrigins?: readonly string[];
 }
 const json=(res:ServerResponse,status:number,body:unknown,correlationId:string)=>{
@@ -166,10 +166,24 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     const updated=await deps.db.query("UPDATE education_service_requests SET status=$1,version=$2,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND request_id=$5 AND version=$6 RETURNING *",[next.status,next.version,auth.tenantId,organizationId,r[1],Number((q.rows[0] as any).version)]);
     if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
    }
-   if(deps.realtime && r[0]!=="actor"){
+   if(deps.realtime && deps.realtimeStore && r[0]!=="actor"){
     const typeMap:Record<string,SchoolRealtimeEvent["type"]>={sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
     const eventType=typeMap[r[0]];
-    if(eventType) deps.realtime.publish({id:correlationId,tenantId:auth.tenantId,organizationId,type:eventType,occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String((data as any)?.id??(data as any)?.request_id??(data as any)?.work_item_id??(data as any)?.eventId??correlationId),version:Number((data as any)?.version??1),data:{operation:method,route:path}});
+    if(eventType){
+      const event:SchoolRealtimeEvent={
+        id:correlationId,
+        tenantId:auth.tenantId,
+        organizationId,
+        type:eventType,
+        occurredAt:(deps.now??(()=>new Date()))().toISOString(),
+        entityId:String((data as any)?.id??(data as any)?.request_id??(data as any)?.work_item_id??(data as any)?.eventId??correlationId),
+        version:Number((data as any)?.version??1),
+        data:{operation:method,route:path}
+      };
+      const streamSequence=await deps.realtimeStore.append(event);
+      event.streamSequence=streamSequence.toString();
+      deps.realtime.publish(event);
+    }
    }
    const response=buildApiSuccess("v1",correlationId,data);
    if(dedupe?.status==="reserved")await gateway.completeIdempotency({requestId:dedupe.requestId,state:"succeeded",responseHash:canonicalRequestHash("RESPONSE",path,JSON.stringify(response)),statusCode:200});
