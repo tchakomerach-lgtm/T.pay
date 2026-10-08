@@ -2,8 +2,8 @@ import { isIP } from "node:net";
 import { lookup } from "node:dns/promises";
 
 function unsafeIp(ip:string):boolean {
- const v=isIP(ip); if(v===4){const p=ip.split(".").map(Number);const [a,b]=p;return a===0||a===10||a===127||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&b===168)||(a>=224);}
- if(v===6){const h=ip.toLowerCase();return h==="::1"||h==="::"||h.startsWith("fc")||h.startsWith("fd")||h.startsWith("fe8")||h.startsWith("fe9")||h.startsWith("fea")||h.startsWith("feb")||h.startsWith("ff");}
+ const v=isIP(ip); if(v===4){const p=ip.split(".").map(Number);const [a,b]=p;return a===0||a===10||a===127||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&(b===0||b===168))||(a===100&&b>=64&&b<=127)||(a===198&&(b===18||b===19||b===51))||(a===203&&b===0)||(a>=224);}
+ if(v===6){const h=ip.toLowerCase(); if(h.startsWith("::ffff:")) return unsafeIp(h.slice(7)); return h==="::1"||h==="::"||h.startsWith("fc")||h.startsWith("fd")||h.startsWith("fe8")||h.startsWith("fe9")||h.startsWith("fea")||h.startsWith("feb")||h.startsWith("ff");}
  return true;
 }
 export async function resolvePublicDestination(hostname:string):Promise<readonly string[]>{
