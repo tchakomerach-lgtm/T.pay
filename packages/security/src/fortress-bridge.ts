@@ -46,7 +46,7 @@ export class FortressSecurityGateway {
   if(!policy) throw new Error("FORTRESS_BRIDGE_POLICY_DENIED");
   if(operation.expiresAt-now>policy.maxTtlMs) throw new Error("FORTRESS_OPERATION_TTL_EXCEEDED");
   if(this.deps.authorization) assertAuthorized(this.deps.authorization.context,{...this.deps.authorization.rule,action:operation.action,requiredRoles:policy.requiredRoles??this.deps.authorization.rule.requiredRoles,allowedDataClasses:policy.allowedDataClasses,requiredPurpose:operation.purpose,requireTrustedDevice:policy.requiredTrustedDevice??this.deps.authorization.rule.requireTrustedDevice,maxSessionAgeMs:policy.maxSessionAgeMs??this.deps.authorization.rule.maxSessionAgeMs});
-  if(this.deps.capabilityRevocationStore && await this.deps.capabilityRevocationStore.isRevoked(operation.capabilityId)) throw new Error("FORTRESS_CAPABILITY_REVOKED");
+  if(this.deps.capabilityRevocationStore){\n   if(await this.deps.capabilityRevocationStore.isRevoked(operation.capabilityId)) throw new Error("FORTRESS_CAPABILITY_REVOKED");\n   if(await this.deps.capabilityRevocationStore.isGloballyRevoked()) throw new Error("FORTRESS_CAPABILITY_GLOBAL_REVOCATION_ACTIVE");\n  }
   if(this.deps.replayStore){
    const claimed=await this.deps.replayStore.claim({scope:`org:${operation.organizationId}`,actionId:operation.operationId,payloadHash:operation.payloadHash,expiresAt:operation.expiresAt},now);
    if(!claimed) throw new Error("FORTRESS_REPLAY_DETECTED");
