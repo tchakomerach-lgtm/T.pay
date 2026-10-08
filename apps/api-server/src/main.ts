@@ -120,7 +120,13 @@ async function authenticateFactory(pool:Pool){
 export async function buildProductionApiServer(config:RuntimeConfig):Promise<{server:Server;pool:Pool}>{
   const tlsKey=await readFile(config.tlsKeyFile);
   const tlsCert=await readFile(config.tlsCertFile);
-  const pool=new pg.Pool({connectionString:config.databaseUrl,max:20,ssl:process.env.TPAY_DATABASE_SSL==="require"?{rejectUnauthorized:true}:undefined});
+  const localInsecureDb=process.env.TPAY_ALLOW_INSECURE_LOCAL_DB==="true" && process.env.TPAY_ALLOW_LOCAL_TEST_SEED==="true";
+  if(process.env.TPAY_DATABASE_SSL!=="require" && !localInsecureDb)throw new Error("TPAY_DATABASE_TLS_REQUIRED");
+  const pool=new pg.Pool({
+    connectionString:config.databaseUrl,
+    max:20,
+    ssl:process.env.TPAY_DATABASE_SSL==="require"?{rejectUnauthorized:true}:undefined
+  });
   const migrationClient=await pool.connect();
   try{await applyMigrations(migrationClient, pathToFileURL(join(process.cwd(),"migrations")+"/"));}
   finally{migrationClient.release();}
