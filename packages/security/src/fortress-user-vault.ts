@@ -38,7 +38,7 @@ export class FortressUserVaultManager {
   const vault:FortressUserVaultDescriptor={
    vaultId,
    layer:parent.layer,
-   organizationId,
+   ...(organizationId===undefined ? {} : {organizationId}),
    namespace:createUserVaultNamespace(moduleVaultId,organizationId,userId),
    classification:parent.classification,
    keyRef:createVaultKeyRef(vaultId),
