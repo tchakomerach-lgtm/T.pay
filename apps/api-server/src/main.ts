@@ -126,6 +126,7 @@ export async function buildProductionApiServer(config:RuntimeConfig):Promise<{se
     corsOrigins:config.webOrigins,
     realtimeStore:{
       append:(event)=>new PostgresSchoolRealtimeStore(new PooledTransactionClient(pool)).append(event),
+      append:(event)=>new PostgresSchoolRealtimeStore(new PooledTransactionClient(pool)).append(event),
       replay:(tenantId:string,organizationId:string,afterSequence:bigint)=>new PostgresSchoolRealtimeStore(new PooledTransactionClient(pool)).replay(tenantId,organizationId,afterSequence)
     }
   },{
