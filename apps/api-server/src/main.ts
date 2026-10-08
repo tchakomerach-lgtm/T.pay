@@ -37,13 +37,21 @@ export function readRuntimeConfig(source=process.env):RuntimeConfig{
   for(const name of REQUIRED_ENV)if(!source[name]?.trim())throw new Error(`TPAY_ENV_REQUIRED:${name}`);
   const port=Number(source.TPAY_API_PORT??"8443");
   if(!Number.isInteger(port)||port<1||port>65535)throw new Error("TPAY_API_PORT_INVALID");
+  const webOrigins=(source.TPAY_WEB_ORIGINS??"").split(",").map(value=>value.trim()).filter(Boolean);
+  for(const origin of webOrigins){
+    let parsed:URL;
+    try{parsed=new URL(origin);}catch{throw new Error("TPAY_WEB_ORIGIN_INVALID");}
+    if(parsed.protocol!=="https:"||parsed.origin!==origin||parsed.username||parsed.password||parsed.pathname!=="/"||parsed.search||parsed.hash){
+      throw new Error("TPAY_WEB_ORIGIN_HTTPS_REQUIRED");
+    }
+  }
   return {
     databaseUrl:source.TPAY_DATABASE_URL!.trim(),
     tlsKeyFile:source.TPAY_TLS_KEY_FILE!.trim(),
     tlsCertFile:source.TPAY_TLS_CERT_FILE!.trim(),
     host:source.TPAY_API_HOST?.trim()||"0.0.0.0",
     port,
-    webOrigins:(source.TPAY_WEB_ORIGINS??"").split(",").map(value=>value.trim()).filter(Boolean)
+    webOrigins
   };
 }
 
