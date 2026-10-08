@@ -18,7 +18,8 @@
     "api:build": "npm run build",
     "api:seed:test": "npm run build && node dist/scripts/bootstrap-local-test.js",
     "test:terrain": "npm run check && npm run security:fortress && npm run test:postgres && node scripts/replit-terrain-certification.mjs",
-    "security:fortress": "node scripts/security-fortress-check.mjs"
+    "security:fortress": "node scripts/security-fortress-check.mjs",
+    "test:vault": "npm run build && node --test dist/tests/fortress-vault.test.js"
   },
   "engines": {
     "node": ">=22"
