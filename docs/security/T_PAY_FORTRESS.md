@@ -81,7 +81,7 @@ AI, Social, Document, Organization or other cells have no implicit path to Ledge
 Root operations require at least two distinct approvers and separation of duties. The initiating actor cannot approve its own operation. Persistent approvals are protected by a dedicated database role.
 
 ## FORT-018 — Global access isolation
-Tenant RLS sessions cannot read global General Fortress or Super Admin metadata. Global access requires the dedicated Fortress operator database role and explicit privileged session context.
+Tenant RLS sessions cannot read global General Fortress or Administrateur metadata. Global access requires the dedicated Fortress operator database role and explicit privileged session context.
 
 ## FORT-019 — Compromise containment
 Quarantining a sub-vault blocks its operations while unrelated vaults remain active. Parent containment is not automatically required for a child compromise, and child compromise does not grant parent access.
