@@ -92,10 +92,17 @@ jobs:
           export TPAY_ALLOW_LOCAL_TEST_SEED=true
           npm run api:seed:test > "$RUNNER_TEMP/tpay-seed.log"
           cat "$RUNNER_TEMP/tpay-seed.log"
-          token="$(sed -n 's/^token=//p' "$RUNNER_TEMP/tpay-seed.log" | tail -n 1)"
+          seed_json="$(cat "$RUNNER_TEMP/tpay-seed.log")"
+          token="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(x.accessToken)' "$seed_json")"
+          actor_id="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(x.actorId)' "$seed_json")"
+          device_id="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(x.deviceId)' "$seed_json")"
           test -n "$token"
+          test -n "$actor_id"
+          test -n "$device_id"
           echo "::add-mask::$token"
           echo "TPAY_TERRAIN_ACCESS_TOKEN=$token" >> "$GITHUB_ENV"
+          echo "TPAY_TERRAIN_ACTOR_ID=$actor_id" >> "$GITHUB_ENV"
+          echo "TPAY_TERRAIN_DEVICE_ID=$device_id" >> "$GITHUB_ENV"
 
       - name: Run physical Android terrain harness
         shell: bash
