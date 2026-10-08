@@ -20,7 +20,7 @@ export class FortressSecurityGateway {
   if(this.policies.has(policy.bridgeId)) throw new Error("FORTRESS_BRIDGE_ALREADY_REGISTERED");
   if(policy.sourceVaultId===policy.targetVaultId) throw new Error("FORTRESS_BRIDGE_SELF_TARGET");
   this.registry.get(policy.sourceVaultId); this.registry.get(policy.targetVaultId);
-  this.policies.set(policy.bridgeId,{...policy,allowedPurposes:[...policy.allowedPurposes],allowedActions:[...policy.allowedActions],allowedDataClasses:[...policy.allowedDataClasses]});
+  this.registry.get(policy.sourceVaultId); this.registry.get(policy.targetVaultId);\n  this.policies.set(policy.bridgeId,{...policy,allowedPurposes:[...policy.allowedPurposes],allowedActions:[...policy.allowedActions],allowedDataClasses:[...policy.allowedDataClasses]});\n  this.registry.allowBridge(policy.sourceVaultId,policy.bridgeId);
  }
 
  authorize(operation:VaultOperation,now=Date.now()):void {
