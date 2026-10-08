@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { OpportunityQueryable, OpportunityTransaction } from "./postgres-repository.js";
 import { transitionOpportunity, type OpportunityActorClass, type OpportunityCommand, type OpportunityState } from "./lifecycle.js";
 
@@ -56,7 +56,7 @@ export class PostgresOpportunityLifecycleRepository {
 
       const currentVersion = BigInt(row.version);
       const nextVersion = currentVersion + 1n;
-      const eventId = cryptoId();
+      const eventId = randomUUID();
       const occurredAt = new Date().toISOString();
       const eventHash = createHash("sha256").update(JSON.stringify({
         eventId, tenantId: input.tenantId, organizationId: input.organizationId,
