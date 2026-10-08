@@ -145,7 +145,9 @@ test("P055 E2E terrain links administration → teacher → student → parent �
     );
     assert.deepEqual(syncCounts.rows[0],{inbox:2,outbox:2});
 
-    const realtimeClient=await pool.connect();\n    const realtime=await new PostgresSchoolRealtimeStore(realtimeClient).replay(tenant,org,0n);\n    realtimeClient.release();
+    const realtimeClient=await pool.connect();
+    const realtime=await new PostgresSchoolRealtimeStore(realtimeClient).replay(tenant,org,0n);
+    realtimeClient.release();
     assert.equal(realtime.state,"OK");
     assert.equal(realtime.events.length,2);
     assert.equal(realtime.events[0]?.streamSequence,"1");
