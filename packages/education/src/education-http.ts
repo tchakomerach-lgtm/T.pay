@@ -29,6 +29,16 @@ const IDEMPOTENCY_KEY=/^[A-Za-z0-9._:-]{12,128}$/;
 const MAX_URL_LENGTH=2048;
 const MAX_HEADER_VALUE_LENGTH=4096;
 const MAX_BODY_BYTES=1024*1024;
+const setSecurityHeaders=(res:ServerResponse)=>{
+  res.setHeader("x-content-type-options","nosniff");
+  res.setHeader("referrer-policy","no-referrer");
+  res.setHeader("permissions-policy","camera=(), microphone=(), geolocation=()");
+  res.setHeader("x-frame-options","DENY");
+  res.setHeader("cross-origin-resource-policy","same-origin");
+  res.setHeader("cross-origin-opener-policy","same-origin");
+  res.setHeader("x-permitted-cross-domain-policies","none");
+  res.setHeader("strict-transport-security","max-age=31536000; includeSubDomains");
+};
 const json=(res:ServerResponse,status:number,body:unknown,correlationId:string)=>{
   if(res.headersSent||res.writableEnded)return false;
   const data=JSON.stringify(body);
@@ -86,6 +96,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
   const correlationId=String(req.headers["x-correlation-id"]??newCorrelationId());
   try{
    if(!CORRELATION_ID.test(correlationId))throw new Error("API_CORRELATION_ID_INVALID");
+   setSecurityHeaders(res);
    const rawUrl=String(req.url??"/");
    if(rawUrl.length>MAX_URL_LENGTH)throw new Error("API_URL_TOO_LONG");
    for(const [name,value] of Object.entries(req.headers)){
