@@ -25,6 +25,7 @@ const forbidden=[
 ];
 
 const required=[
+  ["apps/api-server/src/main.ts",/TPAY_DATABASE_TLS_REQUIRED/,"DATABASE_TLS_FAIL_CLOSED"],
   ["apps/api-server/src/main.ts",/minVersion:\s*["']TLSv1\.3["']/,"API_TLS13_REQUIRED"],
   ["apps/education-web/vite.config.ts",/command===["']serve["'][\s\S]*?TPAY_WEB_HTTPS_CERTIFICATES_REQUIRED/,"WEB_HTTPS_FAIL_CLOSED"],
   ["packages/education/src/education-http.ts",/API_IDEMPOTENCY_KEY_INVALID/,"IDEMPOTENCY_VALIDATION_REQUIRED"],
