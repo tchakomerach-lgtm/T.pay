@@ -43,12 +43,25 @@ jobs:
       - run: npm run web:build
       - run: npm audit --omit=dev --audit-level=high
 
+
+  detect-browser:
+    runs-on: ubuntu-latest
+    outputs:
+      present: ${{ steps.detect.outputs.present }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: detect
+        shell: bash
+        run: |
+          if [[ -f playwright.config.ts ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
   browser:
-    # DB-077 browser validation is activated only when the renderer harness is present.
-    # This keeps main's legacy CI deterministic until DB-077 is merged, while allowing
-    # the exact PR head to execute the real Playwright matrix once Actions is enabled.
-    if: ${{ hashFiles('playwright.config.ts') != '' }}
-    needs: quality
+    needs: [quality, detect-browser]
+    if: ${{ needs.detect-browser.outputs.present == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
