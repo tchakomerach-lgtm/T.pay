@@ -73,3 +73,40 @@ test("Fortress PostgreSQL migration creates RLS-protected vault and bridge table
   assert.equal(rls.rows.length,2); assert.ok(rls.rows.every(row=>row.relrowsecurity===true));
  } finally {await client.end();}
 });
+
+
+test("Fortress finance is a primary vault with isolated module sub-vaults",()=>{
+ const r=createDefaultFortressRegistry("org-fin");
+ const finance=r.get("finance");
+ const expected=["ledger","payment","wallet","credit","provider","microfinance","tontine","finance-commission","finance-subsidy"];
+ assert.equal(finance.vaultType,"primary");
+ for(const id of expected){
+  const sub=r.get(`finance.${id}`);
+  assert.equal(sub.vaultType,"sub");
+  assert.equal(sub.parentVaultId,"finance");
+  assert.equal(sub.organizationId,"org-fin");
+  assert.notEqual(sub.keyRef,finance.keyRef);
+  assert.notEqual(sub.namespace,finance.namespace);
+ }
+});
+
+test("Fortress main cells each own independent sub-vault families",()=>{
+ const r=createDefaultFortressRegistry("org-cells");
+ const families=[
+  ["identity",["identity-auth","identity-kyc","identity-session"]],
+  ["ai",["ai-model","ai-tool","ai-memory"]],
+  ["organization",["organization-policy","organization-members"]],
+  ["data-rag",["data-knowledge","data-pii"]],
+  ["document",["document-private","document-public"]],
+  ["social",["social-content","social-messaging"]],
+  ["offline-field",["offline-queue"]],
+  ["audit-evidence",["audit-security","audit-financial"]]
+ ] as const;
+ for(const [parent,children] of families){
+  for(const child of children){
+   const sub=r.get(`${parent}.${child}`);
+   assert.equal(sub.parentVaultId,parent);
+   assert.notEqual(sub.keyRef,r.get(parent).keyRef);
+  }
+ }
+});
