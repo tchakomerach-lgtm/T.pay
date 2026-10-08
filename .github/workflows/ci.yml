@@ -44,6 +44,10 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
 
   browser:
+    # DB-077 browser validation is activated only when the renderer harness is present.
+    # This keeps main's legacy CI deterministic until DB-077 is merged, while allowing
+    # the exact PR head to execute the real Playwright matrix once Actions is enabled.
+    if: ${{ hashFiles('playwright.config.ts') != '' }}
     needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 20
