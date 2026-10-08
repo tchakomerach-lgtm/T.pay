@@ -3,7 +3,7 @@ import {createHash,randomBytes} from "node:crypto";
 export type FortressVaultLayer =
  | "root-trust"|"security"|"recovery"|"identity"|"ai"|"organization"|"finance"|"ledger"
  | "payment"|"wallet"|"credit"|"provider"|"microfinance"|"tontine"|"data-rag"|"document"
- | "social"|"audit-evidence"|"offline-field";
+ | "social"|"audit-evidence"|"offline-field"|"finance-commission"|"finance-subsidy"|"identity-auth"|"identity-kyc"|"identity-session"|"ai-model"|"ai-tool"|"ai-memory"|"organization-policy"|"organization-members"|"data-knowledge"|"data-pii"|"document-private"|"document-public"|"social-content"|"social-messaging"|"offline-queue"|"audit-security"|"audit-financial";
 
 export type FortressVaultStatus = "active"|"quarantined"|"revoked"|"recovery";
 
