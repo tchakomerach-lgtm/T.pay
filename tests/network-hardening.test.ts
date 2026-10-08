@@ -1,4 +1,4 @@
 import test from "node:test";import assert from "node:assert/strict";
 import {assertNoRequestSmuggling,assertPinnedDestination} from "../packages/security/src/network-hardening.js";
 test("rejects CL/TE ambiguity and invalid transfer encodings",()=>{assert.throws(()=>assertNoRequestSmuggling({"content-length":"1","transfer-encoding":"chunked"}),/CL_TE_CONFLICT/);assert.throws(()=>assertNoRequestSmuggling({"content-length":["1","2"]}),/AMBIGUOUS_CONTENT_LENGTH/);assert.throws(()=>assertNoRequestSmuggling({"transfer-encoding":"gzip"}),/TRANSFER_ENCODING_FORBIDDEN/);});
-test("rejects DNS rebinding pin to private destination",()=>{assert.throws(()=>assertPinnedDestination("provider.example","127.0.0.1"),/SSRF_PIN_INVALID/);assert.doesNotThrow(()=>assertPinnedDestination("provider.example","203.0.113.10"));});
+test("rejects DNS rebinding pin to private destination",()=>{assert.throws(()=>assertPinnedDestination("provider.example","127.0.0.1"),/SSRF_PIN_INVALID/);assert.doesNotThrow(()=>assertPinnedDestination("provider.example","1.1.1.1"));});
