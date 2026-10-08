@@ -4,9 +4,10 @@ export interface RateLimitPolicy { readonly capacity:number; readonly refillPerS
 const DEFAULT_POLICY:RateLimitPolicy={capacity:30,refillPerSecond:5,failureThreshold:8,blockSeconds:300};
 export class AdaptiveRateLimiter {
  private readonly buckets=new Map<string,Bucket>();
- constructor(private readonly policy:RateLimitPolicy=DEFAULT_POLICY){}
+ constructor(private readonly policy:RateLimitPolicy=DEFAULT_POLICY,private readonly maxIdentities=10_000){}
  consume(identity:string,now=Date.now(),cost=1):RateLimitDecision{
   if(!identity) throw new Error("RATE_LIMIT_IDENTITY_REQUIRED");
+  if(this.buckets.size>this.maxIdentities){for(const [key,b] of this.buckets){if(b.blockedUntil<=now && now-b.updatedAt>300_000)this.buckets.delete(key);if(this.buckets.size<=this.maxIdentities)break;}}
   const p=this.policy,b=this.buckets.get(identity)??{tokens:p.capacity,updatedAt:now,failures:0,blockedUntil:0};
   const elapsed=Math.max(0,(now-b.updatedAt)/1000); b.tokens=Math.min(p.capacity,b.tokens+elapsed*p.refillPerSecond); b.updatedAt=now;
   if(b.blockedUntil>now)return {allowed:false,retryAfterSeconds:Math.ceil((b.blockedUntil-now)/1000),remaining:0,reason:"BRUTE_FORCE"};
