@@ -109,3 +109,15 @@ Before integration, each new component must document its trust boundary, tenant 
 | FORT-008 | Key provider failure fails closed | fault-injection test |
 | FORT-009 | Financial vault remains independently authoritative; AI cannot settle | financial integration evidence |
 | FORT-010 | Fortress evidence is tamper-evident and correlated with Security Audit | audit-chain evidence |
+
+
+| FORT-011 | General Fortress contains principal cells without inheriting their keys | hierarchy/isolation tests |
+| FORT-012 | Super Admin is isolated and never implies business-data access | cross-cell denial tests |
+| FORT-013 | Parent/child key non-inheritance | cryptographic boundary tests |
+| FORT-014 | Bridge v2 composes ABAC, persistent revocation, replay and audit | integration tests |
+| FORT-015 | Fast data plane uses signed bounded envelopes; production transport TLS 1.3/mTLS | channel + transport evidence |
+| FORT-016 | Finance Ledger is deny-by-default with explicit financial bridges | financial policy tests |
+| FORT-017 | Root Trust requires distinct multi-party approval | quorum tests + ceremony evidence |
+| FORT-018 | Global Fortress metadata requires dedicated operator DB role | RLS integration tests |
+| FORT-019 | Compromise of one sub-vault is independently containable | isolation/chaos drill |
+| FORT-020 | Performance architecture separates control plane from payload data plane | load/latency evidence |
