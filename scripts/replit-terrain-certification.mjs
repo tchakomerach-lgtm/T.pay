@@ -39,7 +39,7 @@ console.log("[3/6] CORS deny");
 }
 console.log("PASS");
 
-console.log("[4/6] live SSE");
+console.log("[4/7] live SSE");
 const controller=new AbortController();
 const ssePromise=(async()=>{
   const res=await fetch(new URL("/v1/education/events/stream",base),{
@@ -90,7 +90,7 @@ controller.abort();
 assertOk(sse.buffer?.includes("event: event"),"SSE_EVENT_NOT_OBSERVED:"+sse.buffer);
 console.log("PASS");
 
-console.log("[5/6] idempotency replay");
+console.log("[5/7] idempotency replay");
 const second=await fetch(new URL("/v1/education/sync/events",base),{
   method:"POST",
   headers:{authorization:"Bearer "+token,"content-type":"application/json","x-idempotency-key":idempotencyKey},
@@ -101,6 +101,6 @@ assertOk(second.status===200,"SYNC_REPLAY_FAILED:"+second.status+":"+secondText)
 assertOk(JSON.parse(secondText)?.replayed===true,"IDEMPOTENCY_REPLAY_NOT_CONFIRMED:"+secondText);
 console.log("PASS");
 
-console.log("[6/6] Replit certification boundary");
+console.log("[6/7] Replit certification boundary");
 console.log("PASS: HTTPS, PostgreSQL-backed session, org-scoped actor, CORS denial, live SSE and HTTP idempotency replay.");
 console.log("NOT_CERTIFIED_HERE: physical Android, real network interruption and durable Last-Event-ID replay after process/network restart.");
