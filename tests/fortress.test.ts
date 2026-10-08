@@ -17,12 +17,12 @@ test("Fortress creates independent tenant-bound vault identities",()=>{
  assert.equal(ledger.organizationId,"org-a");
 });
 
-test("Fortress bridge denies AI to Ledger until an explicit controlled bridge exists",()=>{
+test("Fortress bridge denies AI to Ledger until an explicit controlled bridge exists",async()=>{
  const r=createDefaultFortressRegistry("org-a"); const g=new FortressSecurityGateway(r);
  const op={operationId:"op-1",sourceVaultId:"ai",targetVaultId:"ledger",organizationId:"org-a",actorId:"actor",purpose:"settlement",action:"ledger.post",dataClass:"restricted",capabilityId:"cap-1",correlationId:"c-1",payloadHash:"hash",expiresAt:Date.now()+1000} as const;
- assert.throws(()=>g.authorize(op),/FORTRESS_BRIDGE_POLICY_DENIED/);
+ await assert.rejects(()=>g.authorize(op),/FORTRESS_BRIDGE_POLICY_DENIED/);
  g.registerBridge({bridgeId:"ai-ledger-settlement",sourceVaultId:"ai",targetVaultId:"ledger",allowedPurposes:["settlement"],allowedActions:["ledger.post"],allowedDataClasses:["restricted"],maxTtlMs:30_000});
- assert.doesNotThrow(()=>g.authorize(op));
+ await g.authorize(op);
 });
 
 test("Fortress compromise containment quarantines one vault without granting access elsewhere",()=>{
@@ -32,10 +32,10 @@ test("Fortress compromise containment quarantines one vault without granting acc
  assert.doesNotThrow(()=>r.assertOperational("ledger"));
 });
 
-test("Fortress rejects cross-tenant operations",()=>{
+test("Fortress rejects cross-tenant operations",async()=>{
  const r=createDefaultFortressRegistry("org-a"); const g=new FortressSecurityGateway(r);
  const op={operationId:"op-2",sourceVaultId:"ai",targetVaultId:"ledger",organizationId:"org-b",actorId:"actor",purpose:"x",action:"x",dataClass:"restricted",capabilityId:"cap",correlationId:"c",payloadHash:"h",expiresAt:Date.now()+1000} as const;
- assert.throws(()=>g.authorize(op),/FORTRESS_TENANT_BOUNDARY/);
+ await assert.rejects(()=>g.authorize(op),/FORTRESS_TENANT_BOUNDARY/);
 });
 
 test("Fortress uses wrapped per-vault DEKs and zeroes plaintext after wrapping",async()=>{
@@ -109,4 +109,35 @@ test("Fortress main cells each own independent sub-vault families",()=>{
    assert.notEqual(sub.keyRef,r.get(parent).keyRef);
   }
  }
+});
+
+
+test("Fortress general vault contains principals without inheriting their keys",()=>{
+ const r=createDefaultFortressRegistry("org-general");
+ const general=r.get("general-fortress"); const superAdmin=r.get("super-admin");
+ assert.equal(general.vaultType,"general");
+ assert.equal(general.organizationId,undefined);
+ assert.equal(superAdmin.vaultType,"super-admin");
+ assert.equal(superAdmin.parentVaultId,"general-fortress");
+ assert.equal(superAdmin.organizationId,undefined);
+ assert.notEqual(general.keyRef,superAdmin.keyRef);
+ assert.notEqual(general.keyRef,r.get("finance").keyRef);
+ assert.notEqual(superAdmin.keyRef,r.get("finance").keyRef);
+});
+
+test("Super Admin is not an implicit bridge to Finance",async()=>{
+ const r=createDefaultFortressRegistry("org-sa"); const g=new FortressSecurityGateway(r);
+ const op={operationId:"sa-fin-1",sourceVaultId:"super-admin",targetVaultId:"finance.ledger",organizationId:"org-sa",actorId:"super-admin-actor",purpose:"ledger.read",action:"ledger.read",dataClass:"restricted",capabilityId:"cap-sa",correlationId:"c-sa",payloadHash:"hash-sa",expiresAt:Date.now()+1000} as const;
+ await assert.rejects(()=>g.authorize(op),/FORTRESS_BRIDGE_POLICY_DENIED/);
+});
+
+test("Root Trust quorum requires two distinct approvers and separation of duties",async()=>{
+ const {RootTrustQuorum}=await import("../packages/security/src/root-trust-quorum.js");
+ const q=new RootTrustQuorum(2);
+ const req={operationId:"root-1",actorId:"operator",purpose:"key-rotation",payloadHash:"hash",expiresAt:Date.now()+10_000};
+ q.approve(req,"approver-a","security");
+ assert.throws(()=>q.assertQuorum(req),/FORTRESS_ROOT_QUORUM_REQUIRED/);
+ q.approve(req,"approver-b","security");
+ assert.doesNotThrow(()=>q.assertQuorum(req));
+ assert.throws(()=>q.approve(req,"operator","security"),/FORTRESS_ROOT_SEPARATION_OF_DUTIES/);
 });
