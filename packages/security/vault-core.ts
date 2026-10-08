@@ -4,6 +4,9 @@ export type VaultKeyRef={vaultId:string;keyVersion:number;kmsKeyRef:string;algor
 export interface VaultKeyProvider{
   decryptDataKey(ref:VaultKeyRef):Promise<Buffer>;
 }
+export interface VaultAuditSink{
+  record(event:{vaultId:string;actorId:string|null;action:"read"|"write"|"deny";objectId?:string;keyVersion?:number;correlationId?:string;reasonCode?:string}):Promise<void>;
+}
 export interface EncryptedVaultObject{
   nonce:Buffer;
   ciphertext:Buffer;
@@ -26,7 +29,7 @@ export async function encryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyR
   return {nonce,ciphertext,authTag:cipher.getAuthTag(),aadSha256:sha256(aadBytes),payloadSha256:sha256(plaintext)};
 }
 
-export async function decryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyRef,object:EncryptedVaultObject,aad:string):Promise<Buffer>{
+export async function decryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyRef,object:EncryptedVaultObject,aad:string,audit?:VaultAuditSink,context?:{actorId:string|null;objectId?:string;correlationId?:string}):Promise<Buffer>{
   if(ref.algorithm!=="AES-256-GCM")throw new Error("TPAY_VAULT_ALGORITHM_UNSUPPORTED");
   if(object.nonce.length!==12||object.authTag.length!==16||object.aadSha256.length!==32||object.payloadSha256.length!==32)throw new Error("TPAY_VAULT_OBJECT_INVALID");
   const aadBytes=Buffer.from(aad,"utf8");
@@ -38,6 +41,7 @@ export async function decryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyR
   decipher.setAuthTag(object.authTag);
   const plaintext=Buffer.concat([decipher.update(object.ciphertext),decipher.final()]);
   if(!sha256(plaintext).equals(object.payloadSha256))throw new Error("TPAY_VAULT_PAYLOAD_HASH_MISMATCH");
+  if(audit)await audit.record({vaultId:ref.vaultId,actorId:context?.actorId??null,action:"read",objectId:context?.objectId,keyVersion:ref.keyVersion,correlationId:context?.correlationId});
   return plaintext;
 }
 
