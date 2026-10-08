@@ -16,6 +16,8 @@ export interface FortressVaultDescriptor {
  readonly keyRef:string;
  readonly status:FortressVaultStatus;
  readonly allowedBridges:readonly string[];
+ readonly parentVaultId?:string;
+ readonly vaultType:"root"|"primary"|"sub";
 }
 
 export interface VaultOperation {
@@ -49,7 +51,14 @@ export class FortressVaultRegistry {
   return vault;
  }
 
- allowBridge(vaultId:string,bridgeId:string):void {\n  const current=this.get(vaultId);\n  if(current.layer==="root-trust") throw new Error("FORTRESS_ROOT_BRIDGE_FORBIDDEN");\n  if(!bridgeId.trim()) throw new Error("FORTRESS_BRIDGE_ID_REQUIRED");\n  if(!current.allowedBridges.includes(bridgeId)) this.vaults.set(vaultId,{...current,allowedBridges:[...current.allowedBridges,bridgeId]});\n }\n\n setStatus(vaultId:string,status:FortressVaultStatus):void {
+ allowBridge(vaultId:string,bridgeId:string):void {
+  const current=this.get(vaultId);
+  if(current.layer==="root-trust") throw new Error("FORTRESS_ROOT_BRIDGE_FORBIDDEN");
+  if(!bridgeId.trim()) throw new Error("FORTRESS_BRIDGE_ID_REQUIRED");
+  if(!current.allowedBridges.includes(bridgeId)) this.vaults.set(vaultId,{...current,allowedBridges:[...current.allowedBridges,bridgeId]});
+ }
+
+ setStatus(vaultId:string,status:FortressVaultStatus):void {
   const current=this.get(vaultId);
   this.vaults.set(vaultId,{...current,status});
  }
