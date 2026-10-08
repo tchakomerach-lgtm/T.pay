@@ -58,3 +58,26 @@ test("P048 fortress HTTP boundaries emit security headers and reject malformed c
   assert.equal(badCorrelation.status,400);
  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
+
+
+test("P049 fortress request envelope rejects oversized URL/header and emits hardened SSE headers",async()=>{
+ const server=createSchoolApiServer({db:db() as any,authenticate:async()=>auth(),syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any,realtime:{subscribe(){return ()=>{};},ack(){}} as any});
+ await new Promise<void>(resolve=>server.listen(0,resolve)); const port=(server.address() as any).port;
+ try{
+  const longUrl=await fetch(`http://127.0.0.1:${port}/v1/education/actors/teacher-1?${"x".repeat(2048)}`);
+  assert.equal(longUrl.status,400);
+
+  const longHeader=await fetch(`http://127.0.0.1:${port}/v1/education/actors/teacher-1`,{headers:{"x-correlation-id":"a".repeat(4097)}});
+  assert.equal(longHeader.status,400);
+
+  const oversizedLength=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"application/json","content-length":String(1024*1024+1),"x-idempotency-key":"p049-length"},body:"{}"});
+  assert.equal(oversizedLength.status,400);
+
+  const sse=await fetch(`http://127.0.0.1:${port}/v1/education/events/stream`,{headers:{accept:"text/event-stream"}});
+  assert.equal(sse.status,200);
+  assert.equal(sse.headers.get("x-content-type-options"),"nosniff");
+  assert.equal(sse.headers.get("x-frame-options"),"DENY");
+  assert.equal(sse.headers.get("cross-origin-resource-policy"),"same-origin");
+  sse.body?.cancel();
+ }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});
