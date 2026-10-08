@@ -26,6 +26,7 @@ const forbidden=[
 
 const required=[
   ["apps/api-server/src/main.ts",/minVersion:\s*["']TLSv1\.3["']/,"API_TLS13_REQUIRED"],
+  ["apps/education-web/vite.config.ts",/command===["']serve["'][^\n]+TPAY_WEB_HTTPS_CERTIFICATES_REQUIRED/s,"WEB_HTTPS_FAIL_CLOSED"],
   ["packages/education/src/education-http.ts",/API_IDEMPOTENCY_KEY_INVALID/,"IDEMPOTENCY_VALIDATION_REQUIRED"],
   ["packages/education/src/education-http.ts",/x-content-type-options/,"SECURITY_HEADERS_REQUIRED"],
   ["packages/education/src/education-http.ts",/strict-transport-security/,"HSTS_REQUIRED"],
