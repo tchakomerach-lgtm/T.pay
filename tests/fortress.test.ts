@@ -17,7 +17,8 @@ test("Fortress bridge denies AI to Ledger until an explicit controlled bridge ex
  const r=createDefaultFortressRegistry("org-a"); const g=new FortressSecurityGateway(r);
  const op={operationId:"op-1",sourceVaultId:"ai",targetVaultId:"ledger",organizationId:"org-a",actorId:"actor",purpose:"settlement",action:"ledger.post",dataClass:"restricted",capabilityId:"cap-1",correlationId:"c-1",payloadHash:"hash",expiresAt:Date.now()+1000} as const;
  assert.throws(()=>g.authorize(op),/FORTRESS_BRIDGE_POLICY_DENIED/);
- r.get("ai").allowedBridges.push;
+ g.registerBridge({bridgeId:"ai-ledger-settlement",sourceVaultId:"ai",targetVaultId:"ledger",allowedPurposes:["settlement"],allowedActions:["ledger.post"],allowedDataClasses:["restricted"],maxTtlMs:30_000});
+ assert.doesNotThrow(()=>g.authorize(op));
 });
 
 test("Fortress compromise containment quarantines one vault without granting access elsewhere",()=>{
