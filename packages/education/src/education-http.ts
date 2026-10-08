@@ -160,7 +160,9 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     }};
     await gateway.audit({organizationId,requestId:correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path,studentId,actorRole,purpose:"ACADEMIC",policyVersion:decision.policyVersion})});
    } else if(r[0]==="sync"){
-    const rawEvent=body as Record<string,unknown>;\n    let sequence:bigint; try{sequence=BigInt(String(rawEvent.sequence??""));}catch{throw new Error("SYNC_INVALID_SEQUENCE");}\n    const event={...rawEvent,tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,sequence,payloadHash:computeSyncPayloadHash(rawEvent.payload)};
+    const rawEvent=body as Record<string,unknown>;
+    let sequence:bigint; try{sequence=BigInt(String(rawEvent.sequence??""));}catch{throw new Error("SYNC_INVALID_SEQUENCE");}
+    const event={...rawEvent,tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,sequence,payloadHash:computeSyncPayloadHash(rawEvent.payload)};
     const syncClient=await deps.syncClient();
     try{ data=await new PostgresEducationSyncStore(syncClient).accept(event as any); }
     finally{ syncClient.release?.(); }
