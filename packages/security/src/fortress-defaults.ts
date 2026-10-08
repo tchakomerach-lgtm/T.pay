@@ -40,6 +40,29 @@ const SOCIAL_SUBVAULTS = [
 const OFFLINE_SUBVAULTS = [["offline-queue","offline-queue"]] as const;
 const AUDIT_SUBVAULTS = [["audit-security","audit-security"],["audit-financial","audit-financial"]] as const;
 
+export const ADMIN_SUBVAULTS = [
+ ["administrator-identity","identity"],["administrator-authentication","authentication"],["administrator-sessions","sessions"],
+ ["administrator-super-admin","super-admin"],["administrator-roles","roles"],["administrator-permissions","permissions"],
+ ["administrator-policies","policies"],["administrator-platform","platform"],["administrator-configuration","configuration"],
+ ["administrator-feature-flags","feature-flags"],["administrator-approvals","approvals"],["administrator-security","security"],
+ ["administrator-incidents","incidents"],["administrator-audit","audit"],["administrator-evidence","evidence"],
+ ["administrator-compliance","compliance"],["administrator-keys","keys"],["administrator-recovery","recovery"],
+ ["administrator-operations","operations"],["administrator-emergency","emergency"]
+] as const;
+
+export const FORTRESS_USER_MODULES = [
+ "finance.ledger","finance.payment","finance.wallet","finance.credit","finance.provider","finance.microfinance",
+ "finance.tontine","finance.finance-commission","finance.finance-subsidy",
+ "identity.identity-auth","identity.identity-kyc","identity.identity-session",
+ "ai.ai-model","ai.ai-tool","ai.ai-memory",
+ "organization.organization-policy","organization.organization-members",
+ "data-rag.data-knowledge","data-rag.data-pii",
+ "document.document-private","document.document-public",
+ "social.social-content","social.social-messaging",
+ "offline-field.offline-queue",
+ "audit-evidence.audit-security","audit-evidence.audit-financial"
+] as const;
+
 function registerPrimary(
  registry:FortressVaultRegistry, organizationId:string,
  [id,layer,classification]:readonly [string,any,any]
@@ -69,7 +92,7 @@ export function createDefaultFortressRegistry(organizationId:string):FortressVau
   vaultId:"general-fortress",layer:"security",namespace:"tpay:fortress:general",classification:"secret",keyRef:"hsm://tpay/fortress/general",status:"active",allowedBridges:[],vaultType:"general"
  });
  registry.register({
-  vaultId:"super-admin",layer:"security",namespace:"tpay:fortress:super-admin",classification:"secret",keyRef:"hsm://tpay/super-admin",status:"active",allowedBridges:[],vaultType:"super-admin",parentVaultId:"general-fortress"
+  vaultId:"administrator-fortress",layer:"security",namespace:"tpay:fortress:administrator",classification:"secret",keyRef:"hsm://tpay/administrator",status:"active",allowedBridges:[],vaultType:"administrator",parentVaultId:"general-fortress"
  });
  registry.register({
   vaultId:"root-trust",layer:"root-trust",namespace:"root",classification:"secret",
@@ -77,6 +100,14 @@ export function createDefaultFortressRegistry(organizationId:string):FortressVau
  });
 
  for(const primary of MAIN_VAULTS) registerPrimary(registry,organizationId,primary);
+
+ for(const [id,layer] of ADMIN_SUBVAULTS){
+  registry.register({
+   vaultId:id,layer:layer as any,namespace:`tpay:fortress:administrator:${id}`,classification:"restricted",
+   keyRef:`hsm://tpay/administrator/${id}`,status:"active",allowedBridges:[],
+   vaultType:"sub",parentVaultId:"administrator-fortress"
+  });
+ }
 
  for(const [id,layer] of FINANCE_SUBVAULTS) registerSub(registry,organizationId,"finance",[id,layer]);
  for(const [id,layer] of IDENTITY_SUBVAULTS) registerSub(registry,organizationId,"identity",[id,layer]);
