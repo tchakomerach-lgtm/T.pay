@@ -137,17 +137,19 @@ export async function buildProductionApiServer(config:RuntimeConfig):Promise<{se
       }
     }
   },{
-    serverFactory:(handler:RequestListener)=>createHttpsServer({
-      key:tlsKey,
-      cert:tlsCert,
-      minVersion:"TLSv1.3"
-    },handler);
-    server.requestTimeout=30000;
-    server.headersTimeout=10000;
-    server.keepAliveTimeout=5000;
-    server.maxHeadersCount=100;
-    server.maxRequestsPerSocket=100;
-    return server;
+    serverFactory:(handler:RequestListener)=>{
+      const server=createHttpsServer({
+        key:tlsKey,
+        cert:tlsCert,
+        minVersion:"TLSv1.3"
+      },handler);
+      server.requestTimeout=30000;
+      server.headersTimeout=10000;
+      server.keepAliveTimeout=5000;
+      server.maxHeadersCount=100;
+      server.maxRequestsPerSocket=100;
+      return server;
+    }
   });
   return {server,pool};
 }
