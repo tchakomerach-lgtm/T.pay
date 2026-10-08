@@ -141,3 +141,31 @@ test("Root Trust quorum requires two distinct approvers and separation of duties
  assert.doesNotThrow(()=>q.assertQuorum(req));
  assert.throws(()=>q.approve(req,"operator","security"),/FORTRESS_ROOT_SEPARATION_OF_DUTIES/);
 });
+
+
+test("Fortress Bridge v2 composes ABAC, persistent revocation, replay and audit gates",async()=>{
+ const r=createDefaultFortressRegistry("org-gateway");
+ const events:string[]=[]; const claimed=new Set<string>();
+ const gateway=new FortressSecurityGateway(r,{
+  capabilityRevocationStore:{async revoke(){},async isRevoked(id){return id==="revoked-cap";},async revokeAll(){return 1;},async isGloballyRevoked(){return false;}},
+  replayStore:{async claim(k){const key=[k.scope,k.actionId,k.payloadHash].join("|"); if(claimed.has(key)) return false; claimed.add(key); return true;},async prune(){return 0;}},
+  auditStore:{async append(e){events.push(e.eventType); return "audit-hash";}} as never,
+  authorization:{context:{organizationId:"org-gateway",actorId:"actor",agentId:"agent",roles:["finance"],purpose:"ledger.post",dataClasses:["restricted"],requestedAction:"ledger.post",resourceOrganizationId:"org-gateway",actorStatus:"active",deviceTrust:"trusted",sessionAgeMs:1000,policyVersion:"v1"},rule:{action:"ledger.post",requiredRoles:["finance"],allowedDataClasses:["restricted"],policyVersion:"v1"}}
+ });
+ gateway.registerBridge({bridgeId:"payment-ledger",sourceVaultId:"finance.payment",targetVaultId:"finance.ledger",allowedPurposes:["ledger.post"],allowedActions:["ledger.post"],allowedDataClasses:["restricted"],maxTtlMs:30_000,requiredRoles:["finance"],requiredTrustedDevice:true});
+ const base={sourceVaultId:"finance.payment",targetVaultId:"finance.ledger",organizationId:"org-gateway",actorId:"actor",purpose:"ledger.post",action:"ledger.post",dataClass:"restricted",capabilityId:"cap-ok",correlationId:"corr",payloadHash:"payload",expiresAt:Date.now()+1000} as const;
+ await gateway.authorize({...base,operationId:"ok-1"});
+ assert.deepEqual(events,["FORTRESS_BRIDGE_AUTHORIZED"]);
+ await assert.rejects(()=>gateway.authorize({...base,operationId:"ok-1"}),/FORTRESS_REPLAY_DETECTED/);
+ await assert.rejects(()=>gateway.authorize({...base,operationId:"revoked-1",capabilityId:"revoked-cap"}),/FORTRESS_CAPABILITY_REVOKED/);
+});
+
+test("Finance policy allows payment-to-ledger but not AI-to-ledger by default",async()=>{
+ const r=createDefaultFortressRegistry("org-fin-g");
+ const g=new FortressSecurityGateway(r);
+ g.registerBridge({bridgeId:"finance-payment-ledger",sourceVaultId:"finance.payment",targetVaultId:"finance.ledger",allowedPurposes:["settlement"],allowedActions:["ledger.post"],allowedDataClasses:["restricted"],maxTtlMs:30_000});
+ const paymentOp={operationId:"p-1",sourceVaultId:"finance.payment",targetVaultId:"finance.ledger",organizationId:"org-fin-g",actorId:"payment-engine",purpose:"settlement",action:"ledger.post",dataClass:"restricted",capabilityId:"cap-p",correlationId:"c",payloadHash:"h",expiresAt:Date.now()+1000} as const;
+ await g.authorize(paymentOp);
+ const aiOp={...paymentOp,operationId:"ai-1",sourceVaultId:"ai",capabilityId:"cap-ai"};
+ await assert.rejects(()=>g.authorize(aiOp),/FORTRESS_BRIDGE_POLICY_DENIED/);
+});
