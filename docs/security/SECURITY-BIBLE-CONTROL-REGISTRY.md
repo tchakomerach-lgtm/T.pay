@@ -112,7 +112,7 @@ Before integration, each new component must document its trust boundary, tenant 
 
 
 | FORT-011 | General Fortress contains principal cells without inheriting their keys | hierarchy/isolation tests |
-| FORT-012 | Super Admin is isolated and never implies business-data access | cross-cell denial tests |
+| FORT-012 | Administrateur is isolated and never implies business-data access | cross-cell denial tests |
 | FORT-013 | Parent/child key non-inheritance | cryptographic boundary tests |
 | FORT-014 | Bridge v2 composes ABAC, persistent revocation, replay and audit | integration tests |
 | FORT-015 | Fast data plane uses signed bounded envelopes; production transport TLS 1.3/mTLS | channel + transport evidence |
@@ -124,7 +124,7 @@ Before integration, each new component must document its trust boundary, tenant 
 
 
 ## FORT-021 — Coffre-Fort Administrateur
-Le coffre global d'administration T.Pay est `administrator-fortress`, sous le Coffre-Fort Général, avec sous-coffres indépendants pour identité, authentification, sessions, super-admin, rôles, permissions, politiques, plateforme, configuration, feature flags, approbations, sécurité, incidents, audit, preuves, conformité, clés, récupération, opérations et urgence.
+Le coffre global d'administration T.Pay est `administrator-fortress`, sous le Coffre-Fort Général, avec sous-coffres indépendants pour identité, authentification, sessions, administrator-fortress, rôles, permissions, politiques, plateforme, configuration, feature flags, approbations, sécurité, incidents, audit, preuves, conformité, clés, récupération, opérations et urgence.
 
 ## FORT-022 — Compartiments cryptographiques par utilisateur et module
 Chaque utilisateur reçoit un coffre cryptographique distinct dans chaque module spécialisé activé. Le compartiment est enfant du sous-coffre du module, sans héritage de clé. L'identité de coffre est liée au tenant et au propriétaire vérifié.
