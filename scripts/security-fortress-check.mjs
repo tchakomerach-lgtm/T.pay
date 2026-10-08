@@ -11,7 +11,9 @@ const files=[
   "apps/education-web/vite.config.ts",
   "android/tpay-shell/app/src/main/AndroidManifest.xml",
   "android/tpay-shell/app/src/main/java/com/tpay/os/MainActivity.kt",
-  "android/tpay-shell/app/src/main/res/xml/network_security_config.xml"
+  "android/tpay-shell/app/src/main/res/xml/network_security_config.xml",
+  "migrations/047_tpay_vault_fortress.sql",
+  "packages/security/vault-core.ts"
 ];
 
 const forbidden=[
@@ -28,6 +30,12 @@ const forbidden=[
 
 const required=[
   ["apps/api-server/src/main.ts",/TPAY_DATABASE_TLS_REQUIRED/,"DATABASE_TLS_FAIL_CLOSED"],
+  ["migrations/047_tpay_vault_fortress.sql",/CREATE TABLE IF NOT EXISTS tpay_vaults/,"VAULT_SCHEMA_REQUIRED"],
+  ["migrations/047_tpay_vault_fortress.sql",/ENABLE ROW LEVEL SECURITY/,"VAULT_RLS_REQUIRED"],
+  ["migrations/047_tpay_vault_fortress.sql",/FORCE ROW LEVEL SECURITY/,"VAULT_FORCE_RLS_REQUIRED"],
+  ["migrations/047_tpay_vault_fortress.sql",/kms_key_ref text NOT NULL/,"VAULT_KMS_REFERENCE_REQUIRED"],
+  ["packages/security/vault-core.ts",/aes-256-gcm/,"VAULT_AES256GCM_REQUIRED"],
+  ["packages/security/vault-core.ts",/TPAY_VAULT_DATA_KEY_INVALID/,"VAULT_KEY_LENGTH_GUARD_REQUIRED"],
   ["apps/api-server/src/main.ts",/minVersion:\s*["']TLSv1\.3["']/,"API_TLS13_REQUIRED"],
   ["apps/education-web/vite.config.ts",/command===["']serve["'][\s\S]*?TPAY_WEB_HTTPS_CERTIFICATES_REQUIRED/,"WEB_HTTPS_FAIL_CLOSED"],
   ["packages/education/src/education-http.ts",/API_IDEMPOTENCY_KEY_INVALID/,"IDEMPOTENCY_VALIDATION_REQUIRED"],
