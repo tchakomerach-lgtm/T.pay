@@ -80,6 +80,7 @@ export interface Commitment {
 
 export interface ActionReceipt {
   readonly id: string;
+  readonly tenantId: string;
   readonly actorId: string;
   readonly agentId?: string;
   readonly organizationId: string;
@@ -95,6 +96,7 @@ export interface ActionReceipt {
 
 export interface AgentAuthority {
   readonly agentId: string;
+  readonly tenantId: string;
   readonly principalId: string;
   readonly organizationId: string;
   readonly purpose: string;
@@ -131,6 +133,7 @@ export function verifyEvidenceHash(input: { content: Uint8Array; expectedSha256:
 }
 
 export function createActionReceipt(input: {
+  tenantId: string;
   actorId: string;
   agentId?: string;
   organizationId: string;
@@ -144,6 +147,7 @@ export function createActionReceipt(input: {
 }): ActionReceipt {
   const createdAt = input.createdAt ?? new Date();
   const normalized = JSON.stringify({
+    tenantId: input.tenantId,
     actorId: input.actorId,
     agentId: input.agentId ?? null,
     organizationId: input.organizationId,
@@ -157,7 +161,8 @@ export function createActionReceipt(input: {
   });
   return {
     id: randomUUID(),
-    actorId: input.actorId,
+    tenantId: input.tenantId,
+    actorId: input.actorId, input.actorId,
     ...(input.agentId === undefined ? {} : { agentId: input.agentId }),
     organizationId: input.organizationId,
     intent: input.intent,
@@ -173,6 +178,7 @@ export function createActionReceipt(input: {
 
 export function authorizeAgentAction(input: {
   authority: AgentAuthority;
+  tenantId: string;
   resource: string;
   action: string;
   now?: Date;
@@ -180,7 +186,7 @@ export function authorizeAgentAction(input: {
   valueMinor?: bigint;
 }): "ALLOW" | "DENY" {
   const now = input.now ?? new Date();
-  if (input.authority.organizationId === "" || input.authority.resource !== input.resource) return "DENY";
+  if (input.authority.tenantId !== input.tenantId || input.authority.organizationId === "" || input.authority.resource !== input.resource) return "DENY";
   if (!input.authority.actions.includes(input.action)) return "DENY";
   if (Date.parse(input.authority.expiresAt) < now.getTime()) return "DENY";
   if (input.consumedActions >= input.authority.maxActions) return "DENY";
