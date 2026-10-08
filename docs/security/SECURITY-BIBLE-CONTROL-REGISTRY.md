@@ -121,3 +121,20 @@ Before integration, each new component must document its trust boundary, tenant 
 | FORT-018 | Global Fortress metadata requires dedicated operator DB role | RLS integration tests |
 | FORT-019 | Compromise of one sub-vault is independently containable | isolation/chaos drill |
 | FORT-020 | Performance architecture separates control plane from payload data plane | load/latency evidence |
+
+
+## FORT-021 — Coffre-Fort Administrateur
+Le coffre global d'administration T.Pay est `administrator-fortress`, sous le Coffre-Fort Général, avec sous-coffres indépendants pour identité, authentification, sessions, super-admin, rôles, permissions, politiques, plateforme, configuration, feature flags, approbations, sécurité, incidents, audit, preuves, conformité, clés, récupération, opérations et urgence.
+
+## FORT-022 — Compartiments cryptographiques par utilisateur et module
+Chaque utilisateur reçoit un coffre cryptographique distinct dans chaque module spécialisé activé. Le compartiment est enfant du sous-coffre du module, sans héritage de clé. L'identité de coffre est liée au tenant et au propriétaire vérifié.
+
+## FORT-023 — RLS user-scoped
+Les coffres `tenant-user` sont lisibles uniquement dans l'organisation courante et par l'acteur vérifié propriétaire. Les coffres `global-admin-user` sont réservés au rôle Fortress operator et à l'acteur administratif concerné. Aucune ancienne politique tenant permissive ne doit rester active en parallèle.
+
+## FORT-024 — Fondation données chiffrées et versionnées
+`fortress_user_data_objects` stocke uniquement des payloads chiffrés/authentifiés, avec version, nonce, tag, AAD hash, payload hash et référence de version de clé. Pas de plaintext métier dans cette frontière; aucune politique UPDATE/DELETE n'est créée par défaut.
+
+## FORT-025 — Temps réel sans affaiblir la forteresse
+Les événements temps réel passent par Fortress Channel signé et séquencé; la donnée durable reste dans son coffre. PostgreSQL n'est pas utilisé comme bus de payload.
+
