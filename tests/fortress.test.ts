@@ -5,7 +5,8 @@ import {join} from "node:path";
 import {pathToFileURL} from "node:url";
 import {applyMigrations} from "../packages/finance/src/postgres-migrations.js";
 import {FortressSecurityGateway} from "../packages/security/src/fortress-bridge.js";
-import {createDefaultFortressRegistry} from "../packages/security/src/fortress-defaults.js";
+import {createDefaultFortressRegistry,FORTRESS_USER_MODULES,ADMIN_SUBVAULTS} from "../packages/security/src/fortress-defaults.js";
+import {FortressUserVaultManager} from "../packages/security/src/fortress-user-vault.js";
 import {TestOnlyKeyProvider,createVaultKeyMaterial,encryptForVault,decryptForVault} from "../packages/security/src/fortress-crypto.js";
 import {generateKeyPairSync} from "node:crypto";
 import {createFortressChannelEnvelope,verifyFortressChannelEnvelope,assertPayloadHash} from "../packages/security/src/fortress-channel.js";
@@ -116,20 +117,20 @@ test("Fortress main cells each own independent sub-vault families",()=>{
 
 test("Fortress general vault contains principals without inheriting their keys",()=>{
  const r=createDefaultFortressRegistry("org-general");
- const general=r.get("general-fortress"); const superAdmin=r.get("super-admin");
+ const general=r.get("general-fortress"); const administrator=r.get("administrator-fortress");
  assert.equal(general.vaultType,"general");
  assert.equal(general.organizationId,undefined);
- assert.equal(superAdmin.vaultType,"super-admin");
- assert.equal(superAdmin.parentVaultId,"general-fortress");
- assert.equal(superAdmin.organizationId,undefined);
- assert.notEqual(general.keyRef,superAdmin.keyRef);
+ assert.equal(administrator.vaultType,"administrator");
+ assert.equal(administrator.parentVaultId,"general-fortress");
+ assert.equal(administrator.organizationId,undefined);
+ assert.notEqual(general.keyRef,administrator.keyRef);
  assert.notEqual(general.keyRef,r.get("finance").keyRef);
- assert.notEqual(superAdmin.keyRef,r.get("finance").keyRef);
+ assert.notEqual(administrator.keyRef,r.get("finance").keyRef);
 });
 
-test("Super Admin is not an implicit bridge to Finance",async()=>{
+test("Administrator is not an implicit bridge to Finance",async()=>{
  const r=createDefaultFortressRegistry("org-sa"); const g=new FortressSecurityGateway(r);
- const op={operationId:"sa-fin-1",sourceVaultId:"super-admin",targetVaultId:"finance.ledger",organizationId:"org-sa",actorId:"super-admin-actor",purpose:"ledger.read",action:"ledger.read",dataClass:"restricted",capabilityId:"cap-sa",correlationId:"c-sa",payloadHash:"hash-sa",expiresAt:Date.now()+1000} as const;
+ const op={operationId:"sa-fin-1",sourceVaultId:"administrator-fortress",targetVaultId:"finance.ledger",organizationId:"org-sa",actorId:"super-admin-actor",purpose:"ledger.read",action:"ledger.read",dataClass:"restricted",capabilityId:"cap-sa",correlationId:"c-sa",payloadHash:"hash-sa",expiresAt:Date.now()+1000} as const;
  await assert.rejects(()=>g.authorize(op),/FORTRESS_BRIDGE_POLICY_DENIED/);
 });
 
@@ -182,4 +183,59 @@ test("Fortress data-plane channel authenticates, binds bridge and rejects replay
  assert.doesNotThrow(()=>assertPayloadHash(env,payload));
  assert.throws(()=>verifyFortressChannelEnvelope(env,publicKey,{organizationId:"org-channel",targetVaultId:"finance.ledger",bridgeId:"payment-ledger",minSequence:8,now}),/FORTRESS_CHANNEL_SEQUENCE_REPLAY/);
  assert.throws(()=>verifyFortressChannelEnvelope(env,publicKey,{organizationId:"org-channel",targetVaultId:"finance.wallet",bridgeId:"payment-ledger",minSequence:7,now}),/FORTRESS_CHANNEL_TARGET_MISMATCH/);
+});
+
+
+test("Fortress administrator contains isolated administrative sub-vaults",()=>{
+ const r=createDefaultFortressRegistry("org-admin");
+ const admin=r.get("administrator-fortress");
+ assert.equal(admin.vaultType,"administrator");
+ assert.equal(admin.parentVaultId,"general-fortress");
+ assert.equal(admin.organizationId,undefined);
+ for(const [id] of ADMIN_SUBVAULTS){
+  const sub=r.get(id);
+  assert.equal(sub.parentVaultId,"administrator-fortress");
+  assert.equal(sub.organizationId,undefined);
+  assert.notEqual(sub.keyRef,admin.keyRef);
+ }
+});
+
+test("Every specialized T.Pay module can provision a private cryptographic compartment per user",()=>{
+ const r=createDefaultFortressRegistry("org-user");
+ const manager=new FortressUserVaultManager(r);
+ const vaults=manager.provisionModules(FORTRESS_USER_MODULES,"user-a","org-user");
+ assert.equal(vaults.length,FORTRESS_USER_MODULES.length);
+ assert.equal(new Set(vaults.map(v=>v.keyRef)).size,vaults.length);
+ assert.equal(new Set(vaults.map(v=>v.namespace)).size,vaults.length);
+ assert.ok(vaults.every(v=>v.ownerUserId==="user-a" && v.organizationId==="org-user"));
+ assert.throws(()=>manager.assertOwner(vaults[0].vaultId,"user-b"),/FORTRESS_USER_VAULT_OWNER_DENIED/);
+ assert.doesNotThrow(()=>manager.assertOwner(vaults[0].vaultId,"user-a"));
+});
+
+test("Two users never share a module vault, namespace or key reference",()=>{
+ const r=createDefaultFortressRegistry("org-isolation");
+ const manager=new FortressUserVaultManager(r);
+ const a=manager.provisionModules(FORTRESS_USER_MODULES,"user-a","org-isolation");
+ const b=manager.provisionModules(FORTRESS_USER_MODULES,"user-b","org-isolation");
+ for(let i=0;i<FORTRESS_USER_MODULES.length;i++){
+  assert.notEqual(a[i].vaultId,b[i].vaultId);
+  assert.notEqual(a[i].namespace,b[i].namespace);
+  assert.notEqual(a[i].keyRef,b[i].keyRef);
+ }
+});
+
+test("A user vault cannot be attached to another tenant module",()=>{
+ const r=createDefaultFortressRegistry("org-a");
+ const manager=new FortressUserVaultManager(r);
+ assert.throws(()=>manager.provision("finance.ledger","user-a","org-b"),/FORTRESS_USER_PARENT_TENANT_MISMATCH/);
+});
+
+test("Administrator users also receive isolated compartments without tenant inheritance",()=>{
+ const r=createDefaultFortressRegistry("org-admin-users");
+ const manager=new FortressUserVaultManager(r);
+ const ids=ADMIN_SUBVAULTS.map(([id])=>id);
+ const vaults=manager.provisionModules(ids,"admin-user");
+ assert.equal(vaults.length,ids.length);
+ assert.ok(vaults.every(v=>v.organizationId===undefined && v.userVaultScope==="global-admin-user"));
+ assert.equal(new Set(vaults.map(v=>v.keyRef)).size,vaults.length);
 });
