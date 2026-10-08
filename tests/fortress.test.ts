@@ -7,6 +7,8 @@ import {applyMigrations} from "../packages/finance/src/postgres-migrations.js";
 import {FortressSecurityGateway} from "../packages/security/src/fortress-bridge.js";
 import {createDefaultFortressRegistry} from "../packages/security/src/fortress-defaults.js";
 import {TestOnlyKeyProvider,createVaultKeyMaterial,encryptForVault,decryptForVault} from "../packages/security/src/fortress-crypto.js";
+import {generateKeyPairSync} from "node:crypto";
+import {createFortressChannelEnvelope,verifyFortressChannelEnvelope,assertPayloadHash} from "../packages/security/src/fortress-channel.js";
 
 test("Fortress creates independent tenant-bound vault identities",()=>{
  const r=createDefaultFortressRegistry("org-a");
@@ -168,4 +170,16 @@ test("Finance policy allows payment-to-ledger but not AI-to-ledger by default",a
  await g.authorize(paymentOp);
  const aiOp={...paymentOp,operationId:"ai-1",sourceVaultId:"ai",capabilityId:"cap-ai"};
  await assert.rejects(()=>g.authorize(aiOp),/FORTRESS_BRIDGE_POLICY_DENIED/);
+});
+
+
+test("Fortress data-plane channel authenticates, binds bridge and rejects replayed sequence",()=>{
+ const {privateKey,publicKey}=generateKeyPairSync("ed25519");
+ const payload=Buffer.from("financial-event");
+ const now=Date.now();
+ const env=createFortressChannelEnvelope({messageId:"m1",sourceVaultId:"finance.payment",targetVaultId:"finance.ledger",organizationId:"org-channel",bridgeId:"payment-ledger",purpose:"settlement",issuedAt:now,expiresAt:now+5000,sequence:7,payload},privateKey);
+ verifyFortressChannelEnvelope(env,publicKey,{organizationId:"org-channel",targetVaultId:"finance.ledger",bridgeId:"payment-ledger",minSequence:7,now});
+ assert.doesNotThrow(()=>assertPayloadHash(env,payload));
+ assert.throws(()=>verifyFortressChannelEnvelope(env,publicKey,{organizationId:"org-channel",targetVaultId:"finance.ledger",bridgeId:"payment-ledger",minSequence:8,now}),/FORTRESS_CHANNEL_SEQUENCE_REPLAY/);
+ assert.throws(()=>verifyFortressChannelEnvelope(env,publicKey,{organizationId:"org-channel",targetVaultId:"finance.wallet",bridgeId:"payment-ledger",minSequence:7,now}),/FORTRESS_CHANNEL_TARGET_MISMATCH/);
 });
