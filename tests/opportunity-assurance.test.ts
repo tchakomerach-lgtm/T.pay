@@ -52,6 +52,7 @@ test("evidence hash verification detects tampering", () => {
 test("agent authority is resource, action, expiry and budget bounded", () => {
   const authority: AgentAuthority = {
     agentId: "agent-1",
+    tenantId: "tenant-1",
     principalId: "user-1",
     organizationId: "org-1",
     purpose: "opportunity.read",
@@ -63,16 +64,17 @@ test("agent authority is resource, action, expiry and budget bounded", () => {
   };
   const now = new Date("2026-10-08T12:00:00.000Z");
   assert.equal(authorizeAgentAction({
-    authority, resource: "opportunity:123", action: "read", now, consumedActions: 0,
+    authority, tenantId: "tenant-1", resource: "opportunity:123", action: "read", now, consumedActions: 0,
   }), "ALLOW");
   assert.equal(authorizeAgentAction({
-    authority, resource: "opportunity:999", action: "read", now, consumedActions: 0,
+    authority, tenantId: "tenant-1", resource: "opportunity:999", action: "read", now, consumedActions: 0,
   }), "DENY");
   assert.equal(authorizeAgentAction({
-    authority, resource: "opportunity:123", action: "read", now, consumedActions: 2,
+    authority, tenantId: "tenant-1", resource: "opportunity:123", action: "read", now, consumedActions: 2,
   }), "DENY");
   assert.equal(authorizeAgentAction({
     authority: {...authority, expiresAt: "2026-10-07T00:00:00.000Z"},
+    tenantId: "tenant-1",
     resource: "opportunity:123", action: "read", now, consumedActions: 0,
   }), "DENY");
 });
@@ -104,6 +106,7 @@ test("commitment risk escalates near deadlines", () => {
 
 test("action receipts bind the actor, intent and policy decision", () => {
   const receipt = createActionReceipt({
+    tenantId: "tenant-1",
     actorId: "actor-1",
     agentId: "agent-1",
     organizationId: "org-1",
@@ -126,4 +129,17 @@ test("opportunity actions cannot be normalized without tenant context", () => {
     action: "read",
     parameters: {},
   }), /OPPORTUNITY_ACTION_CONTEXT_REQUIRED/);
+});
+
+
+test("agent authority rejects a cross-tenant request", () => {
+  const authority: AgentAuthority = {
+    agentId: "agent-1", tenantId: "tenant-1", principalId: "user-1", organizationId: "org-1",
+    purpose: "opportunity.read", resource: "opportunity:123", actions: ["read"],
+    expiresAt: "2026-12-01T00:00:00.000Z", maxActions: 1,
+  };
+  assert.equal(authorizeAgentAction({
+    authority, tenantId: "tenant-2", resource: "opportunity:123", action: "read",
+    now: new Date("2026-10-08T12:00:00.000Z"), consumedActions: 0,
+  }), "DENY");
 });
