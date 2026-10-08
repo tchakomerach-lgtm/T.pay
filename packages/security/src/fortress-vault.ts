@@ -17,7 +17,7 @@ export interface FortressVaultDescriptor {
  readonly status:FortressVaultStatus;
  readonly allowedBridges:readonly string[];
  readonly parentVaultId?:string;
- readonly vaultType:"root"|"primary"|"sub";
+ readonly vaultType:"root"|"general"|"super-admin"|"primary"|"sub";
 }
 
 export interface VaultOperation {
