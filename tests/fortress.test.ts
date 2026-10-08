@@ -70,8 +70,8 @@ test("Fortress PostgreSQL migration creates RLS-protected vault and bridge table
  const client=new pg.Client({connectionString:process.env.TPAY_DATABASE_URL}); await client.connect();
  try{
   await applyMigrations(client,pathToFileURL(join(process.cwd(),"migrations")+"/"));
-  const tables=await client.query("SELECT to_regclass('fortress_vaults') AS vaults,to_regclass('fortress_bridge_policies') AS bridges");
-  assert.equal(tables.rows[0]?.vaults,"fortress_vaults"); assert.equal(tables.rows[0]?.bridges,"fortress_bridge_policies");
+  const tables=await client.query("SELECT to_regclass('fortress_vaults') AS vaults,to_regclass('fortress_bridge_policies') AS bridges,to_regclass('fortress_user_data_objects') AS user_data");
+  assert.equal(tables.rows[0]?.vaults,"fortress_vaults"); assert.equal(tables.rows[0]?.bridges,"fortress_bridge_policies"); assert.equal(tables.rows[0]?.user_data,"fortress_user_data_objects");
   const rls=await client.query("SELECT relrowsecurity FROM pg_class WHERE oid IN ('fortress_vaults'::regclass,'fortress_bridge_policies'::regclass) ORDER BY oid");
   assert.equal(rls.rows.length,2); assert.ok(rls.rows.every(row=>row.relrowsecurity===true));
  } finally {await client.end();}
