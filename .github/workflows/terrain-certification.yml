@@ -58,6 +58,8 @@ jobs:
         run: |
           set -euo pipefail
           export TPAY_ALLOW_LOCAL_TEST_SEED=true
+          export TPAY_ALLOW_INSECURE_LOCAL_DB=true
+          export TPAY_DATABASE_SSL=disable
           export TPAY_API_HOST=0.0.0.0
           export TPAY_API_PORT=8443
           export TPAY_WEB_ORIGINS="$TPAY_TERRAIN_WEB_URL"
