@@ -17,7 +17,7 @@ export interface EncryptedVaultObject{
 
 function sha256(value:Buffer|string):Buffer{return createHash("sha256").update(value).digest();}
 
-export async function encryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyRef,plaintext:Buffer,aad:string):Promise<EncryptedVaultObject>{
+export async function encryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyRef,plaintext:Buffer,aad:string,audit?:VaultAuditSink,context?:{actorId:string|null;objectId?:string;correlationId?:string}):Promise<EncryptedVaultObject>{
   if(ref.algorithm!=="AES-256-GCM")throw new Error("TPAY_VAULT_ALGORITHM_UNSUPPORTED");
   const key=await provider.decryptDataKey(ref);
   if(key.length!==32)throw new Error("TPAY_VAULT_DATA_KEY_INVALID");
@@ -26,7 +26,9 @@ export async function encryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyR
   const aadBytes=Buffer.from(aad,"utf8");
   cipher.setAAD(aadBytes);
   const ciphertext=Buffer.concat([cipher.update(plaintext),cipher.final()]);
-  return {nonce,ciphertext,authTag:cipher.getAuthTag(),aadSha256:sha256(aadBytes),payloadSha256:sha256(plaintext)};
+  const result={nonce,ciphertext,authTag:cipher.getAuthTag(),aadSha256:sha256(aadBytes),payloadSha256:sha256(plaintext)};
+  if(audit)await audit.record({vaultId:ref.vaultId,actorId:context?.actorId??null,action:"write",objectId:context?.objectId,keyVersion:ref.keyVersion,correlationId:context?.correlationId});
+  return result;
 }
 
 export async function decryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyRef,object:EncryptedVaultObject,aad:string,audit?:VaultAuditSink,context?:{actorId:string|null;objectId?:string;correlationId?:string}):Promise<Buffer>{
