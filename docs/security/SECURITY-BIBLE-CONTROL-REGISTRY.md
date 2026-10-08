@@ -93,3 +93,19 @@ This mapping is many-to-many in implementation: a runtime boundary may satisfy s
 
 ## Minimum inherited security declaration
 Before integration, each new component must document its trust boundary, tenant scope, data classes, capabilities, tools, egress, approval level, audit events, kill-switch scope and recovery behavior. Missing security metadata is an integration blocker.
+
+
+## Fortress control family
+
+| ID | Fortress rule | Mandatory evidence |
+|---|---|---|
+| FORT-001 | External root trust: HSM/KMS boundary; no exportable root key in application | provider + key-ceremony evidence |
+| FORT-002 | Unique vault identity/namespace per layer and tenant | registry + isolation tests |
+| FORT-003 | Per-vault KEK/DEK hierarchy; no universal application key | crypto tests + KMS evidence |
+| FORT-004 | Directional, purpose/action/data-class/TTL-bound controlled bridges | gateway tests |
+| FORT-005 | Cross-vault gateway enforces identity, tenant, authorization, capability and replay | adversarial tests |
+| FORT-006 | Independent vault quarantine/revocation without collateral access | containment drill |
+| FORT-007 | Vault metadata and bridge policies persist under RLS | PostgreSQL integration tests |
+| FORT-008 | Key provider failure fails closed | fault-injection test |
+| FORT-009 | Financial vault remains independently authoritative; AI cannot settle | financial integration evidence |
+| FORT-010 | Fortress evidence is tamper-evident and correlated with Security Audit | audit-chain evidence |
