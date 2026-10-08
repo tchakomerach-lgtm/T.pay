@@ -1,5 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import pg from "pg";
+import {join} from "node:path";
+import {pathToFileURL} from "node:url";
+import {applyMigrations} from "../packages/finance/src/postgres-migrations.js";
 import {FortressSecurityGateway} from "../packages/security/src/fortress-bridge.js";
 import {createDefaultFortressRegistry} from "../packages/security/src/fortress-defaults.js";
 import {TestOnlyKeyProvider,createVaultKeyMaterial,encryptForVault,decryptForVault} from "../packages/security/src/fortress-crypto.js";
@@ -56,4 +60,16 @@ test("Fortress ciphertext cannot cross a vault boundary",async()=>{
 test("Fortress external KMS adapter fails closed until configured",async()=>{
  const {ExternalKmsKeyProvider}=await import("../packages/security/src/fortress-crypto.js");
  await assert.rejects(()=>new ExternalKmsKeyProvider().wrapKey("ledger",Buffer.alloc(32)),/FORTRESS_KMS_PROVIDER_NOT_CONFIGURED/);
+});
+
+
+test("Fortress PostgreSQL migration creates RLS-protected vault and bridge tables", {skip: !process.env.TPAY_DATABASE_URL && "TPAY_DATABASE_URL is not configured"}, async()=>{
+ const client=new pg.Client({connectionString:process.env.TPAY_DATABASE_URL}); await client.connect();
+ try{
+  await applyMigrations(client,pathToFileURL(join(process.cwd(),"migrations")+"/"));
+  const tables=await client.query("SELECT to_regclass('fortress_vaults') AS vaults,to_regclass('fortress_bridge_policies') AS bridges");
+  assert.equal(tables.rows[0]?.vaults,"fortress_vaults"); assert.equal(tables.rows[0]?.bridges,"fortress_bridge_policies");
+  const rls=await client.query("SELECT relrowsecurity FROM pg_class WHERE oid IN ('fortress_vaults'::regclass,'fortress_bridge_policies'::regclass) ORDER BY oid");
+  assert.equal(rls.rows.length,2); assert.ok(rls.rows.every(row=>row.relrowsecurity===true));
+ } finally {await client.end();}
 });
