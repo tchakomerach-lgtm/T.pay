@@ -24,9 +24,23 @@ export interface SchoolApiDependencies {
   realtimeStore?: Pick<PostgresSchoolRealtimeStore,"replay"|"append">;
   corsOrigins?: readonly string[];
 }
+const CORRELATION_ID=/^[A-Za-z0-9._:-]{1,128}$/;
+const IDEMPOTENCY_KEY=/^[A-Za-z0-9._:-]{12,128}$/;
 const json=(res:ServerResponse,status:number,body:unknown,correlationId:string)=>{
   if(res.headersSent||res.writableEnded)return false;
-  const data=JSON.stringify(body); res.statusCode=status; res.setHeader("content-type","application/json; charset=utf-8"); res.setHeader("x-correlation-id",correlationId); res.setHeader("connection","close"); res.end(data); return true;
+  const data=JSON.stringify(body);
+  res.statusCode=status;
+  res.setHeader("content-type","application/json; charset=utf-8");
+  res.setHeader("x-correlation-id",correlationId);
+  res.setHeader("cache-control","no-store");
+  res.setHeader("pragma","no-cache");
+  res.setHeader("x-content-type-options","nosniff");
+  res.setHeader("referrer-policy","no-referrer");
+  res.setHeader("permissions-policy","camera=(), microphone=(), geolocation=()");
+  res.setHeader("strict-transport-security","max-age=31536000; includeSubDomains");
+  res.setHeader("connection","close");
+  res.end(data);
+  return true;
 };
 async function readBody(req:IncomingMessage):Promise<string>{
   let out="",size=0;
@@ -55,6 +69,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
  return serverFactory(async(req,res)=>{
   const correlationId=String(req.headers["x-correlation-id"]??newCorrelationId());
   try{
+   if(!CORRELATION_ID.test(correlationId))throw new Error("API_CORRELATION_ID_INVALID");
    const method=(req.method??"GET").toUpperCase(), path=((req.url??"/").split("?")[0]??"/"), r=route(path);
    const origin=String(req.headers.origin??"").trim();
    if(origin){
@@ -121,10 +136,15 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     }
     req.on("close",()=>unsubscribe());return;
    }
-   const body=parse(await readBody(req));
+   const bodyText=await readBody(req);
+   if(method!=="GET"){
+     const contentType=String(req.headers["content-type"]??"").split(";")[0].trim().toLowerCase();
+     if(contentType!=="application/json")throw new Error("API_JSON_CONTENT_TYPE_REQUIRED");
+   }
+   const body=parse(bodyText);
    const requestHash=canonicalRequestHash(method,path,JSON.stringify(body));
    const idem=String(req.headers["x-idempotency-key"]??"");
-   if(method!=="GET" && idem.length<12) throw new Error("API_IDEMPOTENCY_REQUIRED");
+   if(method!=="GET" && !IDEMPOTENCY_KEY.test(idem))throw new Error("API_IDEMPOTENCY_KEY_INVALID");
    const gateway=new ApiGatewayRepository(deps.db);
    const dedupe=method==="GET"?null:await gateway.reserveOrReplay({organizationId,key:idem,requestHash,route:path,expiresAt:new Date(Date.now()+86400000).toISOString()});
    if(dedupe?.status==="conflict")throw new Error("API_IDEMPOTENCY_CONFLICT");
