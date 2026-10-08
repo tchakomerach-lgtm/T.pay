@@ -79,3 +79,45 @@ GitHub CI status for the current branch is not yet claimed green. The workflow n
 
 ## Decision
 L16.2 secure transport/provider contracts are implemented, but production voice activation remains fail-closed until real provider, persistence, API, red-team and CI gates pass.
+
+
+## L16.6 injection and abuse hardening
+### References consulted
+- `AGENTS.md`
+- `docs/skills/TPAY-CONSTRUCTION-001.md`
+- `docs/bibles/TPAY-BIBLE-CONSULTATION-REGISTRY.md`
+- `docs/skills/TPAY-SEC-001.md`
+- `docs/security/THREAT-MODEL.md`
+- `docs/skills/TPAY-AI-001.md`
+- `docs/skills/TPAY-VOICE-001.md`
+- `docs/bibles/IMPLEMENTATION-MAP.md`
+
+### External security evidence
+OWASP ASVS 5.0 remains the application-security verification baseline. OWASP SSRF guidance requires allowlisting where possible, rejecting unsafe destinations, disabling unsafe redirects and addressing DNS-rebinding by validating and pinning the actual connection destination. The implementation therefore adds a resolved-destination/pinning boundary instead of relying only on hostname string filters.
+
+### Implemented
+- adaptive token-bucket rate limiting with identity cardinality bound;
+- brute-force failure counter and temporary containment primitive;
+- bounded behavioral risk scoring;
+- JSON depth/key/array/string limits;
+- prototype-pollution key rejection;
+- CRLF/header injection rejection;
+- path traversal rejection;
+- shell metacharacter boundary guard;
+- prompt-injection signal detection explicitly separated from authorization;
+- SSRF special-use/private/mapped-IP rejection;
+- DNS resolution validation and connection-pinning contract;
+- HTTP request-smuggling ambiguity rejection for conflicting Content-Length / Transfer-Encoding and unsupported transfer codings;
+- Voice HTTPS server enforcement of request-smuggling checks and network/actor rate limits;
+- red-team regression tests for the above controls.
+
+### Security decision
+These controls are defense-in-depth. No string filter is treated as the primary SQL/RCE/SSRF/prompt-injection defense. Authorization, capability, tenant isolation, parameterized database access, business validation and audit remain authoritative.
+
+### Verification state
+GitHub branch head was verified as `6630a73491bbfe1bdeb409bb61b0ac62387fe5f8` before the final network-hardening patches; subsequent security patches changed the branch head. GitHub currently exposes no workflow run for the examined branch commits, so CI GREEN is NOT claimed. Local `git clone`/npm validation was attempted but the execution environment could not resolve github.com; this is an infrastructure/tooling limitation, not evidence of a passing build.
+
+### Remaining risks
+- CI must execute on the final branch head and expose real job logs.
+- Real provider sandbox/mTLS certificate lifecycle and encrypted media storage/retention worker remain production gates.
+- A live SQL/NoSQL integration suite should be extended to the concrete repositories once their production query ports are identified; generic parameterized-query tests alone are insufficient evidence.
