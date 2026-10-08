@@ -36,3 +36,25 @@ test("P047 HTTP rejects oversized payloads and malformed realtime cursors",async
   assert.equal(malformed.status,400);
  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
+
+test("P048 fortress HTTP boundaries emit security headers and reject malformed control metadata",async()=>{
+ const server=createSchoolApiServer({db:db() as any,authenticate:async()=>auth(),syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any});
+ await new Promise<void>(resolve=>server.listen(0,resolve)); const port=(server.address() as any).port;
+ try{
+  const ok=await fetch(`http://127.0.0.1:${port}/v1/education/actors/teacher-1`);
+  assert.equal(ok.status,200);
+  assert.equal(ok.headers.get("x-content-type-options"),"nosniff");
+  assert.equal(ok.headers.get("cache-control"),"no-store");
+  assert.equal(ok.headers.get("referrer-policy"),"no-referrer");
+  assert.equal(ok.headers.get("strict-transport-security"),"max-age=31536000; includeSubDomains");
+
+  const badContentType=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"text/plain","x-idempotency-key":"p048-content-type"},body:"{}"});
+  assert.equal(badContentType.status,400);
+
+  const badKey=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"bad key"},body:"{}"});
+  assert.equal(badKey.status,400);
+
+  const badCorrelation=await fetch(`http://127.0.0.1:${port}/v1/education/actors/teacher-1`,{headers:{"x-correlation-id":"bad correlation id"}});
+  assert.equal(badCorrelation.status,400);
+ }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});
