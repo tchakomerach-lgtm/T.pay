@@ -26,6 +26,9 @@ export interface SchoolApiDependencies {
 }
 const CORRELATION_ID=/^[A-Za-z0-9._:-]{1,128}$/;
 const IDEMPOTENCY_KEY=/^[A-Za-z0-9._:-]{12,128}$/;
+const MAX_URL_LENGTH=2048;
+const MAX_HEADER_VALUE_LENGTH=4096;
+const MAX_BODY_BYTES=1024*1024;
 const json=(res:ServerResponse,status:number,body:unknown,correlationId:string)=>{
   if(res.headersSent||res.writableEnded)return false;
   const data=JSON.stringify(body);
@@ -37,14 +40,27 @@ const json=(res:ServerResponse,status:number,body:unknown,correlationId:string)=
   res.setHeader("x-content-type-options","nosniff");
   res.setHeader("referrer-policy","no-referrer");
   res.setHeader("permissions-policy","camera=(), microphone=(), geolocation=()");
+  res.setHeader("x-frame-options","DENY");
+  res.setHeader("cross-origin-resource-policy","same-origin");
+  res.setHeader("cross-origin-opener-policy","same-origin");
+  res.setHeader("x-permitted-cross-domain-policies","none");
   res.setHeader("strict-transport-security","max-age=31536000; includeSubDomains");
   res.setHeader("connection","close");
   res.end(data);
   return true;
 };
 async function readBody(req:IncomingMessage):Promise<string>{
+  const declaredLength=String(req.headers["content-length"]??"").trim();
+  if(declaredLength){
+    if(!/^\\d+$/.test(declaredLength))throw new Error("CONTENT_LENGTH_INVALID");
+    if(Number(declaredLength)>MAX_BODY_BYTES)throw new Error("PAYLOAD_TOO_LARGE");
+  }
   let out="",size=0;
-  for await(const chunk of req){ size+=Buffer.byteLength(chunk as string); if(size>1024*1024) throw new Error("PAYLOAD_TOO_LARGE"); out+=chunk; }
+  for await(const chunk of req){
+    size+=Buffer.byteLength(chunk as string);
+    if(size>MAX_BODY_BYTES)throw new Error("PAYLOAD_TOO_LARGE");
+    out+=chunk;
+  }
   return out;
 }
 const parse=(s:string)=>s?JSON.parse(s):{};
@@ -70,7 +86,13 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
   const correlationId=String(req.headers["x-correlation-id"]??newCorrelationId());
   try{
    if(!CORRELATION_ID.test(correlationId))throw new Error("API_CORRELATION_ID_INVALID");
-   const method=(req.method??"GET").toUpperCase(), path=((req.url??"/").split("?")[0]??"/"), r=route(path);
+   const rawUrl=String(req.url??"/");
+   if(rawUrl.length>MAX_URL_LENGTH)throw new Error("API_URL_TOO_LONG");
+   for(const [name,value] of Object.entries(req.headers)){
+     const values=Array.isArray(value)?value:value===undefined?[]:[value];
+     for(const item of values)if(String(item).length>MAX_HEADER_VALUE_LENGTH)throw new Error("API_HEADER_TOO_LARGE:"+name);
+   }
+   const method=(req.method??"GET").toUpperCase(), path=(rawUrl.split("?")[0]??"/"), r=route(path);
    const origin=String(req.headers.origin??"").trim();
    if(origin){
      if(!(deps.corsOrigins??[]).includes(origin)){
@@ -103,7 +125,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       try{replayCursor=BigInt(lastEventId);}catch{throw new Error("REALTIME_INVALID_CURSOR");}
       if(replayCursor<0n)throw new Error("REALTIME_INVALID_CURSOR");
     }
-    res.statusCode=200;res.setHeader("content-type","text/event-stream; charset=utf-8");res.setHeader("cache-control","no-cache, no-transform");res.setHeader("connection","keep-alive");res.write(": connected\\n\\n");
+    res.statusCode=200;res.setHeader("content-type","text/event-stream; charset=utf-8");res.setHeader("cache-control","no-cache, no-transform");res.setHeader("x-content-type-options","nosniff");res.setHeader("x-frame-options","DENY");res.setHeader("cross-origin-resource-policy","same-origin");res.setHeader("x-permitted-cross-domain-policies","none");res.setHeader("strict-transport-security","max-age=31536000; includeSubDomains");res.setHeader("connection","keep-alive");res.write(": connected\\n\\n");
     let replaying=true;
     const buffered: SchoolRealtimeEvent[]=[];
     const seen=new Set<string>();
