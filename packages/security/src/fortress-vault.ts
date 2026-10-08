@@ -49,7 +49,7 @@ export class FortressVaultRegistry {
   return vault;
  }
 
- setStatus(vaultId:string,status:FortressVaultStatus):void {
+ allowBridge(vaultId:string,bridgeId:string):void {\n  const current=this.get(vaultId);\n  if(current.layer==="root-trust") throw new Error("FORTRESS_ROOT_BRIDGE_FORBIDDEN");\n  if(!bridgeId.trim()) throw new Error("FORTRESS_BRIDGE_ID_REQUIRED");\n  if(!current.allowedBridges.includes(bridgeId)) this.vaults.set(vaultId,{...current,allowedBridges:[...current.allowedBridges,bridgeId]});\n }\n\n setStatus(vaultId:string,status:FortressVaultStatus):void {
   const current=this.get(vaultId);
   this.vaults.set(vaultId,{...current,status});
  }
