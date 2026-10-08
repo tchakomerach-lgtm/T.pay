@@ -47,8 +47,8 @@ Not yet production-ready: real HSM/KMS provider activation, full persistent brid
 ## FORT-011 — General Fortress Vault
 `general-fortress` is the global containment/control container for Fortress metadata and principal cells. It does not inherit or export child keys. Global access is restricted to the dedicated `tpay_fortress_operator` database role.
 
-## FORT-012 — Super Admin Vault
-`super-admin` is a separate global vault under the General Fortress. It contains privileged-control metadata and authorization material references, never ordinary tenant business data. Super Admin does not imply access to Finance, Ledger or any other cell. Root/cryptographic operations require separate dual control.
+## FORT-012 — Coffre-Fort Administrateur
+`administrator-fortress` est le coffre global d'administration T.Pay intégré au Coffre-Fort Général. Il contient les domaines d'administration T.Pay et les références de contrôle privilégié, jamais les données métier ordinaires des organisations. Il ne donne aucun accès implicite à Finance, Ledger ou aux autres cellules. Les opérations racine/cryptographiques restent soumises au contrôle séparé et au quorum.
 
 ## FORT-013 — Hierarchical key non-inheritance
 Parent/child relationships are organizational topology only. A parent vault key cannot decrypt a child vault. A child key cannot decrypt its parent. Every vault has independent key references and authenticated encryption boundaries.
@@ -88,3 +88,71 @@ Quarantining a sub-vault blocks its operations while unrelated vaults remain act
 
 ## FORT-020 — Operational performance rule
 Do not put every payload through heavyweight cryptographic key operations or PostgreSQL transactions. Establish/rotate authenticated channels at controlled intervals, keep payloads off the database bus, and use persistent storage for authorization/replay/audit state where the business effect requires durable proof.
+
+
+## FORT-021 — Coffre-Fort Administrateur hiérarchique
+Le Coffre-Fort Administrateur est séparé du Coffre-Fort Général par une identité cryptographique propre. Ses sous-coffres sont indépendants :
+- identité administrateur;
+- authentification;
+- sessions;
+- super-admin;
+- rôles;
+- permissions;
+- politiques;
+- plateforme;
+- configuration;
+- feature flags;
+- approbations;
+- sécurité;
+- incidents;
+- audit;
+- preuves;
+- conformité;
+- clés;
+- récupération;
+- opérations;
+- urgence.
+
+Le parentage ne transmet jamais une clé. Un administrateur n'obtient pas automatiquement une capacité cryptographique sur un autre coffre.
+
+## FORT-022 — Coffre utilisateur par module
+Chaque utilisateur T.Pay reçoit, à l'activation d'un module spécialisé, un compartiment cryptographique propre sous le sous-coffre du module. Le modèle est :
+
+`Coffre Général → Cellule → Sous-coffre Module → Coffre Utilisateur`
+
+Pour Finance par exemple :
+`Finance → Payment → User-A`
+est cryptographiquement différent de :
+`Finance → Payment → User-B`
+et de :
+`Finance → Ledger → User-A`.
+
+Chaque coffre utilisateur possède son propre identifiant, namespace, référence de clé, propriétaire vérifié, statut et frontière de données. L'identifiant utilisateur brut n'est pas utilisé comme secret cryptographique.
+
+## FORT-023 — Isolation utilisateur/tenant
+Une demande utilisateur est autorisée uniquement après vérification de l'identité serveur, de l'organisation courante, de l'appartenance au module et de la propriété du coffre. Un identifiant fourni par le client n'est jamais une preuve d'autorisation.
+
+La RLS PostgreSQL distingue :
+- `system`;
+- `tenant-user`;
+- `global-admin-user`.
+
+Les politiques user-scoped remplacent la politique tenant permissive afin d'empêcher qu'un utilisateur d'une même organisation puisse lire le coffre d'un autre utilisateur.
+
+## FORT-024 — Donnée chiffrée au fondement
+La table `fortress_user_data_objects` ne stocke que des données chiffrées et versionnées :
+`object_id + version + vault_id + key_version + nonce + ciphertext + auth_tag + AAD hash + payload hash`.
+
+Aucun champ plaintext métier n'est prévu dans cette frontière. Les opérations UPDATE/DELETE ne disposent d'aucune politique RLS par défaut : la donnée protégée est traitée comme une suite de versions immuables. La rotation de clé utilise `key_version` et le HSM/KMS externe; aucune clé brute n'est stockée dans PostgreSQL.
+
+## FORT-025 — Instantané et temps réel
+Le modèle ne mélange pas le coffre et le transport. Le coffre protège l'état durable; Fortress Channel transporte les événements signés à faible latence. Chaque événement porte tenant, source, cible, bridge, séquence, expiration et hash du payload. Les projections temps réel peuvent être reconstruites depuis les données versionnées et l'audit.
+
+## FORT-026 — Règle de communication
+Utilisateur → module → coffre utilisateur → sous-coffre module → cellule → autre cellule n'est jamais un accès direct. Chaque franchissement de frontière utilise le Fortress Gateway, un bridge explicite, ABAC, capability, anti-replay et audit. Les payloads ne transitent pas par PostgreSQL comme bus.
+
+## FORT-027 — Rotation et récupération
+Chaque coffre utilisateur est conçu pour une rotation indépendante de clé. Une compromission d'un utilisateur ou d'un module permet de révoquer/quarantainer le coffre concerné sans réutiliser ou exposer les clés des autres utilisateurs. La récupération exige une procédure contrôlée; elle ne réactive pas silencieusement une capacité révoquée.
+
+## FORT-028 — Référence normative
+La conception suit notamment les principes OWASP de séparation des clés et données, chiffrement authentifié, rotation, séparation tenant/utilisateur et autorisation avant accès aux objets. Les recommandations publiques OWASP confirment l'intérêt des clés séparées, de l'enveloppe DEK/KEK, des modes authentifiés et d'une isolation explicite des objets user-scoped. citeturn2search0turn2search8turn2search2
