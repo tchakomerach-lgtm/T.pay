@@ -3,6 +3,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import { VOICE_ROUTES } from "./voice-routes.js";
 import { assertSafeJsonValue, assertSafeHeaderValue } from "../../security/src/input-firewall.js";
+import { AdaptiveRateLimiter } from "../../security/src/adaptive-abuse-control.js";
+import { assertNoRequestSmuggling } from "../../security/src/network-hardening.js";
 
 export const VOICE_TLS_MIN_VERSION = "TLSv1.3" as const;
 export const VOICE_TLS_MAX_VERSION = "TLSv1.3" as const;
@@ -33,6 +35,7 @@ export interface VoiceHttpsServerOptions {
   };
   readonly auth: VoiceApiAuth;
   readonly idempotency: VoiceIdempotencyStore;
+  readonly rateLimiter: AdaptiveRateLimiter;
   readonly handle: (input: {
     principal: VoiceApiPrincipal;
     request: IncomingMessage;
@@ -62,6 +65,10 @@ export function createVoiceHttpsServer(options: VoiceHttpsServerOptions): Server
     if (rawRequestId !== undefined) assertSafeHeaderValue(rawRequestId);
     const requestId = rawRequestId || randomUUID();
     try {
+      assertNoRequestSmuggling(request.headers as Record<string, string | string[] | undefined>);
+      const remoteIdentity = request.socket.remoteAddress ?? "unknown";
+      const networkDecision = options.rateLimiter.consume("ip:" + remoteIdentity);
+      if (!networkDecision.allowed) throw new Error("VOICE_RATE_LIMITED");
       if (!request.socket.encrypted || request.socket.getProtocol() !== "TLSv1.3") {
         response.writeHead(426, { "content-type": "application/json", "strict-transport-security": "max-age=31536000; includeSubDomains" });
         response.end(JSON.stringify({ error: "TLS13_REQUIRED", requestId }));
@@ -78,6 +85,8 @@ export function createVoiceHttpsServer(options: VoiceHttpsServerOptions): Server
       }
 
       const principal = await options.auth.authenticate(request);
+      const actorDecision = options.rateLimiter.consume("actor:" + principal.actorId);
+      if (!actorDecision.allowed) throw new Error("VOICE_RATE_LIMITED");
       await options.auth.authorize(principal, method, path);
 
       let body = "";
