@@ -98,7 +98,7 @@ test("P055 E2E terrain links administration → teacher → student → parent �
     const ownBody=await own.json() as any;
     assert.equal(ownBody.data.fields.name,"Student Terrain");
     assert.equal(ownBody.data.fields.academicRecord.average,15.5);
-    assert.equal("identity_document" in JSON.stringify(ownBody.data),false);
+    assert.equal(JSON.stringify(ownBody.data).includes("identity_document"),false);
 
     const parentRead=await request("parent-token",`/v1/education/students/${student}`);
     assert.equal(parentRead.status,200);
@@ -145,7 +145,7 @@ test("P055 E2E terrain links administration → teacher → student → parent �
     );
     assert.deepEqual(syncCounts.rows[0],{inbox:2,outbox:2});
 
-    const realtime=await new PostgresSchoolRealtimeStore(await pool.connect()).replay(tenant,org,0n);
+    const realtimeClient=await pool.connect();\n    const realtime=await new PostgresSchoolRealtimeStore(realtimeClient).replay(tenant,org,0n);\n    realtimeClient.release();
     assert.equal(realtime.state,"OK");
     assert.equal(realtime.events.length,2);
     assert.equal(realtime.events[0]?.streamSequence,"1");
