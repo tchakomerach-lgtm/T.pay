@@ -162,7 +162,7 @@ export function createActionReceipt(input: {
   return {
     id: randomUUID(),
     tenantId: input.tenantId,
-    actorId: input.actorId, input.actorId,
+    actorId: input.actorId,
     ...(input.agentId === undefined ? {} : { agentId: input.agentId }),
     organizationId: input.organizationId,
     intent: input.intent,
