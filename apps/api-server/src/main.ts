@@ -130,15 +130,24 @@ export async function buildProductionApiServer(config:RuntimeConfig):Promise<{se
         try{return await new PostgresSchoolRealtimeStore(client).append(event);}
         finally{client.release();}
       },
-      append:(event)=>new PostgresSchoolRealtimeStore(new PooledTransactionClient(pool)).append(event),
-      replay:(tenantId:string,organizationId:string,afterSequence:bigint)=>new PostgresSchoolRealtimeStore(new PooledTransactionClient(pool)).replay(tenantId,organizationId,afterSequence)
+      replay:async(tenantId:string,organizationId:string,afterSequence:bigint)=>{
+        const client=new PooledTransactionClient(pool);
+        try{return await new PostgresSchoolRealtimeStore(client).replay(tenantId,organizationId,afterSequence);}
+        finally{client.release();}
+      }
     }
   },{
     serverFactory:(handler:RequestListener)=>createHttpsServer({
       key:tlsKey,
       cert:tlsCert,
       minVersion:"TLSv1.3"
-    },handler)
+    },handler);
+    server.requestTimeout=30000;
+    server.headersTimeout=10000;
+    server.keepAliveTimeout=5000;
+    server.maxHeadersCount=100;
+    server.maxRequestsPerSocket=100;
+    return server;
   });
   return {server,pool};
 }
