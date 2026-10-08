@@ -47,7 +47,7 @@ function registerPrimary(
  registry.register({
   vaultId:id, layer, namespace:`org:${organizationId}:${id}`, organizationId,
   classification, keyRef:createVaultKeyRef(`${organizationId}:${id}`),
-  status:"active", allowedBridges:[], vaultType:"primary"
+  status:"active", allowedBridges:[], vaultType:"primary",parentVaultId:"general-fortress"
  });
 }
 
@@ -65,6 +65,12 @@ function registerSub(
 export function createDefaultFortressRegistry(organizationId:string):FortressVaultRegistry {
  if(!organizationId.trim()) throw new Error("FORTRESS_ORGANIZATION_REQUIRED");
  const registry=new FortressVaultRegistry();
+ registry.register({
+  vaultId:"general-fortress",layer:"security",namespace:"tpay:fortress:general",classification:"secret",keyRef:"hsm://tpay/fortress/general",status:"active",allowedBridges:[],vaultType:"general"
+ });
+ registry.register({
+  vaultId:"super-admin",layer:"security",namespace:"tpay:fortress:super-admin",classification:"secret",keyRef:"hsm://tpay/super-admin",status:"active",allowedBridges:[],vaultType:"super-admin",parentVaultId:"general-fortress"
+ });
  registry.register({
   vaultId:"root-trust",layer:"root-trust",namespace:"root",classification:"secret",
   keyRef:"hsm://tpay/root",status:"active",allowedBridges:[],vaultType:"root"
