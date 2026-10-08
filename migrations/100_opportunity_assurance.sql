@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS opportunity_action_receipts (
   CHECK (data_class IN ('PUBLIC','INTERNAL','CONFIDENTIAL','RESTRICTED'))
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_opportunity_action_receipts_hash
+CREATE INDEX IF NOT EXISTS idx_opportunity_action_receipts_hash
   ON opportunity_action_receipts (tenant_id, organization_id, action_hash);
 
 CREATE TABLE IF NOT EXISTS opportunity_agent_authorities (
@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS opportunity_agent_authorities (
   actions jsonb NOT NULL,
   expires_at timestamptz NOT NULL,
   max_actions integer NOT NULL CHECK (max_actions > 0),
-  max_value_minor bigint,
+  max_value_minor bigint CHECK (max_value_minor IS NULL OR max_value_minor >= 0),
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (tenant_id, organization_id, agent_id, resource)
 );
@@ -105,3 +105,19 @@ COMMENT ON TABLE opportunity_evidence IS 'OP-1234+ evidence integrity records; b
 COMMENT ON TABLE opportunity_commitments IS 'OP-1229+ operational commitments and deadline risk state.';
 COMMENT ON TABLE opportunity_action_receipts IS 'OP-1256+ immutable intent/action authorization receipts.';
 COMMENT ON TABLE opportunity_agent_authorities IS 'OP-1252+ short-lived, resource-scoped agent authority.';
+
+CREATE OR REPLACE FUNCTION opportunity_action_receipt_immutable()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RAISE EXCEPTION 'OPPORTUNITY_ACTION_RECEIPT_IMMUTABLE';
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_opportunity_action_receipt_immutable ON opportunity_action_receipts;
+CREATE TRIGGER trg_opportunity_action_receipt_immutable
+BEFORE UPDATE OR DELETE ON opportunity_action_receipts
+FOR EACH ROW EXECUTE FUNCTION opportunity_action_receipt_immutable();
+
+COMMENT ON FUNCTION opportunity_action_receipt_immutable() IS 'OP-1256 append-only enforcement for autonomous action receipts.';
