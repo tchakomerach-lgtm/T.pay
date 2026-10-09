@@ -39,15 +39,17 @@ export class CommunityTontineMfOperationsService implements CommunityTontineMfOp
     return this.reconciliationRepository.listOpen(organizationId, microfinanceId);
   }
 
-  prepareSettlement(
+  async prepareSettlement(
     access: CommunityTontineMfAccess,
     organizationId: UUID,
     instruction: CommunityTontineMfSettlementInstruction
-  ): CommunityTontineMfSettlementInstruction {
+  ): Promise<CommunityTontineMfSettlementInstruction> {
     authorize(access, "payout.prepare", organizationId, instruction.tontineGroupId, instruction.microfinanceId);
     if (instruction.state !== "prepared") throw new Error("COMMUNITY_TONTINE_SETTLEMENT_ALREADY_PROCESSED");
     if (instruction.amountMinor <= 0n) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_AMOUNT_INVALID");
     if (!instruction.destinationRef.trim()) throw new Error("COMMUNITY_TONTINE_DESTINATION_REQUIRED");
-    const prepared = { ...instruction, state: "prepared" as const };\n    if (!this.settlementRepository) return prepared;\n    return this.settlementRepository.savePrepared(organizationId, prepared);
+    const prepared = { ...instruction, state: "prepared" as const };
+    if (!this.settlementRepository) return prepared;
+    return this.settlementRepository.savePrepared(organizationId, prepared);
   }
 }
