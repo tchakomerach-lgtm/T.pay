@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS community_tontine_mf_settlement_audit (
   event_type text NOT NULL CHECK (event_type IN ('created','updated')),
   previous_state text,
   new_state text NOT NULL,
-  actor_id uuid NOT NULL,
+  actor_id uuid,
   row_version bigint NOT NULL CHECK (row_version > 0),
   amount_minor numeric(38,0) NOT NULL CHECK (amount_minor > 0),
   currency char(3) NOT NULL,
@@ -39,9 +39,11 @@ BEGIN
     CASE WHEN TG_OP = 'INSERT' THEN 'created' ELSE 'updated' END,
     CASE WHEN TG_OP = 'INSERT' THEN NULL ELSE OLD.state END,
     NEW.state,
-    CASE WHEN NEW.approved_by IS DISTINCT FROM CASE WHEN TG_OP = 'INSERT' THEN NULL ELSE OLD.approved_by END
-      THEN NEW.approved_by
-      ELSE NEW.prepared_by
+    CASE
+      WHEN TG_OP = 'INSERT' THEN NEW.prepared_by
+      WHEN NEW.approved_by IS DISTINCT FROM OLD.approved_by THEN NEW.approved_by
+      WHEN NEW.prepared_by IS DISTINCT FROM OLD.prepared_by THEN NEW.prepared_by
+      ELSE NULL
     END,
     NEW.version, NEW.amount_minor, NEW.currency
   );
@@ -60,4 +62,4 @@ BEFORE DELETE ON community_tontine_mf_settlement_instructions
 FOR EACH ROW EXECUTE FUNCTION community_tontine_mf_log_settlement_change();
 
 COMMENT ON TABLE community_tontine_mf_settlement_audit IS
-  'Append-only database-triggered audit events for settlement workflow. Do not grant application roles UPDATE or DELETE. Contains no destination routing secret.';
+  'Append-only database-triggered audit events for settlement workflow. Do not grant application roles UPDATE or DELETE. Contains no destination routing secret; actor_id is null for updates whose authenticated actor is not represented by the row.';
