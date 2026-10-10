@@ -37,4 +37,6 @@ test("preparation cannot overwrite an already approved instruction", async () =>
     currency:"XOF",destinationRef:"mf:destination",requiresHumanApproval:true,preparedBy:id,state:"prepared" as const,createdAt:"2026-10-09T00:00:00Z" };
   await assert.rejects(() => repository.savePrepared(id,instruction), /PERSISTENCE_CONFLICT/);
   assert.match(calls[0].sql,/state='prepared'/);
+  assert.match(calls[0].sql,/beneficiary_client_id=\\$6/);
+  assert.match(calls[0].sql,/destination_ref=\\$9/);
 });
