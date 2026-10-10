@@ -43,7 +43,7 @@ export class PostgresCommunityTontineMfAccessRepository implements CommunityTont
     return result.rows[0] ? accessFromRow(result.rows[0]) : null;
   }
   async save(access: CommunityTontineMfAccess): Promise<void> {
-    await this.db.query(
+    const result = await this.db.query(
       `INSERT INTO community_tontine_mf_access
        (id,organization_id,tontine_group_id,microfinance_id,role,status,granted_by,created_at,expires_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
@@ -79,7 +79,7 @@ export class PostgresCommunityTontineMfReconciliationRepository implements Commu
     return result.rows.map(reconciliationFromRow);
   }
   async save(organizationId: UUID, item: CommunityTontineMfReconciliationItem): Promise<void> {
-    await this.db.query(
+    const result = await this.db.query(
       `INSERT INTO community_tontine_mf_reconciliation
        (id,organization_id,tontine_group_id,microfinance_id,external_reference,expected_minor,observed_minor,currency,state,opened_at,idempotency_key)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
