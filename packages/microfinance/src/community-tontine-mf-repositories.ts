@@ -8,7 +8,7 @@ export interface CommunityTontineMfAccessRepository {
   revoke(organizationId: UUID, accessId: UUID): Promise<void>;
 }
 export interface CommunityTontineMfReconciliationRepository {
-  listOpen(organizationId: UUID, microfinanceId: UUID): Promise<CommunityTontineMfReconciliationItem[]>;
+  listOpen(organizationId: UUID, tontineGroupId: UUID, microfinanceId: UUID): Promise<CommunityTontineMfReconciliationItem[]>;
   save(organizationId: UUID, item: CommunityTontineMfReconciliationItem): Promise<void>;
 }
 function accessFromRow(row: Record<string, unknown>): CommunityTontineMfAccess {
@@ -62,12 +62,12 @@ export class PostgresCommunityTontineMfAccessRepository implements CommunityTont
 }
 export class PostgresCommunityTontineMfReconciliationRepository implements CommunityTontineMfReconciliationRepository {
   constructor(private readonly db: TontineSqlExecutor) {}
-  async listOpen(organizationId: UUID, microfinanceId: UUID): Promise<CommunityTontineMfReconciliationItem[]> {
+  async listOpen(organizationId: UUID, tontineGroupId: UUID, microfinanceId: UUID): Promise<CommunityTontineMfReconciliationItem[]> {
     const result = await this.db.query(
       `SELECT * FROM community_tontine_mf_reconciliation
-       WHERE organization_id=$1 AND microfinance_id=$2 AND state IN ('open','investigating','escalated')
+       WHERE organization_id=$1 AND tontine_group_id=$2 AND microfinance_id=$3 AND state IN ('open','investigating','escalated')
        ORDER BY opened_at ASC,id ASC`,
-      [organizationId, microfinanceId]
+      [organizationId, tontineGroupId, microfinanceId]
     );
     return result.rows.map(reconciliationFromRow);
   }
