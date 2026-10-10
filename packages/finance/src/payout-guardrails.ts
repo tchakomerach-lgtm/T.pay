@@ -11,7 +11,7 @@ export type PayoutGuardrailReason =
 export interface PayoutGuardrailInput {
   amountMinor: bigint;
   currency: string;
-  /** Excludes protected customer funds, payables, reserves and the minimum buffer. */
+  /** Treasury funds after protected funds/payables/reserves are excluded, but before preserving the minimum buffer. */
   spendableTreasuryMinor: bigint;
   minimumLiquidityBufferMinor: bigint;
   dailyPaidMinor: bigint;
