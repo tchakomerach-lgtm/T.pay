@@ -34,8 +34,9 @@ export class PostgresCommunityTontineMfPortfolioRepository implements CommunityT
         LEFT JOIN tontine_contributions tc
           ON tc.id = s.contribution_id AND tc.organization_id = s.organization_id
          AND tc.group_id = m.group_id AND tc.membership_id = m.id
+         AND tc.currency = (SELECT currency FROM scoped_group)
         LEFT JOIN tontine_receipts r
-          ON r.organization_id = tc.organization_id AND r.contribution_id = tc.id
+          ON r.organization_id = tc.organization_id AND r.contribution_id = tc.id AND r.currency = tc.currency
         GROUP BY s.membership_id
       ),
       contribution_summary AS (
