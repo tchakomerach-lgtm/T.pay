@@ -616,6 +616,14 @@ test("Community Tontine partner settlement is payout-bound, maker-checker protec
     });
     assert.equal(instruction.state,"prepared");
     await assert.rejects(
+      () => repository.savePrepared(organizationId as never, {
+        id:instructionId as never,tontineGroupId:groupId as never,microfinanceId:microfinanceId as never,
+        payoutId:payoutId as never,beneficiaryClientId:clientId as never,amountMinor:1000n,currency:"XOF",
+        destinationRef:destinationRef+"-tampered",requiresHumanApproval:true,preparedBy:preparerId as never,state:"prepared",createdAt:new Date().toISOString()
+      }),
+      /PERSISTENCE_CONFLICT/
+    );
+    await assert.rejects(
       () => repository.markApproved(organizationId as never,instructionId as never,preparerId as never,"prepared"),
       /APPROVAL_CONFLICT/
     );
