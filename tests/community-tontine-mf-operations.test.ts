@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CommunityTontineMfOperationsService } from "../packages/microfinance/src/community-tontine-mf-operations.js";
+import { PostgresCommunityTontineMfReconciliationRepository } from "../packages/microfinance/src/community-tontine-mf-repositories.js";
 
 const id = "11111111-1111-4111-8111-111111111111" as any;
 const other = "22222222-2222-4222-8222-222222222222" as any;
@@ -33,4 +34,14 @@ test("reconciliation queue is capability protected by the persisted grant", asyn
   await assert.rejects(() => service.listReconciliation(access,id,id), /CAPABILITY_DENIED/);
   const noGrant = {...access, role:"reconciliation_officer" as const};
   await assert.rejects(() => service.listReconciliation(noGrant,id,id), /ACCESS_NOT_ACTIVE/);
+});
+
+
+test("reconciliation persistence query is scoped to organization, group, and partner", async () => {
+  const calls: Array<{sql:string; values:unknown[]}> = [];
+  const db = { query: async (sql:string, values:unknown[]) => { calls.push({sql,values}); return {rows:[]}; } } as any;
+  const repository = new PostgresCommunityTontineMfReconciliationRepository(db);
+  await repository.listOpen(id, other, id);
+  assert.match(calls[0].sql,/organization_id=\$1 AND tontine_group_id=\$2 AND microfinance_id=\$3/);
+  assert.deepEqual(calls[0].values,[id,other,id]);
 });
