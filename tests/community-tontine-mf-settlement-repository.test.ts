@@ -44,3 +44,27 @@ test("preparation cannot overwrite an already approved instruction", async () =>
   assert.match(calls[1].sql,/beneficiary_client_id=\$6/);
   assert.match(calls[1].sql,/destination_ref=\$9/);
 });
+
+
+test("identical prepared settlement replay returns the durable row without rewriting it", async () => {
+  const calls: string[] = [];
+  const instruction = { id,tontineGroupId:id,microfinanceId:id,payoutId:id,beneficiaryClientId:id,amountMinor:1000n,
+    currency:"XOF",destinationRef:"mf:destination",requiresHumanApproval:true,preparedBy:id,state:"prepared" as const,createdAt:"2026-10-09T00:00:00Z" };
+  const existing = { id,tontine_group_id:id,microfinance_id:id,payout_id:id,beneficiary_client_id:id,
+    amount_minor:"1000",currency:"XOF",destination_ref:"mf:destination",requires_human_approval:true,
+    prepared_by:id,approved_by:null,state:"prepared",version:1,created_at:"2026-10-09T00:00:00Z" };
+  const db = {
+    transaction: async (work:(tx:any)=>Promise<unknown>) => work({
+      query: async (sql:string) => {
+        calls.push(sql);
+        return calls.length === 1 ? {rows:[]} : {rows:[existing]};
+      }
+    })
+  } as any;
+  const repository = new PostgresCommunityTontineMfSettlementRepository(db);
+  const replayed = await repository.savePrepared(id,instruction);
+  assert.equal(replayed.state,"prepared");
+  assert.equal(replayed.amountMinor,1000n);
+  assert.equal(calls.length,2);
+  assert.match(calls[1],/FOR UPDATE/);
+});
