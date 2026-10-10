@@ -19,6 +19,7 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conname = 'community_tontine_mf_settlement_checker_state_check'
+      AND conrelid = 'community_tontine_mf_settlement_instructions'::regclass
   ) THEN
     ALTER TABLE community_tontine_mf_settlement_instructions
       ADD CONSTRAINT community_tontine_mf_settlement_checker_state_check
