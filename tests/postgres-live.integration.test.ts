@@ -642,8 +642,14 @@ test("Community Tontine partner settlement is payout-bound, maker-checker protec
       () => client.query("DELETE FROM community_tontine_mf_settlement_instructions WHERE id=$1",[instructionId]),
       /COMMUNITY_TONTINE_SETTLEMENT_DELETE_FORBIDDEN/
     );
+    await assert.rejects(
+      () => client.query("DELETE FROM community_tontine_mf_settlement_audit WHERE instruction_id=$1",[instructionId]),
+      /COMMUNITY_TONTINE_SETTLEMENT_AUDIT_IMMUTABLE/
+    );
   } finally {
+    await client.query("ALTER TABLE community_tontine_mf_settlement_audit DISABLE TRIGGER trg_community_tontine_mf_settlement_audit_no_mutation").catch(()=>undefined);
     await client.query("DELETE FROM community_tontine_mf_settlement_audit WHERE instruction_id=$1",[instructionId]).catch(()=>undefined);
+    await client.query("ALTER TABLE community_tontine_mf_settlement_audit ENABLE TRIGGER trg_community_tontine_mf_settlement_audit_no_mutation").catch(()=>undefined);
     await client.query("ALTER TABLE community_tontine_mf_settlement_instructions DISABLE TRIGGER trg_community_tontine_mf_settlement_no_delete").catch(()=>undefined);
     await client.query("DELETE FROM community_tontine_mf_settlement_instructions WHERE id=$1",[instructionId]).catch(()=>undefined);
     await client.query("ALTER TABLE community_tontine_mf_settlement_instructions ENABLE TRIGGER trg_community_tontine_mf_settlement_no_delete").catch(()=>undefined);
