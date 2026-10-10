@@ -43,7 +43,7 @@ export class CommunityTontineMfOperationsService implements CommunityTontineMfOp
   async listReconciliation(access: CommunityTontineMfAccess, organizationId: UUID, microfinanceId: UUID): Promise<CommunityTontineMfReconciliationItem[]> {
     const persisted = await this.resolveAccess(access, organizationId, access.tontineGroupId, microfinanceId);
     authorize(persisted, "reconciliation.manage", organizationId, persisted.tontineGroupId, microfinanceId);
-    return this.reconciliationRepository.listOpen(organizationId, microfinanceId);
+    return this.reconciliationRepository.listOpen(organizationId, persisted.tontineGroupId, microfinanceId);
   }
 
   async prepareSettlement(
