@@ -18,5 +18,5 @@ test("portfolio repository cannot return another organization's portfolio", asyn
   const repo=new PostgresCommunityTontineMfPortfolioRepository(db);
   assert.equal(await repo.get(id,id,id),null);
   assert.equal(calls[0].values.length,3);
-  assert.match(calls[0].sql,/m\.organization_id=\$1/);
+  assert.match(calls[0].sql,/g\.organization_id = \$1 AND g\.id = \$2/);
 });
