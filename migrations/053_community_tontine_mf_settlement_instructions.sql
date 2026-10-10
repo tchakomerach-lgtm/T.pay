@@ -12,14 +12,13 @@ CREATE TABLE IF NOT EXISTS community_tontine_mf_settlement_instructions (
   currency char(3) NOT NULL,
   destination_ref text NOT NULL,
   requires_human_approval boolean NOT NULL DEFAULT true,
-  prepared_by uuid NOT NULL,
+  prepared_by uuid,
   approved_by uuid,
   state text NOT NULL CHECK (state IN ('prepared','approved','submitted','provider_pending','settled','exception')),
   version bigint NOT NULL DEFAULT 1 CHECK (version > 0),
   created_at timestamptz NOT NULL DEFAULT now(),
   last_modified_at timestamptz NOT NULL DEFAULT now(),
-  CHECK (approved_by IS NULL OR approved_by <> prepared_by),
-  CHECK (state NOT IN ('approved','submitted','provider_pending','settled') OR approved_by IS NOT NULL)
+  CHECK (approved_by IS NULL OR prepared_by IS NULL OR approved_by <> prepared_by)
 );
 
 CREATE INDEX IF NOT EXISTS idx_community_tontine_mf_settlement_scope
