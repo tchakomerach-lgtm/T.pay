@@ -31,12 +31,16 @@ test("settlement approval fails closed when a concurrent worker changed the stat
 
 test("preparation cannot overwrite an already approved instruction", async () => {
   const calls: Array<{sql:string; values:unknown[]}> = [];
-  const db = { query: async (sql:string,values:unknown[]) => { calls.push({sql,values}); return {rows:[]}; } } as any;
+  const db = {
+    query: async (sql:string,values:unknown[]) => { calls.push({sql,values}); return {rows:[]}; },
+    transaction: async (work:(tx:any)=>Promise<unknown>) => work(db)
+  } as any;
   const repository = new PostgresCommunityTontineMfSettlementRepository(db);
   const instruction = { id,tontineGroupId:id,microfinanceId:id,payoutId:id,beneficiaryClientId:id,amountMinor:1000n,
     currency:"XOF",destinationRef:"mf:destination",requiresHumanApproval:true,preparedBy:id,state:"prepared" as const,createdAt:"2026-10-09T00:00:00Z" };
   await assert.rejects(() => repository.savePrepared(id,instruction), /PERSISTENCE_CONFLICT/);
-  assert.match(calls[0].sql,/state='prepared'/);
-  assert.match(calls[0].sql,/beneficiary_client_id=\$6/);
-  assert.match(calls[0].sql,/destination_ref=\$9/);
+  assert.match(calls[0].sql,/ON CONFLICT DO NOTHING/);
+  assert.match(calls[1].sql,/state='prepared'/);
+  assert.match(calls[1].sql,/beneficiary_client_id=\$6/);
+  assert.match(calls[1].sql,/destination_ref=\$9/);
 });
