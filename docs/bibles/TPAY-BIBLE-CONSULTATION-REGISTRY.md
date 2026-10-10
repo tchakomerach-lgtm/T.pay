@@ -12,6 +12,7 @@ This registry makes the project's Bibles discoverable before implementation and 
 | Change type | Mandatory references |
 |---|---|
 | Money, balances, fees, payment, ledger | `docs/skills/TPAY-FIN-002.md` + finance architecture/ADR |
+| Payouts, treasury liquidity, automated settlement | `docs/bibles/TPAY-BIBLE-GAIN-009-AUTOMATIC-PAYOUT-SETTLEMENT.md` + FIN + SEC skills |
 | Microfinance, collection, field agent | `docs/skills/TPAY-MF-002.md` + microfinance ADRs |
 | Identity, authorization, secrets, abuse | `docs/skills/TPAY-SEC-001.md` + `docs/security/THREAT-MODEL.md` |
 | AI, agents, tools, prompts | `docs/skills/TPAY-AI-001.md` + AI Bible |
