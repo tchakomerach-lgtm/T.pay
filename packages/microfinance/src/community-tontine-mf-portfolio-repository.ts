@@ -48,7 +48,7 @@ export class PostgresCommunityTontineMfPortfolioRepository implements CommunityT
           COUNT(*) FILTER (WHERE s.status = 'blocked')::int AS exception_count
         FROM tontine_beneficiary_slots s
         JOIN scoped_group g ON g.id = s.group_id AND g.organization_id = s.organization_id
-        JOIN tontine_memberships bm ON bm.id = s.beneficiary_membership_id AND bm.organization_id = s.organization_id
+        JOIN tontine_memberships bm ON bm.id = s.beneficiary_membership_id AND bm.organization_id = s.organization_id AND bm.group_id = s.group_id
         WHERE bm.selected_microfinance_id = $3
       )
       SELECT
