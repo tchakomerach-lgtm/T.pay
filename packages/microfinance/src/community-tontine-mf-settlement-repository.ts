@@ -34,26 +34,29 @@ export class PostgresCommunityTontineMfSettlementRepository implements Community
   constructor(private readonly db: TontineSqlExecutor) {}
 
   async savePrepared(organizationId: UUID, instruction: CommunityTontineMfSettlementInstruction): Promise<CommunityTontineMfSettlementInstruction> {
+    if (!instruction.preparedBy) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_PREPARER_REQUIRED");
     const result = await this.db.query(
       `INSERT INTO community_tontine_mf_settlement_instructions
        (id,organization_id,tontine_group_id,microfinance_id,payout_id,beneficiary_client_id,
         amount_minor,currency,destination_ref,requires_human_approval,prepared_by,approved_by,state)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NULL,'prepared')
        ON CONFLICT (id) DO UPDATE SET
-         amount_minor=EXCLUDED.amount_minor,
-         currency=EXCLUDED.currency,
-         destination_ref=EXCLUDED.destination_ref,
-         requires_human_approval=EXCLUDED.requires_human_approval,
-         prepared_by=EXCLUDED.prepared_by,
-         state='prepared',
-         version=community_tontine_mf_settlement_instructions.version+1,
-         last_modified_at=now()
+         id=community_tontine_mf_settlement_instructions.id
        WHERE community_tontine_mf_settlement_instructions.organization_id=$2
+         AND community_tontine_mf_settlement_instructions.tontine_group_id=$3
+         AND community_tontine_mf_settlement_instructions.microfinance_id=$4
+         AND community_tontine_mf_settlement_instructions.payout_id=$5
+         AND community_tontine_mf_settlement_instructions.beneficiary_client_id=$6
+         AND community_tontine_mf_settlement_instructions.amount_minor=$7
+         AND community_tontine_mf_settlement_instructions.currency=$8
+         AND community_tontine_mf_settlement_instructions.destination_ref=$9
+         AND community_tontine_mf_settlement_instructions.requires_human_approval=$10
+         AND community_tontine_mf_settlement_instructions.prepared_by=$11
          AND community_tontine_mf_settlement_instructions.state='prepared'
        RETURNING *`,
       [instruction.id,organizationId,instruction.tontineGroupId,instruction.microfinanceId,instruction.payoutId,
        instruction.beneficiaryClientId,instruction.amountMinor.toString(),instruction.currency,instruction.destinationRef,
-       instruction.requiresHumanApproval,instruction.preparedBy ?? null]
+       instruction.requiresHumanApproval,instruction.preparedBy]
     );
     if (result.rows.length !== 1) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_PERSISTENCE_CONFLICT");
     return fromRow(result.rows[0]);
@@ -70,6 +73,7 @@ export class PostgresCommunityTontineMfSettlementRepository implements Community
        SET approved_by=$3,state='approved',version=version+1,last_modified_at=now()
        WHERE organization_id=$1 AND id=$2 AND state=$4
          AND (prepared_by IS NULL OR prepared_by <> $3)
+         AND requires_human_approval=true
        RETURNING *`,
       [organizationId,instructionId,approverId,expectedState]
     );
