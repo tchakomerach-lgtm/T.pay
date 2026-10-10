@@ -47,9 +47,16 @@ export class PostgresCommunityTontineMfAccessRepository implements CommunityTont
       `INSERT INTO community_tontine_mf_access
        (id,organization_id,tontine_group_id,microfinance_id,role,status,granted_by,created_at,expires_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-       ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,expires_at=EXCLUDED.expires_at`,
+       ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,expires_at=EXCLUDED.expires_at,last_modified_at=now(),access_version=community_tontine_mf_access.access_version+1
+       WHERE community_tontine_mf_access.organization_id=EXCLUDED.organization_id
+         AND community_tontine_mf_access.tontine_group_id=EXCLUDED.tontine_group_id
+         AND community_tontine_mf_access.microfinance_id=EXCLUDED.microfinance_id
+         AND community_tontine_mf_access.role=EXCLUDED.role
+         AND community_tontine_mf_access.granted_by=EXCLUDED.granted_by
+       RETURNING id`,
       [access.id, access.organizationId, access.tontineGroupId, access.microfinanceId, access.role, access.status, access.grantedBy, access.createdAt, access.expiresAt ?? null]
     );
+    if ((result.rowCount ?? 0) !== 1 && !result.rows?.length) throw new Error("COMMUNITY_TONTINE_MF_ACCESS_SCOPE_CONFLICT");
   }
   async revoke(organizationId: UUID, accessId: UUID): Promise<void> {
     const result = await this.db.query(
@@ -77,9 +84,17 @@ export class PostgresCommunityTontineMfReconciliationRepository implements Commu
        (id,organization_id,tontine_group_id,microfinance_id,external_reference,expected_minor,observed_minor,currency,state,opened_at,idempotency_key)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        ON CONFLICT (id) DO UPDATE SET expected_minor=EXCLUDED.expected_minor,observed_minor=EXCLUDED.observed_minor,
-       state=EXCLUDED.state,resolved_at=CASE WHEN EXCLUDED.state='resolved' THEN now() ELSE NULL END`,
+       state=EXCLUDED.state,resolved_at=CASE WHEN EXCLUDED.state='resolved' THEN now() ELSE NULL END,last_modified_at=now()
+       WHERE community_tontine_mf_reconciliation.organization_id=EXCLUDED.organization_id
+         AND community_tontine_mf_reconciliation.tontine_group_id=EXCLUDED.tontine_group_id
+         AND community_tontine_mf_reconciliation.microfinance_id=EXCLUDED.microfinance_id
+         AND community_tontine_mf_reconciliation.external_reference=EXCLUDED.external_reference
+         AND community_tontine_mf_reconciliation.currency=EXCLUDED.currency
+         AND community_tontine_mf_reconciliation.idempotency_key IS NOT DISTINCT FROM EXCLUDED.idempotency_key
+       RETURNING id`,
       [item.id, organizationId, item.tontineGroupId, item.microfinanceId, item.externalReference,
        item.expectedMinor.toString(), item.observedMinor.toString(), item.currency, item.state, item.openedAt, item.idempotencyKey ?? null]
     );
+    if ((result.rowCount ?? 0) !== 1 && !result.rows?.length) throw new Error("COMMUNITY_TONTINE_RECONCILIATION_SCOPE_CONFLICT");
   }
 }
