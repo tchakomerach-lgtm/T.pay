@@ -18,7 +18,7 @@ export interface CommunityTontineMfPortfolioReader {
 }
 
 export interface CommunityTontineMfOperations {
-  prepareSettlement(access: CommunityTontineMfAccess, organizationId: UUID, instruction: CommunityTontineMfSettlementInstruction): Promise<CommunityTontineMfSettlementInstruction>;
+  prepareSettlement(access: CommunityTontineMfAccess, organizationId: UUID, instruction: CommunityTontineMfSettlementInstruction, preparerId: UUID): Promise<CommunityTontineMfSettlementInstruction>;
   listReconciliation(access: CommunityTontineMfAccess, organizationId: UUID, microfinanceId: UUID): Promise<CommunityTontineMfReconciliationItem[]>;
 }
 
@@ -31,25 +31,41 @@ export class CommunityTontineMfOperationsService implements CommunityTontineMfOp
   constructor(
     private readonly accessRepository: CommunityTontineMfAccessRepository,
     private readonly reconciliationRepository: CommunityTontineMfReconciliationRepository,
-    private readonly settlementRepository?: CommunityTontineMfSettlementRepository
+    private readonly settlementRepository: CommunityTontineMfSettlementRepository
   ) {}
 
+  private async resolveAccess(supplied: CommunityTontineMfAccess, organizationId: UUID, groupId: UUID, microfinanceId: UUID): Promise<CommunityTontineMfAccess> {
+    const persisted = await this.accessRepository.getActive(organizationId, groupId, microfinanceId, supplied.role);
+    if (!persisted || persisted.id !== supplied.id) throw new Error("COMMUNITY_TONTINE_MF_ACCESS_NOT_ACTIVE");
+    return persisted;
+  }
+
   async listReconciliation(access: CommunityTontineMfAccess, organizationId: UUID, microfinanceId: UUID): Promise<CommunityTontineMfReconciliationItem[]> {
-    authorize(access, "reconciliation.manage", organizationId, access.tontineGroupId, microfinanceId);
+    const persisted = await this.resolveAccess(access, organizationId, access.tontineGroupId, microfinanceId);
+    authorize(persisted, "reconciliation.manage", organizationId, persisted.tontineGroupId, microfinanceId);
     return this.reconciliationRepository.listOpen(organizationId, microfinanceId);
   }
 
   async prepareSettlement(
     access: CommunityTontineMfAccess,
     organizationId: UUID,
-    instruction: CommunityTontineMfSettlementInstruction
+    instruction: CommunityTontineMfSettlementInstruction,
+    preparerId: UUID
   ): Promise<CommunityTontineMfSettlementInstruction> {
-    authorize(access, "payout.prepare", organizationId, instruction.tontineGroupId, instruction.microfinanceId);
+    if (!preparerId?.trim()) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_PREPARER_REQUIRED");
+    const persisted = await this.resolveAccess(access, organizationId, instruction.tontineGroupId, instruction.microfinanceId);
+    authorize(persisted, "payout.prepare", organizationId, instruction.tontineGroupId, instruction.microfinanceId);
     if (instruction.state !== "prepared") throw new Error("COMMUNITY_TONTINE_SETTLEMENT_ALREADY_PROCESSED");
     if (instruction.amountMinor <= 0n) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_AMOUNT_INVALID");
     if (!instruction.destinationRef.trim()) throw new Error("COMMUNITY_TONTINE_DESTINATION_REQUIRED");
-    const prepared = { ...instruction, state: "prepared" as const };
-    if (!this.settlementRepository) return prepared;
+    if (instruction.preparedBy && instruction.preparedBy !== preparerId) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_PREPARER_MISMATCH");
+    if (!instruction.requiresHumanApproval) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_HUMAN_APPROVAL_REQUIRED");
+    const prepared: CommunityTontineMfSettlementInstruction = {
+      ...instruction,
+      preparedBy: preparerId,
+      approvedBy: undefined,
+      state: "prepared"
+    };
     return this.settlementRepository.savePrepared(organizationId, prepared);
   }
 }
