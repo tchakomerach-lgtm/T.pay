@@ -21,3 +21,15 @@ test("portfolio repository cannot return another organization's portfolio", asyn
   assert.equal(calls[0].values.length,3);
   assert.match(calls[0].sql,/g\.organization_id = \$1 AND g\.id = \$2/);
 });
+
+
+test("portfolio confirmed contribution totals require a real receipt linked to the Financial Core ledger", async()=>{
+  const calls:any[]=[];
+  const db={query:async(sql:string,values:any[])=>{calls.push({sql,values});return {rows:[]};}} as any;
+  const repo=new PostgresCommunityTontineMfPortfolioRepository(db);
+  await repo.get(id,id,id);
+  assert.match(calls[0].sql,/LEFT JOIN tontine_contributions tc/);
+  assert.match(calls[0].sql,/LEFT JOIN tontine_receipts r/);
+  assert.match(calls[0].sql,/tc\.status = 'confirmed' AND r\.receipt_id IS NOT NULL/);
+  assert.match(calls[0].sql,/tc\.group_id = m\.group_id AND tc\.membership_id = m\.id/);
+});
