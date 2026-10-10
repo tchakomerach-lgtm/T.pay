@@ -25,7 +25,7 @@ test("settlement preparation requires a persisted, scoped grant and durable stor
   await assert.rejects(() => service.prepareSettlement(
     {...access, microfinanceId:other}, id, instruction, other
   ), /ACCESS_NOT_ACTIVE/);
-  await assert.rejects(() => service.prepareSettlement(access,id,instruction,id), /ACCESS_NOT_ACTIVE|MAKER_CHECKER/);
+  await assert.rejects(() => service.prepareSettlement(access,id,instruction,"" as any), /PREPARER_REQUIRED/);
 });
 
 test("reconciliation queue is capability protected by the persisted grant", async () => {
