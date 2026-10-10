@@ -630,6 +630,14 @@ test("Community Tontine partner settlement is payout-bound, maker-checker protec
     const approved = await repository.markApproved(organizationId as never,instructionId as never,approverId as never,"prepared");
     assert.equal(approved.state,"approved");
     assert.equal(approved.approvedBy,approverId);
+    await assert.rejects(
+      () => client.query("UPDATE community_tontine_mf_settlement_instructions SET destination_ref='tampered',version=version+1,last_modified_at=now() WHERE id=$1",[instructionId]),
+      /COMMUNITY_TONTINE_SETTLEMENT_IMMUTABLE_BINDING/
+    );
+    await assert.rejects(
+      () => client.query("UPDATE community_tontine_mf_settlement_instructions SET state='prepared',version=version+1,last_modified_at=now() WHERE id=$1",[instructionId]),
+      /COMMUNITY_TONTINE_SETTLEMENT_TRANSITION_DENIED/
+    );
 
     const audit = await client.query(
       "SELECT event_type,new_state,actor_id FROM community_tontine_mf_settlement_audit WHERE instruction_id=$1 ORDER BY id",
