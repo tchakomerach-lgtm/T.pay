@@ -74,6 +74,8 @@ export class PostgresCommunityTontineMfSettlementRepository implements Community
        WHERE organization_id=$1 AND id=$2 AND state=$4
          AND (prepared_by IS NULL OR prepared_by <> $3)
          AND requires_human_approval=true
+         AND prepared_by IS NOT NULL AND prepared_by <> $3
+         AND amount_minor > 0 AND length(btrim(destination_ref)) > 0
        RETURNING *`,
       [organizationId,instructionId,approverId,expectedState]
     );
