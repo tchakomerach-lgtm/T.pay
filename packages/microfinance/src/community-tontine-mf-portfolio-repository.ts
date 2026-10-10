@@ -26,11 +26,16 @@ export class PostgresCommunityTontineMfPortfolioRepository implements CommunityT
         SELECT
           s.membership_id,
           SUM(CASE WHEN s.due_status = 'due' THEN s.expected_amount_minor ELSE 0 END) AS due_minor,
-          SUM(CASE WHEN s.due_status = 'confirmed' THEN s.expected_amount_minor ELSE 0 END) AS confirmed_minor,
-          SUM(CASE WHEN s.due_status = 'pending' THEN s.expected_amount_minor ELSE 0 END) AS pending_minor,
+          SUM(CASE WHEN tc.status = 'confirmed' AND r.receipt_id IS NOT NULL THEN tc.amount_minor ELSE 0 END) AS confirmed_minor,
+          SUM(CASE WHEN tc.status = 'pending' THEN tc.amount_minor ELSE 0 END) AS pending_minor,
           COUNT(*) FILTER (WHERE s.due_status = 'missed')::int AS missed_count
         FROM tontine_member_schedules s
         JOIN scoped_members m ON m.id = s.membership_id AND m.organization_id = s.organization_id
+        LEFT JOIN tontine_contributions tc
+          ON tc.id = s.contribution_id AND tc.organization_id = s.organization_id
+         AND tc.group_id = m.group_id AND tc.membership_id = m.id
+        LEFT JOIN tontine_receipts r
+          ON r.organization_id = tc.organization_id AND r.contribution_id = tc.id
         GROUP BY s.membership_id
       ),
       contribution_summary AS (
