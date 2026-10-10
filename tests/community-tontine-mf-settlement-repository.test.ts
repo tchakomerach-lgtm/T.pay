@@ -19,7 +19,7 @@ test("settlement approval is a compare-and-set transition scoped to organization
   const approved = await repository.markApproved(id,id,id,"prepared");
   assert.equal(approved.state,"approved");
   assert.match(calls[0].sql,/organization_id=\$1 AND id=\$2 AND state=\$4/);
-  assert.match(calls[0].sql,/prepared_by IS NULL OR prepared_by <> \$3/);
+  assert.match(calls[0].sql,/prepared_by IS NOT NULL AND prepared_by <> \$3/);
   assert.deepEqual(calls[0].values,[id,id,id,"prepared"]);
 });
 
@@ -37,6 +37,6 @@ test("preparation cannot overwrite an already approved instruction", async () =>
     currency:"XOF",destinationRef:"mf:destination",requiresHumanApproval:true,preparedBy:id,state:"prepared" as const,createdAt:"2026-10-09T00:00:00Z" };
   await assert.rejects(() => repository.savePrepared(id,instruction), /PERSISTENCE_CONFLICT/);
   assert.match(calls[0].sql,/state='prepared'/);
-  assert.match(calls[0].sql,/beneficiary_client_id=\\$6/);
-  assert.match(calls[0].sql,/destination_ref=\\$9/);
+  assert.match(calls[0].sql,/beneficiary_client_id=\$6/);
+  assert.match(calls[0].sql,/destination_ref=\$9/);
 });
