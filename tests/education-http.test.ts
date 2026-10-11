@@ -81,7 +81,7 @@ test("P049 fortress request envelope rejects oversized URL/header and emits hard
   const reader=sse.body?.getReader();
   const first=await reader?.read();
   assert.equal(first?.done,false);
-  assert.match(new TextDecoder().decode(first?.value),/: connected\\n\\n/);
+  assert.ok(new TextDecoder().decode(first?.value).startsWith(": connected\n\n"));
   await reader?.cancel();
  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
