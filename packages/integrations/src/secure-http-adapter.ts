@@ -18,7 +18,7 @@ const FORBIDDEN_HEADERS=new Set(["host","connection","upgrade","transfer-encodin
 
 async function readBoundedResponse(response:Response,limit:number):Promise<Uint8Array>{
   const declaredLength=response.headers.get("content-length");
-  if(declaredLength!==null&&(!/^\\d+$/.test(declaredLength)||Number(declaredLength)>limit))throw new Error("UPSTREAM_RESPONSE_TOO_LARGE");
+  if(declaredLength!==null&&(!/^\d+$/.test(declaredLength)||Number(declaredLength)>limit))throw new Error("UPSTREAM_RESPONSE_TOO_LARGE");
   const reader=response.body?.getReader();
   if(!reader)return new Uint8Array();
   const chunks:Uint8Array[]=[];
