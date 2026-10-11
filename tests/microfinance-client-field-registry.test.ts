@@ -54,7 +54,8 @@ test("location validation requires consent and a usable landmark or address", ()
 });
 
 test("location precision is not fabricated and findability reflects available evidence", () => {
-  const coarse = validateCustomerFieldLocation({ ...location, accuracyMeters: 140, verifiedBy: undefined, verifiedAt: undefined });
+  const { verifiedBy: _verifiedBy, verifiedAt: _verifiedAt, ...unverifiedLocation } = location;
+  const coarse = validateCustomerFieldLocation({ ...unverifiedLocation, accuracyMeters: 140 });
   assert.equal(coarse.locationStatus, "needs_review");
   assert.ok(coarse.findabilityScore < 100);
   assert.equal(validateCustomerFieldLocation(location).locationStatus, "verified");
@@ -84,8 +85,15 @@ test("continuity plan chooses authorized, fresh, same-organization agent and req
 });
 
 test("continuity plan skips profiles without consent/location and agents at capacity", () => {
+  const noLocation: CustomerFieldProfile = {
+    organizationId: "org-a",
+    customerId: "no-location",
+    active: true,
+    primaryAgentId: "agent-offline",
+    openException: false,
+  };
   const plan = buildFieldContinuityPlan(
-    [profile({ customerId: "no-consent", location: { ...location, consentRecorded: false } }), profile({ customerId: "no-location", location: undefined })],
+    [profile({ customerId: "no-consent", location: { ...location, consentRecorded: false } }), noLocation],
     [agent({ activeClientCount: 20 })],
     { now: "2026-10-11T08:31:00.000Z", maxHeartbeatAgeMinutes: 10, planExpiresAt: "2026-10-11T09:00:00.000Z" },
   );

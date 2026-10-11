@@ -13,10 +13,16 @@ CREATE TABLE IF NOT EXISTS customer_field_profiles (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (organization_id, customer_id),
-  CHECK ((preferred_window_start_minute IS NULL AND preferred_window_end_minute IS NULL)
-    OR (preferred_window_start_minute BETWEEN 0 AND 1439
+  CHECK (
+    (preferred_window_start_minute IS NULL AND preferred_window_end_minute IS NULL)
+    OR (
+      preferred_window_start_minute IS NOT NULL
+      AND preferred_window_end_minute IS NOT NULL
+      AND preferred_window_start_minute BETWEEN 0 AND 1439
       AND preferred_window_end_minute BETWEEN 1 AND 1440
-      AND preferred_window_end_minute > preferred_window_start_minute))
+      AND preferred_window_end_minute > preferred_window_start_minute
+    )
+  )
 );
 
 CREATE TABLE IF NOT EXISTS customer_field_locations (
