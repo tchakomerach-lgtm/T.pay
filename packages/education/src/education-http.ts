@@ -62,7 +62,7 @@ const json=(res:ServerResponse,status:number,body:unknown,correlationId:string)=
 async function readBody(req:IncomingMessage):Promise<string>{
   const declaredLength=String(req.headers["content-length"]??"").trim();
   if(declaredLength){
-    if(!/^\\d+$/.test(declaredLength))throw new Error("CONTENT_LENGTH_INVALID");
+    if(!/^\d+$/.test(declaredLength))throw new Error("CONTENT_LENGTH_INVALID");
     if(Number(declaredLength)>MAX_BODY_BYTES)throw new Error("PAYLOAD_TOO_LARGE");
   }
   const chunks:Buffer[]=[];
