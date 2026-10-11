@@ -7,6 +7,7 @@ test("P043 HTTPS adapter rejects non-HTTPS and non-allowlisted endpoints", async
   const adapter=new SecureHttpsAdapter([{origin:"https://provider.example",pathPrefix:"/api/v1"}],async()=>({status:200,headers:{},body:new Uint8Array()}));
   await assert.rejects(adapter.request({url:"http://provider.example/api/v1/pay",method:"POST",headers:{},idempotent:true,correlationId:"c1"}),/HTTPS_REQUIRED/);
   await assert.rejects(adapter.request({url:"https://evil.example/api/v1/pay",method:"POST",headers:{},idempotent:true,correlationId:"c2"}),/ENDPOINT_NOT_ALLOWLISTED/);
+  await assert.rejects(adapter.request({url:"https://provider.example/api/v1-evil/pay",method:"POST",headers:{},idempotent:true,correlationId:"c3"}),/ENDPOINT_NOT_ALLOWLISTED/);
 });
 
 test("P043 adapter retries only idempotent transient failures and returns UNKNOWN after exhaustion", async ()=>{
