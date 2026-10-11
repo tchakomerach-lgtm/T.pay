@@ -57,7 +57,7 @@ export class SecureHttpsAdapter{
   async request(input:Omit<HttpsRequest,"signal"> & {idempotent:boolean;correlationId:string;signal?:AbortSignal}):Promise<SecureHttpResponse>{
     const url=new URL(input.url);
     if(url.protocol!=="https:")throw new Error("HTTPS_REQUIRED");
-    if(!this.endpoints.some(e=>url.origin===e.origin&&url.pathname.startsWith(e.pathPrefix)))throw new Error("ENDPOINT_NOT_ALLOWLISTED");
+    if(!this.endpoints.some(e=>{const prefix=e.pathPrefix.endsWith("/")?e.pathPrefix:e.pathPrefix+"/";return url.origin===e.origin&&(url.pathname===e.pathPrefix||url.pathname.startsWith(prefix));}))throw new Error("ENDPOINT_NOT_ALLOWLISTED");
     for(const name of Object.keys(input.headers))if(FORBIDDEN_HEADERS.has(name.toLowerCase()))throw new Error("FORBIDDEN_HTTP_HEADER");
     const attempts=Math.max(1,Math.min(5,this.maxAttempts));
     let lastStatus:number|null=null;
