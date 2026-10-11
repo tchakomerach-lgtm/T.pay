@@ -16,6 +16,26 @@ function isPrivateIp(hostname:string):boolean{
   return false;
 }
 
+async function readBoundedResponse(response:Response,limit:number):Promise<Uint8Array>{
+  const reader=response.body?.getReader();
+  if(!reader)return new Uint8Array();
+  const chunks:Uint8Array[]=[];
+  let total=0;
+  try{
+    while(true){
+      const item=await reader.read();
+      if(item.done)break;
+      total+=item.value.byteLength;
+      if(total>limit){await reader.cancel();throw new Error("HTTPS_RESPONSE_TOO_LARGE");}
+      chunks.push(item.value);
+    }
+  }finally{reader.releaseLock();}
+  const output=new Uint8Array(total);
+  let offset=0;
+  for(const chunk of chunks){output.set(chunk,offset);offset+=chunk.byteLength;}
+  return output;
+}
+
 export function assertHttpsEndpoint(endpoint:string,allowedHosts:readonly string[]):URL{
   let url:URL;
   try{url=new URL(endpoint);}catch{throw new Error("HTTPS_ENDPOINT_INVALID");}
@@ -54,8 +74,7 @@ export async function requestJson<T>(input:{
     const response=await fetch(url,requestInit);
     const length=response.headers.get("content-length");
     if(length!==null&&Number(length)>maxResponseBytes)throw new Error("HTTPS_RESPONSE_TOO_LARGE");
-    const bytes=new Uint8Array(await response.arrayBuffer());
-    if(bytes.byteLength>maxResponseBytes)throw new Error("HTTPS_RESPONSE_TOO_LARGE");
+    const bytes=await readBoundedResponse(response,maxResponseBytes);
     if(!response.ok)throw new Error("HTTPS_UPSTREAM_STATUS_"+response.status);
     let data:T;
     try{data=JSON.parse(new TextDecoder().decode(bytes)) as T;}catch{throw new Error("HTTPS_RESPONSE_JSON_INVALID");}
