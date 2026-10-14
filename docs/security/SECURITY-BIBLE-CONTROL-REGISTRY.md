@@ -138,3 +138,16 @@ Les coffres `tenant-user` sont lisibles uniquement dans l'organisation courante 
 ## FORT-025 — Temps réel sans affaiblir la forteresse
 Les événements temps réel passent par Fortress Channel signé et séquencé; la donnée durable reste dans son coffre. PostgreSQL n'est pas utilisé comme bus de payload.
 
+
+
+## FORT-029 — Sensitive Data Exposure Guard
+Nettoyage des secrets/identifiants dans les sorties, classification, limite de taille, empreinte et chemins expurgés. Défense en profondeur; les schémas autorisés et l'autorisation métier restent obligatoires.
+
+## FORT-030 — Non-observabilité des secrets
+Les logs, traces, erreurs et métriques ne contiennent aucun secret brut, jeton, contenu KYC ou contenu documentaire privé. Les réponses publiques sont normalisées et les diagnostics privés restent à accès restreint.
+
+## FORT-031 — Exports et contexte IA contrôlés
+Les exports, notifications et contextes IA exigent un acteur, une finalité, une classe de données autorisée et une limite de taille. Refus par défaut si le contexte manque.
+
+## FORT-032 — Intégration obligatoire
+Le guard doit être appelé par les points de sortie réels et vérifié par tests d'intégration sur logs/artifacts. Le module seul ne certifie pas l'absence de fuite dans les chemins non raccordés.
