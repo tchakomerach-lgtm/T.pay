@@ -42,10 +42,10 @@ test("Security telemetry allowlists metadata and reports only redaction counts/d
 });
 
 test("free-text email, phone, payment identifiers and passport-like IDs are scrubbed",()=>{
- const r=sanitizeForExposure({message:"Contact person@example.com or +228 90123456; card 4111 1111 1111 1111; ID AB1234567"},{channel:"log",purpose:"support-log",allowedClasses:["internal"],maxBytes:4096});
+ const r=sanitizeForExposure({message:"Contact person@example.com or +228 90123456 or local 90123456; card 4111 1111 1111 1111; ID AB1234567"},{channel:"log",purpose:"support-log",allowedClasses:["internal"],maxBytes:4096});
  const s=JSON.stringify(r.value);
  assert.ok(!s.includes("person@example.com"));
- assert.ok(!s.includes("+228 90123456"));
+ assert.ok(!s.includes("+228 90123456"));\n assert.ok(!s.includes("90123456"));
  assert.ok(!s.includes("4111 1111 1111 1111"));
  assert.ok(!s.includes("AB1234567"));
  assert.equal(r.classification,"internal");
