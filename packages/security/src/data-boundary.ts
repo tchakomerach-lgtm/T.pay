@@ -1,4 +1,5 @@
 import {createHash} from "node:crypto";
+import {sanitizeForExposure} from "./fortress-exposure-guard.js";
 export type DataClass="public"|"internal"|"confidential"|"restricted"|"secret";
 export interface BoundaryPolicy{readonly allowed:readonly DataClass[];readonly maxBytes:number;readonly redactKeys?:readonly string[];}
 const secretKey=/password|token|secret|authorization|cookie|private.?key|api.?key|mnemonic|seed/i;
@@ -15,7 +16,9 @@ export function enforceOutputBoundary(value:unknown,policy:BoundaryPolicy):unkno
  if(bytes>policy.maxBytes)throw new Error("AI_OUTPUT_SIZE_EXCEEDED");
  const detected=classifyData(value);
  if(!policy.allowed.includes(detected))throw new Error("AI_OUTPUT_DATA_CLASS_DENIED");
- return redact(value,policy.redactKeys??[]);
+ const redacted=redact(value,policy.redactKeys??[]);
+ const exposure=sanitizeForExposure(redacted,{channel:"ai-context",purpose:"ai-output-boundary",allowedClasses:policy.allowed,maxBytes:policy.maxBytes});
+ return exposure.value;
 }
 function redact(value:unknown,extra:readonly string[]):unknown{
  if(Array.isArray(value))return value.map(v=>redact(v,extra));
