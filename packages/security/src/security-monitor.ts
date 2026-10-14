@@ -3,7 +3,7 @@ import {AuditChain} from "./audit-chain.js";
 import {sanitizeForExposure} from "./fortress-exposure-guard.js";
 
 export interface SecurityEvent { readonly eventType:string; readonly organizationId:string; readonly actorId?:string; readonly agentId?:string; readonly correlationId?:string; readonly severity:"info"|"warn"|"high"|"critical"; readonly timestamp:number; readonly metadata:Record<string,unknown>; }
-const SAFE_ID=/^[A-Za-z0-9_-]{1,96}$/;
+const SAFE_ID=/^[A-Za-z0-9_.:-]{1,96}$/;
 export class SecurityMonitor {
   private available=true;
   private readonly events:SecurityEvent[]=[];
