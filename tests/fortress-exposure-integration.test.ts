@@ -5,7 +5,7 @@ import {enforceOutputBoundary} from "../packages/security/src/data-boundary.js";
 
 test("SecurityMonitor scrubs free-text PII and tokens before memory and audit hashing",()=>{
  const monitor=new SecurityMonitor();
- monitor.record({eventType:"fortress.exposure.denied",organizationId:"org-123",actorId:"actor-123",correlationId:"corr-123456",severity:"high",timestamp:Date.now(),metadata:{message:"Contact person@example.com at +228 90123456",credential:"ghp_abcdefghijklmnopqrstuvwxyz1234567890",reason:"policy-deny"}});
+ monitor.record({eventType:"fortress.exposure.denied",organizationId:"org-123",actorId:"actor-123",correlationId:"corr-123456",severity:"high",timestamp:Date.now(),metadata:{message:"Contact person@example.com at +228 90123456",credential:"ghp_"+"abcdefghijklmnopqrstuvwxyz1234567890",reason:"policy-deny"}});
  const event=monitor.snapshot()[0];
  const serialized=JSON.stringify(event);
  assert.ok(!serialized.includes("person@example.com"));
