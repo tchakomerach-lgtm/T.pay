@@ -4,6 +4,7 @@ export type ExposureChannel="log"|"error"|"telemetry"|"export"|"ai-context"|"not
 export type Sensitivity="public"|"internal"|"confidential"|"restricted"|"secret";
 export interface ExposureContext {
  readonly channel:ExposureChannel;
+ /** Must be populated from trusted server-side auth context, never from request body. */
  readonly actorId?:string;
  readonly organizationId?:string;
  readonly purpose:string;
@@ -26,12 +27,16 @@ const EMAIL=/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const PHONE=/(?<!\w)(?:\+?\d[\d ()-]{7,}\d)(?!\w)/g;
 const LONG_CARD=/(?<!\d)(?:\d[ -]?){13,19}(?!\d)/g;
 const SECRET_ASSIGN=/(\b(?:password|token|secret|api[_-]?key|client[_-]?secret)\s*[:=]\s*)[^\s,;]+/gi;
+const PASSPORT_LIKE=/\b[A-Z]{1,2}\d{6,10}\b/g;
 
-function bytes(v:unknown):number { return Buffer.byteLength(JSON.stringify(v)??"null","utf8"); }
-function digest(v:unknown):string { return createHash("sha256").update(JSON.stringify(v)??"null","utf8").digest("hex"); }
+function safeJson(v:unknown):string {
+ try { return JSON.stringify(v)??"null"; } catch { throw new Error("FORTRESS_EXPOSURE_SERIALIZATION_DENIED"); }
+}
+function bytes(v:unknown):number { return Buffer.byteLength(safeJson(v),"utf8"); }
+function digest(v:unknown):string { return createHash("sha256").update(safeJson(v),"utf8").digest("hex"); }
 function maskString(input:string):{value:string;changed:boolean}{
  let value=input;
- value=value.replace(PEM,"[REDACTED_PRIVATE_KEY]").replace(BEARER,"Bearer [REDACTED]").replace(JWT,"[REDACTED_JWT]").replace(SECRET_ASSIGN,"$1[REDACTED]");
+ value=value.replace(PEM,"[REDACTED_PRIVATE_KEY]").replace(BEARER,"Bearer [REDACTED]").replace(JWT,"[REDACTED_JWT]").replace(SECRET_ASSIGN,"$1[REDACTED]").replace(EMAIL,"[REDACTED_EMAIL]").replace(LONG_CARD,"[REDACTED_PAYMENT_IDENTIFIER]").replace(PASSPORT_LIKE,"[REDACTED_ID]").replace(PHONE,"[REDACTED_PHONE]");
  return {value,changed:value!==input};
 }
 function scrub(value:unknown,path:string,paths:string[]):unknown {
@@ -51,17 +56,18 @@ function scrub(value:unknown,path:string,paths:string[]):unknown {
  return value;
 }
 export function classifyExposure(value:unknown):Sensitivity {
- const s=JSON.stringify(value)??"";
- if(/PRIVATE KEY|Bearer\s+\[REDACTED\]|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\./i.test(s))return "secret";
+ const s=safeJson(value);
+ if(/PRIVATE KEY|\bBearer\s+(?!\[REDACTED\])\S+|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\./i.test(s))return "secret";
  if(/\b\d{13,19}\b|\b[A-Z]{1,2}\d{6,10}\b/i.test(s))return "restricted";
- if(/@|\+?\d[\d ()-]{7,}\d/.test(s))return "confidential";
+ if(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b|\+?\d[\d ()-]{7,}\d/i.test(s))return "confidential";
  return "internal";
 }
 /** Scrub data before it leaves a Fortress trust boundary. This is defense-in-depth, not a substitute for authorization. */
 export function sanitizeForExposure(input:unknown,context:ExposureContext):SanitizedExposure {
- if(!context.purpose.trim())throw new Error("FORTRESS_EXPOSURE_PURPOSE_REQUIRED");
+ if(typeof context.purpose!=="string"||!context.purpose.trim())throw new Error("FORTRESS_EXPOSURE_PURPOSE_REQUIRED");
  if(!Number.isSafeInteger(context.maxBytes)||context.maxBytes<1)throw new Error("FORTRESS_EXPOSURE_LIMIT_INVALID");
- if(context.channel==="export"&&!context.actorId)throw new Error("FORTRESS_EXPOSURE_ACTOR_REQUIRED");
+ if(!Array.isArray(context.allowedClasses)||context.allowedClasses.length===0)throw new Error("FORTRESS_EXPOSURE_CLASSES_REQUIRED");
+ if(context.channel==="export"&&(!context.actorId?.trim()||!context.organizationId?.trim()))throw new Error("FORTRESS_EXPOSURE_ACTOR_REQUIRED");
  const originalBytes=bytes(input);
  const redactedPaths:string[]=[];
  const value=scrub(input,"",redactedPaths);
@@ -80,6 +86,9 @@ export function safeClientError(code:string,correlationId:string):Readonly<{erro
 /** Prevents high-risk content from entering logs by accepting only an allowlisted event envelope. */
 export function safeSecurityTelemetry(input:{eventType:string;severity:"info"|"warn"|"high"|"critical";organizationId?:string;actorId?:string;correlationId:string;metadata?:Record<string,unknown>}){
  const eventType=/^[a-z0-9_.:-]{1,100}$/i.test(input.eventType)?input.eventType:"security.event.invalid";
+ const severity=(["info","warn","high","critical"] as const).includes(input.severity)?input.severity:"warn";
+ const safeId=(v:string|undefined)=>v&&/^[A-Za-z0-9_-]{1,96}$/.test(v)?v:undefined;
+ const correlationId=safeId(input.correlationId)??"unavailable";
  const metadata=sanitizeForExposure(input.metadata??{},{channel:"telemetry",purpose:"security-monitoring",allowedClasses:["public","internal"],maxBytes:4096});
- return Object.freeze({eventType,severity:input.severity,organizationId:input.organizationId,actorId:input.actorId,correlationId:input.correlationId,metadata:metadata.value,metadataDigest:metadata.digest,redactedFields:metadata.redactedPaths.length});
+ return Object.freeze({eventType,severity,organizationId:safeId(input.organizationId),actorId:safeId(input.actorId),correlationId,metadata:metadata.value,metadataDigest:metadata.digest,redactedFields:metadata.redactedPaths.length});
 }
