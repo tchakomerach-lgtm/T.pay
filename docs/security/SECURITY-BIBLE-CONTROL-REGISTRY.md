@@ -150,4 +150,4 @@ Les logs, traces, erreurs et métriques ne contiennent aucun secret brut, jeton,
 Les exports, notifications et contextes IA exigent un acteur, une finalité, une classe de données autorisée et une limite de taille. Refus par défaut si le contexte manque.
 
 ## FORT-032 — Intégration obligatoire
-Le guard doit être appelé par les points de sortie réels et vérifié par tests d'intégration sur logs/artifacts. Le module seul ne certifie pas l'absence de fuite dans les chemins non raccordés.
+Intégration code présente dans `SecurityMonitor.record()` et `enforceOutputBoundary()`; tests d'intégration synthétiques ajoutés. Restent à raccorder ou à prouver : middleware d'erreurs HTTP, logger général, traces/metrics, exports, notifications, prompts/RAG, adaptateurs fournisseurs et contrôle des artifacts CI. Aucun statut certifié tant que le SHA exact n'a pas de CI vérifiée et que les chemins restants n'ont pas de tests d'intégration.
