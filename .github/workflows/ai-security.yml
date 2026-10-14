@@ -35,10 +35,11 @@ jobs:
         run: npm test
       - name: Dependency audit
         run: npm audit --audit-level=high
-      - name: Fail on committed private key material
+      - name: Fail on committed secret material
         shell: bash
         run: |
-          if grep -RInE --exclude-dir=.git --exclude='*.md' '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----' .; then
-            echo "Private key material detected in repository"
+          pattern='-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9_-]{20,}'
+          if git grep -nI -E -e "$pattern" -- . ':!*.md' ':!.github/workflows/ai-security.yml'; then
+            echo "Potential secret material detected in tracked source files"
             exit 1
           fi
