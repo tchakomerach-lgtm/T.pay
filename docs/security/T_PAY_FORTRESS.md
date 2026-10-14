@@ -175,5 +175,12 @@ Aucun secret brut, jeton d'accès, contenu KYC, numéro de compte ou contenu de 
 ## FORT-031 — Contrôle d'export et contexte IA
 Tout export, notification ou assemblage de contexte IA doit préciser l'acteur authentifié, la finalité, la classification autorisée et la limite de taille. Le refus est le comportement par défaut en l'absence de contexte ou si la classification dépasse le niveau autorisé.
 
-## FORT-032 — Limites et exigences d'intégration
-Le guard doit être raccordé aux points de sortie réels : logger central, gestionnaire d'erreurs HTTP, traces/metrics, exports de documents, notifications, prompts/RAG et adaptateurs fournisseurs. La présence du module et de ses tests unitaires ne prouve pas à elle seule que tous ces chemins l'appellent. Les tests d'intégration doivent utiliser des données synthétiques et vérifier les logs/artifacts eux-mêmes.
+## FORT-032 — Intégration et gates de sortie
+Intégrations désormais présentes dans le code :
+- `SecurityMonitor.record()` expurge les métadonnées avant stockage mémoire et avant le calcul du hash d'audit; les identifiants de tenant mal formés sont refusés.
+- `enforceOutputBoundary()` fait passer les sorties IA par le guard après la politique de classification et la réduction des clés sensibles.
+- Le guard nettoie aussi les PII incluses dans du texte libre (e-mails, téléphones, identifiants de paiement, certains identifiants de passeport) et des motifs de jetons fournisseurs courants.
+
+Intégrations encore non démontrées : gestionnaire d'erreurs HTTP réel, logger applicatif général, traces/metrics, export documentaire, notifications, prompts/RAG en amont, adaptateurs fournisseurs et artefacts CI. La fonction `safeClientError()` n'est pas un remplacement d'un middleware HTTP et la fonction `safeSecurityTelemetry()` n'est pas une preuve que tous les émetteurs de télémétrie l'utilisent.
+
+La détection reste heuristique, non une solution DLP exhaustive. Les tests d'intégration utilisent des données synthétiques; la CI sur le SHA exact, la revue de sécurité et les tests de fuite sur logs/artifacts demeurent obligatoires avant certification.
