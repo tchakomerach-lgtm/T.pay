@@ -14,7 +14,7 @@ test("Fortress exposure guard redacts nested secrets and private identity fields
 });
 
 test("Fortress exposure guard refuses oversized or unapproved exports",()=>{
- assert.throws(()=>sanitizeForExposure({record:"x".repeat(500)},{channel:"export",actorId:"actor-1",purpose:"download",allowedClasses:["internal"],maxBytes:100}),/FORTRESS_EXPOSURE_SIZE_LIMIT/);
+ assert.throws(()=>sanitizeForExposure({record:"x".repeat(500)},{channel:"export",actorId:"actor-1",organizationId:"org-1",purpose:"download",allowedClasses:["internal"],maxBytes:100}),/FORTRESS_EXPOSURE_SIZE_LIMIT/);
  assert.throws(()=>sanitizeForExposure({id:"1234567890123456"},{channel:"log",purpose:"logging",allowedClasses:["internal"],maxBytes:1000}),/FORTRESS_EXPOSURE_CLASS_DENIED/);
 });
 
@@ -25,7 +25,7 @@ test("Fortress exposure guard rejects export without authenticated actor context
 test("Client errors never serialize internal exception details",()=>{
  const e=safeClientError("INTERNAL_ERROR","correlation-123");
  assert.deepEqual(e,{error:"REQUEST_FAILED",code:"INTERNAL_ERROR",correlationId:"correlation-123"});
- assert.ok(!JSON.stringify(e).includes("stack"));
+ assert.ok(!JSON.stringify(e).includes("stack"));\n assert.deepEqual(safeClientError("SQL: SELECT *","secret-correlation"),{error:"REQUEST_FAILED",code:"INTERNAL_ERROR",correlationId:"unavailable"});
 });
 
 test("Security telemetry allowlists metadata and reports only redaction counts/digest",()=>{
@@ -33,9 +33,9 @@ test("Security telemetry allowlists metadata and reports only redaction counts/d
  assert.equal((e.metadata as any).apiToken,"[REDACTED]");
  assert.ok(!JSON.stringify(e).includes("dont-log-this"));
  assert.equal(typeof e.metadataDigest,"string");
- assert.equal(e.redactedFields,1);
+ assert.equal(e.redactedFields,1);\n const unsafe=safeSecurityTelemetry({eventType:"event",severity:"critical",correlationId:"email@example.com",organizationId:"org@example.com",actorId:"+228 90123456"});\n assert.equal(unsafe.correlationId,"unavailable");\n assert.equal(unsafe.organizationId,undefined);\n assert.equal(unsafe.actorId,undefined);
 });
 
-test("Exposure classification is conservative for likely payment identifiers",()=>{
+test("free-text email, phone, payment identifiers and passport-like IDs are scrubbed",()=>{\n const r=sanitizeForExposure({message:"Contact person@example.com or +228 90123456; card 4111 1111 1111 1111; ID AB1234567"},{channel:"log",purpose:"support-log",allowedClasses:["internal"],maxBytes:4096});\n const s=JSON.stringify(r.value);\n assert.ok(!s.includes("person@example.com"));\n assert.ok(!s.includes("+228 90123456"));\n assert.ok(!s.includes("4111 1111 1111 1111"));\n assert.ok(!s.includes("AB1234567"));\n assert.equal(r.classification,"internal");\n});\n\ntest("Exposure classification is conservative for likely payment identifiers",()=>{
  assert.equal(classifyExposure({account:"1234567890123456"}),"restricted");
 });
