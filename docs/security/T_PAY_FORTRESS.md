@@ -156,3 +156,24 @@ Chaque coffre utilisateur est conçu pour une rotation indépendante de clé. Un
 
 ## FORT-028 — Référence normative
 La conception suit notamment les principes OWASP de séparation des clés et données, chiffrement authentifié, rotation, séparation tenant/utilisateur et autorisation avant accès aux objets. Les recommandations publiques OWASP confirment l'intérêt des clés séparées, de l'enveloppe DEK/KEK, des modes authentifiés et d'une isolation explicite des objets user-scoped.
+
+
+## FORT-029 — Sensitive Data Exposure Guard
+`packages/security/src/fortress-exposure-guard.ts` ajoute une barrière de réduction d'exposition pour logs, erreurs, télémétrie, exports, contexte IA et notifications :
+- suppression récursive des champs secrets/identifiants sensibles connus;
+- nettoyage de clés privées PEM, bearer tokens, JWT et affectations de secrets dans les chaînes;
+- classification de sortie, limites de taille, digest et chemins expurgés;
+- erreurs client normalisées sans stack, SQL, chemins ou réponse fournisseur;
+- télémétrie par enveloppe autorisée, digest et compteur de champs expurgés;
+- exports refusés sans contexte acteur et finalité.
+
+Cette couche est une défense en profondeur. Elle ne remplace ni l'autorisation par objet, ni la minimisation des données à la source, ni un contrôle de classification fiable. La détection heuristique ne garantit pas la reconnaissance de chaque donnée personnelle; les schémas métier doivent définir explicitement les champs autorisés.
+
+## FORT-030 — Secret non observabilité
+Aucun secret brut, jeton d'accès, contenu KYC, numéro de compte ou contenu de document privé ne doit être journalisé. Les journaux utilisent identifiants de corrélation, catégories d'événements, décisions et empreintes; les valeurs sensibles sont exclues. Les erreurs publiques sont génériques, tandis que les détails diagnostiques restent dans un canal privé avec accès contrôlé.
+
+## FORT-031 — Contrôle d'export et contexte IA
+Tout export, notification ou assemblage de contexte IA doit préciser l'acteur authentifié, la finalité, la classification autorisée et la limite de taille. Le refus est le comportement par défaut en l'absence de contexte ou si la classification dépasse le niveau autorisé.
+
+## FORT-032 — Limites et exigences d'intégration
+Le guard doit être raccordé aux points de sortie réels : logger central, gestionnaire d'erreurs HTTP, traces/metrics, exports de documents, notifications, prompts/RAG et adaptateurs fournisseurs. La présence du module et de ses tests unitaires ne prouve pas à elle seule que tous ces chemins l'appellent. Les tests d'intégration doivent utiliser des données synthétiques et vérifier les logs/artifacts eux-mêmes.
