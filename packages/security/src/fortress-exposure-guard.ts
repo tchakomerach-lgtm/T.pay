@@ -36,7 +36,7 @@ function bytes(v:unknown):number { return Buffer.byteLength(safeJson(v),"utf8");
 function digest(v:unknown):string { return createHash("sha256").update(safeJson(v),"utf8").digest("hex"); }
 function maskString(input:string):{value:string;changed:boolean}{
  let value=input;
- value=value.replace(PEM,"[REDACTED_PRIVATE_KEY]").replace(BEARER,"Bearer [REDACTED]").replace(JWT,"[REDACTED_JWT]").replace(SECRET_ASSIGN,"$1[REDACTED]").replace(EMAIL,"[REDACTED_EMAIL]").replace(LONG_CARD,"[REDACTED_PAYMENT_IDENTIFIER]").replace(PASSPORT_LIKE,"[REDACTED_ID]").replace(PHONE,"[REDACTED_PHONE]");
+ value=value.replace(PEM,"[REDACTED_PRIVATE_KEY]").replace(BEARER,"Bearer [REDACTED]").replace(JWT,"[REDACTED_JWT]").replace(SECRET_ASSIGN,"$1[REDACTED]").replace(API_TOKEN,"[REDACTED_API_TOKEN]").replace(EMAIL,"[REDACTED_EMAIL]").replace(LONG_CARD,"[REDACTED_PAYMENT_IDENTIFIER]").replace(PASSPORT_LIKE,"[REDACTED_ID]").replace(PHONE,"[REDACTED_PHONE]");
  return {value,changed:value!==input};
 }
 function scrub(value:unknown,path:string,paths:string[]):unknown {
