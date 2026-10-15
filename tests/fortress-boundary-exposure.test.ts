@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {sanitizeTelemetry,sanitizeTelemetryContext,metricName} from "../packages/observability/src/telemetry.js";
+import {sanitizeTelemetry,sanitizeTelemetryContext,metricName,emitSafeTelemetry} from "../packages/observability/src/telemetry.js";
 import {prepareFortressExport} from "../packages/security/src/fortress-export.js";
 import {sanitizeNotificationIntent} from "../packages/events/src/notification.js";
 import {SecureHttpsAdapter} from "../packages/integrations/src/secure-http-adapter.js";
@@ -58,4 +58,13 @@ test("provider adapter bounds response/request sizes and never returns oversized
  assert.equal(result.correlationId,"unavailable");
  await assert.rejects(adapter.request({url:"https://provider.example/api/pay",method:"POST",headers:{},body:new Uint8Array(1_000_001),idempotent:true,correlationId:"corr-123456"}),/PROVIDER_REQUEST_SIZE_LIMIT/);
  await assert.rejects(adapter.request({url:"https://provider.example/api/pay",method:"POST",headers:{"x-test":"safe\r\ninjected"},idempotent:true,correlationId:"corr-123456"}),/PROVIDER_HEADER_NEWLINE_FORBIDDEN/);
+});
+
+test("safe telemetry sink never receives unredacted event data",async()=>{
+ let emitted:Readonly<Record<string,unknown>>|undefined;
+ await emitSafeTelemetry({emit:record=>{emitted=record;}},{event:"login.failure",detail:"contact person@example.com",metadata:{apiToken:"ghp_abcdefghijklmnopqrstuvwxyz1234567890"}});
+ const serialized=JSON.stringify(emitted)??"";
+ assert.ok(!serialized.includes("person@example.com"));
+ assert.ok(!serialized.includes("ghp_abcdefghijklmnopqrstuvwxyz1234567890"));
+ assert.equal((emitted?.metadata as Record<string,unknown>).apiToken,"[REDACTED]");
 });
