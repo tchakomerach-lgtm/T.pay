@@ -6,7 +6,7 @@
 
 Le guard borne aussi la profondeur récursive et la taille d'entrée, rejette les objets non sérialisables, et crée les propriétés de sortie sans permettre à une clé `__proto__` de modifier le prototype. Ces contrôles réduisent les risques de déni de service et de pollution de prototype; ils ne remplacent pas une validation de schéma à l'entrée.
 
-Le filtrage par motif est une défense en profondeur, pas un moteur DLP exhaustif. Les schémas métier et les autorisations par tenant restent la source de vérité.
+Les identifiants UUID opaques sont préservés par les motifs de téléphone/carte afin de conserver la corrélation distribuée; les tests couvrent ce cas. Le filtrage par motif est une défense en profondeur, pas un moteur DLP exhaustif. Les schémas métier et les autorisations par tenant restent la source de vérité.
 
 ## Contrôle FORT-EXPO-002 — Erreurs HTTP
 
@@ -32,7 +32,7 @@ Aucune certification n'est implicite dans la présence de ces fichiers. La CI su
 
 ## Contrôles FORT-EXPO-005 à FORT-EXPO-009 — Frontières supplémentaires
 
-- **Entrées IA / prompts / RAG (005)** : `AiCore.generate()`, `generateRouted()` et `run()` expurgent les messages et objectifs avant leur transmission aux agents/fournisseurs. Les sorties d'agents, le texte et les métadonnées de réponse sont également filtrés. Le contrôle ne remplace ni les règles d'autorisation de récupération RAG ni la politique de résidence/consentement des données.
+- **Entrées IA / prompts / RAG (005)** : `AiCore.generate()`, `generateRouted()` et `run()` expurgent les messages et objectifs avant leur transmission aux agents/fournisseurs. `HttpJsonAiProvider` applique aussi ces contrôles si un appelant utilise directement l'adaptateur. Les en-têtes d'authentification ne peuvent pas être remplacés par `extraHeaders`; les réponses fournisseur sont limitées en taille et les redirections refusées. Les sorties d'agents, le texte et les métadonnées de réponse sont également filtrés. Le contrôle ne remplace ni les règles d'autorisation de récupération RAG ni la politique de résidence/consentement des données.
 - **Logs et traces (006)** : `sanitizeTelemetry()` expurge récursivement les valeurs et `sanitizeTelemetryContext()` n'accepte que des identifiants opaques pour les étiquettes de trace. Les nouveaux call sites doivent passer par ces frontières; il ne faut jamais journaliser directement des corps HTTP, prompts complets, secrets ou réponses de fournisseur.
 - **Exports (007)** : `prepareFortressExport()` exige des identifiants opaques d'acteur et d'organisation, un motif d'export, une limite de taille, puis renvoie un payload expurgé et un résumé d'audit avec empreinte SHA-256. L'autorisation d'accès et l'enregistrement d'audit durable restent obligatoires chez l'appelant.
 - **Notifications (008)** : les intents sont expurgés et leurs identifiants de destinataire/organisation doivent être opaques à la création et à la livraison. Les notifications utilisent des modèles et ne doivent pas transporter montant, solde, OTP ou secrets de paiement.
