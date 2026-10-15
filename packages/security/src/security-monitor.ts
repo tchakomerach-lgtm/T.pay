@@ -13,12 +13,13 @@ export class SecurityMonitor {
   record(event:SecurityEvent):void{
     if(!this.available) throw new Error("SECURITY_MONITOR_UNAVAILABLE");
     if(!SAFE_ID.test(event.organizationId))throw new Error("SECURITY_EVENT_TENANT_ID_INVALID");
-    const safe={
-      ...event,
+    const {actorId:_actorId,agentId:_agentId,correlationId:_correlationId,...base}=event;
+    const safe:SecurityEvent={
+      ...base,
       eventType:/^[a-z0-9_.:-]{1,100}$/i.test(event.eventType)?event.eventType:"security.event.invalid",
-      actorId:safeOptionalId(event.actorId),
-      agentId:safeOptionalId(event.agentId),
-      correlationId:safeOptionalId(event.correlationId),
+      ...(safeOptionalId(event.actorId)?{actorId:safeOptionalId(event.actorId)!}:{}),
+      ...(safeOptionalId(event.agentId)?{agentId:safeOptionalId(event.agentId)!}:{}),
+      ...(safeOptionalId(event.correlationId)?{correlationId:safeOptionalId(event.correlationId)!}:{}),
       metadata:redactMetadata(event.metadata,event.organizationId)
     };
     this.events.push(safe);
