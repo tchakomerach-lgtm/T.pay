@@ -66,10 +66,11 @@ test("AI Core never reflects raw provider exceptions after failover is exhausted
 
 test("AI Core scrubs specialist-agent objectives and results",async()=>{
  let seenObjective="";
- const agent={id:"education-agent",mission:"safe education assistance",allowedTools:[],async run(input:{objective:string;context:readonly string[]}){seenObjective=input.objective;return {agentId:"education-agent",status:"completed" as const,result:"Contact person@example.com at +228 90123456"};}};
+ const agent={id:"education-agent",mission:"safe education assistance",allowedTools:[],async run(input:{objective:string;context:readonly string[]}){seenObjective=input.objective;return {agentId:"education-agent",status:"completed" as const,result:"Contact person@example.com at +228 90123456",provider:"person@example.com"};}};
  const core=new AiCore(new AiProviderRegistry(),new AiToolRegistry(),[agent],{maxAgentHops:1,allowedProviders:[],defaultMaxOutputTokens:256});
  const outputs=await core.run("Review person@example.com",{organizationId:"org-123456",actorId:"actor-123456",requestId:"request-123456"});
  assert.ok(!seenObjective.includes("person@example.com"));
  assert.ok(!outputs[0]?.result.includes("person@example.com"));
  assert.ok(!outputs[0]?.result.includes("+228 90123456"));
+ assert.ok(!JSON.stringify(outputs).includes("person@example.com"));
 });
