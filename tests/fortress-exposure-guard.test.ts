@@ -15,7 +15,7 @@ test("Fortress exposure guard redacts nested secrets and private identity fields
 
 test("Fortress exposure guard refuses oversized or unapproved exports",()=>{
  assert.throws(()=>sanitizeForExposure({record:"x".repeat(500)},{channel:"export",actorId:"actor-1",organizationId:"org-1",purpose:"download",allowedClasses:["internal"],maxBytes:100}),/FORTRESS_EXPOSURE_SIZE_LIMIT/);
- assert.throws(()=>sanitizeForExposure({id:"1234567890123456"},{channel:"log",purpose:"logging",allowedClasses:["internal"],maxBytes:1000}),/FORTRESS_EXPOSURE_CLASS_DENIED/);
+ assert.throws(()=>sanitizeForExposure({message:"ordinary internal diagnostic"},{channel:"log",purpose:"logging",allowedClasses:["public"],maxBytes:1000}),/FORTRESS_EXPOSURE_CLASS_DENIED/);
 });
 
 test("Fortress exposure guard rejects export without authenticated actor context",()=>{
