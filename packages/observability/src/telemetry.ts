@@ -25,12 +25,16 @@ export function sanitizeTelemetryContext(input:TelemetryContext):TelemetryContex
   const safe=sanitizeTelemetry(input as unknown as Record<string,unknown>);
   const opaque=(value:unknown)=>typeof value==="string"&&/^[A-Za-z0-9._:-]{8,128}$/.test(value)?value:undefined;
   const serviceName=typeof safe.serviceName==="string"&&/^[A-Za-z0-9._-]{1,80}$/.test(safe.serviceName)?safe.serviceName:"tpay.unknown";
+  const traceId=opaque(safe.traceId)??"unavailable";
+  const correlationId=opaque(safe.correlationId)??"unavailable";
+  const organizationId=opaque(safe.organizationId);
+  const actorId=opaque(safe.actorId);
   return {
     serviceName,
-    traceId:opaque(safe.traceId)??"unavailable",
-    correlationId:opaque(safe.correlationId)??"unavailable",
-    ...(opaque(safe.organizationId)?{organizationId:opaque(safe.organizationId)}:{}),
-    ...(opaque(safe.actorId)?{actorId:opaque(safe.actorId)}:{})
+    traceId,
+    correlationId,
+    ...(organizationId===undefined?{}:{organizationId}),
+    ...(actorId===undefined?{}:{actorId})
   };
 }
 
