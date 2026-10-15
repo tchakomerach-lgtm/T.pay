@@ -6,6 +6,7 @@ import type {AiGenerateRequest} from "../packages/ai/src/provider.js";
 const request:AiGenerateRequest={model:"test-model",messages:[{role:"user",content:"Contact person@example.com at +228 90123456"}],maxOutputTokens:64};
 
 test("HTTP AI provider rejects credential override and unsafe endpoint configuration",()=>{
+ assert.throws(()=>new HttpJsonAiProvider({id:"compatible",endpoint:"not-a-url?token=secret",apiKey:"test-key",priority:1,requestTimeoutMs:5000}),/AI_PROVIDER_ENDPOINT_INVALID/);
  assert.throws(()=>new HttpJsonAiProvider({id:"compatible",endpoint:"http://provider.example/api",apiKey:"test-key",priority:1,requestTimeoutMs:5000}),/AI_PROVIDER_ENDPOINT_MUST_USE_HTTPS/);
  assert.throws(()=>new HttpJsonAiProvider({id:"compatible",endpoint:"https://provider.example/api",apiKey:"test-key",priority:1,requestTimeoutMs:5000,extraHeaders:{Authorization:"Bearer attacker"}}),/AI_PROVIDER_HEADER_OVERRIDE_FORBIDDEN/);
  assert.throws(()=>new HttpJsonAiProvider({id:"compatible",endpoint:"https://provider.example/api",apiKey:"test-key",priority:1,requestTimeoutMs:5000,extraHeaders:{"x-test":"safe\r\ninjected"}}),/AI_PROVIDER_HEADER_NEWLINE_FORBIDDEN/);
@@ -38,5 +39,18 @@ test("HTTP AI provider rejects oversized provider responses without parsing them
  try{
   const provider=new HttpJsonAiProvider({id:"compatible",endpoint:"https://provider.example/api",apiKey:"test-key",priority:1,requestTimeoutMs:5000});
   await assert.rejects(provider.generate(request),/AI_PROVIDER_RESPONSE_SIZE_LIMIT/);
+ }finally{globalThis.fetch=originalFetch;}
+});
+
+test("HTTP AI provider hides raw transport exception details",async()=>{
+ const originalFetch=globalThis.fetch;
+ globalThis.fetch=(async()=>{throw new Error("Bearer ghp_abcdefghijklmnopqrstuvwxyz1234567890");}) as typeof fetch;
+ try{
+  const provider=new HttpJsonAiProvider({id:"compatible",endpoint:"https://provider.example/api",apiKey:"test-key",priority:1,requestTimeoutMs:5000});
+  await assert.rejects(provider.generate(request),error=>{
+   assert.match(String(error),/AI_PROVIDER_TRANSPORT_FAILED/);
+   assert.ok(!String(error).includes("ghp_abcdefghijklmnopqrstuvwxyz1234567890"));
+   return true;
+  });
  }finally{globalThis.fetch=originalFetch;}
 });
