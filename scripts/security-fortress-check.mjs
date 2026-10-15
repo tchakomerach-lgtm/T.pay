@@ -59,6 +59,8 @@ const required=[
   ["tests/notification-router.test.ts",/rejects recipient identity fields that are not opaque IDs/,"NOTIFICATION_IDENTITY_REGRESSION_REQUIRED"],
   ["tests/fortress-boundary-exposure.test.ts",/metricName\("person@example\.com"/,"METRIC_PII_REGRESSION_REQUIRED"],
   ["packages/observability/src/telemetry.ts",/sanitizeTelemetryContext/,"TELEMETRY_TRACE_CONTEXT_GUARD_REQUIRED"],
+  ["packages/observability/src/telemetry.ts",/emitSafeTelemetry/,"TELEMETRY_SINK_BOUNDARY_REQUIRED"],
+  ["tests/fortress-boundary-exposure.test.ts",/safe telemetry sink never receives unredacted event data/,"TELEMETRY_SINK_EXPOSURE_REGRESSION_REQUIRED"],
   ["packages/events/src/notification.ts",/sanitizeNotificationIntent/,"NOTIFICATION_EXPOSURE_GUARD_REQUIRED"],
   ["packages/integrations/src/secure-http-adapter.ts",/MAX_PROVIDER_RESPONSE_BYTES/,"PROVIDER_RESPONSE_BOUND_REQUIRED"],
   ["packages/integrations/src/secure-http-adapter.ts",/PROVIDER_HEADER_NEWLINE_FORBIDDEN/,"PROVIDER_HEADER_INJECTION_GUARD_REQUIRED"],
