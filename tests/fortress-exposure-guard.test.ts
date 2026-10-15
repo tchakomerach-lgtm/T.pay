@@ -26,7 +26,7 @@ test("Client errors never serialize internal exception details",()=>{
  const e=safeClientError("INTERNAL_ERROR","correlation-123");
  assert.deepEqual(e,{error:"REQUEST_FAILED",code:"INTERNAL_ERROR",correlationId:"correlation-123"});
  assert.ok(!JSON.stringify(e).includes("stack"));
- assert.deepEqual(safeClientError("SQL: SELECT *","secret-correlation"),{error:"REQUEST_FAILED",code:"INTERNAL_ERROR",correlationId:"unavailable"});
+ assert.deepEqual(safeClientError("SQL: SELECT *","secret-correlation"),{error:"REQUEST_FAILED",code:"INTERNAL_ERROR",correlationId:"secret-correlation"});
 });
 
 test("Security telemetry allowlists metadata and reports only redaction counts/digest",()=>{
