@@ -24,12 +24,12 @@ const PEM=/-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVA
 const BEARER=/\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi;
 const JWT=/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g;
 const EMAIL=/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
-const PHONE=/(?<!\w)(?:\+?\d[\d ()-]{7,}\d)(?!\w)/g;
-const LONG_CARD=/(?<!\d)(?:\d[ -]?){13,19}(?!\d)/g;
+const PHONE=/(?<![\w-])(?:\+?\d{1,3}[ ]?)?(?:\d{2,4}[ -]){2,4}\d{2,4}(?![\w-])/g;
+const LONG_CARD=/(?<![\da-f-])(?:\d[ -]?){13,19}(?![\da-f-])/gi;
 const SECRET_ASSIGN=/(\b(?:password|token|secret|api[_-]?key|client[_-]?secret)\s*[:=]\s*)[^\s,;]+/gi;
 const PASSPORT_LIKE=/\b[A-Z]{1,2}\d{6,10}\b/g;
 const API_TOKEN=/\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|AKIA[0-9A-Z]{16})\b/g;
-const TOGO_LOCAL_PHONE=/(?<!\d)(?:2[2-8](?:[ -]?\d){6}|[79](?:[ -]?\d){7})(?!\d)/g;
+const TOGO_LOCAL_PHONE=/(?<![\w-])(?:2[2-8](?:[ -]?\d){6}|[79](?:[ -]?\d){7})(?![\w-])/g;
 
 function safeJson(v:unknown):string {
  try { return JSON.stringify(v)??"null"; } catch { throw new Error("FORTRESS_EXPOSURE_SERIALIZATION_DENIED"); }
