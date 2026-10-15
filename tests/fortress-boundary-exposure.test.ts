@@ -53,6 +53,7 @@ test("notification provider receives a scrubbed intent with opaque routing IDs o
 test("provider adapter bounds response/request sizes and never returns oversized provider data",async()=>{
  const adapter=new SecureHttpsAdapter([{origin:"https://provider.example",pathPrefix:"/api"}],async()=>({status:200,headers:{},body:new Uint8Array(1_000_001)}));
  const result=await adapter.request({url:"https://provider.example/api/pay",method:"POST",headers:{},idempotent:false,correlationId:"person@example.com"});
+ await assert.rejects(adapter.request({url:"not-a-url?token=secret",method:"POST",headers:{},idempotent:true,correlationId:"corr-123456"}),/PROVIDER_URL_INVALID/);
  assert.equal(result.state,"UNKNOWN");
  assert.equal(result.body,null);
  assert.equal(result.correlationId,"unavailable");
