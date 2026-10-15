@@ -73,3 +73,15 @@ test("Fortress exposure guard rejects excessive recursion and oversized untruste
  assert.throws(()=>sanitizeForExposure(nested,{channel:"log",purpose:"depth-test",allowedClasses:["internal"],maxBytes:100_000}),/FORTRESS_EXPOSURE_DEPTH_LIMIT/);
  assert.throws(()=>sanitizeForExposure("x".repeat(20_000),{channel:"log",purpose:"input-size-test",allowedClasses:["internal"],maxBytes:100}),/FORTRESS_EXPOSURE_INPUT_SIZE_LIMIT/);
 });
+
+test("Fortress preserves opaque UUIDs while redacting adjacent phone and card values",()=>{
+ const uuid="44444444-4444-4444-8444-444444444444";
+ const error=safeClientError("INTERNAL_ERROR",uuid);
+ assert.equal(error.correlationId,uuid);
+ const result=sanitizeForExposure({organizationId:uuid,eventId:uuid,note:"phone 90123456 card 4111 1111 1111 1111"},{channel:"log",purpose:"uuid-regression",allowedClasses:["internal"],maxBytes:4096});
+ const value=result.value as Record<string,unknown>;
+ assert.equal(value.organizationId,uuid);
+ assert.equal(value.eventId,uuid);
+ assert.ok(!String(value.note).includes("90123456"));
+ assert.ok(!String(value.note).includes("4111 1111 1111 1111"));
+});
