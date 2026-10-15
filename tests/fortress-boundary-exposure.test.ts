@@ -22,6 +22,7 @@ test("logs and traces redact nested PII, provider credentials and unsafe identit
 
 test("Fortress export requires opaque authenticated actor and organization IDs and redacts sensitive values",()=>{
  assert.throws(()=>prepareFortressExport({record:"safe"},{actorId:"person@example.com",organizationId:"org-123",purpose:"report"}),/FORTRESS_EXPORT_AUTH_CONTEXT_INVALID/);
+ assert.throws(()=>prepareFortressExport({record:"safe"},{actorId:"actor-123",organizationId:"org-123",purpose:"report for contact details"}),/FORTRESS_EXPORT_PURPOSE_INVALID/);
  const result=prepareFortressExport({contact:"person@example.com",phone:"+228 90123456",apiToken:"secret-value",status:"approved"},{actorId:"actor-123",organizationId:"org-123",purpose:"authorized-report"});
  const payload=result.payload as Record<string,unknown>;
  assert.equal(payload.contact,"[REDACTED_EMAIL]");
