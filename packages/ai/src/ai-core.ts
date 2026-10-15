@@ -13,8 +13,8 @@ function sanitizeProviderResponse(response:AiGenerateResponse,purpose:string):Ai
   return safe.value as AiGenerateResponse;
 }
 function sanitizeAgentOutput(output:AgentOutput):AgentOutput{
-  const safe=sanitizeForExposure(output.result,{channel:"ai-context",purpose:"ai-agent-output",allowedClasses:["internal"],maxBytes:MAX_AI_EXPOSURE_BYTES});
-  return {...output,result:String(safe.value)};
+  const safe=sanitizeForExposure(output,{channel:"ai-context",purpose:"ai-agent-output",allowedClasses:["internal"],maxBytes:MAX_AI_EXPOSURE_BYTES});
+  return safe.value as AgentOutput;
 }
 
 export interface SpecialistAgent {
