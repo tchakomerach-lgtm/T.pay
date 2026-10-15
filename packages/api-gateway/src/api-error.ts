@@ -37,7 +37,8 @@ const PUBLIC_ERROR_CODES=new Set(Object.keys(STATUS_BY_CODE));
 
 export function normalizeApiError(error:unknown,correlationId:string):ApiErrorEnvelope{
   const raw=error instanceof Error?error.message:"";
-  const match=/^([A-Z][A-Z0-9_]{2,80})(?::.*)?$/.exec(raw);\n  const candidate=match?.[1]??"";
+  const match=/^([A-Z][A-Z0-9_]{2,80})(?::.*)?$/.exec(raw);
+  const candidate=match?.[1]??"";
   const code=PUBLIC_ERROR_CODES.has(candidate)?candidate:"API_INTERNAL_ERROR";
   const safe=safeClientError(code,correlationId);
   return {status:STATUS_BY_CODE[code]??500,code:safe.code,correlationId:safe.correlationId};
