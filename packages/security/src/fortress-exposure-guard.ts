@@ -59,7 +59,7 @@ function scrub(value:unknown,path:string,paths:string[]):unknown {
 }
 export function classifyExposure(value:unknown):Sensitivity {
  const s=safeJson(value);
- if(/PRIVATE KEY|\bBearer\s+(?!\[REDACTED\])\S+|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\./i.test(s))return "secret";
+ if(/PRIVATE KEY|\\bBearer\\s+(?!\\[REDACTED\\])\\S+|\\beyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.|\\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|AKIA[0-9A-Z]{16})\\b/i.test(s))return "secret";
  if(/\b\d{13,19}\b|\b[A-Z]{1,2}\d{6,10}\b/i.test(s))return "restricted";
  if(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b|\+?\d[\d ()-]{7,}\d/i.test(s))return "confidential";
  return "internal";
