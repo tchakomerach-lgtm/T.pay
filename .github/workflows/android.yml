@@ -6,19 +6,70 @@ on:
     branches: ["main"]
 permissions:
   contents: read
+concurrency:
+  group: tpay-android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   android:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
+      - name: Runner assignment diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            printf 'run_id=%s\n' "$GITHUB_RUN_ID"
+            printf 'run_attempt=%s\n' "$GITHUB_RUN_ATTEMPT"
+            printf 'workflow=%s\n' "$GITHUB_WORKFLOW"
+            printf 'event=%s\n' "$GITHUB_EVENT_NAME"
+            printf 'ref=%s\n' "$GITHUB_REF"
+            printf 'sha=%s\n' "$GITHUB_SHA"
+            printf 'runner_name=%s\n' "${RUNNER_NAME:-unavailable}"
+            printf 'runner_os=%s\n' "${RUNNER_OS:-unavailable}"
+            printf 'runner_arch=%s\n' "${RUNNER_ARCH:-unavailable}"
+            printf 'runner_environment=%s\n' "${RUNNER_ENVIRONMENT:-unavailable}"
+            uname -a
+            df -h .
+          } | tee "$RUNNER_TEMP/tpay-android-runner-diagnostics.txt"
+
       - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
-      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.11"
+
       - name: Build Android debug APK
+        id: android_build
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee "$RUNNER_TEMP/tpay-android-build.log"
         working-directory: android/tpay-shell
-        run: gradle :app:assembleDebug --no-daemon
+
+      - name: Sanitize Android diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f "$RUNNER_TEMP/tpay-android-build.log"; then
+            node scripts/sanitize-ci-log.mjs "$RUNNER_TEMP/tpay-android-build.log" "$RUNNER_TEMP/tpay-android-build.redacted.log"
+          fi
+
+      - name: Upload redacted Android diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: tpay-android-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/tpay-android-runner-diagnostics.txt
+            ${{ runner.temp }}/tpay-android-build.redacted.log
+          if-no-files-found: ignore
+          retention-days: 7
