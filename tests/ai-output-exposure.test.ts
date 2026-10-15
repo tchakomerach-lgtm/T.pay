@@ -52,3 +52,14 @@ test("AI Core scrubs prompt and RAG context before sending to providers",async()
  assert.ok(serialized.includes("[REDACTED_EMAIL]"));
  assert.ok(serialized.includes("[REDACTED_API_TOKEN]"));
 });
+
+test("AI Core never reflects raw provider exceptions after failover is exhausted",async()=>{
+ const providers=new AiProviderRegistry();
+ providers.register({id:"compatible",priority:1,enabled:true,async generate(){throw new Error("Authorization: Bearer ghp_abcdefghijklmnopqrstuvwxyz1234567890");}});
+ const core=new AiCore(providers,new AiToolRegistry(),[],{maxAgentHops:1,allowedProviders:["compatible"],defaultMaxOutputTokens:256});
+ await assert.rejects(core.generate(request),error=>{
+  assert.match(String(error),/AI_ALL_PROVIDERS_FAILED/);
+  assert.ok(!String(error).includes("ghp_abcdefghijklmnopqrstuvwxyz1234567890"));
+  return true;
+ });
+});
