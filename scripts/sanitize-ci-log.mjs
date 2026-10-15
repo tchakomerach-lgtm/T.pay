@@ -14,7 +14,7 @@ const patterns=[
   [/\b(?:password|passwd|secret|api[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token)\s*[:=]\s*[^\s,;]+/gi,"[REDACTED_SECRET_ASSIGNMENT]"],
   [/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,"[REDACTED_EMAIL]"],
   [/(?<![\w-])(?:\+?228[ -]?)?(?:2[2-8](?:[ -]?\d){6}|[79](?:[ -]?\d){7})(?![\w-])/g,"[REDACTED_PHONE]"],
-  [/(?<!\d)(?:\d[ -]?){13,19}(?!\d)/g,"[REDACTED_NUMERIC_IDENTIFIER]"]
+  [/(?<![\da-f-])(?:\d[ -]?){13,19}(?![\da-f-])/gi,"[REDACTED_NUMERIC_IDENTIFIER]"]
 ];
 for(const [pattern,replacement] of patterns)text=text.replace(pattern,replacement);
 await writeFile(outputPath,text,{encoding:"utf8",mode:0o600});
