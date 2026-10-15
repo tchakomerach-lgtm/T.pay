@@ -26,6 +26,7 @@ export function prepareFortressExport(input:unknown,context:FortressExportContex
   if(!context.actorId?.trim()||!context.organizationId?.trim())throw new Error("FORTRESS_EXPORT_AUTH_CONTEXT_REQUIRED");
   if(!/^[A-Za-z0-9_-]{1,128}$/.test(context.actorId)||!/^[A-Za-z0-9_-]{1,128}$/.test(context.organizationId))throw new Error("FORTRESS_EXPORT_AUTH_CONTEXT_INVALID");
   if(!context.purpose?.trim())throw new Error("FORTRESS_EXPORT_PURPOSE_REQUIRED");
+  if(!/^[A-Za-z][A-Za-z0-9_.:-]{1,80}$/.test(context.purpose))throw new Error("FORTRESS_EXPORT_PURPOSE_INVALID");
   const safe=sanitizeForExposure(input,{
     channel:"export",
     actorId:context.actorId,
