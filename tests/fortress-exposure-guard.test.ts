@@ -54,4 +54,5 @@ test("free-text email, phone, payment identifiers and passport-like IDs are scru
 
 test("Exposure classification is conservative for likely payment identifiers",()=>{
  assert.equal(classifyExposure({account:"1234567890123456"}),"restricted");
+ assert.equal(classifyExposure({credential:"ghp_"+"abcdefghijklmnopqrstuvwxyz1234567890"}),"secret");
 });
