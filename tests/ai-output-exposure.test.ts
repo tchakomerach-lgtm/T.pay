@@ -45,7 +45,7 @@ test("AI Core scrubs prompt and RAG context before sending to providers",async()
  ],maxOutputTokens:256,metadata:{source:"rag",contact:"person@example.com"}};
  await core.generate(input);
  assert.ok(observed);
- const serialized=JSON.stringify(observed);
+ const serialized=JSON.stringify(observed)??"";
  assert.ok(!serialized.includes("person@example.com"));
  assert.ok(!serialized.includes("+228 90123456"));
  assert.ok(!serialized.includes("ghp_abcdefghijklmnopqrstuvwxyz1234567890"));
