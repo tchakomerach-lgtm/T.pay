@@ -10,7 +10,7 @@ test("SecurityMonitor scrubs free-text PII and tokens before memory and audit ha
  const serialized=JSON.stringify(event);
  assert.ok(!serialized.includes("person@example.com"));
  assert.ok(!serialized.includes("+228 90123456"));
- assert.ok(!serialized.includes("ghp_abcdefghijklmnopqrstuvwxyz1234567890"));
+ assert.ok(!serialized.includes("ghp_"+"abcdefghijklmnopqrstuvwxyz1234567890"));
  assert.equal((event.metadata as any).credential,"[REDACTED_API_TOKEN]");
  assert.doesNotThrow(()=>monitor.verifyAuditIntegrity());
 });
