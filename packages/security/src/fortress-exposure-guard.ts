@@ -28,6 +28,8 @@ const PHONE=/(?<!\w)(?:\+?\d[\d ()-]{7,}\d)(?!\w)/g;
 const LONG_CARD=/(?<!\d)(?:\d[ -]?){13,19}(?!\d)/g;
 const SECRET_ASSIGN=/(\b(?:password|token|secret|api[_-]?key|client[_-]?secret)\s*[:=]\s*)[^\s,;]+/gi;
 const PASSPORT_LIKE=/\b[A-Z]{1,2}\d{6,10}\b/g;
+const API_TOKEN=/\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|AKIA[0-9A-Z]{16})\b/g;
+const TOGO_LOCAL_PHONE=/(?<!\d)(?:2[2-8](?:[ -]?\d){6}|[79](?:[ -]?\d){7})(?!\d)/g;
 
 function safeJson(v:unknown):string {
  try { return JSON.stringify(v)??"null"; } catch { throw new Error("FORTRESS_EXPOSURE_SERIALIZATION_DENIED"); }
