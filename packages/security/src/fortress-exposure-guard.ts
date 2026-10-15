@@ -41,15 +41,18 @@ function maskString(input:string):{value:string;changed:boolean}{
  value=value.replace(PEM,"[REDACTED_PRIVATE_KEY]").replace(BEARER,"Bearer [REDACTED]").replace(JWT,"[REDACTED_JWT]").replace(SECRET_ASSIGN,"$1[REDACTED]").replace(API_TOKEN,"[REDACTED_API_TOKEN]").replace(EMAIL,"[REDACTED_EMAIL]").replace(LONG_CARD,"[REDACTED_PAYMENT_IDENTIFIER]").replace(PASSPORT_LIKE,"[REDACTED_ID]").replace(PHONE,"[REDACTED_PHONE]").replace(TOGO_LOCAL_PHONE,"[REDACTED_PHONE]");
  return {value,changed:value!==input};
 }
-function scrub(value:unknown,path:string,paths:string[]):unknown {
+function scrub(value:unknown,path:string,paths:string[],depth=0):unknown {
+ if(depth>64)throw new Error("FORTRESS_EXPOSURE_DEPTH_LIMIT");
  if(typeof value==="string"){const r=maskString(value);if(r.changed)paths.push(path||"$");return r.value;}
- if(Array.isArray(value))return value.map((v,i)=>scrub(v,`${path}[${i}]`,paths));
+ if(Array.isArray(value))return value.map((v,i)=>scrub(v,`${path}[${i}]`,paths,depth+1));
  if(value&&typeof value==="object"){
   const out:Record<string,unknown>={};
   for(const [key,item] of Object.entries(value as Record<string,unknown>)){
    const p=path?`${path}.${key}`:key;
-   if(KEY_DENY.test(key)){out[key]="[REDACTED]";paths.push(p);}
-   else out[key]=scrub(item,p,paths);
+   const next=KEY_DENY.test(key)?"[REDACTED]":scrub(item,p,paths,depth+1);
+   if(KEY_DENY.test(key))paths.push(p);
+   // Define own data properties so an untrusted "__proto__" key cannot mutate the output prototype.
+   Object.defineProperty(out,key,{value:next,enumerable:true,writable:true,configurable:true});
   }
   return out;
  }
@@ -71,6 +74,9 @@ export function sanitizeForExposure(input:unknown,context:ExposureContext):Sanit
  if(!Array.isArray(context.allowedClasses)||context.allowedClasses.length===0)throw new Error("FORTRESS_EXPOSURE_CLASSES_REQUIRED");
  if(context.channel==="export"&&(!context.actorId?.trim()||!context.organizationId?.trim()))throw new Error("FORTRESS_EXPOSURE_ACTOR_REQUIRED");
  const originalBytes=bytes(input);
+ // Bound recursive work for untrusted payloads; oversized input is denied rather than partially scrubbed.
+ const maxInputBytes=Math.min(16_000_000,Math.max(context.maxBytes,context.maxBytes*4));
+ if(originalBytes>maxInputBytes)throw new Error("FORTRESS_EXPOSURE_INPUT_SIZE_LIMIT");
  const redactedPaths:string[]=[];
  const value=scrub(input,"",redactedPaths);
  const classification=classifyExposure(value);
