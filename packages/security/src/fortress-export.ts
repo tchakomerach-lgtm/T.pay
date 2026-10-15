@@ -24,6 +24,7 @@ export interface FortressPreparedExport {
 /** Fail-closed export preparation. The caller must authorize access before invoking this function. */
 export function prepareFortressExport(input:unknown,context:FortressExportContext):FortressPreparedExport{
   if(!context.actorId?.trim()||!context.organizationId?.trim())throw new Error("FORTRESS_EXPORT_AUTH_CONTEXT_REQUIRED");
+  if(!/^[A-Za-z0-9_-]{1,128}$/.test(context.actorId)||!/^[A-Za-z0-9_-]{1,128}$/.test(context.organizationId))throw new Error("FORTRESS_EXPORT_AUTH_CONTEXT_INVALID");
   if(!context.purpose?.trim())throw new Error("FORTRESS_EXPORT_PURPOSE_REQUIRED");
   const safe=sanitizeForExposure(input,{
     channel:"export",
