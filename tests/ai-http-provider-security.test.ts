@@ -21,7 +21,7 @@ test("HTTP AI provider scrubs direct prompt input and provider output",async()=>
  try{
   const provider=new HttpJsonAiProvider({id:"compatible",endpoint:"https://provider.example/api",apiKey:"test-key",priority:1,requestTimeoutMs:5000});
   const result=await provider.generate(request);
-  const sent=JSON.stringify(observed);
+  const sent=JSON.stringify(observed)??"";
   assert.ok(!sent.includes("person@example.com"));
   assert.ok(!sent.includes("+228 90123456"));
   assert.ok(sent.includes("[REDACTED_EMAIL]"));
