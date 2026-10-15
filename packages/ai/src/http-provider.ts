@@ -14,7 +14,8 @@ const MAX_AI_EXTRA_HEADER_BYTES=16*1024;
 const FORBIDDEN_EXTRA_HEADERS=new Set(["authorization","content-type","host","content-length","connection","cookie","proxy-authorization","transfer-encoding"]);
 
 function assertHttpsEndpoint(endpoint:string):URL{
-  const url=new URL(endpoint);
+  let url:URL;
+  try{url=new URL(endpoint);}catch{throw new Error("AI_PROVIDER_ENDPOINT_INVALID");}
   if(url.protocol!=="https:")throw new Error("AI_PROVIDER_ENDPOINT_MUST_USE_HTTPS");
   if(url.username||url.password||url.hash)throw new Error("AI_PROVIDER_ENDPOINT_CREDENTIALS_FORBIDDEN");
   return url;
@@ -90,17 +91,20 @@ export class HttpJsonAiProvider implements AiProvider{
     signal?.addEventListener("abort",abortFromCaller,{once:true});
     const timer=setTimeout(()=>controller.abort(),this.timeoutMs);
     try{
-      const response=await fetch(this.endpoint,{
-        method:"POST",
-        headers:{
-          ...this.extraHeaders,
-          "content-type":"application/json",
-          authorization:`Bearer ${this.apiKey}`
-        },
-        body:JSON.stringify(safeRequest),
-        signal:controller.signal,
-        redirect:"error"
-      });
+      let response:Response;
+      try{
+        response=await fetch(this.endpoint,{
+          method:"POST",
+          headers:{
+            ...this.extraHeaders,
+            "content-type":"application/json",
+            authorization:`Bearer ${this.apiKey}`
+          },
+          body:JSON.stringify(safeRequest),
+          signal:controller.signal,
+          redirect:"error"
+        });
+      }catch{throw new Error("AI_PROVIDER_TRANSPORT_FAILED");}
       if(!response.ok)throw new Error(`AI_PROVIDER_HTTP_${response.status}`);
       const text=await readBoundedText(response);
       let parsed:unknown;
