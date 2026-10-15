@@ -69,3 +69,14 @@ test("safe telemetry sink never receives unredacted event data",async()=>{
  assert.ok(emitted);
  assert.equal((emitted.metadata as Record<string,unknown>).apiToken,"[REDACTED]");
 });
+
+test("telemetry sink errors do not expose raw provider or transport details",async()=>{
+ await assert.rejects(
+  emitSafeTelemetry({emit:()=>{throw new Error("Bearer ghp_abcdefghijklmnopqrstuvwxyz1234567890");}},{event:"telemetry.test"}),
+  error=>{
+   assert.match(String(error),/TELEMETRY_SINK_FAILED/);
+   assert.ok(!String(error).includes("ghp_abcdefghijklmnopqrstuvwxyz1234567890"));
+   return true;
+  }
+ );
+});
