@@ -58,6 +58,7 @@ export async function deliverClaimedNotification(
   workerId: string,
   now: string
 ): Promise<void> {
-  await provider.send(sanitizeNotificationIntent(intent));
+  try{await provider.send(sanitizeNotificationIntent(intent));}
+  catch{throw new Error("NOTIFICATION_PROVIDER_FAILED");}
   await store.markSent(intent.id, workerId, now);
 }
