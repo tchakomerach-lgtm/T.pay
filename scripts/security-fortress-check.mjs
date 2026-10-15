@@ -79,6 +79,7 @@ const required=[
   ["packages/api-gateway/src/api-error.ts",/safeClientError/,"API_ERROR_EXPOSURE_GUARD_REQUIRED"],
   ["packages/education/src/education-http.ts",/envelope\.status/,"HTTP_ERROR_STATUS_NORMALIZATION_REQUIRED"],
   ["packages/ai/src/ai-core.ts",/sanitizeProviderResponse/,"AI_PROVIDER_OUTPUT_GUARD_REQUIRED"],
+  ["packages/ai/src/ai-core.ts",/sanitizeAgentOutput/,"AI_AGENT_OUTPUT_GUARD_REQUIRED"],
   ["tests/api-error-exposure.test.ts",/DB_PASSWORD_ROTATION_FAILED/,"API_ERROR_LEAK_REGRESSION_REQUIRED"],
   ["tests/ai-output-exposure.test.ts",/generateRouted/,"AI_ROUTED_OUTPUT_GUARD_TEST_REQUIRED"],
   ["tests/ai-output-exposure.test.ts",/scrubs prompt and RAG context/,"AI_PROMPT_RAG_REGRESSION_REQUIRED"],
