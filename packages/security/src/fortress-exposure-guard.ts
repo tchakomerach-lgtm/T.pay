@@ -82,7 +82,8 @@ export function sanitizeForExposure(input:unknown,context:ExposureContext):Sanit
 /** Errors shown to clients must not leak stack traces, SQL, paths, provider responses or internal identifiers. */
 export function safeClientError(code:string,correlationId:string):Readonly<{error:"REQUEST_FAILED";code:string;correlationId:string}>{
  const safeCode=/^[A-Z0-9_]{2,64}$/.test(code)?code:"INTERNAL_ERROR";
- const correlationCandidate=/^[A-Za-z0-9._:-]{8,128}$/.test(correlationId)?correlationId:"";\n const safeCorrelation=correlationCandidate&&!maskString(correlationCandidate).changed?correlationCandidate:"unavailable";
+ const correlationCandidate=/^[A-Za-z0-9._:-]{8,128}$/.test(correlationId)?correlationId:"";
+ const safeCorrelation=correlationCandidate&&!maskString(correlationCandidate).changed?correlationCandidate:"unavailable";
  return Object.freeze({error:"REQUEST_FAILED",code:safeCode,correlationId:safeCorrelation});
 }
 /** Prevents high-risk content from entering logs by accepting only an allowlisted event envelope. */
