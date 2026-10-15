@@ -72,5 +72,5 @@ test("AI Core scrubs specialist-agent objectives and results",async()=>{
  assert.ok(!seenObjective.includes("person@example.com"));
  assert.ok(!outputs[0]?.result.includes("person@example.com"));
  assert.ok(!outputs[0]?.result.includes("+228 90123456"));
- assert.ok(!JSON.stringify(outputs).includes("person@example.com"));
+ assert.ok(!(JSON.stringify(outputs)??"").includes("person@example.com"));
 });
