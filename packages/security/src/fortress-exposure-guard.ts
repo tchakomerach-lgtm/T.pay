@@ -70,6 +70,7 @@ export function classifyExposure(value:unknown):Sensitivity {
 /** Scrub data before it leaves a Fortress trust boundary. This is defense-in-depth, not a substitute for authorization. */
 export function sanitizeForExposure(input:unknown,context:ExposureContext):SanitizedExposure {
  if(typeof context.purpose!=="string"||!context.purpose.trim())throw new Error("FORTRESS_EXPOSURE_PURPOSE_REQUIRED");
+ if(!/^[A-Za-z][A-Za-z0-9_.:-]{0,127}$/.test(context.purpose))throw new Error("FORTRESS_EXPOSURE_PURPOSE_INVALID");
  if(!Number.isSafeInteger(context.maxBytes)||context.maxBytes<1)throw new Error("FORTRESS_EXPOSURE_LIMIT_INVALID");
  if(!Array.isArray(context.allowedClasses)||context.allowedClasses.length===0)throw new Error("FORTRESS_EXPOSURE_CLASSES_REQUIRED");
  if(context.channel==="export"&&(!context.actorId?.trim()||!context.organizationId?.trim()))throw new Error("FORTRESS_EXPOSURE_ACTOR_REQUIRED");
