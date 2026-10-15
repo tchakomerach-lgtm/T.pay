@@ -19,12 +19,12 @@ const files=[
 const forbidden=[
   [/console\\.(log|info|warn|error)\\([^\\n]*(?:plaintext|secret|accessToken|refreshToken|privateKey|password)/i,"SECRET_LOGGING"],
   [/JSON\\.stringify\\([^\\n]*(?:plaintext|accessToken|refreshToken|privateKey|password)/i,"SECRET_SERIALIZATION"],
-  [/insecureHTTPParser\s*:\s*true/,"NODE_INSECURE_HTTP_PARSER"],
-  [/rejectUnauthorized\s*:\s*false/,"TLS_CERTIFICATE_VALIDATION_DISABLED"],
+  [/insecureHTTPParser\\s*:\\s*true/,"NODE_INSECURE_HTTP_PARSER"],
+  [/rejectUnauthorized\\s*:\\s*false/,"TLS_CERTIFICATE_VALIDATION_DISABLED"],
   [/MIXED_CONTENT_ALWAYS_ALLOW/,"ANDROID_MIXED_CONTENT_ALLOWED"],
-  [/allowFileAccess\s*=\s*true/,"ANDROID_FILE_ACCESS_ENABLED"],
-  [/allowContentAccess\s*=\s*true/,"ANDROID_CONTENT_ACCESS_ENABLED"],
-  [/access-control-allow-origin["']?\s*[,:]\s*["']\*["']/,"CORS_WILDCARD"],
+  [/allowFileAccess\\s*=\\s*true/,"ANDROID_FILE_ACCESS_ENABLED"],
+  [/allowContentAccess\\s*=\\s*true/,"ANDROID_CONTENT_ACCESS_ENABLED"],
+  [/access-control-allow-origin["']?\\s*[,:]\\s*["']*\\*["']?/,"CORS_WILDCARD"],
   [/X-XSS-Protection/i,"DEPRECATED_XSS_HEADER"]
 ];
 
@@ -39,22 +39,27 @@ const required=[
   ["packages/security/vault-core.ts",/VaultAuditSink/,"VAULT_AUDIT_BOUNDARY_REQUIRED"],
   ["packages/security/src/fortress-exposure-guard.ts",/const API_TOKEN=/,"EXPOSURE_TOKEN_PATTERNS_REQUIRED"],
   ["packages/security/src/fortress-exposure-guard.ts",/const TOGO_LOCAL_PHONE=/,"EXPOSURE_TOGO_PHONE_PATTERN_REQUIRED"],
+  ["packages/security/src/fortress-exposure-guard.ts",/FORTRESS_EXPOSURE_DEPTH_LIMIT/,"EXPOSURE_DEPTH_BOUND_REQUIRED"],
+  ["packages/security/src/fortress-exposure-guard.ts",/FORTRESS_EXPOSURE_INPUT_SIZE_LIMIT/,"EXPOSURE_INPUT_BOUND_REQUIRED"],
+  ["packages/security/src/fortress-exposure-guard.ts",/Object\\.defineProperty\\(out,key/,"EXPOSURE_PROTOTYPE_POLLUTION_GUARD_REQUIRED"],
+  ["tests/fortress-exposure-guard.test.ts",/untrusted __proto__/,"EXPOSURE_PROTOTYPE_REGRESSION_REQUIRED"],
+  ["tests/fortress-exposure-guard.test.ts",/excessive recursion and oversized untrusted payloads/,"EXPOSURE_RESOURCE_LIMIT_REGRESSION_REQUIRED"],
   ["packages/api-gateway/src/api-error.ts",/PUBLIC_ERROR_CODES/,"PUBLIC_API_ERROR_ALLOWLIST_REQUIRED"],
   ["packages/api-gateway/src/api-error.ts",/safeClientError/,"API_ERROR_EXPOSURE_GUARD_REQUIRED"],
-  ["packages/education/src/education-http.ts",/envelope\.status/,"HTTP_ERROR_STATUS_NORMALIZATION_REQUIRED"],
+  ["packages/education/src/education-http.ts",/envelope\\.status/,"HTTP_ERROR_STATUS_NORMALIZATION_REQUIRED"],
   ["packages/ai/src/ai-core.ts",/sanitizeProviderResponse/,"AI_PROVIDER_OUTPUT_GUARD_REQUIRED"],
   ["tests/api-error-exposure.test.ts",/DB_PASSWORD_ROTATION_FAILED/,"API_ERROR_LEAK_REGRESSION_REQUIRED"],
   ["tests/ai-output-exposure.test.ts",/generateRouted/,"AI_ROUTED_OUTPUT_GUARD_TEST_REQUIRED"],
   ["packages/security/vault-core.ts",/action:"read"/,"VAULT_READ_AUDIT_REQUIRED"],
   ["packages/security/vault-core.ts",/action:"write"/,"VAULT_WRITE_AUDIT_REQUIRED"],
-  ["apps/api-server/src/main.ts",/minVersion:\s*["']TLSv1\.3["']/,"API_TLS13_REQUIRED"],
-  ["apps/education-web/vite.config.ts",/command===["']serve["'][\s\S]*?TPAY_WEB_HTTPS_CERTIFICATES_REQUIRED/,"WEB_HTTPS_FAIL_CLOSED"],
+  ["apps/api-server/src/main.ts",/minVersion:\\s*["']TLSv1\\.3["']/,"API_TLS13_REQUIRED"],
+  ["apps/education-web/vite.config.ts",/command===["']serve["'][\\s\\S]*?TPAY_WEB_HTTPS_CERTIFICATES_REQUIRED/,"WEB_HTTPS_FAIL_CLOSED"],
   ["packages/education/src/education-http.ts",/API_IDEMPOTENCY_KEY_INVALID/,"IDEMPOTENCY_VALIDATION_REQUIRED"],
   ["packages/education/src/education-http.ts",/x-content-type-options/,"SECURITY_HEADERS_REQUIRED"],
   ["packages/education/src/education-http.ts",/strict-transport-security/,"HSTS_REQUIRED"],
   ["android/tpay-shell/app/src/main/AndroidManifest.xml",/usesCleartextTraffic="false"/,"ANDROID_CLEARTEXT_DISABLED"],
   ["android/tpay-shell/app/src/main/res/xml/network_security_config.xml",/cleartextTrafficPermitted="false"/,"ANDROID_NETWORK_CLEARTEXT_DISABLED"],
-  [".github/workflows/terrain-certification.yml",/runs-on:\s*\[self-hosted,\s*tpay-terrain\]/,"TERRAIN_RUNNER_ISOLATION_REQUIRED"]
+  [".github/workflows/terrain-certification.yml",/runs-on:\\s*\\[self-hosted,\\s*tpay-terrain\\]/,"TERRAIN_RUNNER_ISOLATION_REQUIRED"]
 ];
 
 const problems=[];
@@ -67,8 +72,8 @@ for(const [rel,pattern,code] of required){
   if(!pattern.test(text))problems.push(code+":"+rel);
 }
 const ci=await readFile(resolve(root,".github/workflows/ci.yml"),"utf8");
-if(!/permissions:\s*\n\s+contents:\s+read/.test(ci))problems.push("CI_LEAST_PRIVILEGE_REQUIRED");
-if(!/cancel-in-progress:\s*false/.test(ci))problems.push("CI_AUTHORITATIVE_RUNS_MUST_NOT_BE_CANCELLED");
+if(!/permissions:\\s*\\n\\s+contents:\\s+read/.test(ci))problems.push("CI_LEAST_PRIVILEGE_REQUIRED");
+if(!/cancel-in-progress:\\s*false/.test(ci))problems.push("CI_AUTHORITATIVE_RUNS_MUST_NOT_BE_CANCELLED");
 if(problems.length){
   console.error("TPAY_SECURITY_FORTRESS_FAILED");
   for(const p of problems)console.error(p);
