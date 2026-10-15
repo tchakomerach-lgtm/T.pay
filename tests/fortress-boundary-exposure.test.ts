@@ -54,5 +54,5 @@ test("provider adapter bounds response/request sizes and never returns oversized
  assert.equal(result.body,null);
  assert.equal(result.correlationId,"unavailable");
  await assert.rejects(adapter.request({url:"https://provider.example/api/pay",method:"POST",headers:{},body:new Uint8Array(1_000_001),idempotent:true,correlationId:"corr-123456"}),/PROVIDER_REQUEST_SIZE_LIMIT/);
- await assert.rejects(adapter.request({url:"https://provider.example/api/pay",method:"POST",headers:{"x-test":"safe\\r\\ninjected"},idempotent:true,correlationId:"corr-123456"}),/PROVIDER_HEADER_NEWLINE_FORBIDDEN/);
+ await assert.rejects(adapter.request({url:"https://provider.example/api/pay",method:"POST",headers:{"x-test":"safe\r\ninjected"},idempotent:true,correlationId:"corr-123456"}),/PROVIDER_HEADER_NEWLINE_FORBIDDEN/);
 });
