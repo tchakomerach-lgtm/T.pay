@@ -66,5 +66,6 @@ test("safe telemetry sink never receives unredacted event data",async()=>{
  const serialized=JSON.stringify(emitted)??"";
  assert.ok(!serialized.includes("person@example.com"));
  assert.ok(!serialized.includes("ghp_abcdefghijklmnopqrstuvwxyz1234567890"));
- assert.equal((emitted?.metadata as Record<string,unknown>).apiToken,"[REDACTED]");
+ assert.ok(emitted);
+ assert.equal((emitted.metadata as Record<string,unknown>).apiToken,"[REDACTED]");
 });
