@@ -1,6 +1,5 @@
 name: T.Pay CI
 on:
-  # Authoritative validation for every branch commit and every PR synchronization.
   push:
     branches:
       - "**"
@@ -17,7 +16,7 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17
@@ -34,13 +33,94 @@ jobs:
     env:
       TPAY_DATABASE_URL: postgresql://postgres:tpay_ci@127.0.0.1:5432/tpay_ci
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Runner assignment diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            printf 'run_id=%s\n' "$GITHUB_RUN_ID"
+            printf 'run_attempt=%s\n' "$GITHUB_RUN_ATTEMPT"
+            printf 'workflow=%s\n' "$GITHUB_WORKFLOW"
+            printf 'event=%s\n' "$GITHUB_EVENT_NAME"
+            printf 'ref=%s\n' "$GITHUB_REF"
+            printf 'sha=%s\n' "$GITHUB_SHA"
+            printf 'runner_name=%s\n' "${RUNNER_NAME:-unavailable}"
+            printf 'runner_os=%s\n' "${RUNNER_OS:-unavailable}"
+            printf 'runner_arch=%s\n' "${RUNNER_ARCH:-unavailable}"
+            printf 'runner_environment=%s\n' "${RUNNER_ENVIRONMENT:-unavailable}"
+            uname -a
+            df -h .
+          } | tee "$RUNNER_TEMP/tpay-runner-diagnostics.txt"
+
+      - name: Checkout repository
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        id: setup_node
+        uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
-      - run: npm run check
-      - run: npm run security:fortress
-      - run: npm run web:build
-      - run: npm audit --omit=dev --audit-level=high
 
+      - name: Install dependencies
+        id: install_deps
+        shell: bash
+        run: |
+          set -o pipefail
+          npm install --no-audit --no-fund 2>&1 | tee "$RUNNER_TEMP/tpay-install.log"
+
+      - name: Run typecheck and unit/integration tests
+        id: check
+        if: always() && steps.install_deps.outcome == 'success'
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run check 2>&1 | tee "$RUNNER_TEMP/tpay-check.log"
+
+      - name: Run Fortress security gates
+        id: fortress
+        if: always() && steps.install_deps.outcome == 'success'
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run security:fortress 2>&1 | tee "$RUNNER_TEMP/tpay-fortress.log"
+
+      - name: Build web application
+        id: web_build
+        if: always() && steps.install_deps.outcome == 'success'
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run web:build 2>&1 | tee "$RUNNER_TEMP/tpay-web-build.log"
+
+      - name: Audit production dependencies
+        id: audit
+        if: always() && steps.install_deps.outcome == 'success'
+        shell: bash
+        run: |
+          set -o pipefail
+          npm audit --omit=dev --audit-level=high 2>&1 | tee "$RUNNER_TEMP/tpay-audit.log"
+
+      - name: Sanitize CI diagnostic logs
+        if: always() && steps.checkout.outcome == 'success' && steps.setup_node.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in install check fortress web-build audit; do
+            source="$RUNNER_TEMP/tpay-$name.log"
+            target="$RUNNER_TEMP/tpay-$name.redacted.log"
+            if test -f "$source"; then
+              node scripts/sanitize-ci-log.mjs "$source" "$target"
+            fi
+          done
+
+      - name: Upload redacted CI diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: tpay-ci-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/tpay-runner-diagnostics.txt
+            ${{ runner.temp }}/tpay-*.redacted.log
+          if-no-files-found: ignore
+          retention-days: 7
