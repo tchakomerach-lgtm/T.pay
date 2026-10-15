@@ -1,0 +1,58 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {sanitizeTelemetry,sanitizeTelemetryContext} from "../packages/observability/src/telemetry.js";
+import {prepareFortressExport} from "../packages/security/src/fortress-export.js";
+import {sanitizeNotificationIntent} from "../packages/events/src/notification.js";
+import {SecureHttpsAdapter} from "../packages/integrations/src/secure-http-adapter.js";
+
+test("logs and traces redact nested PII, provider credentials and unsafe identity labels",()=>{
+ const safe=sanitizeTelemetry({message:"contact person@example.com at +228 90123456",nested:{apiToken:"ghp_abcdefghijklmnopqrstuvwxyz1234567890",reason:"policy-deny"}});
+ const text=JSON.stringify(safe);
+ assert.ok(!text.includes("person@example.com"));
+ assert.ok(!text.includes("+228 90123456"));
+ assert.ok(!text.includes("ghp_abcdefghijklmnopqrstuvwxyz1234567890"));
+ assert.equal((safe.nested as Record<string,unknown>).apiToken,"[REDACTED]");
+ const context=sanitizeTelemetryContext({serviceName:"tpay-api",traceId:"person@example.com",correlationId:"corr-123456",organizationId:"org_123456",actorId:"+228 90123456"});
+ assert.equal(context.traceId,"unavailable");
+ assert.equal(context.correlationId,"corr-123456");
+ assert.equal(context.actorId,undefined);
+});
+
+test("Fortress export requires opaque authenticated actor and organization IDs and redacts sensitive values",()=>{
+ assert.throws(()=>prepareFortressExport({record:"safe"},{actorId:"person@example.com",organizationId:"org-123",purpose:"report"}),/FORTRESS_EXPORT_AUTH_CONTEXT_INVALID/);
+ const result=prepareFortressExport({contact:"person@example.com",phone:"+228 90123456",apiToken:"secret-value",status:"approved"},{actorId:"actor-123",organizationId:"org-123",purpose:"authorized-report"});
+ const payload=result.payload as Record<string,unknown>;
+ assert.equal(payload.contact,"[REDACTED]");
+ assert.equal(payload.phone,"[REDACTED]");
+ assert.equal(payload.apiToken,"[REDACTED]");
+ assert.equal(payload.status,"approved");
+ assert.equal(result.audit.actorId,"actor-123");
+ assert.equal(result.audit.organizationId,"org-123");
+ assert.equal(result.audit.classification,"internal");
+ assert.ok(!JSON.stringify(result).includes("person@example.com"));
+});
+
+test("notification provider receives a scrubbed intent with opaque routing IDs only",()=>{
+ const intent={
+  id:"44444444-4444-4444-8444-444444444444",
+  organizationId:"22222222-2222-4222-8222-222222222222",
+  recipientUserId:"11111111-1111-4111-8111-111111111111",
+  channel:"in_app" as const,template:"payment_completed",eventId:"33333333-3333-4333-8333-333333333333",
+  eventType:"payment.completed" as const,sensitivity:"generic" as const,createdAt:"2026-10-03T22:20:00Z",
+  debugMessage:"person@example.com Bearer abc.def.ghi"
+ };
+ const safe=sanitizeNotificationIntent(intent as never) as typeof intent;
+ assert.ok(!safe.debugMessage.includes("person@example.com"));
+ assert.ok(!safe.debugMessage.includes("abc.def.ghi"));
+ assert.equal(safe.organizationId,intent.organizationId);
+});
+
+test("provider adapter bounds response/request sizes and never returns oversized provider data",async()=>{
+ const adapter=new SecureHttpsAdapter([{origin:"https://provider.example",pathPrefix:"/api"}],async()=>({status:200,headers:{},body:new Uint8Array(1_000_001)}));
+ const result=await adapter.request({url:"https://provider.example/api/pay",method:"POST",headers:{},idempotent:false,correlationId:"person@example.com"});
+ assert.equal(result.state,"UNKNOWN");
+ assert.equal(result.body,null);
+ assert.equal(result.correlationId,"unavailable");
+ await assert.rejects(adapter.request({url:"https://provider.example/api/pay",method:"POST",headers:{},body:new Uint8Array(1_000_001),idempotent:true,correlationId:"corr-123456"}),/PROVIDER_REQUEST_SIZE_LIMIT/);
+ await assert.rejects(adapter.request({url:"https://provider.example/api/pay",method:"POST",headers:{"x-test":"safe\\r\\ninjected"},idempotent:true,correlationId:"corr-123456"}),/PROVIDER_HEADER_NEWLINE_FORBIDDEN/);
+});
