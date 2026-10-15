@@ -54,5 +54,6 @@ export interface SafeTelemetrySink {
 /** The only supported path for forwarding structured diagnostics to a log/trace sink. */
 export async function emitSafeTelemetry(sink:SafeTelemetrySink,event:Record<string,unknown>):Promise<void>{
   const safe=Object.freeze(sanitizeTelemetry(event));
-  await sink.emit(safe);
+  try{await sink.emit(safe);}
+  catch{throw new Error("TELEMETRY_SINK_FAILED");}
 }
