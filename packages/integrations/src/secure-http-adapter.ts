@@ -105,7 +105,7 @@ export class SecureHttpsAdapter{
       input.signal?.addEventListener("abort",abortFromCaller,{once:true});
       const timer=setTimeout(()=>controller.abort(),this.timeoutMs);
       try{
-        const response=await this.transport({...input,correlationId:undefined as never,signal:controller.signal} as HttpsRequest);
+        const response=await this.transport({url:input.url,method:input.method,headers:input.headers,...(input.body===undefined?{}:{body:input.body}),signal:controller.signal});
         if(response.body.byteLength>MAX_PROVIDER_RESPONSE_BYTES)throw new Error("PROVIDER_RESPONSE_SIZE_LIMIT");
         lastStatus=response.status;
         if(response.status>=200&&response.status<300){
