@@ -27,11 +27,15 @@ test("notification is marked sent only after provider success", async () => {
   assert.equal(sent, true);
 });
 
-test("provider failure does not mark notification sent", async () => {
+test("notification errors never reflect provider credentials or mark delivery sent", async () => {
   let sent = false;
   await assert.rejects(
-    () => deliverClaimedNotification(store(() => { sent = true; }), { key: "test", send: async () => { throw new Error("NOTIFICATION_PROVIDER_DOWN"); } }, intent, "worker-a", "2026-10-03T22:21:00Z"),
-    /NOTIFICATION_PROVIDER_DOWN/
+    () => deliverClaimedNotification(store(() => { sent = true; }), { key: "test", send: async () => { throw new Error("provider failure: Bearer ghp_abcdefghijklmnopqrstuvwxyz1234567890"); } }, intent, "worker-a", "2026-10-03T22:21:00Z"),
+    error => {
+      assert.match(String(error), /NOTIFICATION_PROVIDER_FAILED/);
+      assert.ok(!String(error).includes("ghp_abcdefghijklmnopqrstuvwxyz1234567890"));
+      return true;
+    }
   );
   assert.equal(sent, false);
 });

@@ -1,5 +1,5 @@
 import type { DomainEvent } from "./events.js";
-import type { NotificationIntent, NotificationChannel, NotificationSensitivity } from "./notification.js";
+import {sanitizeNotificationIntent, type NotificationIntent, type NotificationChannel, type NotificationSensitivity} from "./notification.js";
 
 export interface NotificationRecipientResolver {
   resolve(event: DomainEvent): Promise<ReadonlyArray<{ userId: string; organizationId: string; channels: ReadonlyArray<NotificationChannel> }>>;
@@ -17,7 +17,7 @@ export async function deriveNotificationIntents(eventId: string, event: DomainEv
   const definition = templates[event.type];
   if (!definition) return [];
   const recipients = await resolver.resolve(event);
-  return recipients.flatMap((recipient) => recipient.channels.map((channel) => ({
+  return recipients.flatMap((recipient) => recipient.channels.map((channel) => sanitizeNotificationIntent({
     id: deterministicIntentId(eventId, recipient.userId, channel, definition.template),
     organizationId: recipient.organizationId, recipientUserId: recipient.userId, channel, template: definition.template,
     eventId, eventType: event.type, sensitivity: definition.sensitivity, createdAt

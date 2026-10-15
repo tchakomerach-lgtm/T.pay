@@ -18,3 +18,10 @@ test("router does not create intents for events without a notification policy", 
   const intents = await deriveNotificationIntents("44444444-4444-4444-8444-444444444444", event, { resolve: async () => [] }, event.occurredAt);
   assert.deepEqual(intents, []);
 });
+test("router rejects recipient identity fields that are not opaque IDs",async()=>{
+ const event={type:"payment.completed" as const,paymentId:"33333333-3333-4333-8333-333333333333",organizationId:"22222222-2222-4222-8222-222222222222",occurredAt:"2026-10-03T22:30:00Z"};
+ await assert.rejects(
+  deriveNotificationIntents("44444444-4444-4444-8444-444444444444",event,{resolve:async()=>[{userId:"person@example.com",organizationId:event.organizationId,channels:["email" as const]}]},event.occurredAt),
+  /NOTIFICATION_RECIPIENT_ID_INVALID/
+ );
+});
