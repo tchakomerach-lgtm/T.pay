@@ -14,7 +14,7 @@ test("Fortress exposure guard redacts nested secrets and private identity fields
 });
 
 test("Fortress exposure guard refuses oversized or unapproved exports",()=>{
- assert.throws(()=>sanitizeForExposure({record:"x".repeat(500)},{channel:"export",actorId:"actor-1",organizationId:"org-1",purpose:"download",allowedClasses:["internal"],maxBytes:100}),/FORTRESS_EXPOSURE_SIZE_LIMIT/);
+ assert.throws(()=>sanitizeForExposure({record:"x".repeat(500)},{channel:"export",actorId:"actor-1",organizationId:"org-1",purpose:"download",allowedClasses:["internal"],maxBytes:100}),/FORTRESS_EXPOSURE_(INPUT_)?SIZE_LIMIT/);
  assert.throws(()=>sanitizeForExposure({message:"ordinary internal diagnostic"},{channel:"log",purpose:"logging",allowedClasses:["public"],maxBytes:1000}),/FORTRESS_EXPOSURE_CLASS_DENIED/);
 });
 
@@ -55,4 +55,21 @@ test("free-text email, phone, payment identifiers and passport-like IDs are scru
 test("Exposure classification is conservative for likely payment identifiers",()=>{
  assert.equal(classifyExposure({account:"1234567890123456"}),"restricted");
  assert.equal(classifyExposure({credential:"ghp_"+"abcdefghijklmnopqrstuvwxyz1234567890"}),"secret");
+});
+
+test("untrusted __proto__ keys remain inert data and cannot mutate the sanitizer result prototype",()=>{
+ const input=JSON.parse('{"__proto__":{"polluted":"yes"},"safe":"value"}');
+ const result=sanitizeForExposure(input,{channel:"log",purpose:"prototype-pollution-test",allowedClasses:["internal"],maxBytes:4096});
+ const value=result.value as Record<string,unknown>;
+ assert.equal(Object.getPrototypeOf(value),Object.prototype);
+ assert.equal(Object.prototype.hasOwnProperty.call(value,"__proto__"),true);
+ assert.deepEqual(value["__proto__"],{polluted:"yes"});
+ assert.equal(({} as Record<string,unknown>)["polluted"],undefined);
+});
+
+test("Fortress exposure guard rejects excessive recursion and oversized untrusted payloads",()=>{
+ let nested:unknown={leaf:"safe"};
+ for(let i=0;i<70;i++)nested={child:nested};
+ assert.throws(()=>sanitizeForExposure(nested,{channel:"log",purpose:"depth-test",allowedClasses:["internal"],maxBytes:100_000}),/FORTRESS_EXPOSURE_DEPTH_LIMIT/);
+ assert.throws(()=>sanitizeForExposure("x".repeat(20_000),{channel:"log",purpose:"input-size-test",allowedClasses:["internal"],maxBytes:100}),/FORTRESS_EXPOSURE_INPUT_SIZE_LIMIT/);
 });
