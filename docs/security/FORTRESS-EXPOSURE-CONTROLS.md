@@ -4,6 +4,8 @@
 
 `packages/security/src/fortress-exposure-guard.ts` fournit un filtre défensif pour les chaînes et objets qui traversent une frontière de confiance. Il masque les clés sensibles reconnues, les e-mails, les téléphones, certains identifiants de paiement, des identifiants de passeport et plusieurs formats courants de jetons.
 
+Le guard borne aussi la profondeur récursive et la taille d'entrée, rejette les objets non sérialisables, et crée les propriétés de sortie sans permettre à une clé `__proto__` de modifier le prototype. Ces contrôles réduisent les risques de déni de service et de pollution de prototype; ils ne remplacent pas une validation de schéma à l'entrée.
+
 Le filtrage par motif est une défense en profondeur, pas un moteur DLP exhaustif. Les schémas métier et les autorisations par tenant restent la source de vérité.
 
 ## Contrôle FORT-EXPO-002 — Erreurs HTTP
@@ -20,7 +22,8 @@ Les tests vérifient :
 - les codes d'erreur internes remplacés par un code générique ;
 - la non-réflexion des e-mails, téléphones et chaînes de type Bearer ;
 - l'expurgation des données sensibles dans les sorties IA directes et routées ;
-- le maintien de codes publics documentés.
+- le maintien de codes publics documentés ;
+- la résistance aux clés `__proto__`, à la profondeur excessive et aux entrées trop volumineuses.
 
 ## Gates de certification
 
