@@ -84,7 +84,8 @@ export class SecureHttpsAdapter{
   ){}
   async request(input:Omit<HttpsRequest,"signal">&{idempotent:boolean;correlationId:string;signal?:AbortSignal}):Promise<SecureHttpResponse>{
     const safeCorrelationId=safeClientError("PROVIDER_REQUEST_FAILED",input.correlationId).correlationId;
-    const url=new URL(input.url);
+    let url:URL;
+    try{url=new URL(input.url);}catch{throw new Error("PROVIDER_URL_INVALID");}
     if(url.protocol!=="https:")throw new Error("HTTPS_REQUIRED");
     if(!this.endpoints.some(e=>url.origin===e.origin&&url.pathname.startsWith(e.pathPrefix)))throw new Error("ENDPOINT_NOT_ALLOWLISTED");
     let headerBytes=0;
