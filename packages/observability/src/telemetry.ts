@@ -35,5 +35,9 @@ export function sanitizeTelemetryContext(input:TelemetryContext):TelemetryContex
 }
 
 export function metricName(domain:string,operation:string):string{
-  return `tpay.${domain}.${operation}`.toLowerCase().replace(/[^a-z0-9_.-]/g,"_");
+  const safe=sanitizeForExposure({domain,operation},{channel:"telemetry",purpose:"metric-dimension",allowedClasses:["internal"],maxBytes:1024});
+  if(safe.redactedPaths.length>0)return "tpay.unknown.unknown";
+  const dimension=(value:unknown)=>typeof value==="string"&&/^[a-z][a-z0-9_.-]{0,40}$/i.test(value)?value.toLowerCase():"unknown";
+  const values=safe.value as {domain:unknown;operation:unknown};
+  return `tpay.${dimension(values.domain)}.${dimension(values.operation)}`;
 }
