@@ -82,6 +82,8 @@ const required=[
   ["tests/api-error-exposure.test.ts",/DB_PASSWORD_ROTATION_FAILED/,"API_ERROR_LEAK_REGRESSION_REQUIRED"],
   ["tests/ai-output-exposure.test.ts",/generateRouted/,"AI_ROUTED_OUTPUT_GUARD_TEST_REQUIRED"],
   ["tests/ai-output-exposure.test.ts",/scrubs prompt and RAG context/,"AI_PROMPT_RAG_REGRESSION_REQUIRED"],
+  ["tests/ai-output-exposure.test.ts",/never reflects raw provider exceptions/,"AI_PROVIDER_ERROR_EXPOSURE_REGRESSION_REQUIRED"],
+  ["tests/notification.test.ts",/notification errors never reflect provider credentials/,"NOTIFICATION_ERROR_EXPOSURE_REGRESSION_REQUIRED"],
   ["tests/fortress-boundary-exposure.test.ts",/logs and traces redact nested PII/,"TELEMETRY_EXPOSURE_REGRESSION_REQUIRED"],
   ["tests/fortress-boundary-exposure.test.ts",/Fortress export requires opaque authenticated actor/,"EXPORT_EXPOSURE_REGRESSION_REQUIRED"],
   ["tests/fortress-boundary-exposure.test.ts",/notification provider receives a scrubbed intent/,"NOTIFICATION_EXPOSURE_REGRESSION_REQUIRED"],
