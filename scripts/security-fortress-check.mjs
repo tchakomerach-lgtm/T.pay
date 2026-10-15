@@ -51,6 +51,8 @@ const required=[
   ["packages/security/src/fortress-exposure-guard.ts",/Object\.defineProperty\(out,key/,"EXPOSURE_PROTOTYPE_POLLUTION_GUARD_REQUIRED"],
   ["packages/security/src/fortress-export.ts",/prepareFortressExport/,"FORTRESS_EXPORT_BOUNDARY_REQUIRED"],
   ["packages/security/src/fortress-export.ts",/FORTRESS_EXPORT_AUTH_CONTEXT_INVALID/,"FORTRESS_EXPORT_IDENTITY_VALIDATION_REQUIRED"],
+  ["packages/security/src/fortress-exposure-guard.ts",/FORTRESS_EXPOSURE_PURPOSE_INVALID/,"EXPOSURE_PURPOSE_IDENTIFIER_REQUIRED"],
+  ["packages/security/src/fortress-export.ts",/FORTRESS_EXPORT_PURPOSE_INVALID/,"EXPORT_PURPOSE_IDENTIFIER_REQUIRED"],
   ["packages/observability/src/telemetry.ts",/metricName/,"METRIC_DIMENSION_GUARD_REQUIRED"],
   ["packages/integrations/src/secure-http-adapter.ts",/MAX_PROVIDER_REQUEST_BYTES/,"PROVIDER_REQUEST_BOUND_REQUIRED"],
   ["packages/integrations/src/secure-http-adapter.ts",/redirect:"error"/,"PROVIDER_REDIRECT_DENIED_REQUIRED"],
