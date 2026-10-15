@@ -14,6 +14,7 @@ const files=[
   "packages/events/src/notification.ts",
   "packages/integrations/src/secure-http-adapter.ts",
   "packages/ai/src/ai-core.ts",
+  "packages/ai/src/http-provider.ts",
   "apps/education-web/vite.config.ts",
   "android/tpay-shell/app/src/main/AndroidManifest.xml",
   "android/tpay-shell/app/src/main/java/com/tpay/os/MainActivity.kt",
