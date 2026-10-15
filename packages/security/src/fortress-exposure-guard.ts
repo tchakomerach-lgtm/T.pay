@@ -73,6 +73,7 @@ export function sanitizeForExposure(input:unknown,context:ExposureContext):Sanit
  if(!Number.isSafeInteger(context.maxBytes)||context.maxBytes<1)throw new Error("FORTRESS_EXPOSURE_LIMIT_INVALID");
  if(!Array.isArray(context.allowedClasses)||context.allowedClasses.length===0)throw new Error("FORTRESS_EXPOSURE_CLASSES_REQUIRED");
  if(context.channel==="export"&&(!context.actorId?.trim()||!context.organizationId?.trim()))throw new Error("FORTRESS_EXPOSURE_ACTOR_REQUIRED");
+ if(context.channel==="export"&&(!/^[A-Za-z0-9_-]{1,128}$/.test(context.actorId??"")||!/^[A-Za-z0-9_-]{1,128}$/.test(context.organizationId??"")))throw new Error("FORTRESS_EXPOSURE_ACTOR_INVALID");
  const originalBytes=bytes(input);
  // Bound recursive work for untrusted payloads; oversized input is denied rather than partially scrubbed.
  const maxInputBytes=Math.min(16_000_000,Math.max(context.maxBytes,context.maxBytes*4));
