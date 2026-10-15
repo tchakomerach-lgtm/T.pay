@@ -64,7 +64,8 @@ export class AiCore {
     const selected=this.agents.filter(a=>a.mission.length>0).slice(0,this.policy.maxAgentHops);
     const outputs:AgentOutput[]=[];
     for(const agent of selected){
-      outputs.push(sanitizeAgentOutput(await agent.run({objective:safeObjective,context:[]},context)));
+      try{outputs.push(sanitizeAgentOutput(await agent.run({objective:safeObjective,context:[]},context)));}
+      catch{throw new Error("AI_AGENT_EXECUTION_FAILED");}
     }
     return outputs;
   }
@@ -73,21 +74,19 @@ export class AiCore {
     const safeRequest=sanitizeAiRequest(request,"ai-provider-input");
     const providers=this.providers.list().filter(p=>this.policy.allowedProviders.includes(p.id));
     if(!providers.length) throw new Error("AI_NO_ALLOWED_PROVIDER");
-    let lastError:unknown;
     for(const provider of providers){
-      try{return sanitizeProviderResponse(await provider.generate(safeRequest),"ai-provider-output");}catch(error){lastError=error;}
+      try{return sanitizeProviderResponse(await provider.generate(safeRequest),"ai-provider-output");}catch{ /* Continue failover without reflecting provider diagnostics to callers. */ }
     }
-    throw lastError instanceof Error?lastError:new Error("AI_ALL_PROVIDERS_FAILED");
+    throw new Error("AI_ALL_PROVIDERS_FAILED");
   }
 
   async generateRouted(request:AiGenerateRequest, classification:AiRequestClassification, routePolicy:AiRoutePolicy):Promise<AiGenerateResponse>{
     const safeRequest=sanitizeAiRequest(request,"ai-routed-provider-input");
     const routes=selectProviders(this.providers,routePolicy,classification);
-    let lastError:unknown;
     for(const route of routes){
-      try{return sanitizeProviderResponse(await route.provider.generate(safeRequest),"ai-routed-provider-output");}catch(error){lastError=error;}
+      try{return sanitizeProviderResponse(await route.provider.generate(safeRequest),"ai-routed-provider-output");}catch{ /* Continue failover without reflecting provider diagnostics to callers. */ }
     }
-    throw lastError instanceof Error?lastError:new Error("AI_ROUTED_PROVIDERS_FAILED");
+    throw new Error("AI_ROUTED_PROVIDERS_FAILED");
   }
 
   getToolRegistry():AiToolRegistry{return this.tools;}
