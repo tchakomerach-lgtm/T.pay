@@ -66,6 +66,7 @@ const required=[
   [".github/workflows/android.yml",/Runner assignment diagnostics/,"ANDROID_RUNNER_DIAGNOSTICS_REQUIRED"],
   ["tests/fortress-exposure-guard.test.ts",/untrusted __proto__/,"EXPOSURE_PROTOTYPE_REGRESSION_REQUIRED"],
   ["tests/fortress-exposure-guard.test.ts",/excessive recursion and oversized untrusted payloads/,"EXPOSURE_RESOURCE_LIMIT_REGRESSION_REQUIRED"],
+  ["tests/fortress-exposure-guard.test.ts",/preserves opaque UUIDs while redacting adjacent phone and card values/,"EXPOSURE_UUID_PRESERVATION_REGRESSION_REQUIRED"],
   ["packages/api-gateway/src/api-error.ts",/PUBLIC_ERROR_CODES/,"PUBLIC_API_ERROR_ALLOWLIST_REQUIRED"],
   ["packages/api-gateway/src/api-error.ts",/safeClientError/,"API_ERROR_EXPOSURE_GUARD_REQUIRED"],
   ["packages/education/src/education-http.ts",/envelope\.status/,"HTTP_ERROR_STATUS_NORMALIZATION_REQUIRED"],
