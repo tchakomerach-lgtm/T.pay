@@ -54,7 +54,7 @@ const required=[
   ["packages/integrations/src/secure-http-adapter.ts",/MAX_PROVIDER_REQUEST_BYTES/,"PROVIDER_REQUEST_BOUND_REQUIRED"],
   ["packages/integrations/src/secure-http-adapter.ts",/redirect:"error"/,"PROVIDER_REDIRECT_DENIED_REQUIRED"],
   ["tests/notification-router.test.ts",/rejects recipient identity fields that are not opaque IDs/,"NOTIFICATION_IDENTITY_REGRESSION_REQUIRED"],
-  ["tests/fortress-boundary-exposure.test.ts",/prevent PII and high-cardinality metric dimensions/,"METRIC_PII_REGRESSION_REQUIRED"],
+  ["tests/fortress-boundary-exposure.test.ts",/metricName\("person@example\.com"/,"METRIC_PII_REGRESSION_REQUIRED"],
   ["packages/observability/src/telemetry.ts",/sanitizeTelemetryContext/,"TELEMETRY_TRACE_CONTEXT_GUARD_REQUIRED"],
   ["packages/events/src/notification.ts",/sanitizeNotificationIntent/,"NOTIFICATION_EXPOSURE_GUARD_REQUIRED"],
   ["packages/integrations/src/secure-http-adapter.ts",/MAX_PROVIDER_RESPONSE_BYTES/,"PROVIDER_RESPONSE_BOUND_REQUIRED"],
