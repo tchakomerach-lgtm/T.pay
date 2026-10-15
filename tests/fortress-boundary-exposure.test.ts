@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {sanitizeTelemetry,sanitizeTelemetryContext} from "../packages/observability/src/telemetry.js";
+import {sanitizeTelemetry,sanitizeTelemetryContext,metricName} from "../packages/observability/src/telemetry.js";
 import {prepareFortressExport} from "../packages/security/src/fortress-export.js";
 import {sanitizeNotificationIntent} from "../packages/events/src/notification.js";
 import {SecureHttpsAdapter} from "../packages/integrations/src/secure-http-adapter.js";
@@ -16,6 +16,8 @@ test("logs and traces redact nested PII, provider credentials and unsafe identit
  assert.equal(context.traceId,"unavailable");
  assert.equal(context.correlationId,"corr-123456");
  assert.equal(context.actorId,undefined);
+ assert.equal(metricName("education","attendance.changed"),"tpay.education.attendance.changed");
+ assert.equal(metricName("person@example.com","operation"),"tpay.unknown.unknown");
 });
 
 test("Fortress export requires opaque authenticated actor and organization IDs and redacts sensitive values",()=>{
