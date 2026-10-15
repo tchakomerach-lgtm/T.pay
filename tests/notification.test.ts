@@ -30,8 +30,8 @@ test("notification is marked sent only after provider success", async () => {
 test("provider failure does not mark notification sent", async () => {
   let sent = false;
   await assert.rejects(
-    () => deliverClaimedNotification(store(() => { sent = true; }), { key: "test", send: async () => { throw new Error("NOTIFICATION_PROVIDER_DOWN"); } }, intent, "worker-a", "2026-10-03T22:21:00Z"),
-    /NOTIFICATION_PROVIDER_DOWN/
+    () => deliverClaimedNotification(store(() => { sent = true; }), { key: "test", send: async () => { throw new Error("provider failure: Bearer ghp_abcdefghijklmnopqrstuvwxyz1234567890"); } }, intent, "worker-a", "2026-10-03T22:21:00Z"),
+    /NOTIFICATION_PROVIDER_FAILED/
   );
   assert.equal(sent, false);
 });
