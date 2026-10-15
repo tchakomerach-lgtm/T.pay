@@ -45,3 +45,14 @@ export function metricName(domain:string,operation:string):string{
   const values=safe.value as {domain:unknown;operation:unknown};
   return `tpay.${dimension(values.domain)}.${dimension(values.operation)}`;
 }
+
+
+export interface SafeTelemetrySink {
+  emit(record:Readonly<Record<string,unknown>>):Promise<void>|void;
+}
+
+/** The only supported path for forwarding structured diagnostics to a log/trace sink. */
+export async function emitSafeTelemetry(sink:SafeTelemetrySink,event:Record<string,unknown>):Promise<void>{
+  const safe=Object.freeze(sanitizeTelemetry(event));
+  await sink.emit(safe);
+}
