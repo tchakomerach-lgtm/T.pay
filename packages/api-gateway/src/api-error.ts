@@ -12,7 +12,7 @@ const STATUS_BY_CODE:Record<string,number>={
   API_ROUTE_NOT_ALLOWLISTED:404, API_AUTH_INSUFFICIENT:403, API_SCOPE_EVIDENCE_MISSING:401,
   API_RATE_LIMITED:429, API_RATE_CONTROL_UNAVAILABLE:503, FINANCIAL_CORE_DENY_BY_DEFAULT:403,
   API_CORRELATION_ID_INVALID:400, API_HEADER_TOO_LARGE:400, API_URL_TOO_LONG:400,
-  CONTENT_LENGTH_INVALID:400, PAYLOAD_TOO_LARGE:413, API_JSON_CONTENT_TYPE_REQUIRED:415,
+  CONTENT_LENGTH_INVALID:400, PAYLOAD_TOO_LARGE:400, API_JSON_CONTENT_TYPE_REQUIRED:400,
   API_IDEMPOTENCY_KEY_INVALID:400, API_IDEMPOTENCY_INVALID:400, API_IDEMPOTENCY_CONFLICT:409,
   API_IDEMPOTENCY_RACE_UNRESOLVED:409, API_RESPONSE_HASH_INVALID:400,
   AUTH_BEARER_REQUIRED:401, AUTH_SESSION_INVALID:401, AUTH_ACTOR_INVALID:401,
@@ -37,7 +37,7 @@ const PUBLIC_ERROR_CODES=new Set(Object.keys(STATUS_BY_CODE));
 
 export function normalizeApiError(error:unknown,correlationId:string):ApiErrorEnvelope{
   const raw=error instanceof Error?error.message:"";
-  const candidate=/^[A-Z][A-Z0-9_]{2,80}$/.test(raw)?raw:"";
+  const match=/^([A-Z][A-Z0-9_]{2,80})(?::.*)?$/.exec(raw);\n  const candidate=match?.[1]??"";
   const code=PUBLIC_ERROR_CODES.has(candidate)?candidate:"API_INTERNAL_ERROR";
   const safe=safeClientError(code,correlationId);
   return {status:STATUS_BY_CODE[code]??500,code:safe.code,correlationId:safe.correlationId};
