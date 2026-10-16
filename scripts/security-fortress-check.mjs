@@ -60,6 +60,11 @@ for(const [rel,pattern,code] of required){
   const text=await readFile(resolve(root,rel),"utf8");
   if(!pattern.test(text))problems.push(code+":"+rel);
 }
+for (const rel of ["packages/ai/src/vendor-providers.ts","packages/ai/src/http-provider.ts"]) {
+  const source = await readFile(resolve(root, rel), "utf8");
+  if (/\\bfetch\\s*\\(/.test(source)) problems.push("AI_DIRECT_FETCH_FORBIDDEN:" + rel);
+  if (!/SecureHttpsAdapter/.test(source)) problems.push("AI_SECURE_ADAPTER_REQUIRED:" + rel);
+}
 const ci=await readFile(resolve(root,".github/workflows/ci.yml"),"utf8");
 if(!/permissions:\s*\n\s+contents:\s+read/.test(ci))problems.push("CI_LEAST_PRIVILEGE_REQUIRED");
 if(!/cancel-in-progress:\s*false/.test(ci))problems.push("CI_AUTHORITATIVE_RUNS_MUST_NOT_BE_CANCELLED");
