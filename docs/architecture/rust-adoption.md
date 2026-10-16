@@ -11,7 +11,7 @@ en place tant qu'une mesure vérifiable ne justifie pas une migration.
 `crates/tpay-ledger-core` fournit une validation pure des invariants de base
 d'une transaction comptable : organisation présente, clé d'idempotence syntaxiquement
 valide, lignes suffisantes, montants entiers strictement positifs, devise cohérente,
-absence de ligne strictement dupliquée, sommes sans dépassement et équilibre débit/crédit.
+sommes sans dépassement et équilibre débit/crédit.
 
 Cette bibliothèque n'est **pas encore branchée sur le chemin de paiement de production**.
 Elle ne fait ni authentification, ni autorisation multi-tenant, ni accès PostgreSQL,
