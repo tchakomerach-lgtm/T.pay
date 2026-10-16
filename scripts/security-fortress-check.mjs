@@ -62,7 +62,7 @@ for(const [rel,pattern,code] of required){
 }
 for (const rel of ["packages/ai/src/vendor-providers.ts","packages/ai/src/http-provider.ts"]) {
   const source = await readFile(resolve(root, rel), "utf8");
-  if (/\\bfetch\\s*\\(/.test(source)) problems.push("AI_DIRECT_FETCH_FORBIDDEN:" + rel);
+  if (source.includes("fetch(") || source.includes("fetch (")) problems.push("AI_DIRECT_FETCH_FORBIDDEN:" + rel);
   if (!/SecureHttpsAdapter/.test(source)) problems.push("AI_SECURE_ADAPTER_REQUIRED:" + rel);
 }
 const ci=await readFile(resolve(root,".github/workflows/ci.yml"),"utf8");
