@@ -1,12 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHmac, randomBytes } from "node:crypto";
-import { CircuitBreaker, SecureHttpsAdapter, verifySignedWebhook, type HttpsResponse, type WebhookReplayStore } from "../packages/integrations/src/secure-http-adapter.js";
+import { CircuitBreaker, SecureHttpsAdapter, createFetchHttpsTransport, verifySignedWebhook, type HttpsResponse, type WebhookReplayStore } from "../packages/integrations/src/secure-http-adapter.js";
 
 test("P043 HTTPS adapter rejects non-HTTPS and non-allowlisted endpoints", async ()=>{
   const adapter=new SecureHttpsAdapter([{origin:"https://provider.example",pathPrefix:"/api/v1"}],async()=>({status:200,headers:{},body:new Uint8Array()}));
   await assert.rejects(adapter.request({url:"http://provider.example/api/v1/pay",method:"POST",headers:{},idempotent:true,correlationId:"c1"}),/HTTPS_REQUIRED/);
   await assert.rejects(adapter.request({url:"https://evil.example/api/v1/pay",method:"POST",headers:{},idempotent:true,correlationId:"c2"}),/ENDPOINT_NOT_ALLOWLISTED/);
+  await assert.rejects(adapter.request({url:"https://provider.example/api/v1-evil/pay",method:"POST",headers:{},idempotent:true,correlationId:"c3"}),/ENDPOINT_NOT_ALLOWLISTED/);
 });
 
 test("P043 adapter retries only idempotent transient failures and returns UNKNOWN after exhaustion", async ()=>{
@@ -32,4 +33,26 @@ test("P043 signed webhook requires timestamp, nonce, constant-time signature and
   await verifySignedWebhook({rawBody:body,signature:`t=${timestamp},v1=${signature}`,nonce,secret,nowMs:timestamp*1000,replayStore});
   await assert.rejects(verifySignedWebhook({rawBody:body,signature:`t=${timestamp},v1=${signature}`,nonce,secret,nowMs:timestamp*1000,replayStore}),/WEBHOOK_REPLAY_DETECTED/);
   await assert.rejects(verifySignedWebhook({rawBody:body,signature:`t=${timestamp-1000},v1=${signature}`,nonce:"new-nonce",secret,nowMs:timestamp*1000,replayStore,maxAgeMs:100}),/WEBHOOK_TIMESTAMP_EXPIRED/);
+});
+
+test("P043 default transport rejects oversized declared upstream bodies before reading", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response("", {
+    status: 200,
+    headers: { "content-length": String(300 * 1024) },
+  })) as typeof fetch;
+  try {
+    const transport = createFetchHttpsTransport();
+    await assert.rejects(
+      transport({
+        url: "https://provider.example/api",
+        method: "GET",
+        headers: {},
+        signal: new AbortController().signal,
+      }),
+      /UPSTREAM_RESPONSE_TOO_LARGE/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

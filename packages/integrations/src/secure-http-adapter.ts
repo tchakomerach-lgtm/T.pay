@@ -16,13 +16,35 @@ export type Clock = ()=>number;
 const RETRYABLE_STATUS=new Set([408,425,429,500,502,503,504]);
 const FORBIDDEN_HEADERS=new Set(["host","connection","upgrade","transfer-encoding","content-length"]);
 
+async function readBoundedResponse(response:Response,limit:number):Promise<Uint8Array>{
+  const declaredLength=response.headers.get("content-length");
+  if(declaredLength!==null&&(!/^\d+$/.test(declaredLength)||Number(declaredLength)>limit))throw new Error("UPSTREAM_RESPONSE_TOO_LARGE");
+  const reader=response.body?.getReader();
+  if(!reader)return new Uint8Array();
+  const chunks:Uint8Array[]=[];
+  let total=0;
+  try{
+    while(true){
+      const item=await reader.read();
+      if(item.done)break;
+      total+=item.value.byteLength;
+      if(total>limit){await reader.cancel();throw new Error("UPSTREAM_RESPONSE_TOO_LARGE");}
+      chunks.push(item.value);
+    }
+  }finally{reader.releaseLock();}
+  const output=new Uint8Array(total);let offset=0;
+  for(const chunk of chunks){output.set(chunk,offset);offset+=chunk.byteLength;}
+  return output;
+}
+
 export function createFetchHttpsTransport():HttpsTransport{
   return async request=>{
     if(new URL(request.url).protocol!=="https:")throw new Error("HTTPS_REQUIRED");
     const init:RequestInit={method:request.method,headers:request.headers,signal:request.signal,redirect:"error"};
     if(request.body!==undefined)init.body=Buffer.from(request.body);
     const response=await fetch(request.url,init);
-    return {status:response.status,headers:Object.fromEntries(response.headers.entries()),body:new Uint8Array(await response.arrayBuffer())};
+    const body=await readBoundedResponse(response,256*1024);
+    return {status:response.status,headers:Object.fromEntries(response.headers.entries()),body};
   };
 }
 
@@ -57,7 +79,7 @@ export class SecureHttpsAdapter{
   async request(input:Omit<HttpsRequest,"signal"> & {idempotent:boolean;correlationId:string;signal?:AbortSignal}):Promise<SecureHttpResponse>{
     const url=new URL(input.url);
     if(url.protocol!=="https:")throw new Error("HTTPS_REQUIRED");
-    if(!this.endpoints.some(e=>url.origin===e.origin&&url.pathname.startsWith(e.pathPrefix)))throw new Error("ENDPOINT_NOT_ALLOWLISTED");
+    if(!this.endpoints.some(e=>{const prefix=e.pathPrefix.endsWith("/")?e.pathPrefix:e.pathPrefix+"/";return url.origin===e.origin&&(url.pathname===e.pathPrefix||url.pathname.startsWith(prefix));}))throw new Error("ENDPOINT_NOT_ALLOWLISTED");
     for(const name of Object.keys(input.headers))if(FORBIDDEN_HEADERS.has(name.toLowerCase()))throw new Error("FORBIDDEN_HTTP_HEADER");
     const attempts=Math.max(1,Math.min(5,this.maxAttempts));
     let lastStatus:number|null=null;

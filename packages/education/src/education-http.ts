@@ -62,16 +62,18 @@ const json=(res:ServerResponse,status:number,body:unknown,correlationId:string)=
 async function readBody(req:IncomingMessage):Promise<string>{
   const declaredLength=String(req.headers["content-length"]??"").trim();
   if(declaredLength){
-    if(!/^\\d+$/.test(declaredLength))throw new Error("CONTENT_LENGTH_INVALID");
+    if(!/^\d+$/.test(declaredLength))throw new Error("CONTENT_LENGTH_INVALID");
     if(Number(declaredLength)>MAX_BODY_BYTES)throw new Error("PAYLOAD_TOO_LARGE");
   }
-  let out="",size=0;
+  const chunks:Buffer[]=[];
+  let size=0;
   for await(const chunk of req){
-    size+=Buffer.byteLength(chunk as string);
+    const bytes=Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk as Uint8Array);
+    size+=bytes.byteLength;
     if(size>MAX_BODY_BYTES)throw new Error("PAYLOAD_TOO_LARGE");
-    out+=chunk;
+    chunks.push(bytes);
   }
-  return out;
+  return Buffer.concat(chunks,size).toString("utf8");
 }
 const parse=(s:string)=>s?JSON.parse(s):{};
 function route(path:string){
@@ -136,7 +138,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       try{replayCursor=BigInt(lastEventId);}catch{throw new Error("REALTIME_INVALID_CURSOR");}
       if(replayCursor<0n)throw new Error("REALTIME_INVALID_CURSOR");
     }
-    res.statusCode=200;res.setHeader("content-type","text/event-stream; charset=utf-8");res.setHeader("cache-control","no-cache, no-transform");res.setHeader("x-content-type-options","nosniff");res.setHeader("x-frame-options","DENY");res.setHeader("cross-origin-resource-policy","same-origin");res.setHeader("x-permitted-cross-domain-policies","none");res.setHeader("strict-transport-security","max-age=31536000; includeSubDomains");res.setHeader("connection","keep-alive");res.write(": connected\\n\\n");
+    res.statusCode=200;res.setHeader("content-type","text/event-stream; charset=utf-8");res.setHeader("cache-control","no-cache, no-transform");res.setHeader("x-content-type-options","nosniff");res.setHeader("x-frame-options","DENY");res.setHeader("cross-origin-resource-policy","same-origin");res.setHeader("x-permitted-cross-domain-policies","none");res.setHeader("strict-transport-security","max-age=31536000; includeSubDomains");res.setHeader("connection","keep-alive");res.write(": connected\n\n");
     let replaying=true;
     const buffered: SchoolRealtimeEvent[]=[];
     const seen=new Set<string>();
@@ -242,6 +244,6 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(dedupe?.status==="reserved")await gateway.completeIdempotency({requestId:dedupe.requestId,state:"succeeded",responseHash:canonicalRequestHash("RESPONSE",path,JSON.stringify(response)),statusCode:200});
    await gateway.audit({organizationId,requestId:dedupe?.requestId??correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path})});
    json(res,200,response,correlationId);
-  }catch(error){const status=String(error).startsWith("Error: FORBIDDEN")?403:400;json(res,status,buildApiError(error,correlationId),correlationId);}
+  }catch(error){const code=error instanceof Error?error.message:String(error);const status=code==="PAYLOAD_TOO_LARGE"?413:code.startsWith("FORBIDDEN")?403:400;json(res,status,buildApiError(error,correlationId),correlationId);}
  });
 }

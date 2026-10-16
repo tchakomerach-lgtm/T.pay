@@ -13,7 +13,8 @@ const files=[
   "android/tpay-shell/app/src/main/java/com/tpay/os/MainActivity.kt",
   "android/tpay-shell/app/src/main/res/xml/network_security_config.xml",
   "migrations/047_tpay_vault_fortress.sql",
-  "packages/security/vault-core.ts"
+  "packages/security/vault-core.ts",
+  "crates/tpay-ledger-core/src/lib.rs"
 ];
 
 const forbidden=[
@@ -29,6 +30,7 @@ const forbidden=[
 ];
 
 const required=[
+  ["crates/tpay-ledger-core/src/lib.rs",/#!\[forbid\(unsafe_code\)\]/,"RUST_UNSAFE_CODE_FORBIDDEN"],
   ["apps/api-server/src/main.ts",/TPAY_DATABASE_TLS_REQUIRED/,"DATABASE_TLS_FAIL_CLOSED"],
   ["migrations/047_tpay_vault_fortress.sql",/CREATE TABLE IF NOT EXISTS tpay_vaults/,"VAULT_SCHEMA_REQUIRED"],
   ["migrations/047_tpay_vault_fortress.sql",/ENABLE ROW LEVEL SECURITY/,"VAULT_RLS_REQUIRED"],
@@ -58,6 +60,11 @@ for(const [rel,pattern,code] of required){
   const text=await readFile(resolve(root,rel),"utf8");
   if(!pattern.test(text))problems.push(code+":"+rel);
 }
+for (const rel of ["packages/ai/src/vendor-providers.ts","packages/ai/src/http-provider.ts"]) {
+  const source = await readFile(resolve(root, rel), "utf8");
+  if (source.includes("fetch(") || source.includes("fetch (")) problems.push("AI_DIRECT_FETCH_FORBIDDEN:" + rel);
+  if (!/SecureHttpsAdapter/.test(source)) problems.push("AI_SECURE_ADAPTER_REQUIRED:" + rel);
+}
 const ci=await readFile(resolve(root,".github/workflows/ci.yml"),"utf8");
 if(!/permissions:\s*\n\s+contents:\s+read/.test(ci))problems.push("CI_LEAST_PRIVILEGE_REQUIRED");
 if(!/cancel-in-progress:\s*false/.test(ci))problems.push("CI_AUTHORITATIVE_RUNS_MUST_NOT_BE_CANCELLED");
@@ -67,4 +74,4 @@ if(problems.length){
   process.exit(1);
 }
 console.log("TPAY_SECURITY_FORTRESS_PASS");
-console.log("TLS1.3 + HTTPS-only boundaries + Android cleartext denial + CORS/idempotency guards + CI least privilege verified.");
+console.log("TLS1.3 + HTTPS-only boundaries + Android cleartext denial + CORS/idempotency guards + CI least privilege + Rust unsafe-code prohibition verified.");
