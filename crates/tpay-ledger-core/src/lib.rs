@@ -68,9 +68,8 @@ pub fn validate_transaction(
         return Err(LedgerValidationError::OrganizationRequired);
     }
 
-    let key = transaction.idempotency_key.as_bytes();
-    if !(16..=128).contains(&key.len())
-        || !key.iter().all(|byte| byte.is_ascii_graphic())
+    let key = &transaction.idempotency_key;
+    if !(16..=128).contains(&key.len()) || !key.bytes().all(|byte| byte.is_ascii_graphic())
     {
         return Err(LedgerValidationError::IdempotencyKeyInvalid);
     }
