@@ -8,7 +8,6 @@ export interface AiHttpProviderConfig {
   readonly apiKey: string;
   readonly priority: number;
   readonly requestTimeoutMs: number;
-  readonly extraHeaders?: Readonly<Record<string,string>>;
   readonly allowedEndpoints: readonly AllowedEndpoint[];
 }
 
@@ -33,7 +32,6 @@ export class HttpJsonAiProvider implements AiProvider {
   private readonly endpoint: URL;
   private readonly apiKey: string;
   private readonly timeoutMs: number;
-  private readonly extraHeaders: Readonly<Record<string,string>>;
   private readonly adapter: SecureHttpsAdapter;
 
   constructor(config: AiHttpProviderConfig) {
@@ -42,7 +40,6 @@ export class HttpJsonAiProvider implements AiProvider {
     this.endpoint = assertAllowedEndpoint(config.endpoint, config.allowedEndpoints);
     this.apiKey = config.apiKey;
     this.timeoutMs = Math.max(1000, Math.min(config.requestTimeoutMs, 120000));
-    this.extraHeaders = config.extraHeaders ?? {};
     if (!config.allowedEndpoints.length) throw new Error("AI_PROVIDER_ALLOWLIST_REQUIRED");
     this.adapter = new SecureHttpsAdapter(config.allowedEndpoints, undefined, undefined, this.timeoutMs, 1);
     if (!this.apiKey) throw new Error("AI_PROVIDER_SECRET_REQUIRED");
@@ -55,7 +52,6 @@ export class HttpJsonAiProvider implements AiProvider {
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${this.apiKey}`,
-        ...this.extraHeaders,
       },
       body: new TextEncoder().encode(JSON.stringify(request)),
       idempotent: false,
