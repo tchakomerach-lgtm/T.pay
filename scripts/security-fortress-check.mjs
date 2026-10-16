@@ -13,7 +13,8 @@ const files=[
   "android/tpay-shell/app/src/main/java/com/tpay/os/MainActivity.kt",
   "android/tpay-shell/app/src/main/res/xml/network_security_config.xml",
   "migrations/047_tpay_vault_fortress.sql",
-  "packages/security/vault-core.ts"
+  "packages/security/vault-core.ts",
+  "crates/tpay-ledger-core/src/lib.rs"
 ];
 
 const forbidden=[
@@ -29,6 +30,7 @@ const forbidden=[
 ];
 
 const required=[
+  ["crates/tpay-ledger-core/src/lib.rs",/#!\[forbid\(unsafe_code\)\]/,"RUST_UNSAFE_CODE_FORBIDDEN"],
   ["apps/api-server/src/main.ts",/TPAY_DATABASE_TLS_REQUIRED/,"DATABASE_TLS_FAIL_CLOSED"],
   ["migrations/047_tpay_vault_fortress.sql",/CREATE TABLE IF NOT EXISTS tpay_vaults/,"VAULT_SCHEMA_REQUIRED"],
   ["migrations/047_tpay_vault_fortress.sql",/ENABLE ROW LEVEL SECURITY/,"VAULT_RLS_REQUIRED"],
@@ -67,4 +69,4 @@ if(problems.length){
   process.exit(1);
 }
 console.log("TPAY_SECURITY_FORTRESS_PASS");
-console.log("TLS1.3 + HTTPS-only boundaries + Android cleartext denial + CORS/idempotency guards + CI least privilege verified.");
+console.log("TLS1.3 + HTTPS-only boundaries + Android cleartext denial + CORS/idempotency guards + CI least privilege + Rust unsafe-code prohibition verified.");
