@@ -10,9 +10,6 @@ interface VendorConfig {
   readonly timeoutMs?: number;
 }
 
-const openAiAdapter = new SecureHttpsAdapter([{origin:"https://api.openai.com",pathPrefix:"/v1/responses"}],undefined,undefined,60000,1);
-const anthropicAdapter = new SecureHttpsAdapter([{origin:"https://api.anthropic.com",pathPrefix:"/v1/messages"}],undefined,undefined,60000,1);
-
 function assertProviderEndpoint(endpoint:string, provider:"openai"|"anthropic"):string {
   let url:URL;
   try { url=new URL(endpoint); } catch { throw new Error("AI_PROVIDER_ENDPOINT_INVALID"); }
@@ -46,17 +43,17 @@ export class OpenAIResponsesProvider implements AiProvider {
   private readonly apiKey:string;
   private readonly model:string;
   private readonly endpoint:string;
-  private readonly timeoutMs:number;
+  private readonly adapter:SecureHttpsAdapter;
 
   constructor(config:VendorConfig){
     if(!config.apiKey) throw new Error("AI_PROVIDER_SECRET_REQUIRED");
     this.apiKey=config.apiKey; this.model=config.model; this.priority=config.priority;
     this.endpoint=assertProviderEndpoint(config.endpoint ?? "https://api.openai.com/v1/responses","openai");
-    this.timeoutMs=Math.max(1000,Math.min(config.timeoutMs ?? 60000,120000));
+    this.adapter=new SecureHttpsAdapter([{origin:"https://api.openai.com",pathPrefix:"/v1/responses"}],undefined,undefined,Math.max(1000,Math.min(config.timeoutMs ?? 60000,120000)),1);
   }
 
   async generate(request:AiGenerateRequest,signal?:AbortSignal):Promise<AiGenerateResponse>{
-    const result=await postJson(openAiAdapter,this.endpoint,{
+    const result=await postJson(this.adapter,this.endpoint,{
       "content-type":"application/json",
       authorization:`Bearer ${this.apiKey}`,
     },{
@@ -102,13 +99,13 @@ export class AnthropicMessagesProvider implements AiProvider {
     if(!config.apiKey) throw new Error("AI_PROVIDER_SECRET_REQUIRED");
     this.apiKey=config.apiKey; this.model=config.model; this.priority=config.priority;
     this.endpoint=assertProviderEndpoint(config.endpoint ?? "https://api.anthropic.com/v1/messages","anthropic");
-    this.timeoutMs=Math.max(1000,Math.min(config.timeoutMs ?? 60000,120000));
+    this.adapter=new SecureHttpsAdapter([{origin:"https://api.anthropic.com",pathPrefix:"/v1/messages"}],undefined,undefined,Math.max(1000,Math.min(config.timeoutMs ?? 60000,120000)),1);
   }
 
   async generate(request:AiGenerateRequest,signal?:AbortSignal):Promise<AiGenerateResponse>{
     const system=request.messages.filter(m=>m.role==="system").map(m=>m.content).join("\n");
     const messages=request.messages.filter(m=>m.role!=="system").map(m=>({role:m.role,content:m.content}));
-    const result=await postJson(anthropicAdapter,this.endpoint,{
+    const result=await postJson(this.adapter,this.endpoint,{
       "content-type":"application/json",
       "x-api-key":this.apiKey,
       "anthropic-version":"2023-06-01",
