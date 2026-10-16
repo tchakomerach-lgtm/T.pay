@@ -19,6 +19,7 @@ pub enum LedgerValidationError {
     CurrencyInvalid,
     MixedCurrencies,
     AmountOverflow,
+    DuplicateLine,
     UnbalancedTransaction,
 }
 
@@ -30,7 +31,7 @@ pub struct Money {
     pub minor_units: i128,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Side {
     Debit,
     Credit,
@@ -112,7 +113,7 @@ pub fn validate_transaction(
             line.side,
         );
         if !seen_line_fingerprints.insert(fingerprint) {
-            return Err(LedgerValidationError::UnbalancedTransaction);
+            return Err(LedgerValidationError::DuplicateLine);
         }
 
         match line.side {
@@ -281,7 +282,7 @@ mod tests {
         ]);
         assert_eq!(
             validate_transaction(&tx),
-            Err(LedgerValidationError::UnbalancedTransaction)
+            Err(LedgerValidationError::DuplicateLine)
         );
     }
 }
