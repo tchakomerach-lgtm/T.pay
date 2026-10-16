@@ -93,7 +93,7 @@ export class AnthropicMessagesProvider implements AiProvider {
   private readonly apiKey:string;
   private readonly model:string;
   private readonly endpoint:string;
-  private readonly timeoutMs:number;
+  private readonly adapter:SecureHttpsAdapter;
 
   constructor(config:VendorConfig){
     if(!config.apiKey) throw new Error("AI_PROVIDER_SECRET_REQUIRED");
