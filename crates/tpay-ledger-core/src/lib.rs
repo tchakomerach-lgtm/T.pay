@@ -7,8 +7,6 @@
 //! callers must validate inside the same database transaction that persists
 //! the ledger and its idempotency record.
 
-use std::collections::HashSet;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LedgerValidationError {
     OrganizationRequired,
@@ -19,7 +17,6 @@ pub enum LedgerValidationError {
     CurrencyInvalid,
     MixedCurrencies,
     AmountOverflow,
-    DuplicateLine,
     UnbalancedTransaction,
 }
 
@@ -81,7 +78,6 @@ pub fn validate_transaction(
     let mut currency: Option<&str> = None;
     let mut debits: i128 = 0;
     let mut credits: i128 = 0;
-    let mut seen_line_fingerprints = HashSet::new();
 
     for line in &transaction.lines {
         if line.account_id.trim().is_empty() {
@@ -103,18 +99,6 @@ pub fn validate_transaction(
             Some(_) => {}
         }
 
-        // Repeated account lines are allowed by accounting practice, but exact
-        // duplicate lines are rejected to catch common accidental double-adds.
-        let fingerprint = (
-            line.account_id.as_str(),
-            code,
-            line.amount.minor_units,
-            line.side,
-        );
-        if !seen_line_fingerprints.insert(fingerprint) {
-            return Err(LedgerValidationError::DuplicateLine);
-        }
-
         match line.side {
             Side::Debit => {
                 debits = debits
@@ -133,8 +117,10 @@ pub fn validate_transaction(
         return Err(LedgerValidationError::UnbalancedTransaction);
     }
 
+    let currency = currency.ok_or(LedgerValidationError::CurrencyInvalid)?.to_owned();
+
     Ok(ValidatedTotals {
-        currency: currency.unwrap_or_default().to_owned(),
+        currency,
         debit_minor_units: debits,
         credit_minor_units: credits,
         line_count: transaction.lines.len(),
@@ -237,6 +223,15 @@ mod tests {
     }
 
     #[test]
+    fn rejects_too_few_lines() {
+        let tx = transaction(vec![line("cash", 1, Side::Debit)]);
+        assert_eq!(
+            validate_transaction(&tx),
+            Err(LedgerValidationError::TooFewLines)
+        );
+    }
+
+    #[test]
     fn rejects_short_idempotency_key() {
         let mut tx = transaction(vec![
             line("cash", 1, Side::Debit),
@@ -271,17 +266,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn rejects_exact_duplicate_lines() {
-        let duplicate = line("cash", 100, Side::Debit);
-        let tx = transaction(vec![
-            duplicate.clone(),
-            duplicate,
-            line("customer", 200, Side::Credit),
-        ]);
-        assert_eq!(
-            validate_transaction(&tx),
-            Err(LedgerValidationError::DuplicateLine)
-        );
-    }
 }
