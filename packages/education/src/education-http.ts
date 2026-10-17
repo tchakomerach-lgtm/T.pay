@@ -147,6 +147,10 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       const link=await deps.db.query("SELECT 1 FROM education_parent_student_links WHERE tenant_id=$1 AND organization_id=$2 AND parent_actor_id=$3 AND student_id=$4 AND active=true",[auth.tenantId,organizationId,auth.principal.userId,studentId]);
       if(!link.rows[0])throw new Error("PARENT_STUDENT_RELATION_REQUIRED");
     }
+    if(actorRole==="TEACHER"){
+      const assignment=await deps.db.query("SELECT 1 FROM education_teacher_student_assignments WHERE tenant_id=$1 AND organization_id=$2 AND teacher_actor_id=$3 AND student_id=$4 AND active=true",[auth.tenantId,organizationId,auth.principal.userId,studentId]);
+      if(!assignment.rows[0])throw new Error("TEACHER_STUDENT_ASSIGNMENT_REQUIRED");
+    }
     if(!["STUDENT","PARENT","TEACHER","ADMIN","DIRECTOR","FOUNDER"].includes(actorRole))throw new Error("STUDENT_ROLE_DENIED");
     const q=await deps.db.query("SELECT student_id,lifecycle,version,updated_at,data FROM education_students WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3",[auth.tenantId,organizationId,studentId]);
     if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("STUDENT_NOT_FOUND"),correlationId),correlationId);return;}
