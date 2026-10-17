@@ -1,35 +1,36 @@
-# Super Admin Bible — Construction Record 009
+# Super Admin Bible — Construction Record 010
 
 ## Source
 Prompt 003 Root of Trust + Prompt 004 Admin Lifecycle + Prompt 005 PIM/PAM + Prompt 007 Threat Intelligence/Threat Hunting + Prompt 008 Cyber Resilience/Disaster Recovery.
 
-## New security increment
-- `packages/security/src/root-trust-provider.ts`: root quorum now rejects duplicate actor identities before database access.
-- Root approval expiry is bounded to a maximum five-minute authorization window.
-- Root approver domain must match the identity's server-provisioned `trust_domain`; the caller-provided domain is not authoritative.
-- Production root approvals require a registered verification credential and a hardware-backed key marker.
-- Production provider check is invoked inside the root authorization boundary, not left to callers.
-- Migration `053_root_trust_domain_binding.sql` adds an idempotent trust-domain field/constraint and active-domain index.
-- PostgreSQL concurrency fixture now provisions independent identity/security/infrastructure domains.
-- Unit tests reject repeated approver identities and excessive approval TTL before database access.
+## Real web application increment
+- `apps/web/src/admin-console.ts`: added a real sign-in flow through `POST /v1/auth/login`, CSRF token bootstrap, authenticated session logout and registered-credential WebAuthn step-up.
+- WebAuthn challenge response now includes active registered credential IDs scoped to the current L4/L5 identities; the browser uses `allowCredentials` rather than relying only on discoverable credentials.
+- `apps/api/src/server.ts`: added authenticated `GET /v1/admin/security-posture` read model, available only when the API recognizes a privileged step-up session.
+- The recovery view displays recent recovery runs, checkpoint verification states, Root Trust operations and open high/critical findings.
+- The PAM view displays active privileged sessions and recent Red Team run evidence. These screens are read-only; the UI does not pretend that a session broker, recovery restore, or root operation has executed.
+- Responsive styling added for the login screen, recovery records, session tables and logout control.
+- `e2e/super-admin-console.spec.ts`: added browser tests for the login/step-up gate and read-only recovery/Root Trust view.
 
-## Existing controls retained
-1. Privileged identity assurance and expiry.
-2. Maximum 15-minute JIT grants.
-3. Justification required for privileged grants.
-4. One-shot grants expire on consumption.
-5. Root operations require three distinct actors and three independently provisioned trust domains.
-6. Root operations are bound to a SHA-256 request digest and protected against replay.
-7. Recovery uses an explicit state machine.
-8. Financial reopening fails closed unless critical trust/reconciliation gates pass.
-9. Recovery metadata is durable; secrets and private keys are excluded.
-10. Direct production recovery is forbidden by the domain contract.
+## Root Trust enforcement increment retained
+- Quorum rejects duplicate approver identities and approval lifetimes longer than five minutes.
+- Each approval domain must match the identity's server-provisioned `trust_domain`.
+- Production requires a registered credential and a hardware-backed key marker, and rejects the software-only verification provider.
+- Migration `053_root_trust_domain_binding.sql` provisions the trust-domain field with repeatable DDL.
+
+## Security boundaries
+- No private key or secret is rendered in the browser.
+- WebAuthn assertions are verified against server-registered credential material.
+- Administrative read models require an authenticated L4/L5 session with `step_up` assurance.
+- Runtime changes remain requests requiring two distinct approvers; the browser cannot directly change the system mode.
+- Recovery, PAM termination and Root Trust execution remain blocked until their server-authoritative broker/provider operations are fully integrated.
+- A UI status is not a cryptographic attestation or an operational recovery proof.
 
 ## Verification status
-- Code and tests committed to the construction branch.
-- Latest observed CI jobs fail before any steps are reported: GitHub reports runner ID 0, no runner name, and no step records. Downloaded job logs return BlobNotFound. This is an infrastructure/runner diagnosis gap, not proof that tests passed or failed.
-- Exact-head CI is **not certified green**.
-- HSM/KMS, hardware attestation, real PAM connectors, immutable backup storage and independent clean-room restore remain external production gates.
+- E2E tests added but not yet validated by a successful CI run.
+- Latest exact-head workflow on `c8df2333a8fe6419931d802aabbc620f25c16505` fails in approximately two seconds with no step records, runner ID 0 and no runner name. GitHub log retrieval reports `BlobNotFound`. The latest head is not CI-certified.
+- HSM/KMS signing, hardware attestation, real PAM connectors, immutable backup storage and independent clean-room restore remain production gates.
+- PR #97 remains open, Draft and unmerged.
 
 ## Next gate
-Restore a diagnosable GitHub Actions runner and run all checks on the exact head SHA. Then verify domain provisioning, quorum replay/concurrency, WebAuthn with real registered authenticators, provider-backed root signing, PAM session enforcement and an independent recovery drill. Keep PR Draft until the evidence is complete.
+Repair GitHub Actions runner assignment/logging, execute typecheck/build/unit/PostgreSQL/E2E/dependency-audit against the exact head, then test the console against a real HTTPS deployment and a registered hardware-backed authenticator. Only after that, integrate the approved PAM/recovery execution paths; never add fake execution buttons to the UI.
