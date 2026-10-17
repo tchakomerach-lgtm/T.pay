@@ -207,7 +207,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    await gateway.audit({organizationId,requestId:dedupe?.requestId??correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path})});
    json(res,200,response,correlationId);
   }catch(error){
-    const code=String(error).replace(/^Error:\\s*/,"");
+    const code=String(error).replace(/^Error:\s*/,"");
     const status=
       code==="SESSION_EXPIRED"||code==="SESSION_REVOKED"||code==="AUTHENTICATION_REQUIRED"?401:
       code==="STUDENT_NOT_FOUND"||code==="ACTOR_NOT_FOUND"||code==="WORK_ITEM_NOT_FOUND"||code==="SERVICE_REQUEST_NOT_FOUND"?404:
