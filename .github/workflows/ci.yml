@@ -1,9 +1,11 @@
 name: T.Pay CI
 on:
-  # Authoritative validation for every branch commit and every PR synchronization.
+  # Run on direct main updates and PR updates. PR branches are already
+  # validated by pull_request; running push + pull_request for the same commit
+  # doubled runner consumption without adding independent coverage.
   push:
     branches:
-      - "**"
+      - main
   pull_request:
     branches:
       - main
