@@ -206,6 +206,18 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(dedupe?.status==="reserved")await gateway.completeIdempotency({requestId:dedupe.requestId,state:"succeeded",responseHash:canonicalRequestHash("RESPONSE",path,JSON.stringify(response)),statusCode:200});
    await gateway.audit({organizationId,requestId:dedupe?.requestId??correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path})});
    json(res,200,response,correlationId);
-  }catch(error){const status=String(error).startsWith("Error: FORBIDDEN")?403:400;json(res,status,buildApiError(error,correlationId),correlationId);}
+  }catch(error){
+    const code=String(error).replace(/^Error:\\s*/,"");
+    const status=
+      code==="SESSION_EXPIRED"||code==="SESSION_REVOKED"||code==="AUTHENTICATION_REQUIRED"?401:
+      code==="STUDENT_NOT_FOUND"||code==="ACTOR_NOT_FOUND"||code==="WORK_ITEM_NOT_FOUND"||code==="SERVICE_REQUEST_NOT_FOUND"?404:
+      code.startsWith("FORBIDDEN")||[
+        "ORGANIZATION_SESSION_MISMATCH","STUDENT_RESOURCE_OWNER_REQUIRED",
+        "PARENT_STUDENT_RELATION_REQUIRED","TEACHER_STUDENT_ASSIGNMENT_REQUIRED",
+        "STUDENT_ROLE_DENIED","STUDENT_DATA_POLICY_DENIED","ACTOR_INACTIVE",
+        "TENANT_CONTEXT_REQUIRED","ORGANIZATION_CONTEXT_REQUIRED"
+      ].includes(code)?403:400;
+    json(res,status,buildApiError(error,correlationId),correlationId);
+  }
  });
 }
