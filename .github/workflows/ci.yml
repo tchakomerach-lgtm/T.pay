@@ -1,15 +1,14 @@
 name: T.Pay CI
 on:
-  # Run on direct main updates and PR updates. PR branches are already
-  # validated by pull_request; running push + pull_request for the same commit
-  # doubled runner consumption without adding independent coverage.
+  # Run once per pushed commit. Same-repository PR branches are covered by
+  # push, so omit pull_request.synchronize to avoid duplicate CI runs.
   push:
     branches:
-      - main
+      - "**"
   pull_request:
     branches:
       - main
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, reopened, ready_for_review]
   workflow_dispatch:
 permissions:
   contents: read
