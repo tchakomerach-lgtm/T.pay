@@ -19,7 +19,7 @@ test("P055 E2E terrain links administration → teacher → student → parent �
   const pool=new pg.Pool({connectionString:databaseUrl,max:8});
   const tenant=randomUUID(),org=randomUUID(),otherTenant=randomUUID(),otherOrg=randomUUID();
   const admin=randomUUID(),teacher=randomUUID(),student=randomUUID(),parent=randomUUID(),otherParent=randomUUID();
-  const otherStudent=randomUUID(),device=randomUUID();
+  const otherStudent=randomUUID(),unassignedStudent=randomUUID(),device=randomUUID();
   const tokens=new Map([
     ["admin-token",{userId:admin,kind:"ADMIN"}],
     ["teacher-token",{userId:teacher,kind:"TEACHER"}],
@@ -47,6 +47,10 @@ test("P055 E2E terrain links administration → teacher → student → parent �
       [student,tenant,org,JSON.stringify({
         id:student,name:"Student Terrain",academic_record:{average:15.5},identity_document:"D4-SECRET"
       })]
+    );
+    await client.query(
+      "INSERT INTO education_students(student_id,tenant_id,organization_id,lifecycle,data) VALUES($1,$2,$3,'ACTIVE',$4::jsonb)",
+      [unassignedStudent,tenant,org,JSON.stringify({id:unassignedStudent,name:"Unassigned Student",academic_record:{average:11}})]
     );
     await client.query(
       "INSERT INTO education_students(student_id,tenant_id,organization_id,lifecycle,data) VALUES($1,$2,$3,'ACTIVE',$4::jsonb)",
@@ -106,6 +110,9 @@ test("P055 E2E terrain links administration → teacher → student → parent �
 
     const parentRead=await request("parent-token",`/v1/education/students/${student}`);
     assert.equal(parentRead.status,200);
+
+    const teacherUnassigned=await request("teacher-token",`/v1/education/students/${unassignedStudent}`);
+    assert.equal(teacherUnassigned.status,403);
 
     const unrelated=await request("other-parent-token",`/v1/education/students/${student}`);
     assert.equal(unrelated.status,404);
