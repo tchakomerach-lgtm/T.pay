@@ -16,3 +16,11 @@ test("Super Admin API routes are deny-by-default to ordinary members",()=>{
  assert.equal(authorizeRoute({method:"GET",route:"/v1/admin/overview",authClass:"admin"}).allowed,true);
  assert.equal(authorizeRoute({method:"POST",route:"/v1/admin/runtime/change-requests",authClass:"admin"}).allowed,true);
 });
+
+test("Super Admin browser routes are explicitly allowlisted at the API gateway",()=>{
+ assert.equal(authorizeRoute({method:"POST",route:"/v1/admin/auth/webauthn/challenge",authClass:"user"}).allowed,true);
+ assert.equal(authorizeRoute({method:"POST",route:"/v1/admin/auth/webauthn/step-up",authClass:"user"}).allowed,true);
+ assert.equal(authorizeRoute({method:"GET",route:"/v1/admin/security-posture",authClass:"admin"}).allowed,true);
+ assert.equal(authorizeRoute({method:"GET",route:"/v1/admin/runtime/change-requests",authClass:"admin"}).allowed,true);
+ assert.equal(authorizeRoute({method:"GET",route:"/v1/admin/security-posture",authClass:"member"}).allowed,false);
+});
