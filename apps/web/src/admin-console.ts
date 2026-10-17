@@ -28,6 +28,29 @@ async function load(section:AdminSection,root:HTMLElement){
   const r=await api("/v1/admin/overview");
   const j=await r.json() as any;
   if(!r.ok){
+   if(r.status===401){
+    content.innerHTML=`<div class="admin-login admin-panel"><span class="admin-eyebrow">IDENTITÉ PRIVILÉGIÉE</span><h2>Connexion sécurisée</h2><p>Connectez-vous avec votre compte T.Pay. Les actions Super Admin exigent ensuite un compte L4/L5 et une authentification WebAuthn step-up.</p><form id="admin-login-form"><label for="admin-login-identifier">Identifiant</label><input id="admin-login-identifier" name="loginIdentifier" autocomplete="username" required maxlength="254"/><label for="admin-login-password">Mot de passe</label><input id="admin-login-password" name="password" type="password" autocomplete="current-password" required minlength="1" maxlength="1024/><button type="submit">Se connecter</button><p id="admin-login-error" role="status"></p></form></div>`;
+    status.textContent="Session requise";
+    const form=root.querySelector<HTMLFormElement>("#admin-login-form");
+    form?.addEventListener("submit",async event=>{
+     event.preventDefault();
+     const submit=form.querySelector<HTMLButtonElement>('button[type="submit"]');
+     const error=root.querySelector<HTMLElement>("#admin-login-error");
+     if(submit)submit.disabled=true;
+     if(error)error.textContent="Vérification…";
+     try{
+      const fd=new FormData(form);
+      const lr=await api("/v1/auth/login",{method:"POST",body:JSON.stringify({loginIdentifier:String(fd.get("loginIdentifier")??""),password:String(fd.get("password")??"")})});
+      const lj=await lr.json() as any;
+      if(!lr.ok||!lj.data?.csrfToken)throw new Error(lj?.error?.message??"AUTHENTICATION_FAILED");
+      sessionStorage.setItem("tpay.csrf",String(lj.data.csrfToken));
+      form.reset();
+      await load(section,root);
+     }catch(e){if(error)error.textContent=e instanceof Error?e.message:"AUTHENTICATION_FAILED";}
+     finally{if(submit)submit.disabled=false;}
+    });
+    return;
+   }
    content.innerHTML=`<div class="admin-denied"><b>403 · Console verrouillée</b><p>Cette interface exige une identité privilégiée L4/L5 et une session WebAuthn step-up.</p><button id="admin-stepup">Activer le step-up FIDO2 / passkey</button></div>`;
    status.textContent="Step-up privilégié requis";
    const btn=root.querySelector<HTMLButtonElement>("#admin-stepup");
