@@ -16,7 +16,8 @@ export function SchoolApp({config}:{config:SchoolWebConfig}){
   if(!shell||typeof window==="undefined"||typeof navigator==="undefined")return;
   const nav=navigator as Navigator & {connection?:{saveData?:boolean};deviceMemory?:number};
   const reducedMotion=window.matchMedia?.("(prefers-reduced-motion: reduce)").matches??false;
-  if(!shouldAnimateUi({reducedMotion,saveData:nav.connection?.saveData===true,deviceMemory:nav.deviceMemory,hardwareConcurrency:navigator.hardwareConcurrency}))return;
+  const motionCapability={reducedMotion,saveData:nav.connection?.saveData===true,hardwareConcurrency:navigator.hardwareConcurrency,...(nav.deviceMemory===undefined?{}:{deviceMemory:nav.deviceMemory})};
+  if(!shouldAnimateUi(motionCapability))return;
   let disposed=false;
   let revert:undefined|(()=>void);
   void import("gsap").then(({gsap})=>{
