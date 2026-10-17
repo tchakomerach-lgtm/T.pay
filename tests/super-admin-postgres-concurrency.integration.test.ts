@@ -19,7 +19,8 @@ test("PostgreSQL adversarial control-plane concurrency",{skip:!url&&"TPAY_DATABA
  try{
   await applyMigrations(admin,pathToFileURL(join(process.cwd(),"migrations")+"/"));
   const principal=randomUUID(),a=randomUUID(),b=randomUUID(),c=randomUUID();ids.push(principal,a,b,c);
-  for(const id of ids)await admin.query("INSERT INTO tpay_privileged_identities(id,human_user_id,privileged_level,device_id,assurance,expires_at) VALUES($1,$2,'L4_SUPER_ADMIN',$3,'FIDO2',now()+interval '1 hour')",[id,"concurrency-"+id,"device-"+id]);
+  const trustDomains:Record<string,string>={[a]:"identity",[b]:"security",[c]:"infrastructure"};
+  for(const id of ids)await admin.query("INSERT INTO tpay_privileged_identities(id,human_user_id,privileged_level,device_id,assurance,expires_at,trust_domain) VALUES($1,$2,'L4_SUPER_ADMIN',$3,'FIDO2',now()+interval '1 hour',$4)",[id,"concurrency-"+id,"device-"+id,trustDomains[id]??"test-domain"]);
   const duplicateGrant=randomUUID(),grant=randomUUID();grants.push(duplicateGrant,grant);
   await admin.query("INSERT INTO tpay_privileged_grants(id,principal_id,resource,action,justification,issued_at,expires_at,one_shot,approval_count,required_approvals) VALUES($1,$2,'prod/db','read','duplicate approval race',now(),now()+interval '10 minutes',true,0,1)",[duplicateGrant,principal]);
   const same=await Promise.allSettled([approveJitGrant(pool,{grantId:duplicateGrant,approverId:a}),approveJitGrant(pool,{grantId:duplicateGrant,approverId:a})]);
