@@ -145,8 +145,9 @@ async function load(section:AdminSection,root:HTMLElement){
    if(!reason||reason.length<8)return;
    const csrf=sessionStorage.getItem("tpay.csrf");
    if(!csrf){status.textContent="Step-up/CSRF non disponible";return;}
-   const rr=await api("/v1/admin/runtime/change-requests",{method:"POST",headers:{"x-csrf-token":csrf},body:JSON.stringify({mode,reason})});
+   const rr=await api("/v1/admin/runtime/change-requests",{method:"POST",headers:{"x-csrf-token":csrf,"idempotency-key":crypto.randomUUID()},body:JSON.stringify({mode,reason})});
    status.textContent=rr.ok?"Demande créée — double approbation requise":"Demande refusée par le serveur";
+   if(rr.ok)await load(section,root);
   });
  }catch{
   status.textContent="Plan de contrôle indisponible";
