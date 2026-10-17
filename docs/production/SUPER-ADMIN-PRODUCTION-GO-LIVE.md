@@ -81,3 +81,31 @@ Arrêter la mise en production si l'un des cas suivants survient :
 ## 5. Décision actuelle
 
 **NO-GO.** Le dépôt ne fournit pas encore les preuves opérationnelles nécessaires pour certifier ces gates. La PR #97 doit rester Draft et non fusionnée tant que les critères bloquants ne sont pas satisfaits. Aucun secret, certificat privé ou jeton ne doit être ajouté au dépôt pour tenter de débloquer le déploiement.
+## 6. Incident CI — investigation du 17 octobre 2026
+
+### Faits observés dans GitHub Actions
+
+- La définition `.github/workflows/ci.yml` utilise bien `runs-on: ubuntu-latest`, une configuration standard de runner hébergé GitHub.
+- Les jobs récents, y compris sur des commits de documentation, échouent avant la première étape : `runner_id=0`, `runner_name=""`, `steps=[]`.
+- Les runs `38990030546` (SHA `9c6de99e74853790baf995d565b62fe378e7913e`) et `38989822738` ont échoué en environ deux secondes. Une relance de `38989822738` a reproduit le même état.
+- Le même motif est présent dans des runs plus anciens, par exemple `38230541669` le 12 octobre 2026. Des jobs antérieurs du 7–8 octobre avaient bien un runner attribué et des étapes exécutées. La panne n'est donc pas propre au code Super Admin introduit le 17 octobre.
+- La récupération des logs renvoie `BlobNotFound`. Il n'existe donc aucun log de script permettant d'attribuer l'échec à TypeScript, npm, PostgreSQL ou Playwright.
+
+### Diagnostic
+
+Le défaut démontré est **avant l'exécution du job, au niveau de la disponibilité/autorisation d'un runner hébergé**. Les données disponibles ne permettent pas de choisir avec certitude entre budget/facturation GitHub Actions, politique/permission Actions au niveau dépôt/organisation, ou incident côté service GitHub. Ne pas présenter l'épuisement du quota comme une certitude sans lire le message de facturation dans les paramètres du compte.
+
+### Correctif de configuration appliqué
+
+Le workflow ne lance plus deux exécutions pour un même commit d'une branche PR : les événements `push` sont réservés à `main`, tandis que les mises à jour de branches de PR continuent à déclencher `pull_request.synchronize`. `workflow_dispatch` reste disponible. Cela réduit la consommation et les exécutions redondantes; **cela ne répare pas à lui seul un runner désactivé ou un budget épuisé**.
+
+### Action requise dans GitHub — propriétaire du dépôt
+
+1. Ouvrir **Settings → Billing & licensing / Usage** (ou **Billing and plans → Budgets and alerts**, selon l'interface).
+2. Vérifier les minutes GitHub Actions disponibles, le budget de dépenses Actions, la limite de dépenses et tout blocage de facturation pour le compte propriétaire du dépôt privé.
+3. Ouvrir **Settings → Actions → General** du dépôt et confirmer que les actions sont autorisées et que les runners GitHub-hosted sont permis par les politiques du dépôt/organisation.
+4. Vérifier la page GitHub Status pour un incident Actions correspondant à l'heure des échecs.
+5. Après correction du réglage confirmé, lancer manuellement `T.Pay CI` via **Actions → T.Pay CI → Run workflow** sur la branche PR et vérifier qu'un runner réel, des étapes et des logs apparaissent.
+6. Si les réglages sont corrects mais que `runner_id=0` persiste, transmettre au support GitHub les run IDs `38990030546`, `38989822738` et `38230541669` ainsi que les heures UTC. Ne pas remplacer ce contrôle par une CI simulée ou un runner auto-hébergé non administré.
+
+**État après correction de configuration : BLOQUÉ en attente de la remise en service du runner.** La validation applicative n'a pas encore été exécutée sur le SHA candidat.
