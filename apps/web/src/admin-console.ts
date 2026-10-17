@@ -65,7 +65,7 @@ async function load(section:AdminSection,root:HTMLElement){
       const b64=(v:string)=>{const pad="=".repeat((4-v.length%4)%4),s=(v+pad).replace(/-/g,"+").replace(/_/g,"/");return Uint8Array.from(atob(s),x=>x.charCodeAt(0));};
       const browser=globalThis as any;
       if(!browser.PublicKeyCredential||!browser.navigator?.credentials)throw new Error("WEBAUTHN_UNSUPPORTED");
-      const cred=await browser.navigator.credentials.get({publicKey:{challenge:b64(cj.data.challenge),rpId:cj.data.rpId,userVerification:"required",timeout:120000}});
+      const cred=await browser.navigator.credentials.get({publicKey:{challenge:b64(cj.data.challenge),rpId:cj.data.rpId,allowCredentials:(cj.data.allowCredentials??[]).map((x:any)=>({type:"public-key",id:b64(x.id)})),userVerification:"required",timeout:120000}});
       if(!cred)throw new Error("WEBAUTHN_CANCELLED");
       const response=(cred as any).response;
       const enc=(x:ArrayBuffer)=>{const bytes=new Uint8Array(x);let s="";for(const v of bytes)s+=String.fromCharCode(v);return btoa(s).split("+").join("-").split("/").join("_").replace(/=+$/,"");};
