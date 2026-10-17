@@ -194,8 +194,10 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
             await requireBrowserCsrf(pool,authenticatedSession,origin,String(req.headers["x-csrf-token"]??""));
             await assertPrivilegedCandidate(pool,userId);
             const rpId=new URL(expectedWebOrigin()).hostname;
+            const keys=await pool.query("SELECT DISTINCT k.credential_id FROM tpay_privileged_verification_keys k JOIN tpay_privileged_identities p ON p.id=k.privileged_identity_id WHERE p.human_user_id=$1 AND p.active=true AND p.expires_at>now() AND p.privileged_level IN ('L4_SUPER_ADMIN','L5_ROOT_TRUST') AND k.active=true ORDER BY k.credential_id",[userId]);
+            if(!keys.rowCount)throw new Error("WEBAUTHN_CREDENTIAL_NOT_REGISTERED");
             const challenge=await createPersistedStepUpChallenge(pool,{userId,rpId,origin:expectedWebOrigin()});
-            json(res,201,buildApiSuccess("v1",correlationId,{challengeId:challenge.id,challenge:challenge.challenge,rpId:challenge.rpId,origin:challenge.origin,expiresAt:challenge.expiresAt}));return;
+            json(res,201,buildApiSuccess("v1",correlationId,{challengeId:challenge.id,challenge:challenge.challenge,rpId:challenge.rpId,origin:challenge.origin,expiresAt:challenge.expiresAt,allowCredentials:keys.rows.map(x=>({type:"public-key",id:String(x.credential_id)}))}));return;
           }catch(error){json(res,403,buildApiError({message:error instanceof Error?error.message:"WEBAUTHN_CHALLENGE_DENIED"},correlationId));return;}
         }
         if(url.pathname==="/v1/admin/auth/webauthn/step-up"&&method==="POST"){
