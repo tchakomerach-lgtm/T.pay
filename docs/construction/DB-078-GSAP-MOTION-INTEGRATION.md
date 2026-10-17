@@ -28,8 +28,7 @@ Existing Design Bible tokens remain authoritative. This change introduces no col
 ## Rollback
 Revert this PR or remove the GSAP dependency and the `motion-policy.ts` import/effect. No database, API, or financial state is changed.
 
-## CI observation — exact head 399cde47d8b3c32168055e2f05b2954e4f75568a
-GitHub Actions created PR-triggered runs for both `T.Pay CI` (run 39011556519) and `T.Pay Android` (run 39011556516), but both failed in seconds with `runner_id: 0`, empty `steps`, no runner name, and no downloadable logs. A rerun of both jobs reproduced the same infrastructure failure. Therefore no source compilation, unit test, security check, web build, or Android test is evidenced by those runs. The current blocker is runner/Actions execution availability; do not infer a code failure or code success from an empty job.
-
+## CI observation — exact head b86ee1e0310e0778158982339441643423632957
+GitHub Actions created PR-triggered runs for both `T.Pay CI` (run 39011627155) and `T.Pay Android` (run 39011627144). Both failed immediately with `runner_id: 0`, empty `steps`, no runner name, and no downloadable logs. Reruns of both workflows reproduced the same infrastructure failure. An earlier exact head also showed the same failure pattern. Therefore no source compilation, unit test, security check, web build, or Android test is evidenced by these runs. The current blocker is Actions runner assignment/availability; do not infer a code failure or code success from an empty job.
 ## Evidence boundary
 A source commit is not a passing build. This record does not certify CI, pixel baselines, Android performance, or production readiness.
