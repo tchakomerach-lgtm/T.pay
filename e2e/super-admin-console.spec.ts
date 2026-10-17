@@ -47,3 +47,29 @@ test("Super Admin recovery screen renders read-only recovery and Root Trust evid
   await expect(page.getByRole("heading", { name: "Journal Root Trust" })).toBeVisible();
   await expect(page.getByText("Aucun run de récupération enregistré.")).toBeVisible();
 });
+
+test("Super Admin runtime change requires a second distinct approver", async ({ page }) => {
+  let status = "PENDING";
+  await page.route("**/v1/admin/overview", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ data: { runtime: { mode: "normal", version: 2 }, privileged: [{ level: "L4_SUPER_ADMIN", assurance: "step_up", expiresAt: "2026-10-17T02:00:00.000Z" }], pendingRequests: 1 } })
+  }));
+  await page.route("**/v1/admin/runtime/change-requests*", async route => {
+    if (route.request().method() === "POST") {
+      status = "APPLIED";
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { status, approvals: 2 } }) });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { items: [{ id: "00000000-0000-4000-8000-000000000123", mode: "readonly", reason: "Containment drill", status, digestPrefix: "0123456789ab", createdAt: "2026-10-17T01:00:00.000Z", expiresAt: "2026-10-17T01:10:00.000Z", requiredApprovals: 2, approvalCount: status === "APPLIED" ? 2 : 1, approvedByMe: false, canApprove: status === "PENDING" }] } })
+    });
+  });
+  await page.goto("/#admin/runtime");
+  await expect(page.getByRole("heading", { name: "Demandes de changement" })).toBeVisible();
+  await expect(page.getByText("PENDING · 1/2")).toBeVisible();
+  await page.getByRole("button", { name: "Approuver" }).click();
+  await expect(page.getByText("APPLIED · 2/2")).toBeVisible();
+});
