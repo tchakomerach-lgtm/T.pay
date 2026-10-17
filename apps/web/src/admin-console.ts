@@ -15,7 +15,7 @@ export function renderAdminConsole(section:AdminSection="dashboard"):string{
  <div class="admin-classification">L4/L5 · PRIVILEGED</div><nav aria-label="Administration Super Admin">
  ${sections.map(([id,label,desc])=>`<a class="admin-nav ${id===active?"active":""}" href="#admin/${id}"><strong>${id==="dashboard"?"◈":id==="runtime"?"◉":id==="privileged"?"♙":id==="recovery"?"↻":id==="pam"?"⌁":"≡"}</strong><span><b>${label}</b><small>${desc}</small></span></a>`).join("")}
  </nav><div class="admin-lock"><b>Trust boundary</b><span>Actions critiques : step-up + autorisation serveur + audit. Les secrets et clés privées ne sont jamais affichés.</span></div></aside>
- <main class="admin-main"><header class="admin-top"><div><span class="admin-eyebrow">T.Pay Super Admin</span><h1>${esc(sections.find(x=>x[0]===active)?.[1]??"Console")}</h1></div><div class="admin-status" id="admin-status">Vérification de confiance…</div></header>
+ <main class="admin-main"><header class="admin-top"><div><span class="admin-eyebrow">T.Pay Super Admin</span><h1>${esc(sections.find(x=>x[0]===active)?.[1]??"Console")}</h1></div><div class="admin-header-actions"><div class="admin-status" id="admin-status">Vérification de confiance…</div><button id="admin-logout" class="admin-refresh" type="button">Déconnexion</button></div></header>
  <section id="admin-content" class="admin-content"><div class="admin-loading">Chargement du plan de contrôle…</div></section></main></div>`;
 }
 function api(path:string,init:RequestInit={}):Promise<Response>{return fetch(path,{...init,headers:{"accept":"application/json",...(init.body?{"content-type":"application/json"}:{}),...(init.headers??{})},credentials:"same-origin"});}
@@ -78,6 +78,20 @@ async function load(section:AdminSection,root:HTMLElement){
    return;
   }
   status.textContent="● Plan de contrôle connecté";
+  const logoutButton=root.querySelector<HTMLButtonElement>("#admin-logout");
+  if(logoutButton)logoutButton.onclick=async()=>{
+   logoutButton.disabled=true;
+   try{
+    const csrf=sessionStorage.getItem("tpay.csrf");
+    if(!csrf)throw new Error("CSRF_SESSION_MISSING");
+    const lr=await api("/v1/auth/logout",{method:"POST",headers:{"x-csrf-token":csrf}});
+    if(!lr.ok)throw new Error("LOGOUT_REJECTED");
+    sessionStorage.removeItem("tpay.csrf");
+    status.textContent="Session fermée";
+    await load(section,root);
+   }catch(e){status.textContent=e instanceof Error?e.message:"LOGOUT_FAILED";}
+   finally{logoutButton.disabled=false;}
+  };
   const runtime=j.data.runtime;
   let posture:any=null;
   if(section==="recovery"||section==="pam"){
