@@ -24,3 +24,10 @@ test("Super Admin browser routes are explicitly allowlisted at the API gateway",
  assert.equal(authorizeRoute({method:"GET",route:"/v1/admin/runtime/change-requests",authClass:"admin"}).allowed,true);
  assert.equal(authorizeRoute({method:"GET",route:"/v1/admin/security-posture",authClass:"member"}).allowed,false);
 });
+
+test("Root of Trust has a dedicated read-only control-plane view",()=>{
+ const html=renderAdminConsole("root");
+ assert.match(html,/Root of Trust/);
+ assert.match(html,/Quorum, signatures et anti-rejeu/);
+ assert.doesNotMatch(html,/private.?key/i);
+});
