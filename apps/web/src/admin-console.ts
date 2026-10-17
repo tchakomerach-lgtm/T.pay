@@ -1,8 +1,9 @@
-export type AdminSection="dashboard"|"runtime"|"privileged"|"recovery"|"pam"|"audit";
+export type AdminSection="dashboard"|"runtime"|"privileged"|"root"|"recovery"|"pam"|"audit";
 const sections:[AdminSection,string,string][]=[
 ["dashboard","Vue d'ensemble","État de confiance, services et risques"],
 ["runtime","Mode système","Maintenance, lecture seule et dégradé"],
 ["privileged","Identités privilégiées","JIT, assurance et expiration"],
+["root","Root of Trust","Quorum, signatures et anti-rejeu"],
 ["recovery","Cyber-résilience","Recovery plane et restauration"],
 ["pam","PAM / sessions","Broker, sessions et actions privilégiées"],
 ["audit","Audit","Événements administratifs traçables"]
@@ -101,7 +102,7 @@ async function load(section:AdminSection,root:HTMLElement){
    if(!qr.ok)throw new Error("RUNTIME_REQUESTS_UNAVAILABLE");
    runtimeRequests=qj.data?.items??[];
   }
-  if(section==="recovery"||section==="pam"){
+  if(section==="recovery"||section==="pam"||section==="root"){
    const pr=await api("/v1/admin/security-posture");
    const pj=await pr.json() as any;
    if(!pr.ok)throw new Error(pj?.error?.message??"SECURITY_POSTURE_UNAVAILABLE");
