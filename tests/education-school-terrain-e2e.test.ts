@@ -56,6 +56,10 @@ test("P055 E2E terrain links administration → teacher → student → parent �
       "INSERT INTO education_parent_student_links(tenant_id,organization_id,parent_actor_id,student_id) VALUES($1,$2,$3,$4)",
       [tenant,org,parent,student]
     );
+    await client.query(
+      "INSERT INTO education_teacher_student_assignments(tenant_id,organization_id,teacher_actor_id,student_id) VALUES($1,$2,$3,$4)",
+      [tenant,org,teacher,student]
+    );
     await client.query("COMMIT");
 
     const auth=async(req:IncomingMessage)=>{
@@ -192,6 +196,7 @@ test("P055 E2E terrain links administration → teacher → student → parent �
     await client.query("DELETE FROM education_realtime_stream_cursors WHERE organization_id=$1",[org]).catch(()=>undefined);
     await client.query("DELETE FROM education_attendance WHERE organization_id=$1",[org]).catch(()=>undefined);
     await client.query("DELETE FROM education_parent_student_links WHERE organization_id=$1",[org]).catch(()=>undefined);
+    await client.query("DELETE FROM education_teacher_student_assignments WHERE organization_id=$1",[org]).catch(()=>undefined);
     await client.query("DELETE FROM education_students WHERE organization_id=$1",[org]).catch(()=>undefined);
     await client.query("DELETE FROM education_actors WHERE organization_id=$1",[org]).catch(()=>undefined);
     await client.query("DELETE FROM education_actors WHERE organization_id=$1",[otherOrg]).catch(()=>undefined);
