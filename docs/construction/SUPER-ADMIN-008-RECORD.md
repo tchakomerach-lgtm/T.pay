@@ -8,6 +8,8 @@ Prompt 003 Root of Trust + Prompt 004 Admin Lifecycle + Prompt 005 PIM/PAM + Pro
 - WebAuthn challenge response now includes active registered credential IDs scoped to the current L4/L5 identities; the browser uses `allowCredentials` rather than relying only on discoverable credentials.
 - `apps/api/src/server.ts`: added authenticated `GET /v1/admin/security-posture` read model, available only when the API recognizes a privileged step-up session.
 - The recovery view displays recent recovery runs, checkpoint verification states, Root Trust operations and open high/critical findings.
+- Added a dedicated Root of Trust page with quorum count, registered trust domains and digest prefixes.
+- Added the runtime approval queue with server-derived approval eligibility and the CSRF-protected second-approver action.
 - The PAM view displays active privileged sessions and recent Red Team run evidence. These screens are read-only; the UI does not pretend that a session broker, recovery restore, or root operation has executed.
 - Responsive styling added for the login screen, recovery records, session tables and logout control.
 - `e2e/super-admin-console.spec.ts`: added browser tests for the login/step-up gate and read-only recovery/Root Trust view.
@@ -31,8 +33,8 @@ Prompt 003 Root of Trust + Prompt 004 Admin Lifecycle + Prompt 005 PIM/PAM + Pro
 - A UI status is not a cryptographic attestation or an operational recovery proof.
 
 ## Verification status
-- E2E tests added but not yet validated by a successful CI run.
-- Latest exact-head workflow on `c8df2333a8fe6419931d802aabbc620f25c16505` fails in approximately two seconds with no step records, runner ID 0 and no runner name. GitHub log retrieval reports `BlobNotFound`. The latest head is not CI-certified.
+- E2E tests added for login/step-up, recovery evidence and runtime two-person approval; not yet validated by a successful CI run.
+- Latest exact-head workflow on `6bf2fc2e39b5564a934663b131a6f81b828570ad` fails in approximately two seconds with no step records, runner ID 0 and no runner name. GitHub log retrieval reports `BlobNotFound`. The latest head is not CI-certified.
 - HSM/KMS signing, hardware attestation, real PAM connectors, immutable backup storage and independent clean-room restore remain production gates.
 - PR #97 remains open, Draft and unmerged.
 
