@@ -111,7 +111,7 @@ test("P055 E2E terrain links administration → teacher → student → parent �
     assert.equal(unrelated.status,404);
 
     const expired=await request("expired-token",`/v1/education/students/${student}`);
-    assert.equal(expired.status,400);
+    assert.equal(expired.status,401);
 
     const attendance={
       studentId:student,classId:"class-p055",status:"PRESENT",recordedBy:teacher,
