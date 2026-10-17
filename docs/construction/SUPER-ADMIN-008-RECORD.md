@@ -12,6 +12,10 @@ Prompt 003 Root of Trust + Prompt 004 Admin Lifecycle + Prompt 005 PIM/PAM + Pro
 - Responsive styling added for the login screen, recovery records, session tables and logout control.
 - `e2e/super-admin-console.spec.ts`: added browser tests for the login/step-up gate and read-only recovery/Root Trust view.
 
+- Added a dedicated Root of Trust navigation/view with quorum count, independently provisioned domains and digest prefixes.
+- Added a runtime change-request queue: authenticated read endpoint, approver eligibility from server state, two-person approval action, CSRF and idempotency key; self-approval/duplicate approval remain rejected by the server.
+- Added explicit API Gateway allowlist policies for WebAuthn step-up, security posture and runtime request listing; unit tests assert these route policies.
+
 ## Root Trust enforcement increment retained
 - Quorum rejects duplicate approver identities and approval lifetimes longer than five minutes.
 - Each approval domain must match the identity's server-provisioned `trust_domain`.
