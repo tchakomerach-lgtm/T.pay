@@ -252,6 +252,13 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
           if(!pool||!authenticatedSession||authClass!=="admin"){json(res,403,buildApiError({message:"ADMIN_ACCESS_DENIED"},correlationId));return;}
           json(res,200,buildApiSuccess("v1",correlationId,await getRuntimeControl(pool)));return;
         }
+        if(url.pathname==="/v1/admin/runtime/change-requests"&&method==="GET"){
+          if(!pool||!authenticatedSession||authClass!=="admin"){json(res,403,buildApiError({message:"ADMIN_ACCESS_DENIED"},correlationId));return;}
+          const limit=Math.min(Math.max(Number(url.searchParams.get("limit")??"20")||20,1),50);
+          const result=await pool.query("SELECT r.id,r.requested_by,r.requested_mode,r.reason,r.status,r.request_digest,r.created_at,r.expires_at,r.required_approvals,count(a.approver_id)::int AS approval_count,COALESCE(bool_or(a.approver_id=$2::uuid),false) AS approved_by_me FROM tpay_runtime_change_requests r LEFT JOIN tpay_runtime_change_approvals a ON a.request_id=r.id WHERE r.status IN ('PENDING','APPLIED','REJECTED','EXPIRED') GROUP BY r.id ORDER BY r.created_at DESC LIMIT $1",[limit,userId]);
+          json(res,200,buildApiSuccess("v1",correlationId,{items:result.rows.map(x=>({id:String(x.id),requestedBy:String(x.requested_by),mode:String(x.requested_mode),reason:String(x.reason),status:String(x.status),digestPrefix:String(x.request_digest).slice(0,12),createdAt:new Date(x.created_at).toISOString(),expiresAt:new Date(x.expires_at).toISOString(),requiredApprovals:Number(x.required_approvals),approvalCount:Number(x.approval_count),approvedByMe:Boolean(x.approved_by_me),canApprove:String(x.status)==="PENDING"&&String(x.requested_by)!==String(userId)&&!Boolean(x.approved_by_me)&&new Date(x.expires_at).getTime()>Date.now()}))}));
+          return;
+        }
         if(url.pathname==="/v1/admin/runtime/change-requests"&&method==="POST"){
           if(!pool||!authenticatedSession||authClass!=="admin"){json(res,403,buildApiError({message:"ADMIN_ACCESS_DENIED"},correlationId));return;}
           try{
