@@ -35,3 +35,7 @@
 .admin-login form button:disabled{opacity:.6;cursor:wait}
 .admin-login #admin-login-error{min-height:18px;color:#a52828;font-size:12px;overflow-wrap:anywhere}
 @media(max-width:560px){.admin-header-actions{margin-top:10px;justify-content:space-between}.admin-login{padding:20px}}
+
+.admin-approve{display:block;margin-top:7px;border:1px solid #cce3d5;background:#edf8f1;color:#176b46;border-radius:8px;padding:7px 10px;font-size:10px;font-weight:850;cursor:pointer}
+.admin-approve:hover:not(:disabled){background:#dff3e7}
+.admin-approve:disabled{background:#f1f3f2;border-color:#e3e8e5;color:#89958e;cursor:not-allowed}
