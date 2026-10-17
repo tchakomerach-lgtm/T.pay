@@ -219,7 +219,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
               pool.query("SELECT count(*)::int AS total FROM tpay_privileged_identities WHERE active=true AND expires_at>now() AND privileged_level IN ('L4_SUPER_ADMIN','L5_ROOT_TRUST')"),
               pool.query("SELECT count(*)::int AS total FROM tpay_privileged_sessions WHERE terminated_at IS NULL AND expires_at>now()"),
               pool.query("SELECT id,incident_id,state,last_transition_at,evidence_digest FROM tpay_recovery_runs ORDER BY last_transition_at DESC LIMIT 10"),
-              pool.query("SELECT id,operation,status,created_at,expires_at,quorum_required,request_digest FROM tpay_root_operations ORDER BY created_at DESC LIMIT 10"),
+              pool.query("SELECT o.id,o.operation,o.status,o.created_at,o.expires_at,o.quorum_required,o.request_digest,count(a.actor_id)::int AS approval_count,COALESCE(array_agg(a.independent_domain) FILTER (WHERE a.actor_id IS NOT NULL),ARRAY[]::text[]) AS domains FROM tpay_root_operations o LEFT JOIN tpay_root_approvals a ON a.operation_id=o.id GROUP BY o.id ORDER BY o.created_at DESC LIMIT 10"),
               pool.query("SELECT id,scope,scenario,status,started_at,ended_at,evidence_digest FROM tpay_redteam_runs ORDER BY started_at DESC LIMIT 10"),
               pool.query("SELECT count(*)::int AS total FROM tpay_redteam_findings WHERE status='OPEN' AND severity IN ('HIGH','CRITICAL')")
             ]);
@@ -231,7 +231,7 @@ export function createApiServer(input:{tlsKey:string;tlsCert:string;port?:number
               openHighFindings:Number(findings.rows[0]?.total??0),
               recoveryRuns:recoveries.rows.map(x=>({id:String(x.id),incidentId:String(x.incident_id),state:String(x.state),lastTransitionAt:new Date(x.last_transition_at).toISOString(),evidenceDigestPrefix:String(x.evidence_digest).slice(0,12)})),
               activeSessions:activeSessions.rows.map(x=>({id:String(x.id),resource:String(x.resource),action:String(x.action),startedAt:new Date(x.started_at).toISOString(),expiresAt:new Date(x.expires_at).toISOString(),commandCount:Number(x.command_count)})),
-              rootOperations:roots.rows.map(x=>({id:String(x.id),operation:String(x.operation),status:String(x.status),createdAt:new Date(x.created_at).toISOString(),expiresAt:new Date(x.expires_at).toISOString(),quorumRequired:Number(x.quorum_required),digestPrefix:String(x.request_digest).slice(0,12)})),
+              rootOperations:roots.rows.map(x=>({id:String(x.id),operation:String(x.operation),status:String(x.status),createdAt:new Date(x.created_at).toISOString(),expiresAt:new Date(x.expires_at).toISOString(),quorumRequired:Number(x.quorum_required),approvalCount:Number(x.approval_count),domains:Array.isArray(x.domains)?x.domains.map(String):[],digestPrefix:String(x.request_digest).slice(0,12)})),
               redTeamRuns:redteam.rows.map(x=>({id:String(x.id),scope:String(x.scope),scenario:String(x.scenario),status:String(x.status),startedAt:new Date(x.started_at).toISOString(),endedAt:x.ended_at?new Date(x.ended_at).toISOString():null,evidenceDigestPrefix:x.evidence_digest?String(x.evidence_digest).slice(0,12):null})),
               recoveryCheckpoints:checkpoints.rows.map(x=>({recoveryRunId:String(x.recovery_run_id),plane:String(x.plane),verified:Boolean(x.verified),verifiedAt:x.verified_at?new Date(x.verified_at).toISOString():null}))
             }));
