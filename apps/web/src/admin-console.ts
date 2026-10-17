@@ -94,6 +94,13 @@ async function load(section:AdminSection,root:HTMLElement){
   };
   const runtime=j.data.runtime;
   let posture:any=null;
+  let runtimeRequests:any[]=[];
+  if(section==="runtime"){
+   const qr=await api("/v1/admin/runtime/change-requests?limit=20");
+   const qj=await qr.json() as any;
+   if(!qr.ok)throw new Error("RUNTIME_REQUESTS_UNAVAILABLE");
+   runtimeRequests=qj.data?.items??[];
+  }
   if(section==="recovery"||section==="pam"){
    const pr=await api("/v1/admin/security-posture");
    const pj=await pr.json() as any;
@@ -101,7 +108,10 @@ async function load(section:AdminSection,root:HTMLElement){
    posture=pj.data;
   }
   if(section==="dashboard") content.innerHTML=`<div class="admin-grid">${card("Mode système",runtime.mode,"Version "+runtime.version,runtime.mode==="normal"?"good":"critical")}${card("Identité privilégiée",j.data.privileged?.[0]?.level??"—","assurance contrôlée")}${card("Demandes runtime",String(j.data.pendingRequests),"requièrent 2 approbateurs")}${card("Trust model","L4/L5","deny-by-default","good")}</div><div class="admin-panel"><h2>État de confiance</h2><div class="trust-row"><span>Runtime</span><b>${esc(runtime.mode)}</b></div><div class="trust-row"><span>Contrôle d'accès</span><b>Step-up requis</b></div><div class="trust-row"><span>Actions critiques</span><b>Audit + double approbation</b></div><div class="trust-row"><span>Clés privées</span><b>Hors console</b></div></div>`;
-  else if(section==="runtime") content.innerHTML=`<div class="admin-panel"><div class="panel-head"><div><h2>Mode système</h2><p>Le mode courant est autoritatif côté serveur. Toute modification passe par une demande expirante et deux approbateurs distincts.</p></div><span class="mode-pill">${esc(runtime.mode)}</span></div><div class="runtime-options">${["normal","degraded","readonly","maintenance"].map(m=>`<button data-runtime="${m}" ${m===runtime.mode?"disabled":""}>${m}</button>`).join("")}</div><p class="admin-note">Maintenance bloque les écritures applicatives ; les routes d'administration restent accessibles uniquement à une identité privilégiée. Aucun contournement du ledger n'est permis.</p></div>`;
+  else if(section==="runtime"){
+   const requests=runtimeRequests.map((x:any)=>`<div class="admin-record"><div><b>${esc(x.mode)} · ${esc(x.reason)}</b><small>Créée ${esc(x.createdAt)} · expire ${esc(x.expiresAt)}</small></div><span class="admin-state ${x.status==="APPLIED"?"good":x.status==="PENDING"?"warn":"critical"}">${esc(x.status)} · ${esc(String(x.approvalCount))}/${esc(String(x.requiredApprovals))}</span><div><small>Digest ${esc(x.digestPrefix)}…</small><button class="admin-approve" data-approve-request="${esc(x.id)}" ${x.canApprove?"":"disabled"}>${x.canApprove?"Approuver":"Approbation indisponible"}</button></div></div>`).join("")||'<div class="admin-empty">Aucune demande de changement enregistrée.</div>';
+   content.innerHTML=`<div class="admin-panel"><div class="panel-head"><div><h2>Mode système</h2><p>Le mode courant est autoritatif côté serveur. Toute modification passe par une demande expirante et deux approbateurs distincts.</p></div><span class="mode-pill">${esc(runtime.mode)}</span></div><div class="runtime-options">${["normal","degraded","readonly","maintenance"].map(m=>`<button data-runtime="${m}" ${m===runtime.mode?"disabled":""}>${m}</button>`).join("")}</div><p class="admin-note">Maintenance bloque les écritures applicatives ; les routes d'administration restent accessibles uniquement à une identité privilégiée. Aucun contournement du ledger n'est permis.</p></div><div class="admin-panel admin-spaced"><div class="panel-head"><div><h2>Demandes de changement</h2><p>Approbation à deux personnes, interdiction d'auto-approbation et expiration côté serveur.</p></div><button class="admin-refresh" data-refresh>Actualiser</button></div><div class="admin-records">${requests}</div></div>`;
+  }
   else if(section==="privileged") content.innerHTML=`<div class="admin-panel"><h2>Identités privilégiées actives</h2><div class="admin-table"><div class="tr th"><span>Niveau</span><span>Assurance</span><span>Expiration</span><span>État</span></div>${(j.data.privileged??[]).map((x:any)=>`<div class="tr"><span>${esc(x.level)}</span><span>${esc(x.assurance)}</span><span>${esc(x.expiresAt)}</span><span>ACTIVE</span></div>`).join("")||"<div class=\"admin-empty\">Aucune identité L4/L5 active.</div>"}</div></div>`;
   else if(section==="audit"){
    const ar=await api("/v1/admin/audit?limit=25");const aj=await ar.json() as any;
@@ -117,6 +127,18 @@ async function load(section:AdminSection,root:HTMLElement){
    content.innerHTML=`<div class="admin-grid">${card("Identités L4/L5",String(posture.activePrivilegedIdentities),"actives et non expirées")}${card("Sessions PAM",String(posture.activePrivilegedSessions),"sessions non terminées")}${card("Findings ouverts",String(posture.openHighFindings),"sévérité HIGH / CRITICAL",posture.openHighFindings?"critical":"good")}${card("Exercices Red Team",String(posture.redTeamRuns?.length??0),"10 derniers runs")}</div><div class="admin-panel"><div class="panel-head"><div><h2>Sessions privilégiées actives</h2><p>Surveillance en lecture seule. La terminaison doit passer par le broker PAM autoritatif, jamais par une action simulée du navigateur.</p></div><button class="admin-refresh" data-refresh>Actualiser</button></div><div class="admin-records">${sessions}</div></div><div class="admin-panel admin-spaced"><h2>Exercices Red Team</h2><p>Le statut PASSED doit être accompagné d'une preuve vérifiable et d'une couverture définie.</p><div class="admin-records">${redteam}</div></div>`;
   }else content.innerHTML=`<div class="admin-panel"><h2>${esc(sections.find(x=>x[0]===section)?.[1]??"")}</h2><p>Cette surface reste en lecture seule tant que son endpoint d'autorité et son contrôle d'exécution ne sont pas validés.</p><div class="admin-gate">Action sensible bloquée sans politique serveur, quorum et audit.</div></div>`;
   root.querySelectorAll<HTMLButtonElement>("[data-refresh]").forEach(b=>b.onclick=()=>void load(section,root));
+  root.querySelectorAll<HTMLButtonElement>("[data-approve-request]").forEach(b=>b.onclick=async()=>{
+   const requestId=b.dataset.approveRequest;
+   const csrf=sessionStorage.getItem("tpay.csrf");
+   if(!requestId||!csrf){status.textContent="Session CSRF requise";return;}
+   b.disabled=true;
+   try{
+    const rr=await api("/v1/admin/runtime/change-requests/"+encodeURIComponent(requestId)+"/approve",{method:"POST",headers:{"x-csrf-token":csrf,"idempotency-key":crypto.randomUUID()}});
+    if(!rr.ok)throw new Error("RUNTIME_APPROVAL_REJECTED");
+    status.textContent="Approbation enregistrée";
+    await load(section,root);
+   }catch(e){status.textContent=e instanceof Error?e.message:"RUNTIME_APPROVAL_REJECTED";b.disabled=false;}
+  });
   root.querySelectorAll<HTMLButtonElement>("[data-runtime]").forEach(b=>b.onclick=async()=>{
    const mode=b.dataset.runtime;if(!mode)return;
    const reason=window.prompt("Justification obligatoire (≥ 8 caractères)");
