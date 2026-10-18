@@ -22,6 +22,7 @@ export const API_ROUTE_POLICIES:readonly ApiRoutePolicy[]=[
  {route:"/v1/education/events/stream",methods:["GET"],auth:"member",financial:false},
  {route:"/v1/microfinance/field/routes",methods:["GET"],auth:"member",financial:false},
  {route:"/v1/microfinance/field/visits",methods:["GET"],auth:"member",financial:false},
+ {route:"/v1/microfinance/field/visits/offline-sync",methods:["POST"],auth:"member",financial:false},
 ];
 const segments=(route:string)=>route.split("/").filter(Boolean);
 const routeMatches=(pattern:string,actual:string):boolean=>{

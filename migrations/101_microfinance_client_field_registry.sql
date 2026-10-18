@@ -195,3 +195,20 @@ CREATE TABLE IF NOT EXISTS customer_field_handover_items (
 
 CREATE INDEX IF NOT EXISTS idx_customer_field_handover_pending
   ON customer_field_handover_cases (organization_id, status, plan_expires_at);
+
+-- Explicit server-side identity bridge; no actor/device/agent IDs are accepted from an offline request body.
+CREATE TABLE IF NOT EXISTS customer_field_agent_bindings (
+  organization_id uuid NOT NULL REFERENCES organizations(id),
+  actor_id uuid NOT NULL,
+  agent_id uuid NOT NULL,
+  device_id uuid NOT NULL REFERENCES api_devices(id),
+  active boolean NOT NULL DEFAULT true,
+  bound_by uuid NOT NULL,
+  bound_at timestamptz NOT NULL DEFAULT now(),
+  revoked_at timestamptz,
+  PRIMARY KEY (organization_id, actor_id, device_id),
+  CHECK ((active AND revoked_at IS NULL) OR (NOT active AND revoked_at IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_customer_field_agent_binding_lookup
+  ON customer_field_agent_bindings (organization_id, actor_id, device_id)
+  WHERE active = true;

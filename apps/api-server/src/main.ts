@@ -104,6 +104,7 @@ async function authenticateFactory(pool:Pool){
         permissions:granted,
         sessionId:validated.sessionId
       },
+      deviceId:validated.deviceId,
       tenantId:actorRow.tenant_id,
       session:{
         sessionId:validated.sessionId,
