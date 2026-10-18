@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 /**
  * Institution-owned field profile. This module plans continuity only: it never
  * authorizes or posts money and never treats GPS as proof of customer identity.
+ * planHash is a deterministic integrity binding, NOT a digital signature or
+ * an authorization token. A server command must revalidate and approve a plan.
  */
 export interface CustomerFieldLocation {
   latitude: number;
@@ -76,28 +78,44 @@ export function validateCustomerFieldLocation(
   if (!location) {
     return { valid: false, issues: ["LOCATION_MISSING"], findabilityScore: 0, locationStatus: "missing" };
   }
+
+  const capturedAtMs = Date.parse(location.capturedAt);
+  const accuracyValid = Number.isFinite(location.accuracyMeters) && location.accuracyMeters >= 0;
+  const coordinateValid = isFiniteCoordinate(location.latitude, MAX_LATITUDE)
+    && isFiniteCoordinate(location.longitude, MAX_LONGITUDE);
+  const verifiedAtMs = location.verifiedAt === undefined ? Number.NaN : Date.parse(location.verifiedAt);
+  const hasVerifier = typeof location.verifiedBy === "string" && location.verifiedBy.trim().length > 0;
+  const hasVerificationTime = Number.isFinite(verifiedAtMs);
+
   if (!location.consentRecorded) issues.push("LOCATION_CONSENT_REQUIRED");
   if (!isFiniteCoordinate(location.latitude, MAX_LATITUDE)) issues.push("LATITUDE_INVALID");
   if (!isFiniteCoordinate(location.longitude, MAX_LONGITUDE)) issues.push("LONGITUDE_INVALID");
-  if (!Number.isFinite(location.accuracyMeters) || location.accuracyMeters < 0) issues.push("GPS_ACCURACY_INVALID");
-  if (!Number.isFinite(Date.parse(location.capturedAt))) issues.push("CAPTURE_TIMESTAMP_INVALID");
+  if (!accuracyValid) issues.push("GPS_ACCURACY_INVALID");
+  if (!Number.isFinite(capturedAtMs)) issues.push("CAPTURE_TIMESTAMP_INVALID");
   if ((location.landmark?.trim().length ?? 0) < 8 && (location.addressLabel?.trim().length ?? 0) < 8) {
     issues.push("LANDMARK_OR_ADDRESS_REQUIRED");
   }
+  if (location.verifiedBy !== undefined && !hasVerifier) issues.push("VERIFIER_INVALID");
+  if (location.verifiedAt !== undefined && !hasVerificationTime) issues.push("VERIFICATION_TIMESTAMP_INVALID");
+  if (hasVerifier !== hasVerificationTime) issues.push("VERIFICATION_PAIR_INCOMPLETE");
+  if (hasVerificationTime && Number.isFinite(capturedAtMs) && verifiedAtMs < capturedAtMs) {
+    issues.push("VERIFICATION_PRECEDES_CAPTURE");
+  }
+  if (hasVerifier && (!accuracyValid || location.accuracyMeters > 100)) issues.push("VERIFICATION_ACCURACY_TOO_LOW");
+  if (location.method === "verified_address" && !location.addressLabel?.trim()) issues.push("VERIFIED_ADDRESS_LABEL_REQUIRED");
 
-  const coordinateValid = isFiniteCoordinate(location.latitude, MAX_LATITUDE)
-    && isFiniteCoordinate(location.longitude, MAX_LONGITUDE);
-  const accuracyValid = Number.isFinite(location.accuracyMeters) && location.accuracyMeters >= 0;
   const score = Math.min(100,
     (coordinateValid ? 35 : 0)
     + (accuracyValid && location.accuracyMeters <= 25 ? 20 : accuracyValid && location.accuracyMeters <= 100 ? 10 : 0)
     + (location.addressLabel?.trim() ? 15 : 0)
     + (location.landmark?.trim() ? 15 : 0)
     + (location.referencePhotoId?.trim() ? 5 : 0)
-    + (location.verifiedBy && location.verifiedAt ? 10 : 0));
+    + (hasVerifier && hasVerificationTime && accuracyValid && location.accuracyMeters <= 100 ? 10 : 0));
 
-  const verified = Boolean(location.verifiedBy && location.verifiedAt && coordinateValid && location.consentRecorded);
-  const locationStatus = verified ? "verified" : issues.length > 0 || !accuracyValid || location.accuracyMeters > 100 ? "needs_review" : "captured";
+  const verified = issues.length === 0 && hasVerifier && hasVerificationTime && coordinateValid
+    && location.consentRecorded && accuracyValid && location.accuracyMeters <= 100;
+  const locationStatus = verified ? "verified"
+    : issues.length > 0 || !accuracyValid || location.accuracyMeters > 100 ? "needs_review" : "captured";
   return { valid: issues.length === 0, issues, findabilityScore: score, locationStatus };
 }
 
@@ -134,7 +152,9 @@ export function buildFieldContinuityPlan(
     throw new Error("FIELD_HEARTBEAT_POLICY_INVALID");
   }
 
-  const activeAgents = agents.filter((agent) => {
+  // Keep reachability separate from capacity: a healthy but full primary agent
+  // represents a coverage gap, not an unavailable agent.
+  const reachableAgents = agents.filter((agent) => {
     const heartbeat = Date.parse(agent.heartbeatAt);
     return agent.available
       && agent.authorizedForCollections
@@ -145,13 +165,14 @@ export function buildFieldContinuityPlan(
       && Number.isFinite(agent.activeClientCount)
       && agent.activeClientCount >= 0
       && Number.isFinite(agent.maxActiveClients)
-      && agent.maxActiveClients > agent.activeClientCount
+      && agent.maxActiveClients > 0
       && Number.isFinite(agent.maxRouteDistanceKm)
       && agent.maxRouteDistanceKm > 0
       && isFiniteCoordinate(agent.latitude, MAX_LATITUDE)
       && isFiniteCoordinate(agent.longitude, MAX_LONGITUDE);
   }).sort((a, b) => a.agentId.localeCompare(b.agentId));
 
+  const activeAgents = reachableAgents.filter((agent) => agent.activeClientCount < agent.maxActiveClients);
   const workloads = new Map(activeAgents.map((agent) => [agent.agentId, agent.activeClientCount]));
   const plans: FieldRouteAssignment[] = [];
   const queue = profiles
@@ -186,7 +207,8 @@ export function buildFieldContinuityPlan(
     const selected = candidates[0];
     if (!selected) continue;
     const reason = profile.primaryAgentId === undefined ? "unassigned"
-      : activeAgents.some((agent) => agent.agentId === profile.primaryAgentId) ? "coverage_gap" : "agent_unavailable";
+      : reachableAgents.some((agent) => agent.agentId === profile.primaryAgentId && agent.organizationId === profile.organizationId)
+        ? "coverage_gap" : "agent_unavailable";
     const binding = [
       profile.organizationId,
       profile.customerId,
@@ -194,6 +216,12 @@ export function buildFieldContinuityPlan(
       selected.agent.agentId,
       reason,
       selected.distanceKm.toFixed(3),
+      profile.location.latitude.toFixed(6),
+      profile.location.longitude.toFixed(6),
+      profile.location.capturedAt,
+      selected.agent.heartbeatAt,
+      selected.agent.activeClientCount,
+      selected.agent.maxActiveClients,
       options.planExpiresAt,
     ].join("|");
     plans.push({

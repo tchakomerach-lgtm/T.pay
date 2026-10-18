@@ -46,7 +46,14 @@ CREATE TABLE IF NOT EXISTS customer_field_locations (
   FOREIGN KEY (organization_id, customer_id)
     REFERENCES customer_field_profiles (organization_id, customer_id),
   CHECK (consent_recorded OR location_status <> 'verified'),
-  CHECK ((verified_by IS NULL) = (verified_at IS NULL))
+  CHECK ((verified_by IS NULL) = (verified_at IS NULL)),
+  CHECK (location_status <> 'verified' OR (
+    consent_recorded
+    AND accuracy_meters <= 100
+    AND verified_by IS NOT NULL
+    AND verified_at IS NOT NULL
+    AND verified_at >= captured_at
+  ))
 );
 
 CREATE INDEX IF NOT EXISTS idx_customer_field_location_latest
@@ -68,10 +75,20 @@ CREATE TABLE IF NOT EXISTS customer_field_routes (
   UNIQUE (organization_id, route_code)
 );
 
-ALTER TABLE customer_field_profiles
-  ADD CONSTRAINT customer_field_profiles_route_fk
-  FOREIGN KEY (organization_id, route_id)
-  REFERENCES customer_field_routes (organization_id, route_id);
+DO $migration$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'customer_field_profiles_route_fk'
+      AND conrelid = 'customer_field_profiles'::regclass
+  ) THEN
+    ALTER TABLE customer_field_profiles
+      ADD CONSTRAINT customer_field_profiles_route_fk
+      FOREIGN KEY (organization_id, route_id)
+      REFERENCES customer_field_routes (organization_id, route_id);
+  END IF;
+END
+$migration$;
 
 CREATE TABLE IF NOT EXISTS customer_field_assignments (
   id uuid PRIMARY KEY,

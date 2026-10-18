@@ -22,7 +22,9 @@ A customer's collection location and service route are institution-owned records
 - Deterministic continuity planning scoped by organization.
 - Candidate filtering by authorization, heartbeat freshness, availability, capacity and route radius.
 - Workload-aware assignment planning.
-- Stable SHA-256 plan binding and explicit supervisor approval requirement.
+- Stable SHA-256 plan binding includes location capture and workload inputs; it is not a digital signature or authorization token.
+- Correct distinction between a primary agent who is unavailable and one who is healthy but at capacity.
+- Database-level verification evidence constraints and idempotent route foreign-key creation.
 - Additive PostgreSQL schema for field profiles, location history, routes, assignments, visit events, handover cases and handover items.
 - Targeted unit tests for consent, precision, invalid coordinates, tenant isolation, stale/unauthorized agents, capacity, determinism and approval boundary.
 
@@ -36,7 +38,7 @@ A customer's collection location and service route are institution-owned records
 - The database migration must be reviewed against actual organization/customer identifiers before production application.
 
 ## Validation status
-Code and tests are added, but were not executed in this GitHub-only construction step. CI must typecheck and run the focused tests. The SQL migration must be applied to a disposable PostgreSQL database and checked for schema compatibility before merge. This brick is not production-certified until exact-head CI, migration integration, authorization/API wiring and the supervised handover E2E are green.
+The initial Android job failed without a runner ID or step logs. A retry was requested; inspect its result and the CI run for the new exact head. The code changes in this revision are not validated until TypeScript tests, security checks and PostgreSQL migration integration run successfully. This brick is not production-certified until exact-head CI, migration integration, authorization/API wiring and the supervised handover E2E are green.
 
 ## Next implementation slice
 1. Add repository methods with organization-scoped reads and compare-and-set on profile/assignment versions.

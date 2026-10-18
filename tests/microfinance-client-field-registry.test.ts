@@ -53,12 +53,15 @@ test("location validation requires consent and a usable landmark or address", ()
   assert.equal(invalid.locationStatus, "needs_review");
 });
 
-test("location precision is not fabricated and findability reflects available evidence", () => {
-  const { verifiedBy: _verifiedBy, verifiedAt: _verifiedAt, ...unverifiedLocation } = location;
-  const coarse = validateCustomerFieldLocation({ ...unverifiedLocation, accuracyMeters: 140 });
-  assert.equal(coarse.locationStatus, "needs_review");
-  assert.ok(coarse.findabilityScore < 100);
+test("verification requires plausible accuracy and a valid chronological verifier record", () => {
   assert.equal(validateCustomerFieldLocation(location).locationStatus, "verified");
+  const coarse = validateCustomerFieldLocation({ ...location, accuracyMeters: 140 });
+  assert.equal(coarse.locationStatus, "needs_review");
+  assert.ok(coarse.issues.includes("VERIFICATION_ACCURACY_TOO_LOW"));
+  const future = validateCustomerFieldLocation({ ...location, verifiedAt: "2026-10-11T07:59:00.000Z" });
+  assert.ok(future.issues.includes("VERIFICATION_PRECEDES_CAPTURE"));
+  const invalidTime = validateCustomerFieldLocation({ ...location, verifiedAt: "not-a-date" });
+  assert.ok(invalidTime.issues.includes("VERIFICATION_TIMESTAMP_INVALID"));
 });
 
 test("distance uses geographic coordinates and rejects invalid coordinates", () => {
@@ -82,6 +85,21 @@ test("continuity plan chooses authorized, fresh, same-organization agent and req
   assert.equal(plan[0]?.requiresSupervisorApproval, true);
   assert.equal(plan[0]?.reason, "agent_unavailable");
   assert.equal(plan[0]?.planHash.length, 64);
+});
+
+test("a full but healthy primary agent is classified as a coverage gap and a replacement is proposed", () => {
+  const plan = buildFieldContinuityPlan(
+    [profile({ primaryAgentId: "agent-full" })],
+    [
+      agent({ agentId: "agent-full", activeClientCount: 20 }),
+      agent({ agentId: "agent-backup", activeClientCount: 1, latitude: 6.172, longitude: 1.231 }),
+    ],
+    { now: "2026-10-11T08:31:00.000Z", maxHeartbeatAgeMinutes: 10, planExpiresAt: "2026-10-11T09:00:00.000Z" },
+  );
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0]?.previousAgentId, "agent-full");
+  assert.equal(plan[0]?.nextAgentId, "agent-backup");
+  assert.equal(plan[0]?.reason, "coverage_gap");
 });
 
 test("continuity plan skips profiles without consent/location and agents at capacity", () => {
@@ -116,4 +134,10 @@ test("continuity plan is deterministic and distributes clients against workload"
   assert.deepEqual(first, second);
   assert.ok(first.every((item) => item.planHash.length === 64));
   assert.ok(first.every((item) => item.requiresSupervisorApproval));
+});
+
+test("invalid plan expiry and heartbeat policy fail closed", () => {
+  const options = { now: "2026-10-11T08:31:00.000Z", maxHeartbeatAgeMinutes: 10, planExpiresAt: "2026-10-11T09:00:00.000Z" };
+  assert.throws(() => buildFieldContinuityPlan([], [], { ...options, planExpiresAt: options.now }), /FIELD_PLAN_EXPIRY_INVALID/);
+  assert.throws(() => buildFieldContinuityPlan([], [], { ...options, maxHeartbeatAgeMinutes: 0 }), /FIELD_HEARTBEAT_POLICY_INVALID/);
 });
