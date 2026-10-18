@@ -63,3 +63,23 @@ test("same idempotency key with different evidence is rejected as a replay confl
   }));
   await assert.rejects(repository.recordOfflineVisit(event), /FIELD_VISIT_IDEMPOTENCY_CONFLICT/);
 });
+
+test("same offline visit replay remains idempotent when request correlation ID changes", async () => {
+  let storedHash: string | undefined;
+  let storedKey: string | undefined;
+  const repository = new PostgresFieldRegistryRepository(fakeDb(async (sql, values) => {
+    if (sql.startsWith("SELECT id, idempotency_key")) {
+      return storedHash ? {rows:[{id:"persisted",idempotency_key:storedKey,evidence_hash:storedHash}],rowCount:1} : {rows:[],rowCount:0};
+    }
+    if (sql.includes("INSERT INTO customer_field_visit_events")) {
+      storedHash = String(values?.[13]);
+      storedKey = String(values?.[8]);
+      return {rows:[{id:"persisted",evidence_hash:storedHash}],rowCount:1};
+    }
+    return {rows:[],rowCount:0};
+  }));
+  const first = await repository.recordOfflineVisit(event);
+  const retry = await repository.recordOfflineVisit({...event, correlationId:"77777777-7777-4777-8777-777777777777"});
+  assert.equal(first.outcome,"accepted");
+  assert.equal(retry.outcome,"replayed");
+});

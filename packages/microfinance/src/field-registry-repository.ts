@@ -55,7 +55,8 @@ function canonicalVisit(input: OfflineFieldVisit): string {
     latitude: input.latitude ?? null,
     longitude: input.longitude ?? null,
     accuracyMeters: input.accuracyMeters ?? null,
-    correlationId: input.correlationId,
+    // Correlation IDs are per-request observability metadata, not visit evidence.
+    // Excluding them lets a legitimate retry retain the same evidence hash.
   });
 }
 function validateVisit(input: OfflineFieldVisit): void {
