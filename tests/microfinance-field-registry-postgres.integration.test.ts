@@ -21,10 +21,12 @@ test("MF field registry migration prevents cross-organization handover items and
   const actorId = randomUUID();
   const sourceAgentId = randomUUID();
   const targetAgentId = randomUUID();
+  let schemaReady = false;
   try {
     const migrationsUrl = pathToFileURL(join(process.cwd(), "migrations") + "/");
     await applyMigrations(client, migrationsUrl);
     await applyMigrations(client, migrationsUrl);
+    schemaReady = true;
 
     await client.query(
       "INSERT INTO organizations (id, name, status, created_at) VALUES ($1, $2, $3, now()), ($4, $5, $3, now())",
@@ -54,10 +56,15 @@ test("MF field registry migration prevents cross-organization handover items and
       [organizationA, handoverId, customerA, targetAgentId, "c".repeat(64)],
     );
   } finally {
-    await client.query("DELETE FROM customer_field_handover_items WHERE handover_id = $1", [handoverId]);
-    await client.query("DELETE FROM customer_field_handover_cases WHERE id = $1", [handoverId]);
-    await client.query("DELETE FROM customer_field_profiles WHERE organization_id IN ($1, $2)", [organizationA, organizationB]);
-    await client.query("DELETE FROM organizations WHERE id IN ($1, $2)", [organizationA, organizationB]);
-    await client.end();
+    try {
+      if (schemaReady) {
+        await client.query("DELETE FROM customer_field_handover_items WHERE handover_id = $1", [handoverId]);
+        await client.query("DELETE FROM customer_field_handover_cases WHERE id = $1", [handoverId]);
+        await client.query("DELETE FROM customer_field_profiles WHERE organization_id IN ($1, $2)", [organizationA, organizationB]);
+        await client.query("DELETE FROM organizations WHERE id IN ($1, $2)", [organizationA, organizationB]);
+      }
+    } finally {
+      await client.end();
+    }
   }
 });
