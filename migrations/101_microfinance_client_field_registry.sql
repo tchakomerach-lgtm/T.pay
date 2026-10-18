@@ -157,6 +157,7 @@ CREATE INDEX IF NOT EXISTS idx_customer_field_visit_timeline
 CREATE TABLE IF NOT EXISTS customer_field_handover_cases (
   id uuid PRIMARY KEY,
   organization_id uuid NOT NULL REFERENCES organizations(id),
+  UNIQUE (organization_id, id),
   source_agent_id uuid NOT NULL,
   target_agent_id uuid NOT NULL,
   route_id uuid,
@@ -178,7 +179,7 @@ CREATE TABLE IF NOT EXISTS customer_field_handover_cases (
 
 CREATE TABLE IF NOT EXISTS customer_field_handover_items (
   organization_id uuid NOT NULL,
-  handover_id uuid NOT NULL REFERENCES customer_field_handover_cases(id),
+  handover_id uuid NOT NULL,
   customer_id uuid NOT NULL,
   previous_agent_id uuid,
   next_agent_id uuid NOT NULL,
@@ -186,6 +187,8 @@ CREATE TABLE IF NOT EXISTS customer_field_handover_items (
   item_plan_hash char(64) NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (organization_id, handover_id, customer_id),
+  FOREIGN KEY (organization_id, handover_id)
+    REFERENCES customer_field_handover_cases (organization_id, id),
   FOREIGN KEY (organization_id, customer_id)
     REFERENCES customer_field_profiles (organization_id, customer_id)
 );

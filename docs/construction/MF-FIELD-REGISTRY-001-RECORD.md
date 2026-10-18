@@ -26,6 +26,7 @@ A customer's collection location and service route are institution-owned records
 - Correct distinction between a primary agent who is unavailable and one who is healthy but at capacity.
 - Database-level verification evidence constraints and idempotent route foreign-key creation.
 - Additive PostgreSQL schema for field profiles, location history, routes, assignments, visit events, handover cases and handover items.
+- Composite tenant foreign key prevents a handover item from referencing a handover case owned by another organization; a live PostgreSQL regression test checks cross-tenant rejection and same-tenant acceptance.
 - Targeted unit tests for consent, precision, invalid coordinates, tenant isolation, stale/unauthorized agents, capacity, determinism and approval boundary.
 
 ## Security and financial boundaries
