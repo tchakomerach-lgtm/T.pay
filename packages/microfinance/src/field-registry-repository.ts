@@ -124,6 +124,7 @@ export class PostgresFieldRegistryRepository {
        WHERE EXISTS (
          SELECT 1 FROM customer_field_assignments a
          WHERE a.organization_id = $2 AND a.customer_id = $3 AND a.agent_id = $5
+           AND ($4::uuid IS NULL OR a.route_id = $4)
            AND a.status IN ('active','ended') AND a.valid_from <= $10::timestamptz
            AND (a.valid_until IS NULL OR a.valid_until >= $10::timestamptz)
        )
