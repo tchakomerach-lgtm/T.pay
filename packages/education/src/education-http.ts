@@ -92,7 +92,7 @@ function route(path:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="actor"?"org.read":kind==="field-routes"||kind==="field-visits"?"finance.read":kind==="field-visits-sync"?"finance.initiate":"member.manage";}
+function permissionFor(kind:string):Permission{return kind==="actor"?"org.read":kind==="field-routes"?"finance.read":kind==="field-visits"?"field.read":kind==="field-visits-sync"?"finance.initiate":"member.manage";}
 export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
 
 export function createSchoolApiServer(deps:SchoolApiDependencies, options:SchoolApiServerOptions={}){

@@ -11,4 +11,7 @@ test("microfinance field read endpoints are explicitly allowlisted for authentic
   assert.equal(authorizeRoute({method:"GET",route,authClass:"member"}).allowed,true);
   assert.equal(resolveRoutePolicy("POST",route),null,"field read endpoint must not permit POST");
  }
+  const sync="/v1/microfinance/field/visits/offline-sync";
+  assert.equal(resolveRoutePolicy("POST",sync)?.auth,"member");
+  assert.equal(authorizeRoute({method:"POST",route:sync,authClass:"member"}).allowed,true);
 });
