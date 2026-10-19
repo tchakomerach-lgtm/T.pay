@@ -16,7 +16,8 @@
     "web:build": "vite build --config apps/education-web/vite.config.ts",
     "api:start": "npm run build && node dist/apps/api-server/src/main.js",
     "api:build": "npm run build",
-    "api:seed:test": "npm run build && node dist/scripts/bootstrap-local-test.js"
+    "api:seed:test": "npm run build && node dist/scripts/bootstrap-local-test.js",
+    "security:fortress": "node scripts/security-fortress-check.mjs"
   },
   "engines": {
     "node": ">=22"
