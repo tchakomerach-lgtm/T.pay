@@ -121,13 +121,23 @@ test("P055 E2E terrain links administration → teacher → student → parent �
     assert.equal(expired.status,401);
 
     const attendance={
-      studentId:student,classId:"class-p055",status:"PRESENT",recordedBy:teacher,
+      studentId:student,classId:"class-p055",status:"PRESENT",recordedBy:"spoofed-actor",
       occurredAt:new Date().toISOString(),source:"TEACHER",version:1
     };
     const attendanceResponse=await request("teacher-token","/v1/education/attendance",{
       method:"POST",headers:{"x-idempotency-key":"p055-attendance-001"},body:JSON.stringify(attendance)
     });
     assert.equal(attendanceResponse.status,200);
+    const persistedAttendance=await pool.query(
+      "SELECT recorded_by FROM education_attendance WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3 AND class_id=$4",
+      [tenant,org,student,"class-p055"]
+    );
+    assert.equal(persistedAttendance.rows[0]?.recorded_by,teacher);
+    const parentAttendance=await request("parent-token","/v1/education/attendance",{
+      method:"POST",headers:{"x-idempotency-key":"p055-attendance-parent-denied-001"},
+      body:JSON.stringify({...attendance,classId:"class-p055-parent"})
+    });
+    assert.equal(parentAttendance.status,403);
     const unassignedAttendance=await request("teacher-token","/v1/education/attendance",{
       method:"POST",headers:{"x-idempotency-key":"p055-attendance-denied-001"},
       body:JSON.stringify({...attendance,studentId:unassignedStudent})
