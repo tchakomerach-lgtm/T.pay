@@ -66,6 +66,23 @@ test("P055 E2E terrain links administration → teacher → student → parent �
     );
     await client.query("COMMIT");
 
+    // The database itself must reject a relation that borrows an actor or student
+    // from another tenant, even if a future application handler omits a scope check.
+    await assert.rejects(
+      pool.query(
+        "INSERT INTO education_parent_student_links(tenant_id,organization_id,parent_actor_id,student_id) VALUES($1,$2,$3,$4)",
+        [tenant,org,otherParent,student]
+      ),
+      (error:any)=>error?.code==="23503"
+    );
+    await assert.rejects(
+      pool.query(
+        "INSERT INTO education_teacher_student_assignments(tenant_id,organization_id,teacher_actor_id,student_id) VALUES($1,$2,$3,$4)",
+        [tenant,org,teacher,otherStudent]
+      ),
+      (error:any)=>error?.code==="23503"
+    );
+
     const auth=async(req:IncomingMessage)=>{
       const token=String(req.headers.authorization??"").replace(/^Bearer\s+/i,"");
       const entry=tokens.get(token);
