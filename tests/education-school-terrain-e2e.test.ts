@@ -128,6 +128,11 @@ test("P055 E2E terrain links administration → teacher → student → parent �
       method:"POST",headers:{"x-idempotency-key":"p055-attendance-001"},body:JSON.stringify(attendance)
     });
     assert.equal(attendanceResponse.status,200);
+    const unassignedAttendance=await request("teacher-token","/v1/education/attendance",{
+      method:"POST",headers:{"x-idempotency-key":"p055-attendance-denied-001"},
+      body:JSON.stringify({...attendance,studentId:unassignedStudent})
+    });
+    assert.equal(unassignedAttendance.status,403);
 
     const offline2:SyncEvent={
       eventId:randomUUID(),tenantId:tenant,organizationId:org,deviceId:device,actorId:teacher,
@@ -135,6 +140,12 @@ test("P055 E2E terrain links administration → teacher → student → parent �
       payload:{studentId:student,status:"ABSENT"},payloadHash:computeSyncPayloadHash({studentId:student,status:"ABSENT"}),
       idempotencyKey:"p055-offline-seq-002",schemaVersion:1
     };
+    const unassignedOffline=await request("teacher-token","/v1/education/sync/events",{
+      method:"POST",headers:{"x-idempotency-key":"p055-sync-denied-001"},
+      body:JSON.stringify({...offline2,eventId:randomUUID(),sequence:"9",payload:{studentId:unassignedStudent,status:"PRESENT"},payloadHash:computeSyncPayloadHash({studentId:unassignedStudent,status:"PRESENT"}),idempotencyKey:"p055-offline-denied-001"})
+    });
+    assert.equal(unassignedOffline.status,403);
+
     const pending=await request("teacher-token","/v1/education/sync/events",{
       method:"POST",headers:{"x-idempotency-key":"p055-sync-http-002"},body:JSON.stringify({...offline2,sequence:"2"})
     });
