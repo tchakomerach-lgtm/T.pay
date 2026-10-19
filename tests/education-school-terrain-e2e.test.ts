@@ -194,7 +194,7 @@ test("P055 E2E terrain links administration → teacher → student → parent �
     await new Promise<void>(resolve=>server.close(()=>resolve()));
   }finally{
     await client.query("ROLLBACK").catch(()=>undefined);
-    await client.query("DELETE FROM api_request_audit WHERE organization_id=$1",[org]).catch(()=>undefined);
+    await client.query("DELETE FROM api_request_audit WHERE organization_id IN ($1,$2)",[org,otherOrg]).catch(()=>undefined);
     await client.query("DELETE FROM api_request_deduplication WHERE organization_id=$1",[org]).catch(()=>undefined);
     await client.query("DELETE FROM education_sync_outbox WHERE organization_id=$1",[org]).catch(()=>undefined);
     await client.query("DELETE FROM education_sync_inbox WHERE organization_id=$1",[org]).catch(()=>undefined);
@@ -204,7 +204,7 @@ test("P055 E2E terrain links administration → teacher → student → parent �
     await client.query("DELETE FROM education_attendance WHERE organization_id=$1",[org]).catch(()=>undefined);
     await client.query("DELETE FROM education_parent_student_links WHERE organization_id=$1",[org]).catch(()=>undefined);
     await client.query("DELETE FROM education_teacher_student_assignments WHERE organization_id=$1",[org]).catch(()=>undefined);
-    await client.query("DELETE FROM education_students WHERE organization_id=$1",[org]).catch(()=>undefined);
+    await client.query("DELETE FROM education_students WHERE organization_id IN ($1,$2)",[org,otherOrg]).catch(()=>undefined);
     await client.query("DELETE FROM education_actors WHERE organization_id=$1",[org]).catch(()=>undefined);
     await client.query("DELETE FROM education_actors WHERE organization_id=$1",[otherOrg]).catch(()=>undefined);
     client.release();
