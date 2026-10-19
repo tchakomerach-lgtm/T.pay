@@ -17,8 +17,8 @@ const files=[
 ];
 
 const forbidden=[
-  [/console\\.(log|info|warn|error)\\([^\\n]*(?:plaintext|secret|accessToken|refreshToken|privateKey|password)/i,"SECRET_LOGGING"],
-  [/JSON\\.stringify\\([^\\n]*(?:plaintext|accessToken|refreshToken|privateKey|password)/i,"SECRET_SERIALIZATION"],
+  [/console\.(log|info|warn|error)\\([^\\n]*(?:plaintext|secret|accessToken|refreshToken|privateKey|password)/i,"SECRET_LOGGING"],
+  [/JSON\.stringify\\([^\\n]*(?:plaintext|accessToken|refreshToken|privateKey|password)/i,"SECRET_SERIALIZATION"],
   [/insecureHTTPParser\s*:\s*true/,"NODE_INSECURE_HTTP_PARSER"],
   [/rejectUnauthorized\s*:\s*false/,"TLS_CERTIFICATE_VALIDATION_DISABLED"],
   [/MIXED_CONTENT_ALWAYS_ALLOW/,"ANDROID_MIXED_CONTENT_ALLOWED"],
