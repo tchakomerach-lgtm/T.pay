@@ -166,12 +166,32 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    } else if(r[0]==="sync"){
     const rawEvent=body as Record<string,unknown>;
     let sequence:bigint; try{sequence=BigInt(String(rawEvent.sequence??""));}catch{throw new Error("SYNC_INVALID_SEQUENCE");}
+    const actor=await deps.db.query("SELECT kind,active FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,auth.principal.userId]);
+    const actorRole=String(actor.rows[0]?.kind??"") as EducationActorRole;
+    if(!actor.rows[0]?.active)throw new Error("ACTOR_INACTIVE");
+    if(String(rawEvent.eventType??"").toLowerCase()==="attendance"){
+      const payload=(rawEvent.payload??{}) as Record<string,unknown>;
+      const studentId=String(payload.studentId??"");
+      if(!studentId)throw new Error("SYNC_STUDENT_REQUIRED");
+      if(actorRole==="TEACHER"){
+        const assignment=await deps.db.query("SELECT 1 FROM education_teacher_student_assignments WHERE tenant_id=$1 AND organization_id=$2 AND teacher_actor_id=$3 AND student_id=$4 AND active=true",[auth.tenantId,organizationId,auth.principal.userId,studentId]);
+        if(!assignment.rows[0])throw new Error("SYNC_STUDENT_ASSIGNMENT_REQUIRED");
+      } else if(!["ADMIN","DIRECTOR","FOUNDER"].includes(actorRole))throw new Error("ATTENDANCE_ROLE_DENIED");
+    }
     const event={...rawEvent,tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,sequence,payloadHash:computeSyncPayloadHash(rawEvent.payload)};
     const syncClient=await deps.syncClient();
     try{ data=await new PostgresEducationSyncStore(syncClient).accept(event as any); }
     finally{ syncClient.release?.(); }
    } else if(r[0]==="attendance"){
     const incoming=body as AttendanceRecord; incoming.organizationId=organizationId;
+    const actor=await deps.db.query("SELECT kind,active FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,auth.principal.userId]);
+    const actorRole=String(actor.rows[0]?.kind??"") as EducationActorRole;
+    if(!actor.rows[0]?.active)throw new Error("ACTOR_INACTIVE");
+    if(actorRole==="TEACHER"){
+      const assignment=await deps.db.query("SELECT 1 FROM education_teacher_student_assignments WHERE tenant_id=$1 AND organization_id=$2 AND teacher_actor_id=$3 AND student_id=$4 AND active=true",[auth.tenantId,organizationId,auth.principal.userId,incoming.studentId]);
+      if(!assignment.rows[0])throw new Error("TEACHER_STUDENT_ASSIGNMENT_REQUIRED");
+    } else if(!["ADMIN","DIRECTOR","FOUNDER"].includes(actorRole))throw new Error("ATTENDANCE_ROLE_DENIED");
+    incoming.recordedBy=auth.principal.userId;
     const q=await deps.db.query("SELECT * FROM education_attendance WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3 AND class_id=$4",[auth.tenantId,organizationId,incoming.studentId,incoming.classId]);
     const existing=(q.rows[0]??null) as AttendanceRecord|null;
     const accepted=reconcileAttendance(existing,incoming);
@@ -213,7 +233,8 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       code==="STUDENT_NOT_FOUND"||code==="ACTOR_NOT_FOUND"||code==="WORK_ITEM_NOT_FOUND"||code==="SERVICE_REQUEST_NOT_FOUND"||code==="PARENT_STUDENT_RELATION_REQUIRED"?404:
       code.startsWith("FORBIDDEN")||[
         "ORGANIZATION_SESSION_MISMATCH","STUDENT_RESOURCE_OWNER_REQUIRED",
-        "TEACHER_STUDENT_ASSIGNMENT_REQUIRED",
+        "TEACHER_STUDENT_ASSIGNMENT_REQUIRED","SYNC_STUDENT_ASSIGNMENT_REQUIRED",
+        "SYNC_STUDENT_REQUIRED","ATTENDANCE_ROLE_DENIED",
         "STUDENT_ROLE_DENIED","STUDENT_DATA_POLICY_DENIED","ACTOR_INACTIVE",
         "TENANT_CONTEXT_REQUIRED","ORGANIZATION_CONTEXT_REQUIRED"
       ].includes(code)?403:400;
