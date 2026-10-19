@@ -169,7 +169,10 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     const actor=await deps.db.query("SELECT kind,active FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,auth.principal.userId]);
     const actorRole=String(actor.rows[0]?.kind??"") as EducationActorRole;
     if(!actor.rows[0]?.active)throw new Error("ACTOR_INACTIVE");
-    if(String(rawEvent.eventType??"").toLowerCase()==="attendance"){
+    // Recognize the established school.attendance.recorded alias as well as
+    // canonical attendance names; an alias must never bypass student assignment checks.
+    const syncEventType=String(rawEvent.eventType??"").trim().toLowerCase();
+    if(syncEventType==="attendance" || syncEventType.includes("attendance")){
       const payload=(rawEvent.payload??{}) as Record<string,unknown>;
       const studentId=String(payload.studentId??"");
       if(!studentId)throw new Error("SYNC_STUDENT_REQUIRED");
