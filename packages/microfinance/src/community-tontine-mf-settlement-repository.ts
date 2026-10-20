@@ -89,7 +89,7 @@ export class PostgresCommunityTontineMfSettlementRepository implements Community
   ): Promise<CommunityTontineMfSettlementInstruction> {
     const result = await this.db.query(
       `UPDATE community_tontine_mf_settlement_instructions
-       SET approved_by=$3,state='approved',version=version+1,last_modified_at=now()
+       SET approved_by=$3,last_actor_id=$3,state='approved',version=version+1,last_modified_at=now()
        WHERE organization_id=$1 AND id=$2 AND state=$4
          AND (prepared_by IS NULL OR prepared_by <> $3)
          AND requires_human_approval=true
