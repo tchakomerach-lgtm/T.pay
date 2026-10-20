@@ -725,6 +725,16 @@ test("Community Tontine partner settlement is payout-bound, maker-checker protec
       [payoutId,organizationId,cycleId,clientId,destinationRef,"live-settlement-"+payoutId,slotId]
     );
 
+    await assert.rejects(
+      () => client.query(
+        `INSERT INTO payout_intents
+         (payout_id,organization_id,cycle_id,beneficiary_id,amount_minor,currency,destination_ref,state,idempotency_key,requires_human_approval,kyc_verified,created_at,tontine_slot_id)
+         VALUES ($1,$2,$3,$4,1000,'XOF',$5,'approved',$6,true,true,now(),$7)`,
+        [randomUUID(),organizationId,cycleId,randomUUID(),destinationRef,"wrong-beneficiary-"+randomUUID(),slotId]
+      ),
+      /TONTINE_PAYOUT_TENANT_OR_BENEFICIARY_MISMATCH/
+    );
+
     const repository = new PostgresCommunityTontineMfSettlementRepository(db as any);
     await assert.rejects(
       () => repository.savePrepared(organizationId as never, {
