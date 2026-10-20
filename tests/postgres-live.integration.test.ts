@@ -609,6 +609,14 @@ test("Community Tontine partner settlement is payout-bound, maker-checker protec
     );
 
     const repository = new PostgresCommunityTontineMfSettlementRepository(db as any);
+    await assert.rejects(
+      () => repository.savePrepared(organizationId as never, {
+        id:randomUUID() as never,tontineGroupId:groupId as never,microfinanceId:randomUUID() as never,
+        payoutId:payoutId as never,beneficiaryClientId:clientId as never,amountMinor:1000n,currency:"XOF",
+        destinationRef,requiresHumanApproval:true,preparedBy:preparerId as never,state:"prepared",createdAt:new Date().toISOString()
+      }),
+      /PERSISTENCE_CONFLICT/
+    );
     const instruction = await repository.savePrepared(organizationId as never, {
       id:instructionId as never,tontineGroupId:groupId as never,microfinanceId:microfinanceId as never,
       payoutId:payoutId as never,beneficiaryClientId:clientId as never,amountMinor:1000n,currency:"XOF",
@@ -623,6 +631,12 @@ test("Community Tontine partner settlement is payout-bound, maker-checker protec
       }),
       /PERSISTENCE_CONFLICT/
     );
+    await client.query("UPDATE payout_intents SET state='failed' WHERE payout_id=$1",[payoutId]);
+    await assert.rejects(
+      () => repository.markApproved(organizationId as never,instructionId as never,approverId as never,"prepared"),
+      /APPROVAL_CONFLICT/
+    );
+    await client.query("UPDATE payout_intents SET state='approved' WHERE payout_id=$1",[payoutId]);
     await assert.rejects(
       () => repository.markApproved(organizationId as never,instructionId as never,preparerId as never,"prepared"),
       /APPROVAL_CONFLICT/
