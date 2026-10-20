@@ -90,3 +90,20 @@ test("L13.3 aborts timed operations before retrying",async()=>{
   assert.equal(calls,2);
   assert.equal(aborted,true);
 });
+test("L13.3 rejects service identities from admin routes as forbidden",async()=>{
+  const {ApiRuntimeGate}=await import("../packages/api-gateway/src/runtime-gate.js");
+  const {ApiAbuseRepository}=await import("../packages/api-gateway/src/rate-abuse.js");
+  let dbCalls=0;
+  const abuse=new ApiAbuseRepository({query:async()=>{dbCalls+=1;return {rows:[],rowCount:0};}});
+  const gate=new ApiRuntimeGate(abuse);
+  const decision=await gate.evaluate({
+    method:"GET",route:"/v1/admin/overview",authClass:"service",channel:"mobile",
+    origin:"https://tpay.example",correlationId:"c-service-admin-deny",
+    scopeSecrets:{channel:"channel",ip:"ip",actor:"service"},now:"2026-10-20T05:00:00.000Z"
+  });
+  assert.equal(decision.allowed,false);
+  if(decision.allowed)return;
+  assert.equal(decision.status,403);
+  assert.equal(decision.code,"API_AUTH_CLASS_MISMATCH");
+  assert.equal(dbCalls,0);
+});
