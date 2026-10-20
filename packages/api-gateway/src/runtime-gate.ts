@@ -35,7 +35,7 @@ export class ApiRuntimeGate {
       return {allowed:false,status:code==="API_VERSION_MISSING"?400:code==="API_VERSION_SUNSET"?410:404,code,correlationId:input.correlationId};
     }
     const auth=authorizeRoute({method:input.method,route:input.route,authClass:input.authClass});
-    if(!auth.allowed)return {allowed:false,status:auth.reason==="API_AUTH_INSUFFICIENT"?403:401,code:auth.reason,correlationId:input.correlationId};
+    if(!auth.allowed)return {allowed:false,status:auth.reason==="API_AUTH_INSUFFICIENT"||auth.reason==="API_AUTH_CLASS_MISMATCH"||auth.reason==="API_ROUTE_NOT_ALLOWLISTED"||auth.reason==="FINANCIAL_CORE_DENY_BY_DEFAULT"?403:401,code:auth.reason,correlationId:input.correlationId};
 
     if(auth.policy?.financial){
       try{
