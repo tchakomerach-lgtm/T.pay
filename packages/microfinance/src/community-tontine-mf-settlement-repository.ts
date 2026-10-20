@@ -95,6 +95,30 @@ export class PostgresCommunityTontineMfSettlementRepository implements Community
          AND requires_human_approval=true
          AND prepared_by IS NOT NULL AND prepared_by <> $3
          AND amount_minor > 0 AND length(btrim(destination_ref)) > 0
+         AND EXISTS (
+           SELECT 1
+           FROM payout_intents pi
+           JOIN tontine_beneficiary_slots slot
+             ON slot.id=pi.tontine_slot_id AND slot.organization_id=pi.organization_id
+           JOIN tontine_memberships beneficiary
+             ON beneficiary.id=slot.beneficiary_membership_id
+            AND beneficiary.organization_id=slot.organization_id
+            AND beneficiary.group_id=slot.group_id
+           WHERE pi.payout_id=community_tontine_mf_settlement_instructions.payout_id
+             AND pi.organization_id=community_tontine_mf_settlement_instructions.organization_id
+             AND pi.cycle_id=slot.cycle_id::text
+             AND pi.beneficiary_id=community_tontine_mf_settlement_instructions.beneficiary_client_id::text
+             AND slot.group_id=community_tontine_mf_settlement_instructions.tontine_group_id
+             AND slot.status='eligible'
+             AND beneficiary.client_id=community_tontine_mf_settlement_instructions.beneficiary_client_id
+             AND beneficiary.status='active'
+             AND beneficiary.selected_microfinance_id=community_tontine_mf_settlement_instructions.microfinance_id
+             AND pi.amount_minor=community_tontine_mf_settlement_instructions.amount_minor
+             AND pi.currency=community_tontine_mf_settlement_instructions.currency
+             AND pi.destination_ref=community_tontine_mf_settlement_instructions.destination_ref
+             AND pi.requires_human_approval=true AND pi.kyc_verified=true
+             AND pi.state='approved'
+         )
        RETURNING *`,
       [organizationId,instructionId,approverId,expectedState]
     );
