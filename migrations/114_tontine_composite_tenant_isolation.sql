@@ -32,7 +32,7 @@ BEGIN
     WHERE pi.tontine_slot_id IS NOT NULL
       AND (s.organization_id<>pi.organization_id OR s.cycle_id::text<>pi.cycle_id
         OR m.organization_id<>pi.organization_id OR m.client_id::text<>pi.beneficiary_id
-        OR pi.amount_minor<>s.amount_target_minor OR pi.currency<>(
+        OR pi.amount_minor<>s.amount_target_minor OR pi.currency::char(3)<>(
           SELECT g.currency FROM tontine_groups g
           WHERE g.id=s.group_id AND g.organization_id=s.organization_id
         ))
@@ -132,7 +132,7 @@ BEGIN
       ON g.id=s.group_id AND g.organization_id=s.organization_id
     WHERE s.id=NEW.tontine_slot_id AND s.organization_id=NEW.organization_id
       AND c.id::text=NEW.cycle_id AND m.client_id::text=NEW.beneficiary_id
-      AND NEW.amount_minor=s.amount_target_minor AND NEW.currency=g.currency
+      AND NEW.amount_minor=s.amount_target_minor AND NEW.currency::char(3)=g.currency
   ) THEN
     RAISE EXCEPTION 'TONTINE_PAYOUT_TENANT_OR_BENEFICIARY_MISMATCH';
   END IF;
