@@ -43,3 +43,7 @@ Commits:
 3. Trace every source of `authClass` to ensure it is derived from verified credentials, never request-controlled input.
 4. Add API integration tests proving service credentials cannot access admin routes and human credentials cannot access service-only routes.
 5. Keep PR #97 Draft and block production promotion until exact-head CI, independent security review and other Super Admin gates pass.
+
+## Follow-up refinement
+
+The runtime gate originally mapped only `API_AUTH_INSUFFICIENT` to HTTP 403; the new `API_AUTH_CLASS_MISMATCH` would otherwise have been returned as 401. The gate now maps authorization denials (insufficient role, auth-class mismatch, unlisted route and default-denied financial route) to 403, preserving 401 for missing/invalid authentication-style failures. A runtime regression test asserts a service identity on `GET /v1/admin/overview` is denied with 403 before rate-control database calls. Commits: `670d1a082680fd37fa25bbafd96ebd4608137b6d` and `3702ec267ad7eb4970fc52cb5565955e6b2b8e91`.
