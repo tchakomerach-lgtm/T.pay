@@ -665,7 +665,9 @@ test("Community Tontine partner settlement is payout-bound, maker-checker protec
   const client = new pg.Client({ connectionString: databaseUrl });
   await client.connect();
   const organizationId = randomUUID();
+  const otherOrganizationId = randomUUID();
   const groupId = randomUUID();
+  const otherGroupId = randomUUID();
   const membershipId = randomUUID();
   const clientId = randomUUID();
   const cycleId = randomUUID();
@@ -699,6 +701,23 @@ test("Community Tontine partner settlement is payout-bound, maker-checker protec
         cycle_number,governance,status,created_by,created_at)
        VALUES ($1,$2,'live-test','TG','XOF','daily','fixed',1000,1000,1,'founder_managed','active',$3,now())`,
       [groupId,organizationId,preparerId]
+    );
+    await client.query("INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',now())",[otherOrganizationId,"community-tontine-other-tenant-test"]);
+    await client.query(
+      `INSERT INTO tontine_groups
+       (id,organization_id,name,country_code,currency,frequency,contribution_mode,fixed_amount_minor,minimum_amount_minor,
+        cycle_number,governance,status,created_by,created_at)
+       VALUES ($1,$2,'other-tenant','TG','XOF','daily','fixed',1000,1000,1,'founder_managed','active',$3,now())`,
+      [otherGroupId,otherOrganizationId,preparerId]
+    );
+    await assert.rejects(
+      () => client.query(
+        `INSERT INTO tontine_memberships
+         (id,organization_id,group_id,client_id,role,status,joined_at,selected_microfinance_id)
+         VALUES ($1,$2,$3,$4,'member','active',now(),$5)`,
+        [randomUUID(),organizationId,otherGroupId,randomUUID(),microfinanceId]
+      ),
+      /tontine_memberships_org_group_fk|foreign key constraint/i
     );
     await client.query(
       `INSERT INTO tontine_memberships
@@ -806,8 +825,8 @@ test("Community Tontine partner settlement is payout-bound, maker-checker protec
     await client.query("DELETE FROM tontine_beneficiary_slots WHERE id=$1",[slotId]).catch(()=>undefined);
     await client.query("DELETE FROM tontine_cycles WHERE id=$1",[cycleId]).catch(()=>undefined);
     await client.query("DELETE FROM tontine_memberships WHERE id=$1",[membershipId]).catch(()=>undefined);
-    await client.query("DELETE FROM tontine_groups WHERE id=$1",[groupId]).catch(()=>undefined);
-    await client.query("DELETE FROM organizations WHERE id=$1",[organizationId]).catch(()=>undefined);
+    await client.query("DELETE FROM tontine_groups WHERE id IN ($1,$2)",[groupId,otherGroupId]).catch(()=>undefined);
+    await client.query("DELETE FROM organizations WHERE id IN ($1,$2)",[organizationId,otherOrganizationId]).catch(()=>undefined);
     await client.end();
   }
 });
