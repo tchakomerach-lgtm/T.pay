@@ -56,3 +56,5 @@ Les 24 séquences sont traitées comme gates de release; une séquence est valid
 ## Execution status
 
 The latest GitHub Actions attempt still fails before runner assignment (`runner_id=0`, no steps, no logs). Therefore no code test result has been produced by CI. The feature branch also diverges from current `main`; before any production merge, synchronize/reconcile the branch with current main and run the full suite against the resulting exact SHA. These facts are release blockers, not passing gates.
+
+- Migration 114 adds composite foreign keys and database guards so membership, cycle, schedule, contribution, beneficiary-slot and payout-intent rows cannot cross organization/group boundaries. Existing mismatches halt migration for explicit remediation rather than being silently accepted.
