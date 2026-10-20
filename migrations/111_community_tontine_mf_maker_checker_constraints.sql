@@ -1,4 +1,4 @@
--- Tighten maker/checker invariants without rewriting migration 053's checksum.
+-- Tighten maker/checker invariants after migration 109; preserve previously deployed migration checksums.
 -- Existing null preparers are not silently attributed to an invented actor.
 DO $$
 BEGIN
