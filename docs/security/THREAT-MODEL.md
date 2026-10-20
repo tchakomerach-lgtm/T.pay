@@ -26,3 +26,8 @@ Identity credentials, organization sessions, financial balances, ledger history,
 10. Security-sensitive dependencies and CI checks are part of release gates.
 
 This is an engineering baseline, not a claim of regulatory certification. Compliance requirements for Togo/WAEMU and each target market must be verified before production launch.
+## Workload identity isolation
+- Service/workload credentials are a separate trust domain and MUST NOT inherit human `admin` or `member` route permissions from a numeric role hierarchy.
+- A route marked `service` may be called only by an authenticated `service` principal; a service principal may call only explicitly service-authorized routes.
+- Regression coverage: `tests/l13-api-gateway.test.ts` verifies service credentials are rejected for Super Admin and member routes.
+- Route-policy authorization is only one enforcement layer; the API server must still verify credential provenance, organization scope, session state and step-up requirements for privileged actions.
