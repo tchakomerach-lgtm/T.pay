@@ -43,3 +43,16 @@ Ce contrôle de construction couvre exclusivement l’interface financière entr
 ## État de validation
 
 Les 24 séquences sont traitées comme gates de release; une séquence est validée uniquement lorsque son invariant est couvert par le code, un test et le CI courant. Ce document ne transforme pas une séquence non implémentée en séquence validée.
+
+
+## Additional hardening — current construction branch
+
+- The partner payout preparation and approval queries revalidate the canonical payout intent against the exact organization, cycle, eligible beneficiary slot, active membership, selected partner microfinance, amount, currency, destination, KYC flag, human-approval flag, and current `approved` state.
+- Settlement audit records use an explicit `last_actor_id`; missing actor attribution fails closed. Audit update/delete/truncate are blocked at the database boundary, and public mutation privileges are revoked.
+- Settlement instructions enforce immutable payout bindings, maker/checker separation, optimistic version increments, and monotonic state transitions.
+- Tontine migrations have been allocated unique numeric versions `100–113`. This avoids collisions with the current main-branch migration versions `044–099`; `tests/tontine-migration-sequence.test.ts` guards against duplicate prefixes.
+- A live PostgreSQL test covers partner scope mismatch, immutable replay, source payout state revalidation, maker/checker, audit actor attribution, immutable payout binding, transition rollback rejection, and append-only audit behavior.
+
+## Execution status
+
+The latest GitHub Actions attempt still fails before runner assignment (`runner_id=0`, no steps, no logs). Therefore no code test result has been produced by CI. The feature branch also diverges from current `main`; before any production merge, synchronize/reconcile the branch with current main and run the full suite against the resulting exact SHA. These facts are release blockers, not passing gates.
