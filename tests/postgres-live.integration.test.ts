@@ -7,6 +7,7 @@ import pg from "pg";
 import { applyMigrations } from "../packages/finance/src/postgres-migrations.js";
 import { PostgresDurableTontineSettlementRepository } from "../packages/finance/src/postgres-settlement-uow.js";
 import { executeDurableTontineSettlement } from "../packages/microfinance/src/tontine-settlement-uow.js";
+import { PostgresCommunityTontineMfSettlementRepository } from "../packages/microfinance/src/community-tontine-mf-settlement-repository.js";
 
 const databaseUrl = process.env.TPAY_DATABASE_URL;
 
@@ -656,5 +657,147 @@ test("P042 live PostgreSQL serializes School sync concurrency and preserves idem
     await admin.query("DELETE FROM education_sync_inbox WHERE tenant_id IN ($1,$2) AND organization_id=$3",[tenantId,otherTenantId,organizationId]);
     await admin.query("DELETE FROM education_sync_device_cursors WHERE tenant_id IN ($1,$2) AND organization_id=$3",[tenantId,otherTenantId,organizationId]);
     await admin.end();
+  }
+});
+
+
+test("Community Tontine partner settlement is payout-bound, maker-checker protected, and audited in live PostgreSQL", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const client = new pg.Client({ connectionString: databaseUrl });
+  await client.connect();
+  const organizationId = randomUUID();
+  const groupId = randomUUID();
+  const membershipId = randomUUID();
+  const clientId = randomUUID();
+  const cycleId = randomUUID();
+  const slotId = randomUUID();
+  const payoutId = randomUUID();
+  const microfinanceId = randomUUID();
+  const preparerId = randomUUID();
+  const approverId = randomUUID();
+  const instructionId = randomUUID();
+  const destinationRef = "test-route-" + randomUUID();
+  const db = {
+    query: (sql:string, values:readonly unknown[] = []) => client.query(sql, [...values]),
+    transaction: async <T>(work:(tx:any)=>Promise<T>):Promise<T> => {
+      await client.query("BEGIN");
+      try {
+        const result = await work(db);
+        await client.query("COMMIT");
+        return result;
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      }
+    }
+  };
+  try {
+    await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await client.query("INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',now())", [organizationId,"community-tontine-settlement-live-test"]);
+    await client.query(
+      `INSERT INTO tontine_groups
+       (id,organization_id,name,country_code,currency,frequency,contribution_mode,fixed_amount_minor,minimum_amount_minor,
+        cycle_number,governance,status,created_by,created_at)
+       VALUES ($1,$2,'live-test','TG','XOF','daily','fixed',1000,1000,1,'founder_managed','active',$3,now())`,
+      [groupId,organizationId,preparerId]
+    );
+    await client.query(
+      `INSERT INTO tontine_memberships
+       (id,organization_id,group_id,client_id,role,status,joined_at,selected_microfinance_id)
+       VALUES ($1,$2,$3,$4,'member','active',now(),$5)`,
+      [membershipId,organizationId,groupId,clientId,microfinanceId]
+    );
+    await client.query(
+      `INSERT INTO tontine_cycles
+       (id,organization_id,group_id,cycle_number,starts_on,ends_on,status,rules_version,minimum_amount_minor,currency,created_at)
+       VALUES ($1,$2,$3,1,CURRENT_DATE,CURRENT_DATE,'open','live-test-v1',1000,'XOF',now())`,
+      [cycleId,organizationId,groupId]
+    );
+    await client.query(
+      `INSERT INTO tontine_beneficiary_slots
+       (id,organization_id,group_id,cycle_id,cycle_number,sequence,beneficiary_membership_id,amount_target_minor,status,scheduled_for)
+       VALUES ($1,$2,$3,$4,1,1,$5,1000,'eligible',CURRENT_DATE)`,
+      [slotId,organizationId,groupId,cycleId,membershipId]
+    );
+    await client.query(
+      `INSERT INTO payout_intents
+       (payout_id,organization_id,cycle_id,beneficiary_id,amount_minor,currency,destination_ref,state,idempotency_key,requires_human_approval,kyc_verified,created_at,tontine_slot_id)
+       VALUES ($1,$2,$3,$4,1000,'XOF',$5,'approved',$6,true,true,now(),$7)`,
+      [payoutId,organizationId,cycleId,clientId,destinationRef,"live-settlement-"+payoutId,slotId]
+    );
+
+    const repository = new PostgresCommunityTontineMfSettlementRepository(db as any);
+    await assert.rejects(
+      () => repository.savePrepared(organizationId as never, {
+        id:randomUUID() as never,tontineGroupId:groupId as never,microfinanceId:randomUUID() as never,
+        payoutId:payoutId as never,beneficiaryClientId:clientId as never,amountMinor:1000n,currency:"XOF",
+        destinationRef,requiresHumanApproval:true,preparedBy:preparerId as never,state:"prepared",createdAt:new Date().toISOString()
+      }),
+      /PERSISTENCE_CONFLICT/
+    );
+    const instruction = await repository.savePrepared(organizationId as never, {
+      id:instructionId as never,tontineGroupId:groupId as never,microfinanceId:microfinanceId as never,
+      payoutId:payoutId as never,beneficiaryClientId:clientId as never,amountMinor:1000n,currency:"XOF",
+      destinationRef,requiresHumanApproval:true,preparedBy:preparerId as never,state:"prepared",createdAt:new Date().toISOString()
+    });
+    assert.equal(instruction.state,"prepared");
+    await assert.rejects(
+      () => repository.savePrepared(organizationId as never, {
+        id:instructionId as never,tontineGroupId:groupId as never,microfinanceId:microfinanceId as never,
+        payoutId:payoutId as never,beneficiaryClientId:clientId as never,amountMinor:1000n,currency:"XOF",
+        destinationRef:destinationRef+"-tampered",requiresHumanApproval:true,preparedBy:preparerId as never,state:"prepared",createdAt:new Date().toISOString()
+      }),
+      /PERSISTENCE_CONFLICT/
+    );
+    await client.query("UPDATE payout_intents SET state='failed' WHERE payout_id=$1",[payoutId]);
+    await assert.rejects(
+      () => repository.markApproved(organizationId as never,instructionId as never,approverId as never,"prepared"),
+      /APPROVAL_CONFLICT/
+    );
+    await client.query("UPDATE payout_intents SET state='approved' WHERE payout_id=$1",[payoutId]);
+    await assert.rejects(
+      () => repository.markApproved(organizationId as never,instructionId as never,preparerId as never,"prepared"),
+      /APPROVAL_CONFLICT/
+    );
+    const approved = await repository.markApproved(organizationId as never,instructionId as never,approverId as never,"prepared");
+    assert.equal(approved.state,"approved");
+    assert.equal(approved.approvedBy,approverId);
+    await assert.rejects(
+      () => client.query("UPDATE community_tontine_mf_settlement_instructions SET destination_ref='tampered',version=version+1,last_modified_at=now() WHERE id=$1",[instructionId]),
+      /COMMUNITY_TONTINE_SETTLEMENT_IMMUTABLE_BINDING/
+    );
+    await assert.rejects(
+      () => client.query("UPDATE community_tontine_mf_settlement_instructions SET state='prepared',version=version+1,last_modified_at=now() WHERE id=$1",[instructionId]),
+      /COMMUNITY_TONTINE_SETTLEMENT_TRANSITION_DENIED/
+    );
+
+    const audit = await client.query(
+      "SELECT event_type,new_state,actor_id FROM community_tontine_mf_settlement_audit WHERE instruction_id=$1 ORDER BY id",
+      [instructionId]
+    );
+    assert.deepEqual(audit.rows.map(row => [row.event_type,row.new_state]), [["created","prepared"],["updated","approved"]]);
+    assert.equal(audit.rows[0]?.actor_id,preparerId);
+    assert.equal(audit.rows[1]?.actor_id,approverId);
+    await assert.rejects(
+      () => client.query("DELETE FROM community_tontine_mf_settlement_instructions WHERE id=$1",[instructionId]),
+      /COMMUNITY_TONTINE_SETTLEMENT_DELETE_FORBIDDEN/
+    );
+    await assert.rejects(
+      () => client.query("DELETE FROM community_tontine_mf_settlement_audit WHERE instruction_id=$1",[instructionId]),
+      /COMMUNITY_TONTINE_SETTLEMENT_AUDIT_IMMUTABLE/
+    );
+  } finally {
+    await client.query("ALTER TABLE community_tontine_mf_settlement_audit DISABLE TRIGGER trg_community_tontine_mf_settlement_audit_no_mutation").catch(()=>undefined);
+    await client.query("DELETE FROM community_tontine_mf_settlement_audit WHERE instruction_id=$1",[instructionId]).catch(()=>undefined);
+    await client.query("ALTER TABLE community_tontine_mf_settlement_audit ENABLE TRIGGER trg_community_tontine_mf_settlement_audit_no_mutation").catch(()=>undefined);
+    await client.query("ALTER TABLE community_tontine_mf_settlement_instructions DISABLE TRIGGER trg_community_tontine_mf_settlement_no_delete").catch(()=>undefined);
+    await client.query("DELETE FROM community_tontine_mf_settlement_instructions WHERE id=$1",[instructionId]).catch(()=>undefined);
+    await client.query("ALTER TABLE community_tontine_mf_settlement_instructions ENABLE TRIGGER trg_community_tontine_mf_settlement_no_delete").catch(()=>undefined);
+    await client.query("DELETE FROM payout_intents WHERE payout_id=$1",[payoutId]).catch(()=>undefined);
+    await client.query("DELETE FROM tontine_beneficiary_slots WHERE id=$1",[slotId]).catch(()=>undefined);
+    await client.query("DELETE FROM tontine_cycles WHERE id=$1",[cycleId]).catch(()=>undefined);
+    await client.query("DELETE FROM tontine_memberships WHERE id=$1",[membershipId]).catch(()=>undefined);
+    await client.query("DELETE FROM tontine_groups WHERE id=$1",[groupId]).catch(()=>undefined);
+    await client.query("DELETE FROM organizations WHERE id=$1",[organizationId]).catch(()=>undefined);
+    await client.end();
   }
 });
