@@ -46,6 +46,13 @@ export function isFinancialRoute(route:string):boolean{return /(^|\/)\b(payments
 export function authorizeRoute(input:{method:string;route:string;authClass:ApiRoutePolicy["auth"]}):{allowed:boolean;reason:string;policy?:ApiRoutePolicy}{
  const policy=resolveRoutePolicy(input.method,input.route);
  if(!policy){if(isFinancialRoute(input.route))return {allowed:false,reason:"FINANCIAL_CORE_DENY_BY_DEFAULT"};return {allowed:false,reason:"API_ROUTE_NOT_ALLOWLISTED"};}
- const rank={anonymous:0,user:1,member:2,admin:3,service:4} as const;
+ // Service identities are a separate trust domain, not a higher human role.
+ // Never let a workload/service credential inherit Super Admin privileges.
+ if(input.authClass==="service"||policy.auth==="service"){
+  return input.authClass==="service"&&policy.auth==="service"
+   ?{allowed:true,reason:"ALLOWED",policy}
+   :{allowed:false,reason:"API_AUTH_CLASS_MISMATCH",policy};
+ }
+ const rank={anonymous:0,user:1,member:2,admin:3} as const;
  return rank[input.authClass]>=rank[policy.auth]?{allowed:true,reason:"ALLOWED",policy}:{allowed:false,reason:"API_AUTH_INSUFFICIENT",policy};
 }
