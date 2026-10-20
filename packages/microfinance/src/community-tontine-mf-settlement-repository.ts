@@ -49,7 +49,7 @@ export class PostgresCommunityTontineMfSettlementRepository implements Community
           AND beneficiary.organization_id=slot.organization_id
           AND beneficiary.group_id=slot.group_id
          WHERE pi.payout_id=$5 AND pi.organization_id=$2
-           AND pi.cycle_id=slot.cycle_id::text AND pi.beneficiary_id=$6
+           AND pi.cycle_id=slot.cycle_id::text AND pi.beneficiary_id=beneficiary.client_id::text
            AND slot.group_id=$3 AND slot.status='eligible'
            AND beneficiary.client_id=$6 AND beneficiary.status='active'
            AND beneficiary.selected_microfinance_id=$4
