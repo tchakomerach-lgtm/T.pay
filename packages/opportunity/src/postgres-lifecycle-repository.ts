@@ -83,10 +83,29 @@ export class PostgresOpportunityLifecycleRepository {
       if (candidate?.requiresHumanApproval) {
         if (input.approvalId) {
           const consumed = await tx.query(
-            "UPDATE opportunity_approvals SET status='CONSUMED', consumed_at=now() WHERE id=$1 AND tenant_id=$2 AND organization_id=$3 AND opportunity_id=$4 AND command=$5 AND requester_id=$6 AND approver_id<>$6 AND status='APPROVED' AND expires_at>now() RETURNING id",
+            "UPDATE opportunity_approvals SET status='CONSUMED', consumed_at=now() WHERE id=$1 AND tenant_id=$2 AND organization_id=$3 AND opportunity_id=$4 AND command=$5 AND requester_id=$6 AND approver_id<>$6 AND status='APPROVED' AND expires_at>now() RETURNING id, approver_id",
             [input.approvalId, input.tenantId, input.organizationId, input.opportunityId, input.command, input.actorId],
           );
           if (consumed.rowCount !== 1) throw new Error("OPPORTUNITY_APPROVAL_INVALID_OR_CONSUMED");
+          const consumedRow = consumed.rows[0] as { id: string; approver_id: string };
+          const approvalOccurredAt = new Date().toISOString();
+          const approvalEventId = randomUUID();
+          const approvalDetails = {
+            opportunityId: input.opportunityId,
+            command: input.command,
+            requesterId: input.actorId,
+            approverId: consumedRow.approver_id,
+          };
+          const approvalEventHash = createHash("sha256").update(JSON.stringify({
+            eventId: approvalEventId, tenantId: input.tenantId,
+            organizationId: input.organizationId, approvalId: input.approvalId,
+            action: "CONSUMED", actorId: input.actorId,
+            occurredAt: approvalOccurredAt, details: approvalDetails,
+          })).digest("hex");
+          await tx.query(
+            "INSERT INTO opportunity_approval_events (id,tenant_id,organization_id,approval_id,action,actor_id,occurred_at,details,event_hash) VALUES ($1,$2,$3,$4,'CONSUMED',$5,$6,$7::jsonb,$8)",
+            [approvalEventId, input.tenantId, input.organizationId, input.approvalId, input.actorId, approvalOccurredAt, JSON.stringify(approvalDetails), approvalEventHash],
+          );
           approvalConsumed = true;
         }
       } else if (candidate && input.approvalId) {
