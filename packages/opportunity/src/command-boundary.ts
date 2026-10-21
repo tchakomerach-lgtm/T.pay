@@ -14,7 +14,8 @@ export interface OpportunityTransitionCommand {
   readonly opportunityId: string;
   readonly command: OpportunityCommand;
   readonly idempotencyKey: string;
-  readonly humanApproval?: boolean;
+  /** Opaque reference to a server-recorded approval; never a client assertion of approval. */
+  readonly approvalId?: string;
 }
 
 export interface OpportunityCommandResult {
@@ -41,6 +42,17 @@ export interface OpportunityLifecyclePort {
   }): Promise<{ opportunityId: string; state: string; version: bigint; idempotent: boolean }>;
 }
 
+export interface OpportunityApprovalVerifier {
+  verify(input: {
+    approvalId: string;
+    tenantId: string;
+    organizationId: string;
+    opportunityId: string;
+    command: OpportunityCommand;
+    requesterId: string;
+  }): Promise<boolean>;
+}
+
 export class OpportunityCommandError extends Error {
   public constructor(
     public readonly code: string,
@@ -60,14 +72,15 @@ const COMMANDS = new Set<OpportunityCommand>([
 ]);
 
 /**
- * Transport-neutral command boundary. HTTP adapters must pass a principal created
- * by verified authentication middleware; request bodies cannot supply actor/tenant IDs.
- * This boundary intentionally does not execute payments or arbitrary AI/tool calls.
+ * Transport-neutral command boundary. The principal must come from verified
+ * authentication middleware. Approval is accepted only as a server-verifiable
+ * reference bound to tenant, organization, opportunity, command and requester.
  */
 export async function executeOpportunityTransition(
   principal: OpportunityPrincipal | null,
   input: OpportunityTransitionCommand,
   lifecycle: OpportunityLifecyclePort,
+  approvals: OpportunityApprovalVerifier,
 ): Promise<OpportunityCommandResult> {
   if (!principal?.subjectId || !principal.tenantId || !principal.organizationId) {
     throw new OpportunityCommandError("AUTHENTICATION_REQUIRED", 401);
@@ -79,8 +92,29 @@ export async function executeOpportunityTransition(
       typeof input.opportunityId !== "string" || !OPAQUE_ID.test(input.opportunityId) ||
       typeof input.command !== "string" || !COMMANDS.has(input.command) ||
       typeof input.idempotencyKey !== "string" || !IDEMPOTENCY_KEY.test(input.idempotencyKey) ||
-      (input.humanApproval !== undefined && typeof input.humanApproval !== "boolean")) {
+      (input.approvalId !== undefined &&
+        (typeof input.approvalId !== "string" || !OPAQUE_ID.test(input.approvalId))) ||
+      Object.prototype.hasOwnProperty.call(input, "humanApproval")) {
     throw new OpportunityCommandError("INVALID_OPPORTUNITY_COMMAND", 400);
+  }
+
+  let humanApproval = false;
+  if (input.approvalId) {
+    let valid = false;
+    try {
+      valid = await approvals.verify({
+        approvalId: input.approvalId,
+        tenantId: principal.tenantId,
+        organizationId: principal.organizationId,
+        opportunityId: input.opportunityId,
+        command: input.command,
+        requesterId: principal.subjectId,
+      });
+    } catch {
+      throw new OpportunityCommandError("APPROVAL_VERIFICATION_UNAVAILABLE", 422);
+    }
+    if (!valid) throw new OpportunityCommandError("APPROVAL_INVALID_OR_OUT_OF_SCOPE", 403);
+    humanApproval = true;
   }
 
   const requestId = randomUUID();
@@ -93,9 +127,8 @@ export async function executeOpportunityTransition(
       actorClass: principal.actorClass,
       command: input.command,
       idempotencyKey: input.idempotencyKey,
-      humanApproval: input.humanApproval,
+      humanApproval,
     });
-    // The lifecycle transaction has already committed synchronously; 200 is correct.
     return {
       status: 200,
       body: {
