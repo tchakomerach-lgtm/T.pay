@@ -5,11 +5,12 @@ import { PostgresOpportunityLifecycleRepository } from "../packages/opportunity/
 
 function fingerprint(input: {
   tenantId: string; organizationId: string; opportunityId: string;
-  actorId: string; actorClass: string; command: string; approvalId?: string;
+  actorId: string; actorClass: string; command: string; approvalId?: string; humanApproval?: boolean;
 }): string {
   return createHash("sha256").update(JSON.stringify([
     input.tenantId, input.organizationId, input.opportunityId,
     input.actorId, input.actorClass, input.command, input.approvalId ?? null,
+    input.humanApproval === true,
   ])).digest("hex");
 }
 
@@ -21,6 +22,7 @@ function duplicateDb(overrides: Record<string, unknown> = {}) {
     async rollback() { calls.push("rollback"); },
     async query(sql: string) {
       calls.push(sql);
+      if (sql.includes("pg_advisory_xact_lock")) return { rows: [], rowCount: 1 };
       return {
         rows: [{
           opportunity_id: "opp-123",
