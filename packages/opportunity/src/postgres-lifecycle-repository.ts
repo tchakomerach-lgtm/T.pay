@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { OpportunityQueryable, OpportunityTransaction } from "./postgres-repository.js";
-import { transitionOpportunity, type OpportunityActorClass, type OpportunityCommand, type OpportunityState } from "./lifecycle.js";
+import { listAllowedTransitions, transitionOpportunity, type OpportunityActorClass, type OpportunityCommand, type OpportunityState } from "./lifecycle.js";
 
 export interface OpportunityTransitionResult {
   readonly opportunityId: string;
@@ -76,11 +76,30 @@ export class PostgresOpportunityLifecycleRepository {
       const row = current.rows[0];
       if (!row) throw new Error("OPPORTUNITY_NOT_FOUND");
 
+      const candidate = listAllowedTransitions(row.state).find(item =>
+        item.command === input.command && item.actorClasses.includes(input.actorClass)
+      );
+      let approvalConsumed = false;
+      if (candidate?.requiresHumanApproval) {
+        if (input.approvalId) {
+          const consumed = await tx.query(
+            "UPDATE opportunity_approvals SET status='CONSUMED', consumed_at=now() WHERE id=$1 AND tenant_id=$2 AND organization_id=$3 AND opportunity_id=$4 AND command=$5 AND requester_id=$6 AND approver_id<>$6 AND status='APPROVED' AND expires_at>now() RETURNING id",
+            [input.approvalId, input.tenantId, input.organizationId, input.opportunityId, input.command, input.actorId],
+          );
+          if (consumed.rowCount !== 1) throw new Error("OPPORTUNITY_APPROVAL_INVALID_OR_CONSUMED");
+          approvalConsumed = true;
+        }
+      } else if (candidate && input.approvalId) {
+        throw new Error("OPPORTUNITY_APPROVAL_NOT_REQUIRED");
+      }
+
+      // The caller's humanApproval boolean is not authoritative. Only an
+      // approval consumed in this transaction can satisfy a sensitive transition.
       const transition = transitionOpportunity({
         current: row.state,
         command: input.command,
         actorClass: input.actorClass,
-        humanApproval: input.humanApproval,
+        humanApproval: approvalConsumed,
       });
 
       const currentVersion = BigInt(row.version);
