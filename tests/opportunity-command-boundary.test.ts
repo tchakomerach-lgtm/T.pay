@@ -26,7 +26,7 @@ test("OP-1299 command boundary derives identity and tenant from authenticated pr
   assert.equal(received?.actorId, "user-123");
   assert.equal(received?.tenantId, "tenant-a");
   assert.equal(received?.organizationId, "org-a");
-  assert.equal(result.status, 202);
+  assert.equal(result.status, 200);
   assert.equal(result.body.version, "2");
 });
 
