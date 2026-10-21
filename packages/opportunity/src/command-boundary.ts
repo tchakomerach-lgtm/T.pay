@@ -146,6 +146,8 @@ export async function executeOpportunityTransition(
     const code = error.message;
     if (code === "OPPORTUNITY_NOT_FOUND") throw new OpportunityCommandError(code, 404);
     if (code === "OPPORTUNITY_IDEMPOTENCY_KEY_REUSED") throw new OpportunityCommandError(code, 409);
+    if (code === "OPPORTUNITY_APPROVAL_INVALID_OR_CONSUMED") throw new OpportunityCommandError(code, 409);
+    if (code === "OPPORTUNITY_APPROVAL_NOT_REQUIRED") throw new OpportunityCommandError(code, 400);
     if (code === "OPPORTUNITY_INVALID_TRANSITION" ||
         code === "OPPORTUNITY_HUMAN_APPROVAL_REQUIRED" ||
         code === "OPPORTUNITY_TERMINAL_STATE" ||
