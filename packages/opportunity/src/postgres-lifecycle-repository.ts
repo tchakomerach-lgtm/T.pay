@@ -27,7 +27,7 @@ export class PostgresOpportunityLifecycleRepository {
     await tx.begin();
     try {
       const duplicate = await tx.query<any>(
-        "SELECT opportunity_id, to_state, (SELECT version FROM opportunities WHERE id=opportunity_id) AS version FROM opportunity_state_events WHERE tenant_id=$1 AND organization_id=$2 AND idempotency_key=$3",
+        "SELECT opportunity_id, to_state, aggregate_version::text AS version FROM opportunity_state_events WHERE tenant_id=$1 AND organization_id=$2 AND idempotency_key=$3",
         [input.tenantId, input.organizationId, input.idempotencyKey],
       );
       if (duplicate.rows[0]) {
@@ -62,7 +62,7 @@ export class PostgresOpportunityLifecycleRepository {
         eventId, tenantId: input.tenantId, organizationId: input.organizationId,
         opportunityId: input.opportunityId, from: transition.from, to: transition.to,
         command: input.command, actorId: input.actorId, actorClass: input.actorClass,
-        idempotencyKey: input.idempotencyKey, occurredAt,
+        aggregateVersion: nextVersion.toString(), idempotencyKey: input.idempotencyKey, occurredAt,
       })).digest("hex");
 
       const updated = await tx.query(
@@ -72,8 +72,8 @@ export class PostgresOpportunityLifecycleRepository {
       if (updated.rowCount !== 1) throw new Error("OPPORTUNITY_CONCURRENT_MODIFICATION");
 
       await tx.query(
-        "INSERT INTO opportunity_state_events (id,tenant_id,organization_id,opportunity_id,from_state,to_state,command,actor_id,actor_class,requires_human_approval,occurred_at,idempotency_key,event_hash) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
-        [eventId, input.tenantId, input.organizationId, input.opportunityId, transition.from, transition.to, input.command, input.actorId, input.actorClass, transition.requiresHumanApproval, occurredAt, input.idempotencyKey, eventHash],
+        "INSERT INTO opportunity_state_events (id,tenant_id,organization_id,opportunity_id,from_state,to_state,command,actor_id,actor_class,requires_human_approval,occurred_at,idempotency_key,event_hash,aggregate_version) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)",
+        [eventId, input.tenantId, input.organizationId, input.opportunityId, transition.from, transition.to, input.command, input.actorId, input.actorClass, transition.requiresHumanApproval, occurredAt, input.idempotencyKey, eventHash, nextVersion.toString()],
       );
       await tx.query(
         "INSERT INTO opportunity_event_outbox (id,tenant_id,organization_id,aggregate_id,event_type,payload,occurred_at) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)",
