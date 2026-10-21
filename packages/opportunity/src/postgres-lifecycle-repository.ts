@@ -27,7 +27,7 @@ export class PostgresOpportunityLifecycleRepository {
     await tx.begin();
     try {
       const duplicate = await tx.query<any>(
-        "SELECT opportunity_id, to_state, (SELECT version FROM opportunities WHERE id=opportunity_id)::text AS version FROM opportunity_state_events WHERE tenant_id=$1 AND organization_id=$2 AND idempotency_key=$3",
+        "SELECT opportunity_id, to_state, (SELECT version FROM opportunities WHERE id=opportunity_id) AS version FROM opportunity_state_events WHERE tenant_id=$1 AND organization_id=$2 AND idempotency_key=$3",
         [input.tenantId, input.organizationId, input.idempotencyKey],
       );
       if (duplicate.rows[0]) {
@@ -65,17 +65,19 @@ export class PostgresOpportunityLifecycleRepository {
         idempotencyKey: input.idempotencyKey, occurredAt,
       })).digest("hex");
 
-      await tx.query(
+      const updated = await tx.query(
         "UPDATE opportunities SET state=$1, version=$2, updated_at=$3 WHERE id=$4 AND tenant_id=$5 AND organization_id=$6 AND version=$7",
         [transition.to, nextVersion.toString(), occurredAt, input.opportunityId, input.tenantId, input.organizationId, currentVersion.toString()],
       );
+      if (updated.rowCount !== 1) throw new Error("OPPORTUNITY_CONCURRENT_MODIFICATION");
+
       await tx.query(
         "INSERT INTO opportunity_state_events (id,tenant_id,organization_id,opportunity_id,from_state,to_state,command,actor_id,actor_class,requires_human_approval,occurred_at,idempotency_key,event_hash) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
         [eventId, input.tenantId, input.organizationId, input.opportunityId, transition.from, transition.to, input.command, input.actorId, input.actorClass, transition.requiresHumanApproval, occurredAt, input.idempotencyKey, eventHash],
       );
       await tx.query(
         "INSERT INTO opportunity_event_outbox (id,tenant_id,organization_id,aggregate_id,event_type,payload,occurred_at) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)",
-        [cryptoId(), input.tenantId, input.organizationId, input.opportunityId, "opportunity.state.changed", JSON.stringify({
+        [randomUUID(), input.tenantId, input.organizationId, input.opportunityId, "opportunity.state.changed", JSON.stringify({
           opportunityId: input.opportunityId, from: transition.from, to: transition.to,
           command: input.command, actorId: input.actorId, actorClass: input.actorClass,
           version: nextVersion.toString(), eventId,
@@ -88,8 +90,4 @@ export class PostgresOpportunityLifecycleRepository {
       throw error;
     }
   }
-}
-
-function cryptoId(): string {
-  return createHash("sha256").update(String(process.hrtime.bigint()) + Math.random()).digest("hex");
 }
