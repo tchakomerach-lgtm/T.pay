@@ -38,6 +38,7 @@ export interface OpportunityLifecyclePort {
     actorClass: OpportunityActorClass;
     command: OpportunityCommand;
     idempotencyKey: string;
+    approvalId?: string;
     humanApproval?: boolean;
   }): Promise<{ opportunityId: string; state: string; version: bigint; idempotent: boolean }>;
 }
@@ -127,6 +128,7 @@ export async function executeOpportunityTransition(
       actorClass: principal.actorClass,
       command: input.command,
       idempotencyKey: input.idempotencyKey,
+      approvalId: input.approvalId,
       humanApproval,
     });
     return {
@@ -143,6 +145,7 @@ export async function executeOpportunityTransition(
     if (!(error instanceof Error)) throw error;
     const code = error.message;
     if (code === "OPPORTUNITY_NOT_FOUND") throw new OpportunityCommandError(code, 404);
+    if (code === "OPPORTUNITY_IDEMPOTENCY_KEY_REUSED") throw new OpportunityCommandError(code, 409);
     if (code === "OPPORTUNITY_INVALID_TRANSITION" ||
         code === "OPPORTUNITY_HUMAN_APPROVAL_REQUIRED" ||
         code === "OPPORTUNITY_TERMINAL_STATE" ||
