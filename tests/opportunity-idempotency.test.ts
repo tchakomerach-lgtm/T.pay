@@ -65,6 +65,7 @@ test("OP-1302 returns the original result only for an identical request", async 
   assert.equal(result.version, 2n);
   assert.equal(calls.includes("commit"), true);
   assert.equal(calls.includes("rollback"), false);
+  assert.equal(calls.some(sql => sql.includes("pg_advisory_xact_lock")), true);
 });
 
 test("OP-1302 rejects a reused key for a different command context", async () => {
