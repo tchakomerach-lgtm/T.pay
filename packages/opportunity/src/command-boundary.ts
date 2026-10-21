@@ -18,7 +18,7 @@ export interface OpportunityTransitionCommand {
 }
 
 export interface OpportunityCommandResult {
-  readonly status: 200 | 202;
+  readonly status: 200;
   readonly body: {
     readonly opportunityId: string;
     readonly state: string;
@@ -51,7 +51,7 @@ export class OpportunityCommandError extends Error {
   }
 }
 
-const UUID_OR_OPAQUE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const OPAQUE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9][A-Za-z0-9._:-]{15,127}$/;
 const COMMANDS = new Set<OpportunityCommand>([
   "PUBLISH", "START_MATCHING", "OPEN_APPLICATIONS", "START_REVIEW",
@@ -76,7 +76,7 @@ export async function executeOpportunityTransition(
     throw new OpportunityCommandError("OPPORTUNITY_TRANSITION_FORBIDDEN", 403);
   }
   if (!input || typeof input !== "object" ||
-      typeof input.opportunityId !== "string" || !UUID_OR_OPAQUE_ID.test(input.opportunityId) ||
+      typeof input.opportunityId !== "string" || !OPAQUE_ID.test(input.opportunityId) ||
       typeof input.command !== "string" || !COMMANDS.has(input.command) ||
       typeof input.idempotencyKey !== "string" || !IDEMPOTENCY_KEY.test(input.idempotencyKey) ||
       (input.humanApproval !== undefined && typeof input.humanApproval !== "boolean")) {
@@ -95,8 +95,9 @@ export async function executeOpportunityTransition(
       idempotencyKey: input.idempotencyKey,
       humanApproval: input.humanApproval,
     });
+    // The lifecycle transaction has already committed synchronously; 200 is correct.
     return {
-      status: result.idempotent ? 200 : 202,
+      status: 200,
       body: {
         opportunityId: result.opportunityId,
         state: result.state,
@@ -111,7 +112,8 @@ export async function executeOpportunityTransition(
     if (code === "OPPORTUNITY_NOT_FOUND") throw new OpportunityCommandError(code, 404);
     if (code === "OPPORTUNITY_INVALID_TRANSITION" ||
         code === "OPPORTUNITY_HUMAN_APPROVAL_REQUIRED" ||
-        code === "OPPORTUNITY_TERMINAL_STATE") {
+        code === "OPPORTUNITY_TERMINAL_STATE" ||
+        code === "OPPORTUNITY_CONCURRENT_MODIFICATION") {
       throw new OpportunityCommandError(code, 409);
     }
     if (code === "OPPORTUNITY_TRANSACTION_REQUIRED") throw new OpportunityCommandError(code, 422);
