@@ -32,11 +32,18 @@ export class PostgresOpportunityLifecycleRepository {
       input.actorClass,
       input.command,
       input.approvalId ?? null,
+      input.humanApproval === true,
     ])).digest("hex");
     const tx = this.db as OpportunityTransaction;
     if (typeof tx.begin !== "function") throw new Error("OPPORTUNITY_TRANSACTION_REQUIRED");
     await tx.begin();
     try {
+      // Serialize identical tenant/org keys before lookup so concurrent retries
+      // cannot both pass the initial SELECT and race into the unique index.
+      await tx.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+        [JSON.stringify([input.tenantId, input.organizationId, input.idempotencyKey])],
+      );
       const duplicate = await tx.query<any>(
         "SELECT opportunity_id, to_state, aggregate_version::text AS version, command, actor_id, actor_class, approval_id, request_fingerprint FROM opportunity_state_events WHERE tenant_id=$1 AND organization_id=$2 AND idempotency_key=$3",
         [input.tenantId, input.organizationId, input.idempotencyKey],
