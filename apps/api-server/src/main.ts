@@ -55,6 +55,10 @@ export function readRuntimeConfig(source=process.env):RuntimeConfig{
   };
 }
 
+export function sqlCommandOf(sql:string):string|undefined{
+  return sql.trim().split(/\\s+/)[0]?.toUpperCase();
+}
+
 class PooledTransactionClient implements PostgresTransactionClient{
   private client:PoolClient|undefined;
   constructor(private readonly pool:Pool){}
@@ -62,7 +66,7 @@ class PooledTransactionClient implements PostgresTransactionClient{
     if(!this.client)this.client=await this.pool.connect();
     try{
       const result=await this.client.query<T>(sql,values);
-      const command=sql.trim().split(/\s+/)[0]?.toUpperCase();
+      const command=sqlCommandOf(sql);
       if(command==="COMMIT"||command==="ROLLBACK"){this.client.release();this.client=undefined;}
       return {rows:result.rows,rowCount:result.rowCount};
     }catch(error){
