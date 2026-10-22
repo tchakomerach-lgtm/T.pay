@@ -1,4 +1,5 @@
 import React from "react";
+import "./os-portal.css";
 
 type ModuleItem={name:string;category:string;description:string;state:"Prototype"|"À connecter"|"Fondation";icon:string};
 const modules:ModuleItem[]=[
