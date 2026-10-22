@@ -31,7 +31,7 @@ test("P047 HTTP rejects oversized payloads and malformed realtime cursors",async
  await new Promise<void>(resolve=>server.listen(0,resolve)); const port=(server.address() as any).port;
  try{
   const oversized=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"047-large"},body:JSON.stringify({blob:"x".repeat(1024*1024+1)})});
-  assert.equal(oversized.status,400);
+  assert.equal(oversized.status,413);
   const malformed=await fetch(`http://127.0.0.1:${port}/v1/education/events/stream`,{headers:{"last-event-id":"not-a-sequence"}});
   assert.equal(malformed.status,400);
  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
@@ -48,8 +48,9 @@ test("P048 fortress HTTP boundaries emit security headers and reject malformed c
   assert.equal(ok.headers.get("referrer-policy"),"no-referrer");
   assert.equal(ok.headers.get("strict-transport-security"),"max-age=31536000; includeSubDomains");
 
-  const badContentType=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"text/plain","x-idempotency-key":"p048-content-type"},body:"{}"});
+  const badContentType=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"text/plain","content-length":"2","x-idempotency-key":"p048-content-type"},body:"{}"});
   assert.equal(badContentType.status,400);
+   assert.match(JSON.stringify(await badContentType.json()),/API_JSON_CONTENT_TYPE_REQUIRED/);
 
   const badKey=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"bad key"},body:"{}"});
   assert.equal(badKey.status,400);
@@ -71,7 +72,7 @@ test("P049 fortress request envelope rejects oversized URL/header and emits hard
   assert.equal(longHeader.status,400);
 
   const oversizedLength=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"application/json","content-length":String(1024*1024+1),"x-idempotency-key":"p049-length"},body:"{}"});
-  assert.equal(oversizedLength.status,400);
+  assert.equal(oversizedLength.status,413);
 
   const sse=await fetch(`http://127.0.0.1:${port}/v1/education/events/stream`,{headers:{accept:"text/event-stream"}});
   assert.equal(sse.status,200);
