@@ -1,4 +1,4 @@
-export type Permission = "org.read"|"org.manage"|"member.manage"|"finance.read"|"finance.initiate"|"finance.approve"|"ledger.read"|"ledger.post"|"audit.read"|"security.manage";
+export type Permission = "org.read"|"org.manage"|"member.manage"|"finance.read"|"finance.initiate"|"finance.approve"|"ledger.read"|"ledger.post"|"audit.read"|"security.manage"|"field.read";
 export interface Principal { userId:string; organizationId?:string; permissions:readonly Permission[]; sessionId:string; }
 export function assertPermission(p:Principal, permission:Permission):void { if(!p.permissions.includes(permission)) throw new Error(`FORBIDDEN:${permission}`); }
 export function assertOrganizationSession(p:Principal, organizationId:string):void { if(p.organizationId!==organizationId) throw new Error("ORGANIZATION_SESSION_MISMATCH"); }

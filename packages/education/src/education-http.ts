@@ -10,11 +10,12 @@ import { PostgresEducationSyncStore } from "./postgres-sync-fabric.js";
 import { computeSyncPayloadHash } from "./sync-fabric.js";
 import { SchoolRealtimeHub, toSseMessage, type SchoolRealtimeEvent } from "./school-realtime.js";
 import { PostgresSchoolRealtimeStore } from "./postgres-realtime-store.js";
+import { PostgresFieldRegistryRepository } from "../../microfinance/src/field-registry-repository.js";
 import type { SchoolRealtimeMessage } from "./school-realtime.js";
 import { reconcileAttendance, claimWorkItem, resolveWorkItem, type AttendanceRecord, type WorkItem } from "./school-operations.js";
 import { assignService, transitionService, type ActorRef, type ServiceRequest } from "./actor-services.js";
 
-export interface SchoolAuthContext { principal: Principal; session: OrganizationSession; tenantId: string; }
+export interface SchoolAuthContext { principal: Principal; session: OrganizationSession; tenantId: string; deviceId?: string; }
 export interface SchoolApiDependencies {
   db: ApiDb & { query(sql:string,values?:unknown[]):Promise<{rows:Record<string,unknown>[];rowCount:number|null}> };
   authenticate(request: IncomingMessage): Promise<SchoolAuthContext>;
@@ -76,7 +77,11 @@ async function readBody(req:IncomingMessage):Promise<string>{
 const parse=(s:string)=>s?JSON.parse(s):{};
 function route(path:string){
  const parts=path.split("/").filter(Boolean);
- if(parts[0]!=="v1"||parts[1]!=="education")return null;
+ if(parts[0]!=="v1")return null;
+ if(parts[1]==="microfinance"&&parts[2]==="field"&&parts.length===4&&parts[3]==="routes")return ["field-routes"] as const;
+ if(parts[1]==="microfinance"&&parts[2]==="field"&&parts.length===4&&parts[3]==="visits")return ["field-visits"] as const;
+ if(parts[1]==="microfinance"&&parts[2]==="field"&&parts[3]==="visits"&&parts[4]==="offline-sync"&&parts.length===5)return ["field-visits-sync"] as const;
+ if(parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
  if(parts[2]==="sync"&&parts[3]==="events"&&parts.length===4)return ["sync"] as const;
  if(parts[2]==="attendance"&&parts.length===3)return ["attendance"] as const;
@@ -87,7 +92,7 @@ function route(path:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="actor"?"org.read":"member.manage";}
+function permissionFor(kind:string):Permission{return kind==="actor"?"org.read":kind==="field-routes"?"finance.read":kind==="field-visits"?"field.read":kind==="field-visits-sync"?"finance.initiate":"member.manage";}
 export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
 
 export function createSchoolApiServer(deps:SchoolApiDependencies, options:SchoolApiServerOptions={}){
@@ -175,6 +180,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      if(contentType!=="application/json")throw new Error("API_JSON_CONTENT_TYPE_REQUIRED");
    }
    const body=parse(bodyText);
+   if(((r[0]==="field-routes"||r[0]==="field-visits")&&method!=="GET")||(r[0]==="field-visits-sync"&&method!=="POST"))throw new Error("FIELD_REGISTRY_METHOD_NOT_ALLOWED");
    const requestHash=canonicalRequestHash(method,path,JSON.stringify(body));
    const idem=String(req.headers["x-idempotency-key"]??"");
    if(method!=="GET" && !IDEMPOTENCY_KEY.test(idem))throw new Error("API_IDEMPOTENCY_KEY_INVALID");
@@ -183,7 +189,30 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(dedupe?.status==="conflict")throw new Error("API_IDEMPOTENCY_CONFLICT");
    if(dedupe?.status==="replay"){res.statusCode=dedupe.statusCode??200;json(res,res.statusCode,{ok:true,replayed:true,requestId:dedupe.requestId},correlationId);return;}
    let data:unknown;
-   if(r[0]==="actor"){
+   if(r[0]==="field-visits-sync"){
+    if(!auth.deviceId)throw new Error("FIELD_VISIT_TRUSTED_DEVICE_REQUIRED");
+    const binding=await deps.db.query("SELECT agent_id FROM customer_field_agent_bindings WHERE organization_id=$1 AND actor_id=$2 AND device_id=$3 AND active=true LIMIT 1",[organizationId,auth.principal.userId,auth.deviceId]);
+    const bindingRow=binding.rows[0];
+    if(!bindingRow?.agent_id)throw new Error("FIELD_VISIT_AGENT_DEVICE_BINDING_REQUIRED");
+    const visit=await new PostgresFieldRegistryRepository(deps.db).recordOfflineVisit({
+      organizationId,customerId:String(body.customerId??""),...(body.routeId?{routeId:String(body.routeId)}:{}),
+      authorizedAgentId:String(bindingRow.agent_id),trustedDeviceId:auth.deviceId,
+      visitStatus:body.visitStatus as any,eventSequence:Number(body.eventSequence),idempotencyKey:idem,
+      eventAt:String(body.eventAt??""),...(body.latitude!==undefined?{latitude:Number(body.latitude)}:{}),
+      ...(body.longitude!==undefined?{longitude:Number(body.longitude)}:{}),
+      ...(body.accuracyMeters!==undefined?{accuracyMeters:Number(body.accuracyMeters)}:{}),correlationId
+    });
+    data=visit;
+   } else if(r[0]==="field-routes"){
+    data=await new PostgresFieldRegistryRepository(deps.db).listRoutes(organizationId);
+   } else if(r[0]==="field-visits"){
+    const query=new URL(rawUrl,"https://tpay.invalid").searchParams;
+    const routeId=query.get("routeId")??undefined;
+    const after=query.get("after")??undefined;
+    const rawLimit=query.get("limit");
+    const limit=rawLimit===null?100:Number(rawLimit);
+    data=await new PostgresFieldRegistryRepository(deps.db).listVisits({organizationId,...(routeId?{routeId}:{}),...(after?{after}:{}),limit});
+   } else if(r[0]==="actor"){
     const q=await deps.db.query("SELECT actor_id,organization_id,kind,active,data,version,updated_at FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,r[1]]);
     if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("ACTOR_NOT_FOUND"),correlationId),correlationId);return;}
     data=q.rows[0];

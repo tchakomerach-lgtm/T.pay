@@ -15,7 +15,7 @@ import type { Permission } from "../../../packages/security/src/policy.js";
 const REQUIRED_ENV=["TPAY_DATABASE_URL","TPAY_TLS_KEY_FILE","TPAY_TLS_CERT_FILE"] as const;
 const permissionSet=new Set<Permission>([
   "org.read","org.manage","member.manage","finance.read","finance.initiate",
-  "finance.approve","ledger.read","ledger.post","audit.read","security.manage"
+  "finance.approve","field.read","ledger.read","ledger.post","audit.read","security.manage"
 ]);
 
 function env(name:string):string{
@@ -104,6 +104,7 @@ async function authenticateFactory(pool:Pool){
         permissions:granted,
         sessionId:validated.sessionId
       },
+      deviceId:validated.deviceId,
       tenantId:actorRow.tenant_id,
       session:{
         sessionId:validated.sessionId,
