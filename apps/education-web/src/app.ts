@@ -44,7 +44,7 @@ export function SchoolApp({config}:{config:SchoolWebConfig}){
  const log=(message:string)=>{setNotice(message);setActivity(v=>[message,...v].slice(0,12));};
  const card=(label:string,value:string,sub:string)=>h("article",{className:"metric",key:label},h("span",{className:"metric-label"},label),h("strong",{className:"metric-value"},value),h("small",null,sub));
  const button=(label:string,onClick:()=>void,kind="primary")=>h("button",{type:"button",className:kind,onClick},label);
- const table=(headers:string[],rows:React.ReactNode[][])=>h("div",{className:"table-wrap"},h("table",null,h("thead",null,h("tr",null,...headers.map(x=>h("th",{key:x},x)))),h("tbody",null,...rows.map((row,i)=>h("tr",{key:i},...row.map((cell,j)=>h("td",{key:j},cell))))));
+ const table=(headers:string[],rows:React.ReactNode[][])=>h("div",{className:"table-wrap"},h("table",null,h("thead",null,h("tr",null,...headers.map(x=>h("th",{key:x},x)))),h("tbody",null,...rows.map((row,i)=>h("tr",{key:i},...row.map((cell,j)=>h("td",{key:j},cell)))))));
  const badge=(text:string,good=false)=>h("span",{className:"pill "+(good?"good":"")},text);
  const title=(heading:string,desc:string,action?:React.ReactNode)=>h("div",{className:"section-title"},h("div",null,h("h2",null,heading),h("p",null,desc)),action);
  const openAdd=(s:Section)=>{setSection(s);setShowForm(true);setQuery("");};
