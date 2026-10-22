@@ -4,7 +4,7 @@ import { sqlCommandOf } from "../apps/api-server/src/main.js";
 
 test("transaction command parser accepts leading whitespace and mixed-case SQL", () => {
   assert.equal(sqlCommandOf("  COMMIT  "), "COMMIT");
-  assert.equal(sqlCommandOf("\n\trollback;"), "ROLLBACK;");
+  assert.equal(sqlCommandOf("\n\trollback;"), "ROLLBACK");
   assert.equal(sqlCommandOf("  commit work"), "COMMIT");
 });
 
