@@ -56,7 +56,7 @@ export function readRuntimeConfig(source=process.env):RuntimeConfig{
 }
 
 export function sqlCommandOf(sql:string):string|undefined{
-  return sql.trim().split(/\\s+/)[0]?.toUpperCase();
+  return sql.trim().split(/\s+/)[0]?.toUpperCase();
 }
 
 class PooledTransactionClient implements PostgresTransactionClient{
