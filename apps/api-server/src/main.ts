@@ -61,7 +61,7 @@ export function sqlCommandOf(sql:string):string|undefined{
   return normalized.split(/\s+/)[0]?.replace(/;$/, "").toUpperCase();
 }
 
-class PooledTransactionClient implements PostgresTransactionClient{
+export class PooledTransactionClient implements PostgresTransactionClient{
   private client:PoolClient|undefined;
   constructor(private readonly pool:Pool){}
   async query<T extends QueryResultRow=Record<string,unknown>>(sql:string,values?:unknown[]):Promise<{rows:T[];rowCount:number|null}>{
