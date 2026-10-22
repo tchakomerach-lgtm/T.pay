@@ -30,6 +30,10 @@ const forbidden=[
 
 const required=[
   ["apps/api-server/src/main.ts",/TPAY_DATABASE_TLS_REQUIRED/,"DATABASE_TLS_FAIL_CLOSED"],
+  [".github/workflows/terrain-certification.yml",/if:\s*github\.ref\s*==\s*['"]refs\/heads\/main['"]/, "TERRAIN_MAIN_BRANCH_GUARD_REQUIRED"],
+  [".github/workflows/terrain-certification.yml",/ref:\s*main[\s\S]*?persist-credentials:\s*false/,"TERRAIN_TRUSTED_CHECKOUT_REQUIRED"],
+  [".github/workflows/ci.yml",/persist-credentials:\s*false/,"CI_CHECKOUT_CREDENTIALS_MUST_NOT_PERSIST"],
+  [".github/workflows/android.yml",/persist-credentials:\s*false/,"ANDROID_CHECKOUT_CREDENTIALS_MUST_NOT_PERSIST"],
   ["migrations/047_tpay_vault_fortress.sql",/CREATE TABLE IF NOT EXISTS tpay_vaults/,"VAULT_SCHEMA_REQUIRED"],
   ["migrations/047_tpay_vault_fortress.sql",/ENABLE ROW LEVEL SECURITY/,"VAULT_RLS_REQUIRED"],
   ["migrations/047_tpay_vault_fortress.sql",/FORCE ROW LEVEL SECURITY/,"VAULT_FORCE_RLS_REQUIRED"],
