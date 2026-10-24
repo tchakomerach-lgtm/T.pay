@@ -20,7 +20,8 @@
     "test:terrain": "npm run check && npm run security:fortress && npm run test:postgres && node scripts/replit-terrain-certification.mjs",
     "security:fortress": "node scripts/security-fortress-check.mjs",
     "test:vault": "npm run build && node --test dist/tests/fortress-vault.test.js",
-    "test:cobol": "bash scripts/test-cobol-finance.sh"
+    "test:cobol": "bash scripts/test-cobol-finance.sh",
+    "build:cobol": "bash scripts/build-cobol-finance.sh"
   },
   "engines": {
     "node": ">=22"
