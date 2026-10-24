@@ -21,7 +21,8 @@
     "security:fortress": "node scripts/security-fortress-check.mjs",
     "test:vault": "npm run build && node --test dist/tests/fortress-vault.test.js",
     "test:cobol": "bash scripts/test-cobol-finance.sh",
-    "build:cobol": "bash scripts/build-cobol-finance.sh"
+    "build:cobol": "bash scripts/build-cobol-finance.sh",
+    "test:cobol:integration": "npm run build:cobol && npm run build && TPAY_FINANCE_ENGINE=cobol TPAY_COBOL_FINANCE_BIN=\"$PWD/dist/cobol/tpay-commission\" node --test dist/tests/cobol-finance-integration.test.js"
   },
   "engines": {
     "node": ">=22"
