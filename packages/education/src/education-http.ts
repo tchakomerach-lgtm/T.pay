@@ -62,7 +62,7 @@ const json=(res:ServerResponse,status:number,body:unknown,correlationId:string)=
 async function readBody(req:IncomingMessage):Promise<string>{
   const declaredLength=String(req.headers["content-length"]??"").trim();
   if(declaredLength){
-    if(!/^\\d+$/.test(declaredLength))throw new Error("CONTENT_LENGTH_INVALID");
+    if(!/^\d+$/.test(declaredLength))throw new Error("CONTENT_LENGTH_INVALID");
     if(Number(declaredLength)>MAX_BODY_BYTES)throw new Error("PAYLOAD_TOO_LARGE");
   }
   let out="",size=0;
@@ -196,7 +196,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      const academicYear=String((body as any).academicYear??"").trim();
      const label=String((body as any).label??"").trim();
      const capacity=Number((body as any).capacity);
-     if(!/^[A-Za-z0-9._:-]{3,96}$/.test(classId)||!/^\\d{4}-\\d{4}$/.test(academicYear)||!label||label.length>120||!Number.isSafeInteger(capacity)||capacity<1||capacity>5000)throw new Error("EDUCATION_CLASS_INPUT_INVALID");
+     if(!/^[A-Za-z0-9._:-]{3,96}$/.test(classId)||!/^\d{4}-\d{4}$/.test(academicYear)||!label||label.length>120||!Number.isSafeInteger(capacity)||capacity<1||capacity>5000)throw new Error("EDUCATION_CLASS_INPUT_INVALID");
      const q=await deps.db.query("INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,label,capacity) VALUES($1,$2,$3,$4,$5,$6) RETURNING class_id,academic_year,label,capacity,enrolled_count,status,version,created_at,updated_at",[classId,auth.tenantId,organizationId,academicYear,label,capacity]);
      data=q.rows[0]; if(!data)throw new Error("EDUCATION_CLASS_CREATE_FAILED");
     }else throw new Error("EDUCATION_CLASS_METHOD_NOT_ALLOWED");
@@ -209,7 +209,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      const classId=String((body as any).classId??"").trim();
      const academicYear=String((body as any).academicYear??"").trim();
      const status=String((body as any).status??"PENDING");
-     if(!/^[A-Za-z0-9._:-]{3,96}$/.test(enrollmentId)||!/^[A-Za-z0-9._:-]{3,96}$/.test(studentId)||!/^[A-Za-z0-9._:-]{3,96}$/.test(classId)||!/^\\d{4}-\\d{4}$/.test(academicYear)||!["PENDING","CONFIRMED"].includes(status))throw new Error("EDUCATION_ENROLLMENT_INPUT_INVALID");
+     if(!/^[A-Za-z0-9._:-]{3,96}$/.test(enrollmentId)||!/^[A-Za-z0-9._:-]{3,96}$/.test(studentId)||!/^[A-Za-z0-9._:-]{3,96}$/.test(classId)||!/^\d{4}-\d{4}$/.test(academicYear)||!["PENDING","CONFIRMED"].includes(status))throw new Error("EDUCATION_ENROLLMENT_INPUT_INVALID");
      const q=await deps.db.query("INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING enrollment_id,student_id,class_id,academic_year,status,enrolled_at,ended_at,version,created_by,created_at",[enrollmentId,auth.tenantId,organizationId,studentId,classId,academicYear,status,auth.principal.userId]);
      data=q.rows[0]; if(!data)throw new Error("EDUCATION_ENROLLMENT_CREATE_FAILED");
     }else throw new Error("EDUCATION_ENROLLMENT_METHOD_NOT_ALLOWED");
