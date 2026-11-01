@@ -62,7 +62,7 @@ const json=(res:ServerResponse,status:number,body:unknown,correlationId:string)=
 async function readBody(req:IncomingMessage):Promise<string>{
   const declaredLength=String(req.headers["content-length"]??"").trim();
   if(declaredLength){
-    if(!/^\\d+$/.test(declaredLength))throw new Error("CONTENT_LENGTH_INVALID");
+    if(!/^\d+$/.test(declaredLength))throw new Error("CONTENT_LENGTH_INVALID");
     if(Number(declaredLength)>MAX_BODY_BYTES)throw new Error("PAYLOAD_TOO_LARGE");
   }
   let out="",size=0;
@@ -78,6 +78,9 @@ function route(path:string){
  const parts=path.split("/").filter(Boolean);
  if(parts[0]!=="v1"||parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
+ if(parts[2]==="classes"&&parts.length===3)return ["classes"] as const;
+ if(parts[2]==="enrollments"&&parts.length===3)return ["enrollments"] as const;
+ if(parts[2]==="enrollments"&&parts.length===4&&parts[3])return ["enrollment-status",parts[3]] as const;
  if(parts[2]==="sync"&&parts[3]==="events"&&parts.length===4)return ["sync"] as const;
  if(parts[2]==="attendance"&&parts.length===3)return ["attendance"] as const;
  if(parts[2]==="work-items"&&parts.length===3)return ["work-create"] as const;
@@ -87,7 +90,11 @@ function route(path:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="actor"?"org.read":"member.manage";}
+function permissionFor(kind:string,method:string):Permission{
+ if(kind==="actor"||((kind==="classes"||kind==="enrollments")&&method==="GET"))return "org.read";
+ if(kind==="classes"||kind==="enrollments"||kind==="enrollment-status")return "org.manage";
+ return "member.manage";
+}
 export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
 
 export function createSchoolApiServer(deps:SchoolApiDependencies, options:SchoolApiServerOptions={}){
@@ -111,7 +118,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      }
      res.setHeader("access-control-allow-origin",origin);
      res.setHeader("vary","Origin");
-     res.setHeader("access-control-allow-methods","GET,POST,OPTIONS");
+     res.setHeader("access-control-allow-methods","GET,POST,PATCH,OPTIONS");
      res.setHeader("access-control-allow-headers","Authorization,Content-Type,Last-Event-ID,X-Correlation-ID,X-Idempotency-Key");
      res.setHeader("access-control-expose-headers","X-Correlation-ID");
      res.setHeader("access-control-max-age","600");
@@ -125,7 +132,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(!routeAuth.allowed)throw new Error(routeAuth.reason);
    const organizationId=auth.principal.organizationId; if(!auth.tenantId)throw new Error("TENANT_CONTEXT_REQUIRED");
    if(!organizationId)throw new Error("ORGANIZATION_CONTEXT_REQUIRED");
-   assertAuthorized(auth.principal,{organizationId,requestedPermission:permissionFor(r[0])});
+   assertAuthorized(auth.principal,{organizationId,requestedPermission:permissionFor(r[0],method)});
    if(r[0]==="stream"){
     if(method!=="GET")throw new Error("REALTIME_METHOD_NOT_ALLOWED");
     if(!deps.realtime)throw new Error("REALTIME_NOT_CONFIGURED");
@@ -171,7 +178,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    }
    const bodyText=await readBody(req);
    if(method!=="GET"){
-     const contentType=String(req.headers["content-type"]??"").split(";")[0].trim().toLowerCase();
+     const contentType=String(req.headers["content-type"]??"").split(";")[0]?.trim().toLowerCase()??"";
      if(contentType!=="application/json")throw new Error("API_JSON_CONTENT_TYPE_REQUIRED");
    }
    const body=parse(bodyText);
@@ -183,7 +190,87 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(dedupe?.status==="conflict")throw new Error("API_IDEMPOTENCY_CONFLICT");
    if(dedupe?.status==="replay"){res.statusCode=dedupe.statusCode??200;json(res,res.statusCode,{ok:true,replayed:true,requestId:dedupe.requestId},correlationId);return;}
    let data:unknown;
-   if(r[0]==="actor"){
+   if(r[0]==="classes"){
+    if(method==="GET"){
+      const url=new URL(rawUrl,"https://tpay.invalid");
+      const academicYear=url.searchParams.get("academicYear");
+      if(academicYear && !/^\d{4}-\d{4}$/.test(academicYear))throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
+      const q=await deps.db.query(
+        "SELECT class_id,academic_year,code,name,level,capacity,status,version,created_at,updated_at FROM education_classes WHERE tenant_id=$1 AND organization_id=$2 AND ($3::text IS NULL OR academic_year=$3) ORDER BY academic_year DESC,code ASC",
+        [auth.tenantId,organizationId,academicYear]
+      );
+      data=q.rows;
+    }else if(method==="POST"){
+      const input=body as Record<string,unknown>;
+      const allowed=["academicYear","code","name","level","capacity"];
+      if(Object.keys(input).some(key=>!allowed.includes(key)))throw new Error("EDUCATION_CLASS_FIELDS_NOT_ALLOWED");
+      const academicYear=String(input.academicYear??"");
+      const code=String(input.code??"").trim();
+      const name=String(input.name??"").trim();
+      const level=String(input.level??"").trim();
+      const capacity=Number(input.capacity);
+      if(!/^\d{4}-\d{4}$/.test(academicYear)||Number(academicYear.slice(5))!==Number(academicYear.slice(0,4))+1)throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
+      if(!/^[A-Za-z0-9._-]{1,32}$/.test(code))throw new Error("EDUCATION_CLASS_CODE_INVALID");
+      if(!name||name.length>120||!level||level.length>80)throw new Error("EDUCATION_CLASS_DETAILS_INVALID");
+      if(!Number.isSafeInteger(capacity)||capacity<1||capacity>3000)throw new Error("EDUCATION_CLASS_CAPACITY_INVALID");
+      const classId=randomUUID();
+      const q=await deps.db.query(
+        "INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,code,name,level,capacity,status,created_by,version,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'ACTIVE',$9,1,now(),now()) RETURNING class_id,academic_year,code,name,level,capacity,status,version,created_at,updated_at",
+        [classId,auth.tenantId,organizationId,academicYear,code,name,level,capacity,auth.principal.userId]
+      );
+      data=q.rows[0];
+    }else throw new Error("EDUCATION_CLASS_METHOD_NOT_ALLOWED");
+   } else if(r[0]==="enrollments"){
+    if(method==="GET"){
+      const url=new URL(rawUrl,"https://tpay.invalid");
+      const classId=url.searchParams.get("classId");
+      const academicYear=url.searchParams.get("academicYear");
+      if(academicYear && !/^\d{4}-\d{4}$/.test(academicYear))throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
+      const q=await deps.db.query(
+        "SELECT e.enrollment_id,e.student_id,e.class_id,e.academic_year,e.status,e.enrolled_at,e.version,c.code AS class_code,c.name AS class_name FROM education_enrollments e JOIN education_classes c ON c.tenant_id=e.tenant_id AND c.organization_id=e.organization_id AND c.class_id=e.class_id AND c.academic_year=e.academic_year WHERE e.tenant_id=$1 AND e.organization_id=$2 AND ($3::text IS NULL OR e.class_id=$3) AND ($4::text IS NULL OR e.academic_year=$4) ORDER BY e.enrolled_at DESC,e.enrollment_id ASC",
+        [auth.tenantId,organizationId,classId,academicYear]
+      );
+      data=q.rows;
+    }else if(method==="POST"){
+      const input=body as Record<string,unknown>;
+      const allowed=["studentId","classId","academicYear"];
+      if(Object.keys(input).some(key=>!allowed.includes(key)))throw new Error("EDUCATION_ENROLLMENT_FIELDS_NOT_ALLOWED");
+      const studentId=String(input.studentId??"").trim();
+      const classId=String(input.classId??"").trim();
+      const academicYear=String(input.academicYear??"");
+      const enrolledAt=(deps.now??(()=>new Date()))().toISOString();
+      if(!studentId||studentId.length>128||!classId||classId.length>128)throw new Error("EDUCATION_ENROLLMENT_REFERENCE_INVALID");
+      if(!/^\d{4}-\d{4}$/.test(academicYear)||Number(academicYear.slice(5))!==Number(academicYear.slice(0,4))+1)throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
+      if(!Number.isFinite(Date.parse(enrolledAt)))throw new Error("EDUCATION_ENROLLMENT_DATE_INVALID");
+      const enrollmentId=randomUUID();
+      const q=await deps.db.query(
+        "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,enrolled_at,created_by,version) VALUES($1,$2,$3,$4,$5,$6,'ACTIVE',$7,$8,1) RETURNING enrollment_id,student_id,class_id,academic_year,status,enrolled_at,created_by,version",
+        [enrollmentId,auth.tenantId,organizationId,studentId,classId,academicYear,enrolledAt,auth.principal.userId]
+      );
+      data=q.rows[0];
+    }else throw new Error("EDUCATION_ENROLLMENT_METHOD_NOT_ALLOWED");
+   } else if(r[0]==="enrollment-status"){
+    if(method!=="PATCH")throw new Error("EDUCATION_ENROLLMENT_METHOD_NOT_ALLOWED");
+    const input=body as Record<string,unknown>;
+    if(Object.keys(input).some(key=>!["status","expectedVersion"].includes(key)))throw new Error("EDUCATION_ENROLLMENT_STATUS_FIELDS_NOT_ALLOWED");
+    const nextStatus=String(input.status??"");
+    const expectedVersion=Number(input.expectedVersion);
+    if(!["WITHDRAWN","CANCELLED","COMPLETED"].includes(nextStatus))throw new Error("EDUCATION_ENROLLMENT_TRANSITION_INVALID");
+    if(!Number.isSafeInteger(expectedVersion)||expectedVersion<1)throw new Error("EDUCATION_ENROLLMENT_VERSION_REQUIRED");
+    const updated=await deps.db.query(
+      "UPDATE education_enrollments SET status=$1,version=version+1,updated_at=now() WHERE tenant_id=$2 AND organization_id=$3 AND enrollment_id=$4 AND status='ACTIVE' AND version=$5 RETURNING enrollment_id,student_id,class_id,academic_year,status,enrolled_at,version,updated_at",
+      [nextStatus,auth.tenantId,organizationId,r[1],expectedVersion]
+    );
+    if(!updated.rows[0]){
+      const current=await deps.db.query(
+        "SELECT status,version FROM education_enrollments WHERE tenant_id=$1 AND organization_id=$2 AND enrollment_id=$3",
+        [auth.tenantId,organizationId,r[1]]
+      );
+      if(!current.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("EDUCATION_ENROLLMENT_NOT_FOUND"),correlationId),correlationId);return;}
+      res.statusCode=409;json(res,409,buildApiError(new Error("EDUCATION_ENROLLMENT_STATE_OR_VERSION_CONFLICT"),correlationId),correlationId);return;
+    }
+    data=updated.rows[0];
+   } else if(r[0]==="actor"){
     const q=await deps.db.query("SELECT actor_id,organization_id,kind,active,data,version,updated_at FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,r[1]]);
     if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("ACTOR_NOT_FOUND"),correlationId),correlationId);return;}
     data=q.rows[0];
@@ -220,7 +307,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
    }
    if(deps.realtime && deps.realtimeStore && r[0]!=="actor"){
-    const typeMap:Record<string,SchoolRealtimeEvent["type"]>={sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
+    const typeMap:Record<string,SchoolRealtimeEvent["type"]>={classes:"class.changed",enrollments:"enrollment.changed","enrollment-status":"enrollment.changed",sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
     const eventType=typeMap[r[0]];
     if(eventType){
       const event:SchoolRealtimeEvent={
@@ -229,9 +316,9 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
         organizationId,
         type:eventType,
         occurredAt:(deps.now??(()=>new Date()))().toISOString(),
-        entityId:String((data as any)?.id??(data as any)?.request_id??(data as any)?.work_item_id??(data as any)?.eventId??correlationId),
+        entityId:String((data as any)?.class_id??(data as any)?.enrollment_id??(data as any)?.id??(data as any)?.request_id??(data as any)?.work_item_id??(data as any)?.eventId??correlationId),
         version:Number((data as any)?.version??1),
-        data:{operation:method,route:path}
+        data:{operation:method,route:path,status:(data as any)?.status??null}
       };
       const streamSequence=await deps.realtimeStore.append(event);
       event.streamSequence=streamSequence.toString();

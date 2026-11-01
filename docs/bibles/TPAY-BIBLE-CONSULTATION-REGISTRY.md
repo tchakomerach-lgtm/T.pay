@@ -22,6 +22,7 @@ This registry makes the project's Bibles discoverable before implementation and 
 | Organization branding | relevant organization ADR + design/brand registry |
 | UX/UI/motion/accessibility | `docs/bibles/TPAY-DESIGN-BIBLE-IMPLEMENTATION.md` |
 | Community Tontine | `docs/architecture/ADR-004-community-tontine.md` + MF + FIN + SEC skills |
+| Education / School OS | `docs/construction/P038-EDUCATION-SYNC-FABRIC-POSTGRES-RECORD.md`, `docs/construction/P040-EDUCATION-REALTIME-RECORD.md`, current P056/P057 construction records, Education migrations/tests + AUTH + SEC + Design; FIN only at the authorized school-fee boundary |
 | Cross-domain feature | all affected domain references before implementation |
 
 ## Consultation rule
@@ -32,3 +33,9 @@ When external research is needed, prefer primary sources and record the version/
 
 ## Review rule
 Security and finance gates have veto authority for their respective risks. The integrator resolves conflicts explicitly in an ADR rather than bypassing a gate.
+
+
+## Education and contract-layer coverage
+- School OS boundary: Web/Android/PC → authenticated API Gateway → Education Core → PostgreSQL. Financial operations remain exclusively in Financial Core.
+- The repository currently has no standalone Education Bible file; the applicable school rules are recorded in the P038/P040 construction records, Education persistence/API code, migrations, tests and cross-domain Bibles. Do not create a parallel school policy without updating the canonical source first.
+- The previously defined DB-074 design-contract-layer reference is not present in the current repository tree. Do not invent a replacement contract or a competing Web/Mobile renderer contract; recover/import the authoritative DB-074 source before changing that boundary.

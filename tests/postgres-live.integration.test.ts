@@ -830,3 +830,157 @@ test("Community Tontine partner settlement is payout-bound, maker-checker protec
     await client.end();
   }
 });
+
+
+test("P056 live PostgreSQL school enrollment enforces tenant scope, uniqueness and class capacity", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const client = new pg.Client({ connectionString: databaseUrl });
+  await client.connect();
+  const tenantId = "p056-" + randomUUID();
+  const organizationId = "p056-org-" + randomUUID();
+  const actorId = "p056-actor-" + randomUUID();
+  const studentA = "p056-student-a-" + randomUUID();
+  const studentB = "p056-student-b-" + randomUUID();
+  const classId = "p056-class-" + randomUUID();
+  const otherTenantId = "p056-other-tenant-" + randomUUID();
+  const otherOrganizationId = "p056-other-org-" + randomUUID();
+  const now = new Date().toISOString();
+  let schemaReady = false;
+  try {
+    await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    schemaReady = true;
+    await client.query(
+      "INSERT INTO education_actors(actor_id,tenant_id,organization_id,kind,active,data,version,updated_at) VALUES($1,$2,$3,'ADMIN',true,'{}'::jsonb,1,$4)",
+      [actorId,tenantId,organizationId,now]
+    );
+    await client.query(
+      "INSERT INTO education_students(student_id,tenant_id,organization_id,lifecycle,version,updated_at) VALUES($1,$2,$3,'ACTIVE',1,$5),($4,$2,$3,'ACTIVE',1,$5)",
+      [studentA,tenantId,organizationId,studentB,now]
+    );
+    await client.query(
+      "INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,code,name,level,capacity,status,created_by) VALUES($1,$2,$3,'2026-2027','6E-A','Sixième A','COLLEGE',1,'ACTIVE',$4)",
+      [classId,tenantId,organizationId,actorId]
+    );
+    await client.query(
+      "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,'2026-2027','ACTIVE',$6)",
+      ["p056-enroll-a-"+randomUUID(),tenantId,organizationId,studentA,classId,actorId]
+    );
+    await assert.rejects(
+      client.query(
+        "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,'2026-2027','ACTIVE',$6)",
+        ["p056-enroll-b-"+randomUUID(),tenantId,organizationId,studentB,classId,actorId]
+      ),
+      /EDUCATION_CLASS_CAPACITY_REACHED/
+    );
+    const duplicateClassId = "p056-class-duplicate-" + randomUUID();
+    await client.query(
+      "INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,code,name,level,capacity,status,created_by) VALUES($1,$2,$3,'2026-2027','6E-B','Sixième B','COLLEGE',10,'ACTIVE',$4)",
+      [duplicateClassId,tenantId,organizationId,actorId]
+    );
+    await assert.rejects(
+      client.query(
+        "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,'2026-2027','ACTIVE',$6)",
+        ["p056-enroll-duplicate-"+randomUUID(),tenantId,organizationId,studentA,duplicateClassId,actorId]
+      ),
+      /duplicate key|unique/i
+    );
+
+    const foreignStudentId = "p056-foreign-student-" + randomUUID();
+    await client.query(
+      "INSERT INTO education_students(student_id,tenant_id,organization_id,lifecycle,version,updated_at) VALUES($1,$2,$3,'ACTIVE',1,$4)",
+      [foreignStudentId,otherTenantId,otherOrganizationId,now]
+    );
+    await assert.rejects(
+      client.query(
+        "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,'2026-2027','ACTIVE',$6)",
+        ["p056-cross-tenant-" + randomUUID(),tenantId,organizationId,foreignStudentId,classId,actorId]
+      ),
+      /foreign key|violates foreign key/i
+    );
+
+    const lifecycleStudentId = "p056-lifecycle-student-" + randomUUID();
+    const lifecycleClassId = "p056-lifecycle-class-" + randomUUID();
+    const lifecycleEnrollmentId = "p056-lifecycle-enrollment-" + randomUUID();
+    await client.query(
+      "INSERT INTO education_students(student_id,tenant_id,organization_id,lifecycle,version,updated_at) VALUES($1,$2,$3,'ACTIVE',1,$4)",
+      [lifecycleStudentId,tenantId,organizationId,now]
+    );
+    await client.query(
+      "INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,code,name,level,capacity,status,created_by) VALUES($1,$2,$3,'2026-2027','6E-LIFE','Sixième Lifecycle','COLLEGE',2,'ACTIVE',$4)",
+      [lifecycleClassId,tenantId,organizationId,actorId]
+    );
+    await client.query(
+      "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,'2026-2027','ACTIVE',$6)",
+      [lifecycleEnrollmentId,tenantId,organizationId,lifecycleStudentId,lifecycleClassId,actorId]
+    );
+    await client.query(
+      "UPDATE education_enrollments SET status='WITHDRAWN',version=version+1 WHERE tenant_id=$1 AND organization_id=$2 AND enrollment_id=$3 AND status='ACTIVE' AND version=1",
+      [tenantId,organizationId,lifecycleEnrollmentId]
+    );
+    let lifecycleCounter = await client.query(
+      "SELECT enrolled_count FROM education_classes WHERE tenant_id=$1 AND organization_id=$2 AND class_id=$3",
+      [tenantId,organizationId,lifecycleClassId]
+    );
+    assert.equal(lifecycleCounter.rows[0]?.enrolled_count,0);
+    await client.query(
+      "UPDATE education_enrollments SET status='COMPLETED',version=version+1 WHERE tenant_id=$1 AND organization_id=$2 AND enrollment_id=$3",
+      [tenantId,organizationId,lifecycleEnrollmentId]
+    );
+    lifecycleCounter = await client.query(
+      "SELECT enrolled_count FROM education_classes WHERE tenant_id=$1 AND organization_id=$2 AND class_id=$3",
+      [tenantId,organizationId,lifecycleClassId]
+    );
+    assert.equal(lifecycleCounter.rows[0]?.enrolled_count,0);
+
+    const raceClassId = "p056-class-race-" + randomUUID();
+    const studentC = "p056-student-c-" + randomUUID();
+    const studentD = "p056-student-d-" + randomUUID();
+    await client.query(
+      "INSERT INTO education_students(student_id,tenant_id,organization_id,lifecycle,version,updated_at) VALUES($1,$2,$3,'ACTIVE',1,$4),($5,$2,$3,'ACTIVE',1,$4)",
+      [studentC,tenantId,organizationId,now,studentD]
+    );
+    await client.query(
+      "INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,code,name,level,capacity,status,created_by) VALUES($1,$2,$3,'2026-2027','6E-RACE','Sixième Race','COLLEGE',1,'ACTIVE',$4)",
+      [raceClassId,tenantId,organizationId,actorId]
+    );
+    const raceClients = [new pg.Client({connectionString:databaseUrl}),new pg.Client({connectionString:databaseUrl})];
+    await Promise.all(raceClients.map(c=>c.connect()));
+    try {
+      const raceResults = await Promise.allSettled([
+        raceClients[0]!.query(
+          "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,'2026-2027','ACTIVE',$6)",
+          ["p056-race-a-"+randomUUID(),tenantId,organizationId,studentC,raceClassId,actorId]
+        ),
+        raceClients[1]!.query(
+          "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,'2026-2027','ACTIVE',$6)",
+          ["p056-race-b-"+randomUUID(),tenantId,organizationId,studentD,raceClassId,actorId]
+        )
+      ]);
+      assert.equal(raceResults.filter(result=>result.status==="fulfilled").length,1);
+      assert.equal(raceResults.filter(result=>result.status==="rejected").length,1);
+      const rejectedRace = raceResults.find(result=>result.status==="rejected");
+      assert.ok(rejectedRace && rejectedRace.status==="rejected");
+      assert.match(String(rejectedRace.reason),/EDUCATION_CLASS_CAPACITY_REACHED_OR_INACTIVE/);
+      const counter = await client.query(
+        "SELECT enrolled_count,capacity FROM education_classes WHERE tenant_id=$1 AND organization_id=$2 AND class_id=$3",
+        [tenantId,organizationId,raceClassId]
+      );
+      assert.equal(counter.rows[0]?.enrolled_count,1);
+      assert.equal(counter.rows[0]?.capacity,1);
+    } finally {
+      await Promise.all(raceClients.map(c=>c.end()));
+    }
+  } finally {
+    try {
+      if (schemaReady) {
+        await client.query("DELETE FROM education_enrollments WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
+        await client.query("DELETE FROM education_classes WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
+        await client.query("DELETE FROM education_students WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
+        await client.query("DELETE FROM education_actors WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
+        await client.query("DELETE FROM education_students WHERE tenant_id=$1 AND organization_id=$2",[otherTenantId,otherOrganizationId]);
+      }
+    } finally {
+      await client.end();
+    }
+  }
+});
