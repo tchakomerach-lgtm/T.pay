@@ -10,7 +10,7 @@ function makeAuth(permissions: Permission[] = ["org.read","org.manage"]) {
     session: { sessionId:"session-school", userId:"school-admin", organizationId:"org-school", createdAt:0, expiresAt:Date.now()+60_000, assurance:"standard" as const }
   };
 }
-async function withServer(db: any, permissions: string[], run: (base:string)=>Promise<void>) {
+async function withServer(db: any, permissions: Permission[], run: (base:string)=>Promise<void>) {
   const server=createSchoolApiServer({db,authenticate:async()=>makeAuth(permissions),syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any});
   await new Promise<void>(resolve=>server.listen(0,resolve));
   const address=server.address() as {port:number};
