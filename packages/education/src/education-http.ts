@@ -195,7 +195,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       const academicYear=url.searchParams.get("academicYear");
       if(academicYear && !/^\d{4}-\d{4}$/.test(academicYear))throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
       const q=await deps.db.query(
-        "SELECT class_id,academic_year,code,name,level,capacity,status,version,created_at,updated_at FROM education_classes WHERE tenant_id=$1 AND organization_id=$2 AND ($3::text IS NULL OR academic_year=$3) ORDER BY academic_year DESC,code ASC",
+        "SELECT class_id,academic_year,code,name,level,capacity,enrolled_count,status,version,created_at,updated_at FROM education_classes WHERE tenant_id=$1 AND organization_id=$2 AND ($3::text IS NULL OR academic_year=$3) ORDER BY academic_year DESC,code ASC",
         [auth.tenantId,organizationId,academicYear]
       );
       data=q.rows;
@@ -214,7 +214,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       if(!Number.isSafeInteger(capacity)||capacity<1||capacity>3000)throw new Error("EDUCATION_CLASS_CAPACITY_INVALID");
       const classId=randomUUID();
       const q=await deps.db.query(
-        "INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,code,name,level,capacity,status,created_by,version,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'ACTIVE',$9,1,now(),now()) RETURNING class_id,academic_year,code,name,level,capacity,status,version,created_at,updated_at",
+        "INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,code,name,level,capacity,status,created_by,version,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'ACTIVE',$9,1,now(),now()) RETURNING class_id,academic_year,code,name,level,capacity,enrolled_count,status,version,created_at,updated_at",
         [classId,auth.tenantId,organizationId,academicYear,code,name,level,capacity,auth.principal.userId]
       );
       data=q.rows[0];
