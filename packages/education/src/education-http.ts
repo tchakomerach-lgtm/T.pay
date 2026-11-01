@@ -80,6 +80,8 @@ function route(path:string){
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
  if(parts[2]==="sync"&&parts[3]==="events"&&parts.length===4)return ["sync"] as const;
  if(parts[2]==="attendance"&&parts.length===3)return ["attendance"] as const;
+ if(parts[2]==="classes"&&parts.length===3)return ["classes"] as const;
+ if(parts[2]==="enrollments"&&parts.length===3)return ["enrollments"] as const;
  if(parts[2]==="students"&&parts.length===3)return ["students"] as const;
  if(parts[2]==="students"&&parts.length===4&&parts[3])return ["student",parts[3]] as const;
  if(parts[2]==="students"&&parts.length===5&&parts[3]&&parts[4]==="lifecycle")return ["student-lifecycle",parts[3]] as const;
@@ -90,7 +92,7 @@ function route(path:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string,method:string):Permission{return kind==="actor"||(kind==="student"&&method==="GET")||(kind==="students"&&method==="GET")?"org.read":"member.manage";}
+function permissionFor(kind:string,method:string):Permission{return kind==="actor"||(kind==="student"&&method==="GET")||(kind==="students"&&method==="GET")||(kind==="classes"&&method==="GET")||(kind==="enrollments"&&method==="GET")?"org.read":"member.manage";}
 export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
 
 export function createSchoolApiServer(deps:SchoolApiDependencies, options:SchoolApiServerOptions={}){
@@ -186,7 +188,32 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(dedupe?.status==="conflict")throw new Error("API_IDEMPOTENCY_CONFLICT");
    if(dedupe?.status==="replay"){res.statusCode=dedupe.statusCode??200;json(res,res.statusCode,{ok:true,replayed:true,requestId:dedupe.requestId},correlationId);return;}
    let data:unknown;
-   if(r[0]==="students"){
+   if(r[0]==="classes"){
+    if(method==="GET"){
+     const q=await deps.db.query("SELECT class_id,academic_year,label,capacity,enrolled_count,status,version,created_at,updated_at FROM education_classes WHERE tenant_id=$1 AND organization_id=$2 ORDER BY academic_year DESC,label LIMIT 200",[auth.tenantId,organizationId]); data=q.rows;
+    }else if(method==="POST"){
+     const classId=String((body as any).classId??randomUUID()).trim();
+     const academicYear=String((body as any).academicYear??"").trim();
+     const label=String((body as any).label??"").trim();
+     const capacity=Number((body as any).capacity);
+     if(!/^[A-Za-z0-9._:-]{3,96}$/.test(classId)||!/^\\d{4}-\\d{4}$/.test(academicYear)||!label||label.length>120||!Number.isSafeInteger(capacity)||capacity<1||capacity>5000)throw new Error("EDUCATION_CLASS_INPUT_INVALID");
+     const q=await deps.db.query("INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,label,capacity) VALUES($1,$2,$3,$4,$5,$6) RETURNING class_id,academic_year,label,capacity,enrolled_count,status,version,created_at,updated_at",[classId,auth.tenantId,organizationId,academicYear,label,capacity]);
+     data=q.rows[0]; if(!data)throw new Error("EDUCATION_CLASS_CREATE_FAILED");
+    }else throw new Error("EDUCATION_CLASS_METHOD_NOT_ALLOWED");
+   } else if(r[0]==="enrollments"){
+    if(method==="GET"){
+     const q=await deps.db.query("SELECT enrollment_id,student_id,class_id,academic_year,status,enrolled_at,ended_at,version,created_by,created_at FROM education_enrollments WHERE tenant_id=$1 AND organization_id=$2 ORDER BY created_at DESC LIMIT 200",[auth.tenantId,organizationId]); data=q.rows;
+    }else if(method==="POST"){
+     const enrollmentId=String((body as any).enrollmentId??randomUUID()).trim();
+     const studentId=String((body as any).studentId??"").trim();
+     const classId=String((body as any).classId??"").trim();
+     const academicYear=String((body as any).academicYear??"").trim();
+     const status=String((body as any).status??"PENDING");
+     if(!/^[A-Za-z0-9._:-]{3,96}$/.test(enrollmentId)||!/^[A-Za-z0-9._:-]{3,96}$/.test(studentId)||!/^[A-Za-z0-9._:-]{3,96}$/.test(classId)||!/^\\d{4}-\\d{4}$/.test(academicYear)||!["PENDING","CONFIRMED"].includes(status))throw new Error("EDUCATION_ENROLLMENT_INPUT_INVALID");
+     const q=await deps.db.query("INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING enrollment_id,student_id,class_id,academic_year,status,enrolled_at,ended_at,version,created_by,created_at",[enrollmentId,auth.tenantId,organizationId,studentId,classId,academicYear,status,auth.principal.userId]);
+     data=q.rows[0]; if(!data)throw new Error("EDUCATION_ENROLLMENT_CREATE_FAILED");
+    }else throw new Error("EDUCATION_ENROLLMENT_METHOD_NOT_ALLOWED");
+   } else if(r[0]==="students"){
     if(method==="GET"){
      const q=await deps.db.query("SELECT student_id,tenant_id,organization_id,lifecycle,version,updated_at FROM education_students WHERE tenant_id=$1 AND organization_id=$2 ORDER BY student_id LIMIT 200",[auth.tenantId,organizationId]); data=q.rows;
     }else if(method==="POST"){
@@ -244,7 +271,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
    }
    if(deps.realtime && deps.realtimeStore && r[0]!=="actor"){
-    const typeMap:Record<string,SchoolRealtimeEvent["type"]>={students:"student.changed",student:"student.changed","student-lifecycle":"student.lifecycle.changed",sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
+    const typeMap:Record<string,SchoolRealtimeEvent["type"]>={classes:"class.changed",enrollments:"enrollment.changed",students:"student.changed",student:"student.changed","student-lifecycle":"student.lifecycle.changed",sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
     const eventType=typeMap[r[0]];
     if(eventType){
       const event:SchoolRealtimeEvent={
