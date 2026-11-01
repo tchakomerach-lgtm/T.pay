@@ -79,7 +79,10 @@ function route(path:string){
  if(parts[0]!=="v1"||parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
  if(parts[2]==="sync"&&parts[3]==="events"&&parts.length===4)return ["sync"] as const;
- if(parts[2]==="attendance"&&parts.length===3)return ["attendance"] as const;\n if(parts[2]==="students"&&parts.length===3)return ["students"] as const;\n if(parts[2]==="students"&&parts.length===4&&parts[3])return ["student",parts[3]] as const;\n if(parts[2]==="students"&&parts.length===5&&parts[3]&&parts[4]==="lifecycle")return ["student-lifecycle",parts[3]] as const;
+ if(parts[2]==="attendance"&&parts.length===3)return ["attendance"] as const;
+ if(parts[2]==="students"&&parts.length===3)return ["students"] as const;
+ if(parts[2]==="students"&&parts.length===4&&parts[3])return ["student",parts[3]] as const;
+ if(parts[2]==="students"&&parts.length===5&&parts[3]&&parts[4]==="lifecycle")return ["student-lifecycle",parts[3]] as const;
  if(parts[2]==="work-items"&&parts.length===3)return ["work-create"] as const;
  if(parts[2]==="work-items"&&parts.length===5&&parts[3]&&(parts[4]==="claim"||parts[4]==="resolve"))return ["work",parts[3],parts[4]] as const;
  if(parts[2]==="service-requests"&&parts.length===3)return ["service-create"] as const;
@@ -136,7 +139,9 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       try{replayCursor=BigInt(lastEventId);}catch{throw new Error("REALTIME_INVALID_CURSOR");}
       if(replayCursor<0n)throw new Error("REALTIME_INVALID_CURSOR");
     }
-    res.statusCode=200;res.setHeader("content-type","text/event-stream; charset=utf-8");res.setHeader("cache-control","no-cache, no-transform");res.setHeader("x-content-type-options","nosniff");res.setHeader("x-frame-options","DENY");res.setHeader("cross-origin-resource-policy","same-origin");res.setHeader("x-permitted-cross-domain-policies","none");res.setHeader("strict-transport-security","max-age=31536000; includeSubDomains");res.setHeader("connection","keep-alive");res.write(": connected\\n\\n");
+    res.statusCode=200;res.setHeader("content-type","text/event-stream; charset=utf-8");res.setHeader("cache-control","no-cache, no-transform");res.setHeader("x-content-type-options","nosniff");res.setHeader("x-frame-options","DENY");res.setHeader("cross-origin-resource-policy","same-origin");res.setHeader("x-permitted-cross-domain-policies","none");res.setHeader("strict-transport-security","max-age=31536000; includeSubDomains");res.setHeader("connection","keep-alive");res.write(": connected\
+\
+");
     let replaying=true;
     const buffered: SchoolRealtimeEvent[]=[];
     const seen=new Set<string>();
@@ -183,7 +188,28 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(dedupe?.status==="conflict")throw new Error("API_IDEMPOTENCY_CONFLICT");
    if(dedupe?.status==="replay"){res.statusCode=dedupe.statusCode??200;json(res,res.statusCode,{ok:true,replayed:true,requestId:dedupe.requestId},correlationId);return;}
    let data:unknown;
-   if(r[0]==="students"){\n    if(method==="GET"){\n     const q=await deps.db.query("SELECT student_id,tenant_id,organization_id,lifecycle,version,updated_at FROM education_students WHERE tenant_id=$1 AND organization_id=$2 ORDER BY student_id LIMIT 200",[auth.tenantId,organizationId]); data=q.rows;\n    }else if(method==="POST"){\n     const studentId=String((body as any).studentId??"").trim(); const lifecycle=String((body as any).lifecycle??"PROSPECT") as StudentLifecycle;\n     const valid:StudentLifecycle[]=["PROSPECT","APPLICANT","ADMITTED","ENROLLED","ACTIVE","SUSPENDED","WITHDRAWAL_PENDING","WITHDRAWN","ALUMNI"];\n     if(!/^[A-Za-z0-9._:-]{3,96}$/.test(studentId)||!valid.includes(lifecycle))throw new Error("STUDENT_INPUT_INVALID");\n     const inserted=await deps.db.query("INSERT INTO education_students(student_id,tenant_id,organization_id,lifecycle,version) VALUES($1,$2,$3,$4,1) ON CONFLICT DO NOTHING RETURNING student_id,tenant_id,organization_id,lifecycle,version,updated_at",[studentId,auth.tenantId,organizationId,lifecycle]);\n     if(!inserted.rows[0])throw new Error("STUDENT_ALREADY_EXISTS"); data=inserted.rows[0];\n    }else throw new Error("STUDENT_METHOD_NOT_ALLOWED");\n   } else if(r[0]==="student"){\n    if(method!=="GET")throw new Error("STUDENT_METHOD_NOT_ALLOWED");\n    const q=await deps.db.query("SELECT student_id,tenant_id,organization_id,lifecycle,version,updated_at FROM education_students WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3",[auth.tenantId,organizationId,r[1]]);\n    if(!q.rows[0])throw new Error("STUDENT_NOT_FOUND"); data=q.rows[0];\n   } else if(r[0]==="student-lifecycle"){\n    if(method!=="POST")throw new Error("STUDENT_METHOD_NOT_ALLOWED");\n    const q=await deps.db.query("SELECT student_id,organization_id,lifecycle,version FROM education_students WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3",[auth.tenantId,organizationId,r[1]]);\n    if(!q.rows[0])throw new Error("STUDENT_NOT_FOUND");\n    const current=q.rows[0] as unknown as StudentState; const next=transitionStudent({...current,version:BigInt(current.version)},String((body as any).lifecycle) as StudentLifecycle);\n    const updated=await deps.db.query("UPDATE education_students SET lifecycle=$1,version=$2,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND student_id=$5 AND version=$6 RETURNING student_id,organization_id,lifecycle,version,updated_at",[next.lifecycle,next.version.toString(),auth.tenantId,organizationId,r[1],current.version.toString()]);\n    if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];\n   } else if(r[0]==="actor"){
+   if(r[0]==="students"){
+    if(method==="GET"){
+     const q=await deps.db.query("SELECT student_id,tenant_id,organization_id,lifecycle,version,updated_at FROM education_students WHERE tenant_id=$1 AND organization_id=$2 ORDER BY student_id LIMIT 200",[auth.tenantId,organizationId]); data=q.rows;
+    }else if(method==="POST"){
+     const studentId=String((body as any).studentId??"").trim(); const lifecycle=String((body as any).lifecycle??"PROSPECT") as StudentLifecycle;
+     const valid:StudentLifecycle[]=["PROSPECT","APPLICANT","ADMITTED","ENROLLED","ACTIVE","SUSPENDED","WITHDRAWAL_PENDING","WITHDRAWN","ALUMNI"];
+     if(!/^[A-Za-z0-9._:-]{3,96}$/.test(studentId)||!valid.includes(lifecycle))throw new Error("STUDENT_INPUT_INVALID");
+     const inserted=await deps.db.query("INSERT INTO education_students(student_id,tenant_id,organization_id,lifecycle,version) VALUES($1,$2,$3,$4,1) ON CONFLICT DO NOTHING RETURNING student_id,tenant_id,organization_id,lifecycle,version,updated_at",[studentId,auth.tenantId,organizationId,lifecycle]);
+     if(!inserted.rows[0])throw new Error("STUDENT_ALREADY_EXISTS"); data=inserted.rows[0];
+    }else throw new Error("STUDENT_METHOD_NOT_ALLOWED");
+   } else if(r[0]==="student"){
+    if(method!=="GET")throw new Error("STUDENT_METHOD_NOT_ALLOWED");
+    const q=await deps.db.query("SELECT student_id,tenant_id,organization_id,lifecycle,version,updated_at FROM education_students WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3",[auth.tenantId,organizationId,r[1]]);
+    if(!q.rows[0])throw new Error("STUDENT_NOT_FOUND"); data=q.rows[0];
+   } else if(r[0]==="student-lifecycle"){
+    if(method!=="POST")throw new Error("STUDENT_METHOD_NOT_ALLOWED");
+    const q=await deps.db.query("SELECT student_id,organization_id,lifecycle,version FROM education_students WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3",[auth.tenantId,organizationId,r[1]]);
+    if(!q.rows[0])throw new Error("STUDENT_NOT_FOUND");
+    const current=q.rows[0] as unknown as StudentState; const next=transitionStudent({...current,version:BigInt(current.version)},String((body as any).lifecycle) as StudentLifecycle);
+    const updated=await deps.db.query("UPDATE education_students SET lifecycle=$1,version=$2,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND student_id=$5 AND version=$6 RETURNING student_id,organization_id,lifecycle,version,updated_at",[next.lifecycle,next.version.toString(),auth.tenantId,organizationId,r[1],current.version.toString()]);
+    if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
+   } else if(r[0]==="actor"){
     const q=await deps.db.query("SELECT actor_id,organization_id,kind,active,data,version,updated_at FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,r[1]]);
     if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("ACTOR_NOT_FOUND"),correlationId),correlationId);return;}
     data=q.rows[0];
