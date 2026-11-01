@@ -67,3 +67,8 @@ This PR targets the parent branch so API and UI can be reviewed and validated as
 - P057 remains based on the P056 branch; exact-head CI must therefore validate the merged parent + UI snapshot, not the UI branch in isolation.
 
 - The parent now emits `class.changed` and `enrollment.changed` events. P057 refreshes the authorized list views after receiving these events; event payloads are not treated as authoritative records.
+
+
+## Identity integration boundary
+- The current setup screen is an operator-controlled test bootstrap that accepts a real bearer token and its actual expiry; it is not a completed end-user sign-in/recovery experience.
+- Production use remains blocked until the existing T.Pay Identity/Auth flow supplies the organization-bound session to School OS without manual token entry, with logout, revocation and organization-context switching verified.
