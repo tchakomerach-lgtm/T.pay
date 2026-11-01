@@ -3,7 +3,7 @@ export type SchoolWebConfig={apiBaseUrl:string;session:SchoolWebSession;demo?:bo
 export type SchoolWebEvent={id:string;event:string;data:unknown};
 export type SchoolClass={
   class_id:string;academic_year:string;code:string;name:string;level:string;
-  capacity:number;status:"ACTIVE"|"ARCHIVED";version:number;created_at:string;updated_at:string;
+  capacity:number;enrolled_count:number;status:"ACTIVE"|"ARCHIVED";version:number;created_at:string;updated_at:string;
 };
 export type SchoolEnrollment={
   enrollment_id:string;student_id:string;class_id:string;academic_year:string;
