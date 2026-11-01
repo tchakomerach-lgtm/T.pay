@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createSchoolApiServer } from "../packages/education/src/education-http.js";
+import type { Permission } from "../packages/security/src/policy.js";
 
-function makeAuth(permissions: string[] = ["org.read","org.manage"]) {
+function makeAuth(permissions: Permission[] = ["org.read","org.manage"]) {
   return {
     principal: { userId:"school-admin", organizationId:"org-school", permissions, sessionId:"session-school" },
     tenantId:"tenant-school",
