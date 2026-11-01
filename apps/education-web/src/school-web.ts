@@ -51,6 +51,15 @@ export function createSchoolWebClient(config:SchoolWebConfig){
     },
     async createEnrollment(input:{studentId:string;classId:string;academicYear:string}):Promise<SchoolEnrollment>{
       return readApiData<SchoolEnrollment>(await this.mutate("/v1/education/enrollments",input));
+    },
+    async transitionEnrollment(enrollmentId:string,input:{status:"WITHDRAWN"|"CANCELLED"|"COMPLETED";expectedVersion:number}):Promise<SchoolEnrollment>{
+      if(!enrollmentId||enrollmentId.length>128)throw new Error("SCHOOL_ENROLLMENT_ID_INVALID");
+      const response=await this.request("/v1/education/enrollments/"+encodeURIComponent(enrollmentId),{
+        method:"PATCH",
+        headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},
+        body:JSON.stringify(input)
+      });
+      return readApiData<SchoolEnrollment>(response);
     }
   };
 }
