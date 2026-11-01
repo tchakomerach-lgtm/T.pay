@@ -62,7 +62,11 @@ export class PostgresCommunityTontineMfSettlementRepository implements Community
          instruction.beneficiaryClientId,instruction.amountMinor.toString(),instruction.currency,instruction.destinationRef,
          instruction.requiresHumanApproval,instruction.preparedBy]
       );
-      if (inserted.rows.length === 1) {\n        const row = inserted.rows[0];\n        if (!row) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_PERSISTENCE_CONFLICT");\n        return fromRow(row);\n      }
+      if (inserted.rows.length === 1) {
+        const row = inserted.rows[0];
+        if (!row) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_PERSISTENCE_CONFLICT");
+        return fromRow(row);
+      }
 
       // A replay is accepted only when every immutable field matches the existing prepared instruction.
       const existing = await tx.query(
