@@ -62,3 +62,10 @@
 - The existing durable realtime store assigns the organization stream sequence; SSE clients refresh from the authoritative list APIs rather than treating event payloads as a replacement database.
 - Added an HTTP regression test asserting tenant/org scope and enrollment event identity/status.
 - The realtime append path is not yet transactionally coupled to the enrollment mutation; durable outbox/atomic UoW coupling remains a production hardening requirement and is not claimed complete here.
+
+
+## RLS/runtime-role qualification — explicit production gate
+- Migration 115 enables RLS but does not yet define tenant/organization policies for the new tables.
+- The current live integration test uses the CI PostgreSQL administrator role; it proves composite-FK and application-scope behavior, not RLS behavior under a least-privilege runtime role.
+- Therefore RLS is not counted as an independently effective isolation control in this brick. The API continues to apply server-derived tenant and organization predicates and composite foreign keys.
+- Before production, define and test a least-privilege runtime role, tenant/organization session context, scoped RLS policies and separate migration-owner credentials. Do not claim RLS certification until that test passes.
