@@ -830,3 +830,45 @@ test("Community Tontine partner settlement is payout-bound, maker-checker protec
     await client.end();
   }
 });
+
+
+test("P056 school enrollment records enforce organization boundaries in PostgreSQL", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const client = new pg.Client({ connectionString: databaseUrl });
+  await client.connect();
+  const organizationId = randomUUID();
+  const otherOrganizationId = randomUUID();
+  const tenantId = "tenant-" + randomUUID();
+  const otherTenantId = "tenant-" + randomUUID();
+  const studentId = "student-" + randomUUID();
+  const classId = "class-" + randomUUID();
+  const enrollmentId = "enrollment-" + randomUUID();
+  const guardianId = "guardian-" + randomUUID();
+  try {
+    await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await client.query("INSERT INTO organizations (id,name,status,created_at) VALUES ($1,'P056 school','active',now()),($2,'P056 other school','active',now())", [organizationId, otherOrganizationId]);
+    await client.query("INSERT INTO education_students(student_id,tenant_id,organization_id,lifecycle) VALUES ($1,$2,$3,'ADMITTED')", [studentId, tenantId, organizationId]);
+    await client.query("INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,label,capacity) VALUES ($1,$2,$3,'2026-2027','6e A',40)", [classId, tenantId, organizationId]);
+    await client.query("INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES ($1,$2,$3,$4,$5,'2026-2027','CONFIRMED','director-1')", [enrollmentId, tenantId, organizationId, studentId, classId]);
+    const valid = await client.query("SELECT count(*)::int AS count FROM education_enrollments WHERE enrollment_id=$1", [enrollmentId]);
+    assert.equal(valid.rows[0]?.count, 1);
+
+    await assert.rejects(client.query(
+      "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES ($1,$2,$3,$4,$5,'2026-2027','CONFIRMED','director-1')",
+      ["cross-" + enrollmentId, tenantId, otherOrganizationId, studentId, classId]
+    ));
+
+    await client.query("INSERT INTO education_actors(actor_id,tenant_id,organization_id,kind,active) VALUES ($1,$2,$3,'PARENT',true)", [guardianId, otherTenantId, otherOrganizationId]);
+    await assert.rejects(client.query(
+      "INSERT INTO education_guardian_links(tenant_id,organization_id,student_id,guardian_actor_id,relationship) VALUES ($1,$2,$3,$4,'LEGAL_GUARDIAN')",
+      [tenantId, organizationId, studentId, guardianId]
+    ));
+  } finally {
+    await client.query("DELETE FROM education_enrollments WHERE enrollment_id=$1", [enrollmentId]);
+    await client.query("DELETE FROM education_guardian_links WHERE student_id=$1", [studentId]);
+    await client.query("DELETE FROM education_classes WHERE class_id=$1", [classId]);
+    await client.query("DELETE FROM education_students WHERE student_id=$1", [studentId]);
+    await client.query("DELETE FROM education_actors WHERE actor_id=$1", [guardianId]);
+    await client.query("DELETE FROM organizations WHERE id IN ($1,$2)", [organizationId, otherOrganizationId]);
+    await client.end();
+  }
+});
