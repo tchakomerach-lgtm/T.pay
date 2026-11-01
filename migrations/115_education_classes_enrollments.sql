@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS education_classes (
   name text NOT NULL CHECK (length(name) BETWEEN 1 AND 120),
   level text NOT NULL CHECK (length(level) BETWEEN 1 AND 80),
   capacity integer NOT NULL CHECK (capacity BETWEEN 1 AND 3000),
+  enrolled_count integer NOT NULL DEFAULT 0 CHECK (enrolled_count >= 0 AND enrolled_count <= capacity),
   status text NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','ARCHIVED')),
   created_by text NOT NULL,
   version bigint NOT NULL DEFAULT 1 CHECK (version > 0),
@@ -72,36 +73,58 @@ CREATE INDEX IF NOT EXISTS idx_education_enrollments_student
 CREATE OR REPLACE FUNCTION guard_education_enrollment_capacity()
 RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
-  class_capacity integer;
-  class_status text;
-  active_count integer;
+  changed_count integer;
+  same_active_class boolean := false;
 BEGIN
-  SELECT capacity, status INTO class_capacity, class_status
-    FROM education_classes
-   WHERE tenant_id = NEW.tenant_id
-     AND organization_id = NEW.organization_id
-     AND class_id = NEW.class_id
-     AND academic_year = NEW.academic_year
-   FOR UPDATE;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'EDUCATION_CLASS_SCOPE_NOT_FOUND';
+  IF TG_OP = 'UPDATE' THEN
+    same_active_class :=
+      OLD.status = 'ACTIVE'
+      AND NEW.status = 'ACTIVE'
+      AND OLD.tenant_id = NEW.tenant_id
+      AND OLD.organization_id = NEW.organization_id
+      AND OLD.class_id = NEW.class_id
+      AND OLD.academic_year = NEW.academic_year;
   END IF;
-  IF class_status <> 'ACTIVE' THEN
-    RAISE EXCEPTION 'EDUCATION_CLASS_NOT_ACTIVE';
+
+  IF TG_OP = 'UPDATE'
+     AND OLD.status = 'ACTIVE'
+     AND NOT same_active_class THEN
+    UPDATE education_classes
+       SET enrolled_count = enrolled_count - 1, updated_at = now()
+     WHERE tenant_id = OLD.tenant_id
+       AND organization_id = OLD.organization_id
+       AND class_id = OLD.class_id
+       AND academic_year = OLD.academic_year
+       AND enrolled_count > 0;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'EDUCATION_CLASS_ENROLLMENT_COUNTER_MISMATCH';
+    END IF;
   END IF;
-  IF NEW.status = 'ACTIVE' THEN
-    SELECT count(*)::integer INTO active_count
-      FROM education_enrollments
+
+  IF NEW.status = 'ACTIVE' AND NOT same_active_class THEN
+    UPDATE education_classes
+       SET enrolled_count = enrolled_count + 1, updated_at = now()
      WHERE tenant_id = NEW.tenant_id
        AND organization_id = NEW.organization_id
        AND class_id = NEW.class_id
        AND academic_year = NEW.academic_year
        AND status = 'ACTIVE'
-       AND enrollment_id <> NEW.enrollment_id;
-    IF active_count >= class_capacity THEN
-      RAISE EXCEPTION 'EDUCATION_CLASS_CAPACITY_REACHED';
+       AND enrolled_count < capacity
+     RETURNING enrolled_count INTO changed_count;
+    IF NOT FOUND THEN
+      IF EXISTS (
+        SELECT 1 FROM education_classes
+         WHERE tenant_id = NEW.tenant_id
+           AND organization_id = NEW.organization_id
+           AND class_id = NEW.class_id
+           AND academic_year = NEW.academic_year
+      ) THEN
+        RAISE EXCEPTION 'EDUCATION_CLASS_CAPACITY_REACHED_OR_INACTIVE';
+      END IF;
+      RAISE EXCEPTION 'EDUCATION_CLASS_SCOPE_NOT_FOUND';
     END IF;
   END IF;
+
   NEW.updated_at := now();
   RETURN NEW;
 END;
