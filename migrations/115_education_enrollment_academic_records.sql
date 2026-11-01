@@ -1,6 +1,13 @@
 -- P056 School enrollment, class assignment, guardian relationship and assessment foundation.
 -- Monetary obligations remain references for finance settlement; this schema never mutates a wallet or ledger.
 
+-- PostgreSQL requires a unique key for every composite tenant-bound reference.
+-- The legacy primary keys are single-column, so add explicit tenant/org-scoped keys.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_education_students_tenant_org_student
+  ON education_students(tenant_id, organization_id, student_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_education_actors_tenant_org_actor
+  ON education_actors(tenant_id, organization_id, actor_id);
+
 CREATE TABLE IF NOT EXISTS education_classes (
   class_id text NOT NULL,
   tenant_id text NOT NULL,
@@ -58,8 +65,8 @@ CREATE TABLE IF NOT EXISTS education_guardian_links (
   PRIMARY KEY (tenant_id, organization_id, student_id, guardian_actor_id),
   FOREIGN KEY (tenant_id, organization_id, student_id)
     REFERENCES education_students(tenant_id, organization_id, student_id) ON DELETE RESTRICT,
-  FOREIGN KEY (guardian_actor_id)
-    REFERENCES education_actors(actor_id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, organization_id, guardian_actor_id)
+    REFERENCES education_actors(tenant_id, organization_id, actor_id) ON DELETE RESTRICT,
   CHECK ((status <> 'ACTIVE') OR (verified_by IS NOT NULL AND verified_at IS NOT NULL))
 );
 CREATE INDEX IF NOT EXISTS idx_education_guardian_actor
