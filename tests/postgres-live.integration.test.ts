@@ -883,6 +883,55 @@ test("P056 live PostgreSQL school enrollment enforces tenant scope, uniqueness a
       /duplicate key|unique/i
     );
 
+    const otherTenantId = "p056-other-tenant-" + randomUUID();
+    const otherOrganizationId = "p056-other-org-" + randomUUID();
+    const foreignStudentId = "p056-foreign-student-" + randomUUID();
+    await client.query(
+      "INSERT INTO education_students(student_id,tenant_id,organization_id,lifecycle,version,updated_at) VALUES($1,$2,$3,'ACTIVE',1,$4)",
+      [foreignStudentId,otherTenantId,otherOrganizationId,now]
+    );
+    await assert.rejects(
+      client.query(
+        "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,'2026-2027','ACTIVE',$6)",
+        ["p056-cross-tenant-" + randomUUID(),tenantId,organizationId,foreignStudentId,classId,actorId]
+      ),
+      /foreign key|violates foreign key/i
+    );
+
+    const lifecycleStudentId = "p056-lifecycle-student-" + randomUUID();
+    const lifecycleClassId = "p056-lifecycle-class-" + randomUUID();
+    const lifecycleEnrollmentId = "p056-lifecycle-enrollment-" + randomUUID();
+    await client.query(
+      "INSERT INTO education_students(student_id,tenant_id,organization_id,lifecycle,version,updated_at) VALUES($1,$2,$3,'ACTIVE',1,$4)",
+      [lifecycleStudentId,tenantId,organizationId,now]
+    );
+    await client.query(
+      "INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,code,name,level,capacity,status,created_by) VALUES($1,$2,$3,'2026-2027','6E-LIFE','Sixième Lifecycle','COLLEGE',2,'ACTIVE',$4)",
+      [lifecycleClassId,tenantId,organizationId,actorId]
+    );
+    await client.query(
+      "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,'2026-2027','ACTIVE',$6)",
+      [lifecycleEnrollmentId,tenantId,organizationId,lifecycleStudentId,lifecycleClassId,actorId]
+    );
+    await client.query(
+      "UPDATE education_enrollments SET status='WITHDRAWN',version=version+1 WHERE tenant_id=$1 AND organization_id=$2 AND enrollment_id=$3 AND status='ACTIVE' AND version=1",
+      [tenantId,organizationId,lifecycleEnrollmentId]
+    );
+    let lifecycleCounter = await client.query(
+      "SELECT enrolled_count FROM education_classes WHERE tenant_id=$1 AND organization_id=$2 AND class_id=$3",
+      [tenantId,organizationId,lifecycleClassId]
+    );
+    assert.equal(lifecycleCounter.rows[0]?.enrolled_count,0);
+    await client.query(
+      "UPDATE education_enrollments SET status='COMPLETED',version=version+1 WHERE tenant_id=$1 AND organization_id=$2 AND enrollment_id=$3",
+      [tenantId,organizationId,lifecycleEnrollmentId]
+    );
+    lifecycleCounter = await client.query(
+      "SELECT enrolled_count FROM education_classes WHERE tenant_id=$1 AND organization_id=$2 AND class_id=$3",
+      [tenantId,organizationId,lifecycleClassId]
+    );
+    assert.equal(lifecycleCounter.rows[0]?.enrolled_count,0);
+
     const raceClassId = "p056-class-race-" + randomUUID();
     const studentC = "p056-student-c-" + randomUUID();
     const studentD = "p056-student-d-" + randomUUID();
@@ -928,6 +977,7 @@ test("P056 live PostgreSQL school enrollment enforces tenant scope, uniqueness a
         await client.query("DELETE FROM education_classes WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
         await client.query("DELETE FROM education_students WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
         await client.query("DELETE FROM education_actors WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
+        await client.query("DELETE FROM education_students WHERE tenant_id=$1 AND organization_id=$2",[otherTenantId,otherOrganizationId]);
       }
     } finally {
       await client.end();
