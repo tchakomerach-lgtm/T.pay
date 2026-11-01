@@ -23,7 +23,7 @@ test("P057 school web client reads tenant-scoped classes and enrollments from au
   const original=globalThis.fetch;const requests:Array<{url:string;init:RequestInit}>=[];
   globalThis.fetch=async(input,init={})=>{
     requests.push({url:String(input),init});
-    const data=requests.length===1?[{class_id:"class-1",academic_year:"2026-2027",code:"6E-A",name:"Sixième A",level:"Collège",capacity:45,status:"ACTIVE",version:1}]:[{enrollment_id:"enroll-1",student_id:"student-1",class_id:"class-1",academic_year:"2026-2027",status:"ACTIVE",enrolled_at:"2026-09-01T00:00:00.000Z",version:1}];
+    const data=requests.length===1?[{class_id:"class-1",academic_year:"2026-2027",code:"6E-A",name:"Sixième A",level:"Collège",capacity:45,enrolled_count:0,status:"ACTIVE",version:1}]:[{enrollment_id:"enroll-1",student_id:"student-1",class_id:"class-1",academic_year:"2026-2027",status:"ACTIVE",enrolled_at:"2026-09-01T00:00:00.000Z",version:1}];
     return new Response(JSON.stringify({ok:true,data}),{status:200,headers:{"content-type":"application/json"}});
   };
   try{
@@ -43,7 +43,7 @@ test("P057 school web mutations send only school-domain fields with idempotency 
   const original=globalThis.fetch;const captured:Array<{url:string;init:RequestInit}>=[];
   globalThis.fetch=async(input,init={})=>{
     captured.push({url:String(input),init});
-    const data=captured.length===1?{class_id:"class-2",academic_year:"2026-2027",code:"5E-B",name:"Cinquième B",level:"Collège",capacity:40,status:"ACTIVE",version:1}:{enrollment_id:"enroll-2",student_id:"student-2",class_id:"class-2",academic_year:"2026-2027",status:"ACTIVE",enrolled_at:"2026-09-01T00:00:00.000Z",version:1};
+    const data=captured.length===1?{class_id:"class-2",academic_year:"2026-2027",code:"5E-B",name:"Cinquième B",level:"Collège",capacity:40,enrolled_count:0,status:"ACTIVE",version:1}:{enrollment_id:"enroll-2",student_id:"student-2",class_id:"class-2",academic_year:"2026-2027",status:"ACTIVE",enrolled_at:"2026-09-01T00:00:00.000Z",version:1};
     return new Response(JSON.stringify({ok:true,data}),{status:200,headers:{"content-type":"application/json"}});
   };
   try{
