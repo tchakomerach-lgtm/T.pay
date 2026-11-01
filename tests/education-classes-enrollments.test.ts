@@ -24,7 +24,7 @@ function responseDb() {
     async query(sql:string,values:unknown[] = []) {
       calls.push({sql,values});
       if(sql.includes("INSERT INTO api_request_deduplication")) return {rows:[{id:"idempotency-reservation"}],rowCount:1};
-      if(sql.includes("INSERT INTO education_classes")) return {rows:[{class_id:"class-created",code:"6E-A",name:"Sixième A",academic_year:"2026-2027",capacity:45,status:"ACTIVE",version:1}],rowCount:1};
+      if(sql.includes("INSERT INTO education_classes")) return {rows:[{class_id:"class-created",code:"6E-A",name:"Sixième A",academic_year:"2026-2027",capacity:45,enrolled_count:0,status:"ACTIVE",version:1}],rowCount:1};
       if(sql.includes("INSERT INTO education_enrollments")) return {rows:[{enrollment_id:"enrollment-created",student_id:"student-1",class_id:"class-1",academic_year:"2026-2027",status:"ACTIVE",version:1}],rowCount:1};
       return {rows:[],rowCount:0};
     }
