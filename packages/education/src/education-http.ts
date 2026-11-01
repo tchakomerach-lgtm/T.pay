@@ -171,7 +171,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    }
    const bodyText=await readBody(req);
    if(method!=="GET"){
-     const contentType=String(req.headers["content-type"]??"").split(";")[0].trim().toLowerCase();
+     const contentType=String(req.headers["content-type"]??"").split(";")[0]!.trim().toLowerCase();
      if(contentType!=="application/json")throw new Error("API_JSON_CONTENT_TYPE_REQUIRED");
    }
    const body=parse(bodyText);
