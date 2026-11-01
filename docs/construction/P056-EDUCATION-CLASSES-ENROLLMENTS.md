@@ -11,6 +11,7 @@
 - Read operations require `org.read`; create and lifecycle transitions require `org.manage`.
 - Lifecycle transitions use a single conditional PostgreSQL UPDATE scoped by tenant, organization, enrollment ID, ACTIVE state and expected version. The database trigger decrements the class counter in the same statement transaction; stale versions/state return HTTP 409 and cross-scope missing resources return HTTP 404. Terminal states cannot be reopened through this API.
 - Mutating requests require the existing API Gateway idempotency key and append-only request audit.
+- Class creation, enrollment creation and enrollment lifecycle changes publish tenant/organization-scoped durable realtime events (`class.changed`, `enrollment.changed`) for the School OS refresh/catch-up path.
 - Client-supplied financial fields are rejected. No school fee, balance, payment, wallet, commission or ledger data is accepted or persisted.
 
 ## PostgreSQL controls
@@ -53,3 +54,11 @@
 - The API intentionally does not expose reactivation or class transfer. Those require separate reviewed state transitions and audit semantics.
 - Added live PostgreSQL assertions for cross-tenant student reference rejection and enrollment counter decrement after withdrawal.
 - Validation remains pending until CI executes against the resulting exact head and the live PostgreSQL job completes successfully.
+
+
+## Realtime integration — 2026-11-01
+- Extended the shared SchoolRealtimeEvent contract with `class.changed` and `enrollment.changed`.
+- P056 publishes the event only after the authoritative SQL mutation returns, using the authenticated tenant and organization context; entity ID and status/version are included in the event envelope.
+- The existing durable realtime store assigns the organization stream sequence; SSE clients refresh from the authoritative list APIs rather than treating event payloads as a replacement database.
+- Added an HTTP regression test asserting tenant/org scope and enrollment event identity/status.
+- The realtime append path is not yet transactionally coupled to the enrollment mutation; durable outbox/atomic UoW coupling remains a production hardening requirement and is not claimed complete here.
