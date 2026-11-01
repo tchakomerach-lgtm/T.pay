@@ -11,7 +11,7 @@ import { computeSyncPayloadHash } from "./sync-fabric.js";
 import { SchoolRealtimeHub, toSseMessage, type SchoolRealtimeEvent } from "./school-realtime.js";
 import { PostgresSchoolRealtimeStore } from "./postgres-realtime-store.js";
 import type { SchoolRealtimeMessage } from "./school-realtime.js";
-import { reconcileAttendance, claimWorkItem, resolveWorkItem, type AttendanceRecord, type WorkItem } from "./school-operations.js";
+import { reconcileAttendance, claimWorkItem, resolveWorkItem, transitionStudent, type StudentState, type StudentLifecycle, type AttendanceRecord, type WorkItem } from "./school-operations.js";
 import { assignService, transitionService, type ActorRef, type ServiceRequest } from "./actor-services.js";
 
 export interface SchoolAuthContext { principal: Principal; session: OrganizationSession; tenantId: string; }
@@ -79,7 +79,7 @@ function route(path:string){
  if(parts[0]!=="v1"||parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
  if(parts[2]==="sync"&&parts[3]==="events"&&parts.length===4)return ["sync"] as const;
- if(parts[2]==="attendance"&&parts.length===3)return ["attendance"] as const;
+ if(parts[2]==="attendance"&&parts.length===3)return ["attendance"] as const;\n if(parts[2]==="students"&&parts.length===3)return ["students"] as const;\n if(parts[2]==="students"&&parts.length===4&&parts[3])return ["student",parts[3]] as const;\n if(parts[2]==="students"&&parts.length===5&&parts[3]&&parts[4]==="lifecycle")return ["student-lifecycle",parts[3]] as const;
  if(parts[2]==="work-items"&&parts.length===3)return ["work-create"] as const;
  if(parts[2]==="work-items"&&parts.length===5&&parts[3]&&(parts[4]==="claim"||parts[4]==="resolve"))return ["work",parts[3],parts[4]] as const;
  if(parts[2]==="service-requests"&&parts.length===3)return ["service-create"] as const;
@@ -87,7 +87,7 @@ function route(path:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="actor"?"org.read":"member.manage";}
+function permissionFor(kind:string,method:string):Permission{return kind==="actor"||(kind==="student"&&method==="GET")||(kind==="students"&&method==="GET")?"org.read":"member.manage";}
 export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
 
 export function createSchoolApiServer(deps:SchoolApiDependencies, options:SchoolApiServerOptions={}){
@@ -125,7 +125,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(!routeAuth.allowed)throw new Error(routeAuth.reason);
    const organizationId=auth.principal.organizationId; if(!auth.tenantId)throw new Error("TENANT_CONTEXT_REQUIRED");
    if(!organizationId)throw new Error("ORGANIZATION_CONTEXT_REQUIRED");
-   assertAuthorized(auth.principal,{organizationId,requestedPermission:permissionFor(r[0])});
+   assertAuthorized(auth.principal,{organizationId,requestedPermission:permissionFor(r[0],method)});
    if(r[0]==="stream"){
     if(method!=="GET")throw new Error("REALTIME_METHOD_NOT_ALLOWED");
     if(!deps.realtime)throw new Error("REALTIME_NOT_CONFIGURED");
@@ -183,7 +183,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(dedupe?.status==="conflict")throw new Error("API_IDEMPOTENCY_CONFLICT");
    if(dedupe?.status==="replay"){res.statusCode=dedupe.statusCode??200;json(res,res.statusCode,{ok:true,replayed:true,requestId:dedupe.requestId},correlationId);return;}
    let data:unknown;
-   if(r[0]==="actor"){
+   if(r[0]==="students"){\n    if(method==="GET"){\n     const q=await deps.db.query("SELECT student_id,tenant_id,organization_id,lifecycle,version,updated_at FROM education_students WHERE tenant_id=$1 AND organization_id=$2 ORDER BY student_id LIMIT 200",[auth.tenantId,organizationId]); data=q.rows;\n    }else if(method==="POST"){\n     const studentId=String((body as any).studentId??"").trim(); const lifecycle=String((body as any).lifecycle??"PROSPECT") as StudentLifecycle;\n     const valid:StudentLifecycle[]=["PROSPECT","APPLICANT","ADMITTED","ENROLLED","ACTIVE","SUSPENDED","WITHDRAWAL_PENDING","WITHDRAWN","ALUMNI"];\n     if(!/^[A-Za-z0-9._:-]{3,96}$/.test(studentId)||!valid.includes(lifecycle))throw new Error("STUDENT_INPUT_INVALID");\n     const inserted=await deps.db.query("INSERT INTO education_students(student_id,tenant_id,organization_id,lifecycle,version) VALUES($1,$2,$3,$4,1) ON CONFLICT DO NOTHING RETURNING student_id,tenant_id,organization_id,lifecycle,version,updated_at",[studentId,auth.tenantId,organizationId,lifecycle]);\n     if(!inserted.rows[0])throw new Error("STUDENT_ALREADY_EXISTS"); data=inserted.rows[0];\n    }else throw new Error("STUDENT_METHOD_NOT_ALLOWED");\n   } else if(r[0]==="student"){\n    if(method!=="GET")throw new Error("STUDENT_METHOD_NOT_ALLOWED");\n    const q=await deps.db.query("SELECT student_id,tenant_id,organization_id,lifecycle,version,updated_at FROM education_students WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3",[auth.tenantId,organizationId,r[1]]);\n    if(!q.rows[0])throw new Error("STUDENT_NOT_FOUND"); data=q.rows[0];\n   } else if(r[0]==="student-lifecycle"){\n    if(method!=="POST")throw new Error("STUDENT_METHOD_NOT_ALLOWED");\n    const q=await deps.db.query("SELECT student_id,organization_id,lifecycle,version FROM education_students WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3",[auth.tenantId,organizationId,r[1]]);\n    if(!q.rows[0])throw new Error("STUDENT_NOT_FOUND");\n    const current=q.rows[0] as unknown as StudentState; const next=transitionStudent({...current,version:BigInt(current.version)},String((body as any).lifecycle) as StudentLifecycle);\n    const updated=await deps.db.query("UPDATE education_students SET lifecycle=$1,version=$2,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND student_id=$5 AND version=$6 RETURNING student_id,organization_id,lifecycle,version,updated_at",[next.lifecycle,next.version.toString(),auth.tenantId,organizationId,r[1],current.version.toString()]);\n    if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];\n   } else if(r[0]==="actor"){
     const q=await deps.db.query("SELECT actor_id,organization_id,kind,active,data,version,updated_at FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,r[1]]);
     if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("ACTOR_NOT_FOUND"),correlationId),correlationId);return;}
     data=q.rows[0];
@@ -220,7 +220,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
    }
    if(deps.realtime && deps.realtimeStore && r[0]!=="actor"){
-    const typeMap:Record<string,SchoolRealtimeEvent["type"]>={sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
+    const typeMap:Record<string,SchoolRealtimeEvent["type"]>={students:"student.changed",student:"student.changed","student-lifecycle":"student.lifecycle.changed",sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
     const eventType=typeMap[r[0]];
     if(eventType){
       const event:SchoolRealtimeEvent={
