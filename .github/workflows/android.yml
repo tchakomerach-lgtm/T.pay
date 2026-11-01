@@ -3,7 +3,7 @@ on:
   push:
     branches: ["**"]
   pull_request:
-    branches: ["main"]
+    branches: ["main", "feat/education-classes-enrollments-api-001"]
 permissions:
   contents: read
 jobs:
