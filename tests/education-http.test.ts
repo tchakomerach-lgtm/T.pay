@@ -81,3 +81,18 @@ test("P049 fortress request envelope rejects oversized URL/header and emits hard
   sse.body?.cancel();
  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
+
+
+test("attendance recorder identity is derived from the authenticated principal, never the request body",async()=>{
+ const calls:Array<{sql:string;values:unknown[]|undefined}>=[];
+ const database={async query(sql:string,values?:unknown[]){calls.push({sql,values});if(sql.includes("INSERT INTO api_idempotency"))return {rows:[{request_id:"request-1",state:"reserved"}],rowCount:1};return {rows:[],rowCount:1};}};
+ const server=createSchoolApiServer({db:database as any,authenticate:async()=>auth(),syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any});
+ await new Promise<void>(resolve=>server.listen(0,resolve));const port=(server.address() as any).port;
+ try{
+  const response=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"attendance-test-001"},body:JSON.stringify({studentId:"student-1",classId:"class-1",recordedBy:"attacker",organizationId:"other-org",status:"PRESENT",occurredAt:new Date().toISOString(),source:"TEACHER",version:1})});
+  const insert=calls.find(c=>c.sql.includes("INSERT INTO education_attendance"));
+  assert.ok(insert);
+  assert.equal(insert.values?.[5],"teacher-1");
+  assert.equal(insert.values?.[3],"org-1");
+ }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});
