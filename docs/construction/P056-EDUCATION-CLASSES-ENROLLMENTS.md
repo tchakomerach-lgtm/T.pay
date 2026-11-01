@@ -36,3 +36,8 @@
 - Local PostgreSQL execution has not been performed in this session.
 - GitHub Actions exact-head CI and live PostgreSQL integration results remain required before this brick can be called validated.
 - PR must remain draft until every required check is green and reviewed.
+
+## CI incident and correction
+- First PR run stopped during job initialization because repository policy requires full-length immutable SHA references for every GitHub Action; no application or PostgreSQL step had started.
+- Corrected `.github/workflows/ci.yml`, `.github/workflows/android.yml` and `.github/workflows/terrain-certification.yml` to use full commit SHAs. The next run successfully initialized the jobs and began PostgreSQL service setup and Android build.
+- The migration source was subsequently rechecked for exact file length and single definitions of both tables and the capacity trigger after a file-editing issue; the clean 150-line migration is now committed. Only the latest exact-head CI result can validate it.
