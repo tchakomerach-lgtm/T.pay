@@ -193,7 +193,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     try{ data=await new PostgresEducationSyncStore(syncClient).accept(event as any); }
     finally{ syncClient.release?.(); }
    } else if(r[0]==="attendance"){
-    const incoming=body as AttendanceRecord; incoming.organizationId=organizationId;
+    const incoming={...(body as AttendanceRecord),organizationId,recordedBy:auth.principal.userId};
     const q=await deps.db.query("SELECT * FROM education_attendance WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3 AND class_id=$4",[auth.tenantId,organizationId,incoming.studentId,incoming.classId]);
     const existing=(q.rows[0]??null) as AttendanceRecord|null;
     const accepted=reconcileAttendance(existing,incoming);
