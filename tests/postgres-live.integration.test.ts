@@ -868,13 +868,54 @@ test("P056 live PostgreSQL school enrollment enforces tenant scope, uniqueness a
       ),
       /EDUCATION_CLASS_CAPACITY_REACHED/
     );
+    const duplicateClassId = "p056-class-duplicate-" + randomUUID();
+    await client.query(
+      "INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,code,name,level,capacity,status,created_by) VALUES($1,$2,$3,'2026-2027','6E-B','Sixième B','COLLEGE',10,'ACTIVE',$4)",
+      [duplicateClassId,tenantId,organizationId,actorId]
+    );
     await assert.rejects(
       client.query(
         "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,'2026-2027','ACTIVE',$6)",
-        ["p056-enroll-duplicate-"+randomUUID(),tenantId,organizationId,studentA,classId,actorId]
+        ["p056-enroll-duplicate-"+randomUUID(),tenantId,organizationId,studentA,duplicateClassId,actorId]
       ),
       /duplicate key|unique/i
     );
+
+    const raceClassId = "p056-class-race-" + randomUUID();
+    const studentC = "p056-student-c-" + randomUUID();
+    const studentD = "p056-student-d-" + randomUUID();
+    await client.query(
+      "INSERT INTO education_students(student_id,tenant_id,organization_id,lifecycle,version,updated_at) VALUES($1,$2,$3,'ACTIVE',1,$4),($5,$2,$3,'ACTIVE',1,$4)",
+      [studentC,tenantId,organizationId,now,studentD]
+    );
+    await client.query(
+      "INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,code,name,level,capacity,status,created_by) VALUES($1,$2,$3,'2026-2027','6E-RACE','Sixième Race','COLLEGE',1,'ACTIVE',$4)",
+      [raceClassId,tenantId,organizationId,actorId]
+    );
+    const raceClients = [new pg.Client({connectionString:databaseUrl}),new pg.Client({connectionString:databaseUrl})];
+    await Promise.all(raceClients.map(c=>c.connect()));
+    try {
+      const raceResults = await Promise.allSettled([
+        raceClients[0]!.query(
+          "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,'2026-2027','ACTIVE',$6)",
+          ["p056-race-a-"+randomUUID(),tenantId,organizationId,studentC,raceClassId,actorId]
+        ),
+        raceClients[1]!.query(
+          "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,'2026-2027','ACTIVE',$6)",
+          ["p056-race-b-"+randomUUID(),tenantId,organizationId,studentD,raceClassId,actorId]
+        )
+      ]);
+      assert.equal(raceResults.filter(result=>result.status==="fulfilled").length,1);
+      assert.equal(raceResults.filter(result=>result.status==="rejected").length,1);
+      const counter = await client.query(
+        "SELECT enrolled_count,capacity FROM education_classes WHERE tenant_id=$1 AND organization_id=$2 AND class_id=$3",
+        [tenantId,organizationId,raceClassId]
+      );
+      assert.equal(counter.rows[0]?.enrolled_count,1);
+      assert.equal(counter.rows[0]?.capacity,1);
+    } finally {
+      await Promise.all(raceClients.map(c=>c.end()));
+    }
   } finally {
     await client.query("DELETE FROM education_enrollments WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
     await client.query("DELETE FROM education_classes WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
