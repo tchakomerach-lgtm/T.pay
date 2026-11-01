@@ -26,6 +26,7 @@ function responseDb() {
       if(sql.includes("INSERT INTO api_request_deduplication")) return {rows:[{id:"idempotency-reservation"}],rowCount:1};
       if(sql.includes("INSERT INTO education_classes")) return {rows:[{class_id:"class-created",code:"6E-A",name:"Sixième A",academic_year:"2026-2027",capacity:45,status:"ACTIVE",version:1}],rowCount:1};
       if(sql.includes("INSERT INTO education_enrollments")) return {rows:[{enrollment_id:"enrollment-created",student_id:"student-1",class_id:"class-1",academic_year:"2026-2027",status:"ACTIVE",version:1}],rowCount:1};
+      if(sql.includes("UPDATE education_enrollments SET status=")) return {rows:[{enrollment_id:"enrollment-1",student_id:"student-1",class_id:"class-1",academic_year:"2026-2027",status:values[0],version:2}],rowCount:1};
       return {rows:[],rowCount:0};
     }
   };
@@ -114,5 +115,42 @@ test("P056 class and enrollment listing always applies server-derived tenant and
     assert.equal(classQuery.values[1],"org-school");
     assert.equal(enrollmentQuery.values[0],"tenant-school");
     assert.equal(enrollmentQuery.values[1],"org-school");
+  });
+});
+
+
+test("P056 enrollment lifecycle transition is tenant-scoped, version-guarded and permission protected",async()=>{
+  const db=responseDb();
+  await withServer(db,["org.read","org.manage"],async base=>{
+    const res=await fetch(base+"/v1/education/enrollments/enrollment-1",{method:"PATCH",headers:{"content-type":"application/json","x-idempotency-key":"enrollment-withdraw-0001"},body:JSON.stringify({status:"WITHDRAWN",expectedVersion:1})});
+    const body=await res.json() as any;
+    assert.equal(res.status,200,JSON.stringify(body));
+    assert.equal(body.data.status,"WITHDRAWN");
+    assert.equal(body.data.version,2);
+    const update=db.calls.find(x=>x.sql.includes("UPDATE education_enrollments SET status="));
+    assert.ok(update);
+    assert.match(update.sql,/tenant_id=\$2 AND organization_id=\$3/);
+    assert.match(update.sql,/status='ACTIVE' AND version=\$5/);
+    assert.deepEqual(update.values,["WITHDRAWN","tenant-school","org-school","enrollment-1",1]);
+  });
+});
+
+test("P056 enrollment lifecycle rejects invalid terminal transitions and financial fields",async()=>{
+  const db=responseDb();
+  await withServer(db,["org.read","org.manage"],async base=>{
+    const invalid=await fetch(base+"/v1/education/enrollments/enrollment-1",{method:"PATCH",headers:{"content-type":"application/json","x-idempotency-key":"enrollment-invalid-0001"},body:JSON.stringify({status:"ACTIVE",expectedVersion:1})});
+    const financial=await fetch(base+"/v1/education/enrollments/enrollment-1",{method:"PATCH",headers:{"content-type":"application/json","x-idempotency-key":"enrollment-finance-0001"},body:JSON.stringify({status:"WITHDRAWN",expectedVersion:1,refundAmount:5000})});
+    assert.equal(invalid.status,400);
+    assert.equal(financial.status,400);
+    assert.equal(db.calls.some(x=>x.sql.includes("UPDATE education_enrollments SET status=")),false);
+  });
+});
+
+test("P056 enrollment lifecycle requires org.manage",async()=>{
+  const db=responseDb();
+  await withServer(db,["org.read"],async base=>{
+    const res=await fetch(base+"/v1/education/enrollments/enrollment-1",{method:"PATCH",headers:{"content-type":"application/json","x-idempotency-key":"enrollment-denied-0001"},body:JSON.stringify({status:"WITHDRAWN",expectedVersion:1})});
+    assert.equal(res.status,403);
+    assert.equal(db.calls.some(x=>x.sql.includes("UPDATE education_enrollments SET status=")),false);
   });
 });
