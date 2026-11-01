@@ -103,7 +103,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      const values=Array.isArray(value)?value:value===undefined?[]:[value];
      for(const item of values)if(String(item).length>MAX_HEADER_VALUE_LENGTH)throw new Error("API_HEADER_TOO_LARGE:"+name);
    }
-   const method=(req.method??"GET").toUpperCase(), path=(rawUrl.split("?")[0]??"/"), r=route(path);
+   const method=(req.method??"GET").toUpperCase(), path=(rawUrl.split("?")[0] ?? "/"), r=route(path);
    const origin=String(req.headers.origin??"").trim();
    if(origin){
      if(!(deps.corsOrigins??[]).includes(origin)){
