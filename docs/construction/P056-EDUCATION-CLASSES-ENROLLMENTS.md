@@ -7,7 +7,9 @@
   - `POST /v1/education/classes`
   - `GET /v1/education/enrollments`
   - `POST /v1/education/enrollments`
-- Read operations require `org.read`; create operations require `org.manage`.
+  - `PATCH /v1/education/enrollments/:enrollmentId` (transition ACTIVE → WITHDRAWN/CANCELLED/COMPLETED, with mandatory expectedVersion)
+- Read operations require `org.read`; create and lifecycle transitions require `org.manage`.
+- Lifecycle transitions use a single conditional PostgreSQL UPDATE scoped by tenant, organization, enrollment ID, ACTIVE state and expected version. The database trigger decrements the class counter in the same statement transaction; stale versions/state return HTTP 409 and cross-scope missing resources return HTTP 404. Terminal states cannot be reopened through this API.
 - Mutating requests require the existing API Gateway idempotency key and append-only request audit.
 - Client-supplied financial fields are rejected. No school fee, balance, payment, wallet, commission or ledger data is accepted or persisted.
 
@@ -22,7 +24,8 @@
 
 ## Verification added
 - HTTP tests cover authenticated class creation, finance-field rejection, read/write permission separation and idempotency integration.
-- Live PostgreSQL test applies migrations twice, checks class capacity, duplicate active enrollment rejection and concurrent capacity admission (two independent database connections).
+- Live PostgreSQL test applies migrations twice, checks class capacity, duplicate active enrollment rejection, cross-tenant composite-FK rejection, concurrent capacity admission (two independent database connections), and counter decrement on withdrawal/terminal transition.
+- HTTP tests cover the version-guarded lifecycle endpoint, organization permission denial, invalid transitions and rejection of financial fields.
 - CI must run the repository's existing Node 22 + PostgreSQL 17 pipeline on the exact PR head.
 
 ## Rollback and recovery
@@ -41,3 +44,12 @@
 - First PR run stopped during job initialization because repository policy requires full-length immutable SHA references for every GitHub Action; no application or PostgreSQL step had started.
 - Corrected `.github/workflows/ci.yml`, `.github/workflows/android.yml` and `.github/workflows/terrain-certification.yml` to use full commit SHAs. The next run successfully initialized the jobs and began PostgreSQL service setup and Android build.
 - The migration source was subsequently rechecked for exact file length and single definitions of both tables and the capacity trigger after a file-editing issue; the clean 150-line migration is now committed. Only the latest exact-head CI result can validate it.
+
+
+## P056 lifecycle API extension — 2026-11-01
+- Added `PATCH /v1/education/enrollments/:enrollmentId` for controlled terminal transitions.
+- Required optimistic concurrency token: `expectedVersion`.
+- The SQL update is tenant/organization scoped and only matches ACTIVE records at the expected version; the existing database trigger atomically updates the class counter.
+- The API intentionally does not expose reactivation or class transfer. Those require separate reviewed state transitions and audit semantics.
+- Added live PostgreSQL assertions for cross-tenant student reference rejection and enrollment counter decrement after withdrawal.
+- Validation remains pending until CI executes against the resulting exact head and the live PostgreSQL job completes successfully.
