@@ -842,9 +842,11 @@ test("P056 live PostgreSQL school enrollment enforces tenant scope, uniqueness a
   const studentB = "p056-student-b-" + randomUUID();
   const classId = "p056-class-" + randomUUID();
   const now = new Date().toISOString();
+  let schemaReady = false;
   try {
     await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
     await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    schemaReady = true;
     await client.query(
       "INSERT INTO education_actors(actor_id,tenant_id,organization_id,kind,active,data,version,updated_at) VALUES($1,$2,$3,'ADMIN',true,'{}'::jsonb,1,$4)",
       [actorId,tenantId,organizationId,now]
@@ -907,6 +909,9 @@ test("P056 live PostgreSQL school enrollment enforces tenant scope, uniqueness a
       ]);
       assert.equal(raceResults.filter(result=>result.status==="fulfilled").length,1);
       assert.equal(raceResults.filter(result=>result.status==="rejected").length,1);
+      const rejectedRace = raceResults.find(result=>result.status==="rejected");
+      assert.ok(rejectedRace && rejectedRace.status==="rejected");
+      assert.match(String(rejectedRace.reason),/EDUCATION_CLASS_CAPACITY_REACHED_OR_INACTIVE/);
       const counter = await client.query(
         "SELECT enrolled_count,capacity FROM education_classes WHERE tenant_id=$1 AND organization_id=$2 AND class_id=$3",
         [tenantId,organizationId,raceClassId]
@@ -917,10 +922,15 @@ test("P056 live PostgreSQL school enrollment enforces tenant scope, uniqueness a
       await Promise.all(raceClients.map(c=>c.end()));
     }
   } finally {
-    await client.query("DELETE FROM education_enrollments WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
-    await client.query("DELETE FROM education_classes WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
-    await client.query("DELETE FROM education_students WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
-    await client.query("DELETE FROM education_actors WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
-    await client.end();
+    try {
+      if (schemaReady) {
+        await client.query("DELETE FROM education_enrollments WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
+        await client.query("DELETE FROM education_classes WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
+        await client.query("DELETE FROM education_students WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
+        await client.query("DELETE FROM education_actors WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
+      }
+    } finally {
+      await client.end();
+    }
   }
 });
