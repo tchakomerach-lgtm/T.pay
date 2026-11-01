@@ -83,3 +83,36 @@ test("P056 class and enrollment writes require organization management permissio
     assert.equal(enrollments.status,403);
   });
 });
+
+test("P056 enrollment creation persists only the authenticated tenant and organization scope",async()=>{
+  const db=responseDb();
+  await withServer(db,["org.read","org.manage"],async base=>{
+    const res=await fetch(base+"/v1/education/enrollments",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"enrollment-create-0001"},body:JSON.stringify({studentId:"student-1",classId:"class-1",academicYear:"2026-2027"})});
+    const body=await res.json() as any;
+    assert.equal(res.status,200,JSON.stringify(body));
+    assert.equal(body.data.enrollment_id,"enrollment-created");
+    const insert=db.calls.find(x=>x.sql.includes("INSERT INTO education_enrollments"));
+    assert.ok(insert);
+    assert.equal(insert.values[1],"tenant-school");
+    assert.equal(insert.values[2],"org-school");
+    assert.equal(insert.values[7],"school-admin");
+  });
+});
+
+test("P056 class and enrollment listing always applies server-derived tenant and organization predicates",async()=>{
+  const db=responseDb();
+  await withServer(db,["org.read"],async base=>{
+    const classes=await fetch(base+"/v1/education/classes?academicYear=2026-2027");
+    const enrollments=await fetch(base+"/v1/education/enrollments?classId=class-1&academicYear=2026-2027");
+    assert.equal(classes.status,200);
+    assert.equal(enrollments.status,200);
+    const classQuery=db.calls.find(x=>x.sql.includes("FROM education_classes"));
+    const enrollmentQuery=db.calls.find(x=>x.sql.includes("FROM education_enrollments"));
+    assert.ok(classQuery);
+    assert.ok(enrollmentQuery);
+    assert.equal(classQuery.values[0],"tenant-school");
+    assert.equal(classQuery.values[1],"org-school");
+    assert.equal(enrollmentQuery.values[0],"tenant-school");
+    assert.equal(enrollmentQuery.values[1],"org-school");
+  });
+});
