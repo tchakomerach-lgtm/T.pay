@@ -12,6 +12,8 @@ export const API_ROUTE_POLICIES:readonly ApiRoutePolicy[]=[
  {route:"/v1/loans/applications",methods:["POST"],auth:"member",financial:true},
  {route:"/v1/tontines/contributions",methods:["POST"],auth:"member",financial:true},
  {route:"/v1/education/actors/:actorId",methods:["GET"],auth:"member",financial:false},
+ {route:"/v1/education/classes",methods:["GET","POST"],auth:"member",financial:false},
+ {route:"/v1/education/enrollments",methods:["GET","POST"],auth:"member",financial:false},
  {route:"/v1/education/sync/events",methods:["POST"],auth:"member",financial:false},
  {route:"/v1/education/attendance",methods:["POST"],auth:"member",financial:false},
  {route:"/v1/education/work-items",methods:["POST"],auth:"member",financial:false},
