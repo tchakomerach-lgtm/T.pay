@@ -307,7 +307,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
    }
    if(deps.realtime && deps.realtimeStore && r[0]!=="actor"){
-    const typeMap:Record<string,SchoolRealtimeEvent["type"]>={sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
+    const typeMap:Record<string,SchoolRealtimeEvent["type"]>={classes:"class.changed",enrollments:"enrollment.changed","enrollment-status":"enrollment.changed",sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
     const eventType=typeMap[r[0]];
     if(eventType){
       const event:SchoolRealtimeEvent={
@@ -316,9 +316,9 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
         organizationId,
         type:eventType,
         occurredAt:(deps.now??(()=>new Date()))().toISOString(),
-        entityId:String((data as any)?.id??(data as any)?.request_id??(data as any)?.work_item_id??(data as any)?.eventId??correlationId),
+        entityId:String((data as any)?.class_id??(data as any)?.enrollment_id??(data as any)?.id??(data as any)?.request_id??(data as any)?.work_item_id??(data as any)?.eventId??correlationId),
         version:Number((data as any)?.version??1),
-        data:{operation:method,route:path}
+        data:{operation:method,route:path,status:(data as any)?.status??null}
       };
       const streamSequence=await deps.realtimeStore.append(event);
       event.streamSequence=streamSequence.toString();
