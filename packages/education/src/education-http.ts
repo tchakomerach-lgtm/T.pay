@@ -226,18 +226,18 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       const academicYear=url.searchParams.get("academicYear");
       if(academicYear && !/^\\d{4}-\\d{4}$/.test(academicYear))throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
       const q=await deps.db.query(
-        "SELECT e.enrollment_id,e.student_id,e.class_id,e.academic_year,e.status,e.enrolled_at,e.created_by,e.version,c.code AS class_code,c.name AS class_name FROM education_enrollments e JOIN education_classes c ON c.tenant_id=e.tenant_id AND c.organization_id=e.organization_id AND c.class_id=e.class_id AND c.academic_year=e.academic_year WHERE e.tenant_id=$1 AND e.organization_id=$2 AND ($3::text IS NULL OR e.class_id=$3) AND ($4::text IS NULL OR e.academic_year=$4) ORDER BY e.enrolled_at DESC,e.enrollment_id ASC",
+        "SELECT e.enrollment_id,e.student_id,e.class_id,e.academic_year,e.status,e.enrolled_at,e.version,c.code AS class_code,c.name AS class_name FROM education_enrollments e JOIN education_classes c ON c.tenant_id=e.tenant_id AND c.organization_id=e.organization_id AND c.class_id=e.class_id AND c.academic_year=e.academic_year WHERE e.tenant_id=$1 AND e.organization_id=$2 AND ($3::text IS NULL OR e.class_id=$3) AND ($4::text IS NULL OR e.academic_year=$4) ORDER BY e.enrolled_at DESC,e.enrollment_id ASC",
         [auth.tenantId,organizationId,classId,academicYear]
       );
       data=q.rows;
     }else if(method==="POST"){
       const input=body as Record<string,unknown>;
-      const allowed=["studentId","classId","academicYear","enrolledAt"];
+      const allowed=["studentId","classId","academicYear"];
       if(Object.keys(input).some(key=>!allowed.includes(key)))throw new Error("EDUCATION_ENROLLMENT_FIELDS_NOT_ALLOWED");
       const studentId=String(input.studentId??"").trim();
       const classId=String(input.classId??"").trim();
       const academicYear=String(input.academicYear??"");
-      const enrolledAt=input.enrolledAt===undefined?(deps.now??(()=>new Date()))().toISOString():String(input.enrolledAt);
+      const enrolledAt=(deps.now??(()=>new Date()))().toISOString();
       if(!studentId||studentId.length>128||!classId||classId.length>128)throw new Error("EDUCATION_ENROLLMENT_REFERENCE_INVALID");
       if(!/^\\d{4}-\\d{4}$/.test(academicYear)||Number(academicYear.slice(5))!==Number(academicYear.slice(0,4))+1)throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
       if(!Number.isFinite(Date.parse(enrolledAt)))throw new Error("EDUCATION_ENROLLMENT_DATE_INVALID");
