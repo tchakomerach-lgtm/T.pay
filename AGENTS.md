@@ -98,3 +98,7 @@ Field continuity is implemented as signed, expiring, monotonic-sequence offline 
 
 This sequence is not production-complete until PostgreSQL live/concurrency tests, signed provider callback integration tests, offline end-to-end reconciliation, incident/refund integration, full CI and migration execution are green.
 Governance, community commerce and intelligence are now represented by `tontine-governance-policy.ts`, `tontine-economic-network.ts`, `tontine-intelligence.ts` and migrations `048_tontine_economic_intelligence.sql` / `049_tontine_governance.sql`. Intelligence remains advisory and evidence-bound; commerce never merges its operational state with the financial ledger; governance changes are versioned and quorum-controlled.
+
+
+## P056 school classes and enrollment API
+Migration `115_education_classes_enrollments.sql` and authenticated class/enrollment endpoints are under review on `feat/education-classes-enrollments-api-001`. Read access requires `org.read`; writes require `org.manage`. PostgreSQL owns tenant-safe class/student/actor relationships, one-active-enrollment uniqueness and atomic class-capacity admission. No school endpoint may write fees or ledger state; all financial operations remain in Financial Core. See `docs/construction/P056-EDUCATION-CLASSES-ENROLLMENTS.md`. This brick is not validated until exact-head CI and the live PostgreSQL concurrency test are green; PR remains draft.
