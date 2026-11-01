@@ -63,5 +63,7 @@ This PR targets the parent branch so API and UI can be reviewed and validated as
 
 
 ## Parent synchronization
-- Parent P056 branch synchronized to `b0453e9c5d2671b1e2f7a919f85721e7529194cd` after the lifecycle API, API Gateway allowlist and dependent-PR CI trigger updates.
+- Parent P056 branch synchronized to `ed8464b92f818bacd5d8db568966da67b6d3b601` after the lifecycle API, API Gateway allowlist and dependent-PR CI trigger updates.
 - P057 remains based on the P056 branch; exact-head CI must therefore validate the merged parent + UI snapshot, not the UI branch in isolation.
+
+- The parent now emits `class.changed` and `enrollment.changed` events. P057 refreshes the authorized list views after receiving these events; event payloads are not treated as authoritative records.
