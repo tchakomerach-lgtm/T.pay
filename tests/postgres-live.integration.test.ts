@@ -841,6 +841,8 @@ test("P056 live PostgreSQL school enrollment enforces tenant scope, uniqueness a
   const studentA = "p056-student-a-" + randomUUID();
   const studentB = "p056-student-b-" + randomUUID();
   const classId = "p056-class-" + randomUUID();
+  const otherTenantId = "p056-other-tenant-" + randomUUID();
+  const otherOrganizationId = "p056-other-org-" + randomUUID();
   const now = new Date().toISOString();
   let schemaReady = false;
   try {
@@ -883,8 +885,6 @@ test("P056 live PostgreSQL school enrollment enforces tenant scope, uniqueness a
       /duplicate key|unique/i
     );
 
-    const otherTenantId = "p056-other-tenant-" + randomUUID();
-    const otherOrganizationId = "p056-other-org-" + randomUUID();
     const foreignStudentId = "p056-foreign-student-" + randomUUID();
     await client.query(
       "INSERT INTO education_students(student_id,tenant_id,organization_id,lifecycle,version,updated_at) VALUES($1,$2,$3,'ACTIVE',1,$4)",
