@@ -69,3 +69,23 @@ test("P057 school web client surfaces server authorization denials without prete
   try{await assert.rejects(createSchoolWebClient(config).listClasses(),/AUTHORIZATION_DENIED/);}
   finally{globalThis.fetch=original;}
 });
+
+
+test("P057 enrollment withdrawal uses PATCH, expected version and idempotency",async()=>{
+  const config={apiBaseUrl:"https://school.example",session:{accessToken:"session-token",expiresAt:new Date(Date.now()+60000).toISOString()}};
+  const original=globalThis.fetch;let captured:{url:string;init:RequestInit}|undefined;
+  globalThis.fetch=async(input,init={})=>{
+    captured={url:String(input),init};
+    return new Response(JSON.stringify({ok:true,data:{enrollment_id:"enroll-9",student_id:"student-9",class_id:"class-9",academic_year:"2026-2027",status:"WITHDRAWN",enrolled_at:"2026-09-01T00:00:00.000Z",version:2}}),{status:200,headers:{"content-type":"application/json"}});
+  };
+  try{
+    const result=await createSchoolWebClient(config).transitionEnrollment("enroll-9",{status:"WITHDRAWN",expectedVersion:1});
+    assert.equal(result.status,"WITHDRAWN");
+    assert.equal(captured?.init.method,"PATCH");
+    assert.match(captured!.url,/\/v1\/education\/enrollments\/enroll-9$/);
+    const headers=new Headers(captured?.init.headers);
+    assert.equal(headers.get("authorization"),"Bearer session-token");
+    assert.ok(headers.get("x-idempotency-key"));
+    assert.deepEqual(JSON.parse(String(captured?.init.body)),{status:"WITHDRAWN",expectedVersion:1});
+  }finally{globalThis.fetch=original;}
+});
