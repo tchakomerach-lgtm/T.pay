@@ -830,3 +830,56 @@ test("Community Tontine partner settlement is payout-bound, maker-checker protec
     await client.end();
   }
 });
+
+
+test("P056 live PostgreSQL school enrollment enforces tenant scope, uniqueness and class capacity", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const client = new pg.Client({ connectionString: databaseUrl });
+  await client.connect();
+  const tenantId = "p056-" + randomUUID();
+  const organizationId = "p056-org-" + randomUUID();
+  const actorId = "p056-actor-" + randomUUID();
+  const studentA = "p056-student-a-" + randomUUID();
+  const studentB = "p056-student-b-" + randomUUID();
+  const classId = "p056-class-" + randomUUID();
+  const now = new Date().toISOString();
+  try {
+    await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await client.query(
+      "INSERT INTO education_actors(actor_id,tenant_id,organization_id,kind,active,data,version,updated_at) VALUES($1,$2,$3,'ADMIN',true,'{}'::jsonb,1,$4)",
+      [actorId,tenantId,organizationId,now]
+    );
+    await client.query(
+      "INSERT INTO education_students(student_id,tenant_id,organization_id,lifecycle,version,updated_at) VALUES($1,$2,$3,'ACTIVE',1,$5),($4,$2,$3,'ACTIVE',1,$5)",
+      [studentA,tenantId,organizationId,studentB,now]
+    );
+    await client.query(
+      "INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,code,name,level,capacity,status,created_by) VALUES($1,$2,$3,'2026-2027','6E-A','Sixième A','COLLEGE',1,'ACTIVE',$4)",
+      [classId,tenantId,organizationId,actorId]
+    );
+    await client.query(
+      "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,'2026-2027','ACTIVE',$6)",
+      ["p056-enroll-a-"+randomUUID(),tenantId,organizationId,studentA,classId,actorId]
+    );
+    await assert.rejects(
+      client.query(
+        "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,'2026-2027','ACTIVE',$6)",
+        ["p056-enroll-b-"+randomUUID(),tenantId,organizationId,studentB,classId,actorId]
+      ),
+      /EDUCATION_CLASS_CAPACITY_REACHED/
+    );
+    await assert.rejects(
+      client.query(
+        "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,'2026-2027','ACTIVE',$6)",
+        ["p056-enroll-duplicate-"+randomUUID(),tenantId,organizationId,studentA,classId,actorId]
+      ),
+      /duplicate key|unique/i
+    );
+  } finally {
+    await client.query("DELETE FROM education_enrollments WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
+    await client.query("DELETE FROM education_classes WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
+    await client.query("DELETE FROM education_students WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
+    await client.query("DELETE FROM education_actors WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]);
+    await client.end();
+  }
+});
