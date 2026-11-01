@@ -60,3 +60,8 @@ This PR targets the parent branch so API and UI can be reviewed and validated as
 - Active enrollment rows expose an explicit, confirmation-protected withdrawal action. The button is disabled in demo mode and while another operation is running.
 - On success, the UI reloads classes and enrollments from the authoritative API; it does not locally decrement capacity or claim success before the API responds.
 - P056 API Gateway route policy must include `PATCH /v1/education/enrollments/:enrollmentId`; this was added to the parent branch and will be exercised by parent/child CI.
+
+
+## Parent synchronization
+- Parent P056 branch synchronized to `b0453e9c5d2671b1e2f7a919f85721e7529194cd` after the lifecycle API, API Gateway allowlist and dependent-PR CI trigger updates.
+- P057 remains based on the P056 branch; exact-head CI must therefore validate the merged parent + UI snapshot, not the UI branch in isolation.
