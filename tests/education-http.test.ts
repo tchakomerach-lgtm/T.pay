@@ -126,3 +126,20 @@ test("student registry is tenant-scoped and lifecycle transitions use optimistic
   assert.equal(update?.values?.[5],"2");
  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
+
+
+test("class and enrollment APIs bind tenant, organization and actor to authenticated session",async()=>{
+ const calls:any[]=[];
+ const database={async query(sql:string,values?:unknown[]){calls.push({sql,values});if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:"request-edu-1"}],rowCount:1};if(sql.includes("INSERT INTO education_classes"))return {rows:[{class_id:values?.[0],academic_year:values?.[3],label:values?.[4],capacity:values?.[5],enrolled_count:0,status:"ACTIVE",version:1}],rowCount:1};if(sql.includes("INSERT INTO education_enrollments"))return {rows:[{enrollment_id:values?.[0],student_id:values?.[3],class_id:values?.[4],academic_year:values?.[5],status:values?.[6],created_by:values?.[7],version:1}],rowCount:1};return {rows:[],rowCount:1};}};
+ const server=createSchoolApiServer({db:database as any,authenticate:async()=>auth(),syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any});
+ await new Promise<void>(resolve=>server.listen(0,resolve));const port=(server.address() as any).port;
+ try{
+  const base="http://127.0.0.1:"+port+"/v1/education/";
+  const cr=await fetch(base+"classes",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"class-create-0001"},body:JSON.stringify({classId:"class-6e-a",academicYear:"2026-2027",label:"6e A",capacity:35,tenantId:"spoof",organizationId:"spoof"})});
+  const cb:any=await cr.json();assert.equal(cr.status,200,JSON.stringify(cb));assert.equal(cb.data.class_id,"class-6e-a");
+  const ci=calls.find(c=>c.sql.includes("INSERT INTO education_classes"));assert.deepEqual(ci.values,["class-6e-a","tenant-1","org-1","2026-2027","6e A",35]);
+  const er=await fetch(base+"enrollments",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"enrollment-create-01"},body:JSON.stringify({enrollmentId:"enrollment-001",studentId:"student-001",classId:"class-6e-a",academicYear:"2026-2027",status:"CONFIRMED",createdBy:"attacker",organizationId:"spoof"})});
+  const eb:any=await er.json();assert.equal(er.status,200,JSON.stringify(eb));assert.equal(eb.data.created_by,"teacher-1");
+  const ei=calls.find(c=>c.sql.includes("INSERT INTO education_enrollments"));assert.equal(ei.values[1],"tenant-1");assert.equal(ei.values[2],"org-1");assert.equal(ei.values[7],"teacher-1");
+ }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});
