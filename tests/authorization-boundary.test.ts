@@ -47,8 +47,8 @@ test("authorization denies missing permissions by default", () => {
   assert.throws(() => assertAuthorized(principal, {
     organizationId: "org-a",
     resourceOrganizationId: "org-a",
-    requestedPermission: "finance.write"
-  }), /FORBIDDEN:finance.write/);
+    requestedPermission: "finance.initiate"
+  }), /FORBIDDEN:finance.initiate/);
 });
 
 test("org.manage is the explicit permission required for cross-owner management", () => {
