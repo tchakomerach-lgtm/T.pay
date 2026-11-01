@@ -62,6 +62,18 @@ export function SchoolApp({config}:{config:SchoolWebConfig}){
   finally{setBusy(false);}
  };
 
+
+ const withdrawEnrollment=async(row:SchoolEnrollment)=>{
+  if(config.demo||row.status!=="ACTIVE"||busy)return;
+  if(!window.confirm("Confirmer le retrait de l'inscription de "+row.student_id+" ? La place sera libérée dans la classe."))return;
+  setBusy(true);setError("");setNotice("");
+  try{
+   await client.transitionEnrollment(row.enrollment_id,{status:"WITHDRAWN",expectedVersion:row.version});
+   setNotice("Inscription retirée. Le compteur de capacité a été recalculé par PostgreSQL.");
+   await refresh();
+  }catch(reason){setError(reason instanceof Error?reason.message:"EDUCATION_ENROLLMENT_WITHDRAW_FAILED");}
+  finally{setBusy(false);}
+ };
  const field=(label:string,name:string,props:Record<string,unknown>={})=>React.createElement("label",{className:"form-field",key:name},label,React.createElement("input",{name,required:true,...props}));
  const demoMessage=config.demo?React.createElement("p",{className:"notice",role:"status"},"Mode démonstration : aucune donnée réelle n'est chargée et aucune écriture n'est possible."):null;
  const classRows=classes.map(row=>React.createElement("tr",{key:row.class_id},
@@ -76,7 +88,8 @@ export function SchoolApp({config}:{config:SchoolWebConfig}){
   React.createElement("td",null,row.class_code??row.class_id),
   React.createElement("td",null,row.class_name??"—"),
   React.createElement("td",null,row.status==="ACTIVE"?"Active":row.status),
-  React.createElement("td",null,new Date(row.enrolled_at).toLocaleDateString("fr-FR"))
+  React.createElement("td",null,new Date(row.enrolled_at).toLocaleDateString("fr-FR")),
+  React.createElement("td",null,row.status==="ACTIVE"?React.createElement("button",{type:"button",className:"secondary row-action",disabled:config.demo||busy,"aria-label":"Retirer l'inscription de "+row.student_id,onClick:()=>void withdrawEnrollment(row)},"Retirer"):React.createElement("span",{className:"muted"},"Aucune action"))
  ));
 
  return React.createElement("main",{className:"school-shell"},
@@ -137,7 +150,7 @@ export function SchoolApp({config}:{config:SchoolWebConfig}){
   React.createElement("section",{className:"panel data-panel"},
    React.createElement("div",{className:"panel-heading"},React.createElement("div",null,React.createElement("p",{className:"eyebrow"},"DOSSIERS ÉLÈVES"),React.createElement("h2",null,"Inscriptions"),React.createElement("p",{className:"muted"},enrollments.length+" inscription(s) pour "+academicYear))),
    enrollments.length?React.createElement("div",{className:"table-wrap"},React.createElement("table",null,
-    React.createElement("thead",null,React.createElement("tr",null,...["Élève","Code","Classe","État","Date"].map(x=>React.createElement("th",{key:x,scope:"col"},x)))),
+    React.createElement("thead",null,React.createElement("tr",null,...["Élève","Code","Classe","État","Date","Action"].map(x=>React.createElement("th",{key:x,scope:"col"},x)))),
     React.createElement("tbody",null,...enrollmentRows)
    )):React.createElement("p",{className:"empty-state"},"Aucune inscription retournée pour cette année scolaire.")
   ),
