@@ -78,6 +78,8 @@ function route(path:string){
  const parts=path.split("/").filter(Boolean);
  if(parts[0]!=="v1"||parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
+ if(parts[2]==="classes"&&parts.length===3)return ["classes"] as const;
+ if(parts[2]==="enrollments"&&parts.length===3)return ["enrollments"] as const;
  if(parts[2]==="sync"&&parts[3]==="events"&&parts.length===4)return ["sync"] as const;
  if(parts[2]==="attendance"&&parts.length===3)return ["attendance"] as const;
  if(parts[2]==="work-items"&&parts.length===3)return ["work-create"] as const;
@@ -87,7 +89,11 @@ function route(path:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="actor"?"org.read":"member.manage";}
+function permissionFor(kind:string,method:string):Permission{
+ if(kind==="actor"||((kind==="classes"||kind==="enrollments")&&method==="GET"))return "org.read";
+ if(kind==="classes"||kind==="enrollments")return "org.manage";
+ return "member.manage";
+}
 export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
 
 export function createSchoolApiServer(deps:SchoolApiDependencies, options:SchoolApiServerOptions={}){
@@ -125,7 +131,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(!routeAuth.allowed)throw new Error(routeAuth.reason);
    const organizationId=auth.principal.organizationId; if(!auth.tenantId)throw new Error("TENANT_CONTEXT_REQUIRED");
    if(!organizationId)throw new Error("ORGANIZATION_CONTEXT_REQUIRED");
-   assertAuthorized(auth.principal,{organizationId,requestedPermission:permissionFor(r[0])});
+   assertAuthorized(auth.principal,{organizationId,requestedPermission:permissionFor(r[0],method)});
    if(r[0]==="stream"){
     if(method!=="GET")throw new Error("REALTIME_METHOD_NOT_ALLOWED");
     if(!deps.realtime)throw new Error("REALTIME_NOT_CONFIGURED");
@@ -183,7 +189,66 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(dedupe?.status==="conflict")throw new Error("API_IDEMPOTENCY_CONFLICT");
    if(dedupe?.status==="replay"){res.statusCode=dedupe.statusCode??200;json(res,res.statusCode,{ok:true,replayed:true,requestId:dedupe.requestId},correlationId);return;}
    let data:unknown;
-   if(r[0]==="actor"){
+   if(r[0]==="classes"){
+    if(method==="GET"){
+      const url=new URL(rawUrl,"https://tpay.invalid");
+      const academicYear=url.searchParams.get("academicYear");
+      if(academicYear && !/^\\d{4}-\\d{4}$/.test(academicYear))throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
+      const q=await deps.db.query(
+        "SELECT class_id,academic_year,code,name,level,capacity,status,version,created_at,updated_at FROM education_classes WHERE tenant_id=$1 AND organization_id=$2 AND ($3::text IS NULL OR academic_year=$3) ORDER BY academic_year DESC,code ASC",
+        [auth.tenantId,organizationId,academicYear]
+      );
+      data=q.rows;
+    }else if(method==="POST"){
+      const input=body as Record<string,unknown>;
+      const allowed=["academicYear","code","name","level","capacity"];
+      if(Object.keys(input).some(key=>!allowed.includes(key)))throw new Error("EDUCATION_CLASS_FIELDS_NOT_ALLOWED");
+      const academicYear=String(input.academicYear??"");
+      const code=String(input.code??"").trim();
+      const name=String(input.name??"").trim();
+      const level=String(input.level??"").trim();
+      const capacity=Number(input.capacity);
+      if(!/^\\d{4}-\\d{4}$/.test(academicYear)||Number(academicYear.slice(5))!==Number(academicYear.slice(0,4))+1)throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
+      if(!/^[A-Za-z0-9._-]{1,32}$/.test(code))throw new Error("EDUCATION_CLASS_CODE_INVALID");
+      if(!name||name.length>120||!level||level.length>80)throw new Error("EDUCATION_CLASS_DETAILS_INVALID");
+      if(!Number.isSafeInteger(capacity)||capacity<1||capacity>3000)throw new Error("EDUCATION_CLASS_CAPACITY_INVALID");
+      const classId=randomUUID();
+      const q=await deps.db.query(
+        "INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,code,name,level,capacity,status,created_by,version,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'ACTIVE',$9,1,now(),now()) RETURNING class_id,academic_year,code,name,level,capacity,status,version,created_at,updated_at",
+        [classId,auth.tenantId,organizationId,academicYear,code,name,level,capacity,auth.principal.userId]
+      );
+      data=q.rows[0];
+    }else throw new Error("EDUCATION_CLASS_METHOD_NOT_ALLOWED");
+   } else if(r[0]==="enrollments"){
+    if(method==="GET"){
+      const url=new URL(rawUrl,"https://tpay.invalid");
+      const classId=url.searchParams.get("classId");
+      const academicYear=url.searchParams.get("academicYear");
+      if(academicYear && !/^\\d{4}-\\d{4}$/.test(academicYear))throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
+      const q=await deps.db.query(
+        "SELECT e.enrollment_id,e.student_id,e.class_id,e.academic_year,e.status,e.enrolled_at,e.created_by,e.version,c.code AS class_code,c.name AS class_name FROM education_enrollments e JOIN education_classes c ON c.tenant_id=e.tenant_id AND c.organization_id=e.organization_id AND c.class_id=e.class_id AND c.academic_year=e.academic_year WHERE e.tenant_id=$1 AND e.organization_id=$2 AND ($3::text IS NULL OR e.class_id=$3) AND ($4::text IS NULL OR e.academic_year=$4) ORDER BY e.enrolled_at DESC,e.enrollment_id ASC",
+        [auth.tenantId,organizationId,classId,academicYear]
+      );
+      data=q.rows;
+    }else if(method==="POST"){
+      const input=body as Record<string,unknown>;
+      const allowed=["studentId","classId","academicYear","enrolledAt"];
+      if(Object.keys(input).some(key=>!allowed.includes(key)))throw new Error("EDUCATION_ENROLLMENT_FIELDS_NOT_ALLOWED");
+      const studentId=String(input.studentId??"").trim();
+      const classId=String(input.classId??"").trim();
+      const academicYear=String(input.academicYear??"");
+      const enrolledAt=input.enrolledAt===undefined?(deps.now??(()=>new Date()))().toISOString():String(input.enrolledAt);
+      if(!studentId||studentId.length>128||!classId||classId.length>128)throw new Error("EDUCATION_ENROLLMENT_REFERENCE_INVALID");
+      if(!/^\\d{4}-\\d{4}$/.test(academicYear)||Number(academicYear.slice(5))!==Number(academicYear.slice(0,4))+1)throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
+      if(!Number.isFinite(Date.parse(enrolledAt)))throw new Error("EDUCATION_ENROLLMENT_DATE_INVALID");
+      const enrollmentId=randomUUID();
+      const q=await deps.db.query(
+        "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,enrolled_at,created_by,version) VALUES($1,$2,$3,$4,$5,$6,'ACTIVE',$7,$8,1) RETURNING enrollment_id,student_id,class_id,academic_year,status,enrolled_at,created_by,version",
+        [enrollmentId,auth.tenantId,organizationId,studentId,classId,academicYear,enrolledAt,auth.principal.userId]
+      );
+      data=q.rows[0];
+    }else throw new Error("EDUCATION_ENROLLMENT_METHOD_NOT_ALLOWED");
+   } else if(r[0]==="actor"){
     const q=await deps.db.query("SELECT actor_id,organization_id,kind,active,data,version,updated_at FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,r[1]]);
     if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("ACTOR_NOT_FOUND"),correlationId),correlationId);return;}
     data=q.rows[0];
