@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createSchoolApiServer } from "../packages/education/src/education-http.js";
+import { SchoolRealtimeHub } from "../packages/education/src/school-realtime.js";
 import type { Permission } from "../packages/security/src/policy.js";
 
 function makeAuth(permissions: Permission[] = ["org.read","org.manage"]) {
@@ -153,4 +154,36 @@ test("P056 enrollment lifecycle requires org.manage",async()=>{
     assert.equal(res.status,403);
     assert.equal(db.calls.some(x=>x.sql.includes("UPDATE education_enrollments SET status=")),false);
   });
+});
+
+
+test("P056 class and enrollment mutations append tenant-scoped realtime events",async()=>{
+  const db=responseDb();
+  const events:Array<Record<string,unknown>>=[];
+  const realtime=new SchoolRealtimeHub();
+  const server=createSchoolApiServer({
+    db,
+    authenticate:async()=>makeAuth(["org.read","org.manage"]),
+    syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any,
+    realtime,
+    realtimeStore:{
+      append:async(event)=>{events.push(event as unknown as Record<string,unknown>);return 7n;},
+      replay:async()=>({state:"OK" as const,events:[],oldestSequence:null,latestSequence:null})
+    }
+  });
+  await new Promise<void>(resolve=>server.listen(0,resolve));
+  const address=server.address() as {port:number};
+  try{
+    const res=await fetch("http://127.0.0.1:"+address.port+"/v1/education/enrollments/enrollment-1",{method:"PATCH",headers:{"content-type":"application/json","x-idempotency-key":"enrollment-event-0001"},body:JSON.stringify({status:"WITHDRAWN",expectedVersion:1})});
+    assert.equal(res.status,200);
+    assert.equal(events.length,1);
+    assert.equal(events[0]?.type,"enrollment.changed");
+    assert.equal(events[0]?.tenantId,"tenant-school");
+    assert.equal(events[0]?.organizationId,"org-school");
+    assert.equal(events[0]?.entityId,"enrollment-1");
+    assert.equal((events[0]?.data as Record<string,unknown>)?.status,"WITHDRAWN");
+  }finally{
+    server.closeAllConnections();
+    await new Promise<void>(resolve=>server.close(()=>resolve()));
+  }
 });
