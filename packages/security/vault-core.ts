@@ -15,7 +15,13 @@ export interface EncryptedVaultObject{
   payloadSha256:Buffer;
 }
 
-function sha256(value:Buffer|string):Buffer{return createHash("sha256").update(value).digest();}\nfunction auditContext(context?:{actorId:string|null;objectId?:string;correlationId?:string}){\n  return {\n    ...(context?.objectId !== undefined ? {objectId:context.objectId} : {}),\n    ...(context?.correlationId !== undefined ? {correlationId:context.correlationId} : {})\n  };\n}
+function sha256(value:Buffer|string):Buffer{return createHash("sha256").update(value).digest();}
+function auditContext(context?:{actorId:string|null;objectId?:string;correlationId?:string}){
+  return {
+    ...(context?.objectId !== undefined ? {objectId:context.objectId} : {}),
+    ...(context?.correlationId !== undefined ? {correlationId:context.correlationId} : {})
+  };
+}
 
 export async function encryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyRef,plaintext:Buffer,aad:string,audit?:VaultAuditSink,context?:{actorId:string|null;objectId?:string;correlationId?:string}):Promise<EncryptedVaultObject>{
   if(ref.algorithm!=="AES-256-GCM")throw new Error("TPAY_VAULT_ALGORITHM_UNSUPPORTED");
