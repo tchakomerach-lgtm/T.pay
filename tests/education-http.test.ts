@@ -96,3 +96,33 @@ test("attendance recorder identity is derived from the authenticated principal, 
   assert.equal(insert.values?.[3],"org-1");
  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
+
+
+test("student registry is tenant-scoped and lifecycle transitions use optimistic versions",async()=>{
+ const calls:Array<{sql:string;values:unknown[]|undefined}>=[];
+ let student:any={student_id:"student-001",tenant_id:"tenant-1",organization_id:"org-1",lifecycle:"ADMITTED",version:2,updated_at:new Date().toISOString()};
+ const database={async query(sql:string,values?:unknown[]){
+  calls.push({sql,values});
+  if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:"request-1"}],rowCount:1};
+  if(sql.includes("SELECT student_id,organization_id,lifecycle,version FROM education_students"))return {rows:[{student_id:student.student_id,organization_id:student.organization_id,lifecycle:student.lifecycle,version:student.version}],rowCount:1};
+  if(sql.includes("UPDATE education_students SET lifecycle")){student={...student,lifecycle:values?.[0],version:Number(values?.[1])};return {rows:[student],rowCount:1};}
+  if(sql.includes("INSERT INTO api_request_audit"))return {rows:[],rowCount:1};
+  if(sql.includes("UPDATE api_request_deduplication"))return {rows:[],rowCount:1};
+  if(sql.includes("SELECT student_id,tenant_id,organization_id,lifecycle,version,updated_at FROM education_students"))return {rows:[student],rowCount:1};
+  return {rows:[],rowCount:0};
+ }};
+ const server=createSchoolApiServer({db:database as any,authenticate:async()=>auth(),syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any});
+ await new Promise<void>(resolve=>server.listen(0,resolve));const port=(server.address() as any).port;
+ try{
+  const get=await fetch(`http://127.0.0.1:${port}/v1/education/students/student-001`);
+  assert.equal(get.status,200);
+  const transition=await fetch(`http://127.0.0.1:${port}/v1/education/students/student-001/lifecycle`,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"student-lifecycle-001"},body:JSON.stringify({lifecycle:"ENROLLED"})});
+  const body=await transition.json() as any;
+  assert.equal(transition.status,200,JSON.stringify(body));
+  assert.equal(body.data.lifecycle,"ENROLLED");
+  const update=calls.find(c=>c.sql.includes("UPDATE education_students SET lifecycle"));
+  assert.equal(update?.values?.[2],"tenant-1");
+  assert.equal(update?.values?.[3],"org-1");
+  assert.equal(update?.values?.[5],"2");
+ }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});
