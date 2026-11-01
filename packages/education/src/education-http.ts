@@ -80,6 +80,7 @@ function route(path:string){
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
  if(parts[2]==="classes"&&parts.length===3)return ["classes"] as const;
  if(parts[2]==="enrollments"&&parts.length===3)return ["enrollments"] as const;
+ if(parts[2]==="enrollments"&&parts.length===4&&parts[3])return ["enrollment-status",parts[3]] as const;
  if(parts[2]==="sync"&&parts[3]==="events"&&parts.length===4)return ["sync"] as const;
  if(parts[2]==="attendance"&&parts.length===3)return ["attendance"] as const;
  if(parts[2]==="work-items"&&parts.length===3)return ["work-create"] as const;
@@ -91,7 +92,7 @@ function route(path:string){
 }
 function permissionFor(kind:string,method:string):Permission{
  if(kind==="actor"||((kind==="classes"||kind==="enrollments")&&method==="GET"))return "org.read";
- if(kind==="classes"||kind==="enrollments")return "org.manage";
+ if(kind==="classes"||kind==="enrollments"||kind==="enrollment-status")return "org.manage";
  return "member.manage";
 }
 export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
@@ -117,8 +118,8 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      }
      res.setHeader("access-control-allow-origin",origin);
      res.setHeader("vary","Origin");
-     res.setHeader("access-control-allow-methods","GET,POST,OPTIONS");
-     res.setHeader("access-control-allow-headers","Authorization,Content-Type,Last-Event-ID,X-Correlation-ID,X-Idempotency-Key");
+     res.setHeader("access-control-allow-methods","GET,POST,PATCH,OPTIONS");
+     res.setHeader("access-control-allow-headers","Authorization,Content-Type,Last-Event-ID,X-Correlation-ID,X-Idempotency-Key,If-Match");
      res.setHeader("access-control-expose-headers","X-Correlation-ID");
      res.setHeader("access-control-max-age","600");
      if(method==="OPTIONS"){res.statusCode=204;res.end();return;}
@@ -248,6 +249,27 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       );
       data=q.rows[0];
     }else throw new Error("EDUCATION_ENROLLMENT_METHOD_NOT_ALLOWED");
+   } else if(r[0]==="enrollment-status"){
+    if(method!=="PATCH")throw new Error("EDUCATION_ENROLLMENT_METHOD_NOT_ALLOWED");
+    const input=body as Record<string,unknown>;
+    if(Object.keys(input).some(key=>!["status","expectedVersion"].includes(key)))throw new Error("EDUCATION_ENROLLMENT_STATUS_FIELDS_NOT_ALLOWED");
+    const nextStatus=String(input.status??"");
+    const expectedVersion=Number(input.expectedVersion);
+    if(!["WITHDRAWN","CANCELLED","COMPLETED"].includes(nextStatus))throw new Error("EDUCATION_ENROLLMENT_TRANSITION_INVALID");
+    if(!Number.isSafeInteger(expectedVersion)||expectedVersion<1)throw new Error("EDUCATION_ENROLLMENT_VERSION_REQUIRED");
+    const updated=await deps.db.query(
+      "UPDATE education_enrollments SET status=$1,version=version+1,updated_at=now() WHERE tenant_id=$2 AND organization_id=$3 AND enrollment_id=$4 AND status='ACTIVE' AND version=$5 RETURNING enrollment_id,student_id,class_id,academic_year,status,enrolled_at,version,updated_at",
+      [nextStatus,auth.tenantId,organizationId,r[1],expectedVersion]
+    );
+    if(!updated.rows[0]){
+      const current=await deps.db.query(
+        "SELECT status,version FROM education_enrollments WHERE tenant_id=$1 AND organization_id=$2 AND enrollment_id=$3",
+        [auth.tenantId,organizationId,r[1]]
+      );
+      if(!current.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("EDUCATION_ENROLLMENT_NOT_FOUND"),correlationId),correlationId);return;}
+      res.statusCode=409;json(res,409,buildApiError(new Error("EDUCATION_ENROLLMENT_STATE_OR_VERSION_CONFLICT"),correlationId),correlationId);return;
+    }
+    data=updated.rows[0];
    } else if(r[0]==="actor"){
     const q=await deps.db.query("SELECT actor_id,organization_id,kind,active,data,version,updated_at FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,r[1]]);
     if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("ACTOR_NOT_FOUND"),correlationId),correlationId);return;}
