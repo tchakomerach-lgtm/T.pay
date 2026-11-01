@@ -68,7 +68,7 @@ export function SchoolApp({config}:{config:SchoolWebConfig}){
   React.createElement("td",null,row.code),
   React.createElement("td",null,row.name),
   React.createElement("td",null,row.level),
-  React.createElement("td",null,String(row.capacity)),
+  React.createElement("td",null,String(row.enrolled_count)+" / "+String(row.capacity)),
   React.createElement("td",null,row.status==="ACTIVE"?"Active":"Archivée")
  ));
  const enrollmentRows=enrollments.map(row=>React.createElement("tr",{key:row.enrollment_id},
@@ -130,7 +130,7 @@ export function SchoolApp({config}:{config:SchoolWebConfig}){
   React.createElement("section",{className:"panel data-panel"},
    React.createElement("div",{className:"panel-heading"},React.createElement("div",null,React.createElement("p",{className:"eyebrow"},"RÉFÉRENTIEL"),React.createElement("h2",null,"Classes"),React.createElement("p",{className:"muted"},classes.length+" classe(s) pour "+academicYear))),
    classes.length?React.createElement("div",{className:"table-wrap"},React.createElement("table",null,
-    React.createElement("thead",null,React.createElement("tr",null,...["Code","Classe","Niveau","Capacité","État"].map(x=>React.createElement("th",{key:x,scope:"col"},x)))),
+    React.createElement("thead",null,React.createElement("tr",null,...["Code","Classe","Niveau","Inscrits / capacité","État"].map(x=>React.createElement("th",{key:x,scope:"col"},x)))),
     React.createElement("tbody",null,...classRows)
    )):React.createElement("p",{className:"empty-state"},"Aucune classe retournée pour cette année scolaire.")
   ),
