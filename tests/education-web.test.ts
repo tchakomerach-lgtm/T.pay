@@ -89,3 +89,16 @@ test("P057 enrollment withdrawal uses PATCH, expected version and idempotency",a
     assert.deepEqual(JSON.parse(String(captured?.init.body)),{status:"WITHDRAWN",expectedVersion:1});
   }finally{globalThis.fetch=original;}
 });
+
+
+test("P057 enrollment transition exposes stale-version conflicts to the operator",async()=>{
+  const config={apiBaseUrl:"https://school.example",session:{accessToken:"session-token",expiresAt:new Date(Date.now()+60000).toISOString()}};
+  const original=globalThis.fetch;
+  globalThis.fetch=async()=>new Response(JSON.stringify({ok:false,error:{code:"EDUCATION_ENROLLMENT_STATE_OR_VERSION_CONFLICT"}}),{status:409,headers:{"content-type":"application/json"}});
+  try{
+    await assert.rejects(
+      createSchoolWebClient(config).transitionEnrollment("enroll-stale",{status:"WITHDRAWN",expectedVersion:1}),
+      /EDUCATION_ENROLLMENT_STATE_OR_VERSION_CONFLICT/
+    );
+  }finally{globalThis.fetch=original;}
+});
