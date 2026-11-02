@@ -369,7 +369,6 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       return {data:row,event:{type:"service_request.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.request_id),version:Number(row.version),data:{operation:"POST",status:row.status}}};
     });
    } else {
-   } else {
     data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
       const q=await tx.query("SELECT * FROM education_service_requests WHERE tenant_id=$1 AND organization_id=$2 AND request_id=$3",[auth.tenantId,organizationId,r[1]]);
       if(!q.rows[0])throw new Error("SERVICE_REQUEST_NOT_FOUND");const current=q.rows[0] as unknown as ServiceRequest;
