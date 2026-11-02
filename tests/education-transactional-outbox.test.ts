@@ -51,3 +51,29 @@ test("P056 outbox claims use SKIP LOCKED and require worker lease ownership",asy
  await retrySchoolOutbox(db as any,"outbox-2","worker-1","NETWORK_UNAVAILABLE");
  assert.ok(db.calls.some(x=>x.sql.includes("locked_by=$2")));
 });
+
+test("P056.1 audit failure rolls back the domain mutation and Outbox insert",async()=>{
+ const db=fakeClient("INSERT INTO api_request_audit");
+ const uow=new PostgresSchoolMutationUnitOfWork(db as any);
+ await assert.rejects(()=>uow.execute(scope,async tx=>{
+  await tx.query("INSERT INTO education_classes(class_id) VALUES($1)",["class-audit-failure"]);
+  return {data:true,event:{type:"class.changed" as const,occurredAt:new Date(0).toISOString(),entityId:"class-audit-failure",version:1,data:{}}};
+ }),/INJECTED_FAILURE/);
+ assert.equal(db.calls.at(-1)?.sql,"ROLLBACK");
+ assert.ok(!db.calls.some(x=>x.sql.includes("INSERT INTO education_transactional_outbox")));
+ assert.ok(!db.calls.some(x=>x.sql==="COMMIT"));
+});
+
+test("P056.1 response idempotency completion is part of the same transaction",async()=>{
+ const db=fakeClient();
+ const uow=new PostgresSchoolMutationUnitOfWork(db as any);
+ await uow.execute(scope,async tx=>{
+  await tx.query("INSERT INTO education_classes(class_id) VALUES($1)",["class-idempotent"]);
+  return {data:true,event:{type:"class.changed" as const,occurredAt:new Date(0).toISOString(),entityId:"class-idempotent",version:1,data:{}},responseHash:"a".repeat(64)};
+ });
+ const statements=db.calls.map(x=>x.sql);
+ const outbox=statements.findIndex(x=>x.includes("INSERT INTO education_transactional_outbox"));
+ const idem=statements.findIndex(x=>x.includes("UPDATE api_request_deduplication"));
+ const commit=statements.indexOf("COMMIT");
+ assert.ok(outbox>0&&idem>outbox&&commit>idem);
+});
