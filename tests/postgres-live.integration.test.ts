@@ -1119,9 +1119,12 @@ test("P056.2 live PostgreSQL enforces tenant and organization RLS for attendance
     await runtime.query("COMMIT");
 
     const crossScopeWrites = [
-      ["INSERT INTO education_attendance(student_id,class_id,tenant_id,organization_id,status,recorded_by,occurred_at,source,version) VALUES($1,$2,$3,$4,'PRESENT','teacher-1',now(),'TEACHER',1)", ["foreign-student-" + randomUUID(), "foreign-class-" + randomUUID(), foreignTenantId, foreignOrganizationId]],
-      ["INSERT INTO education_work_items(work_item_id,tenant_id,organization_id,status,priority,version) VALUES($1,$2,$3,'OPEN','NORMAL',1)", ["foreign-work-" + randomUUID(), foreignTenantId, foreignOrganizationId]],
-      ["INSERT INTO education_service_requests(request_id,tenant_id,organization_id,requester_id,service_code,status,priority,created_at,version) VALUES($1,$2,$3,'actor-1','CERTIFICATE','OPEN','NORMAL',now(),1)", ["foreign-service-" + randomUUID(), foreignTenantId, foreignOrganizationId]]
+      ["INSERT INTO education_attendance(student_id,class_id,tenant_id,organization_id,status,recorded_by,occurred_at,source,version) VALUES($1,$2,$3,$4,'PRESENT','teacher-1',now(),'TEACHER',1)", ["foreign-student-tenant-" + randomUUID(), "foreign-class-" + randomUUID(), foreignTenantId, organizationId]],
+      ["INSERT INTO education_attendance(student_id,class_id,tenant_id,organization_id,status,recorded_by,occurred_at,source,version) VALUES($1,$2,$3,$4,'PRESENT','teacher-1',now(),'TEACHER',1)", ["foreign-student-org-" + randomUUID(), "foreign-class-" + randomUUID(), tenantId, foreignOrganizationId]],
+      ["INSERT INTO education_work_items(work_item_id,tenant_id,organization_id,status,priority,version) VALUES($1,$2,$3,'OPEN','NORMAL',1)", ["foreign-work-tenant-" + randomUUID(), foreignTenantId, organizationId]],
+      ["INSERT INTO education_work_items(work_item_id,tenant_id,organization_id,status,priority,version) VALUES($1,$2,$3,'OPEN','NORMAL',1)", ["foreign-work-org-" + randomUUID(), tenantId, foreignOrganizationId]],
+      ["INSERT INTO education_service_requests(request_id,tenant_id,organization_id,requester_id,service_code,status,priority,created_at,version) VALUES($1,$2,$3,'actor-1','CERTIFICATE','OPEN','NORMAL',now(),1)", ["foreign-service-tenant-" + randomUUID(), foreignTenantId, organizationId]],
+      ["INSERT INTO education_service_requests(request_id,tenant_id,organization_id,requester_id,service_code,status,priority,created_at,version) VALUES($1,$2,$3,'actor-1','CERTIFICATE','OPEN','NORMAL',now(),1)", ["foreign-service-org-" + randomUUID(), tenantId, foreignOrganizationId]]
     ] as const;
     for (const [sql, values] of crossScopeWrites) {
       await runtime.query("BEGIN");
