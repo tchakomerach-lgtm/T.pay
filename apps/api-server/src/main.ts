@@ -176,6 +176,11 @@ export async function buildProductionApiServer(config:RuntimeConfig):Promise<{se
         const client=new PooledTransactionClient(pool);
         try{return await new PostgresSchoolRealtimeStore(client).replay(tenantId,organizationId,afterSequence);}
         finally{client.release();}
+      },
+      getById:async(tenantId:string,organizationId:string,eventId:string)=>{
+        const client=new PooledTransactionClient(pool);
+        try{return await new PostgresSchoolRealtimeStore(client).getById(tenantId,organizationId,eventId);}
+        finally{client.release();}
       }
     }
   },{
