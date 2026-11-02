@@ -35,6 +35,12 @@ test("P056.3 live PostgreSQL only exposes permission grants inside their validit
        activeFrom, futureFrom, expiredFrom, expiredUntil, now.toISOString()]
     );
 
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE tpay_school_runtime");
+    await client.query(
+      "SELECT set_config('tpay.tenant_id',$1,true),set_config('tpay.organization_id',$2,true)",
+      [tenantId, organizationId]
+    );
     const effective = await client.query(
       `SELECT DISTINCT permission FROM api_actor_permissions
         WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3
@@ -45,6 +51,7 @@ test("P056.3 live PostgreSQL only exposes permission grants inside their validit
       [tenantId, organizationId, actorId, now.toISOString()]
     );
     assert.deepEqual(effective.rows.map(row => row.permission), ["org.read"]);
+    await client.query("COMMIT");
 
     const history = await client.query(
       "SELECT count(*)::int AS count FROM api_actor_permissions WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",
