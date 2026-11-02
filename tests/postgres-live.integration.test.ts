@@ -1081,6 +1081,8 @@ test("P056.1 live PostgreSQL commits school mutation, audit and Outbox atomicall
     await workerA.query("ROLLBACK");
     await workerB.query("ROLLBACK");
   } finally {
+    await workerA.query("ROLLBACK").catch(() => {});
+    await workerB.query("ROLLBACK").catch(() => {});
     await admin.query("DELETE FROM education_transactional_outbox WHERE tenant_id=$1 AND organization_id=$2", [tenantId, organizationId]).catch(() => {});
     await admin.query("DELETE FROM api_request_audit WHERE request_id=ANY($1::text[])", [requestIds]).catch(() => {});
     await admin.query("DELETE FROM tpay_school_uow_integration_probe WHERE tenant_id=$1", [tenantId]).catch(() => {});
