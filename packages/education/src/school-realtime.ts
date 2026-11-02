@@ -6,6 +6,8 @@ export type SchoolRealtimeMessage={kind:"event";event:SchoolRealtimeEvent}|{kind
 export type SchoolSubscriber={id:string;tenantId:string;organizationId:string;send(message:SchoolRealtimeMessage):void;close():void};
 export class SchoolRealtimeHub{
  private subscribers=new Map<string,SchoolSubscriber>();
+ private publishedIds=new Set<string>();
+ private readonly maxRememberedEvents=10000;
  private readonly maxQueue:number;
  private readonly queues=new Map<string,number>();
  constructor(maxQueue=100){if(maxQueue<1)throw new Error("REALTIME_INVALID_QUEUE_LIMIT");this.maxQueue=maxQueue;}
@@ -16,14 +18,26 @@ export class SchoolRealtimeHub{
   return ()=>{this.subscribers.delete(subscriber.id);this.queues.delete(subscriber.id);};
  }
  publish(event:SchoolRealtimeEvent):void{
+  if(this.publishedIds.has(event.id))return;
+  this.publishedIds.add(event.id);
+  if(this.publishedIds.size>this.maxRememberedEvents){
+   const oldest=this.publishedIds.values().next().value;
+   if(oldest)this.publishedIds.delete(oldest);
+  }
   for(const [id,sub] of this.subscribers){
    if(sub.tenantId!==event.tenantId||sub.organizationId!==event.organizationId)continue;
-   const depth=(this.queues.get(id)??0)+1;
-   if(depth>this.maxQueue){
-    sub.send({kind:"resync_required",reason:"QUEUE_OVERFLOW",lastEventId:event.id});
-    sub.close();this.subscribers.delete(id);this.queues.delete(id);continue;
+   try{
+    const depth=(this.queues.get(id)??0)+1;
+    if(depth>this.maxQueue){
+     try{sub.send({kind:"resync_required",reason:"QUEUE_OVERFLOW",lastEventId:event.id});}catch{/* close below */}
+     try{sub.close();}catch{/* subscriber is already unusable */}
+     this.subscribers.delete(id);this.queues.delete(id);continue;
+    }
+    this.queues.set(id,depth);sub.send({kind:"event",event});
+   }catch{
+    try{sub.close();}catch{/* subscriber is already unusable */}
+    this.subscribers.delete(id);this.queues.delete(id);
    }
-   this.queues.set(id,depth);sub.send({kind:"event",event});
   }
  }
 }

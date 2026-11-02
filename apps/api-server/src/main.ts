@@ -1,5 +1,6 @@
 import { createServer as createHttpsServer } from "node:https";
 import { readFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import pg, { type Pool, type PoolClient, type QueryResultRow } from "pg";
@@ -9,6 +10,7 @@ import { DeviceTrustRepository } from "../../../packages/api-gateway/src/auth-de
 import { createSchoolApiServer } from "../../../packages/education/src/education-http.js";
 import { PostgresEducationSyncStore, type PostgresTransactionClient } from "../../../packages/education/src/postgres-sync-fabric.js";
 import { PostgresSchoolRealtimeStore } from "../../../packages/education/src/postgres-realtime-store.js";
+import { PostgresSchoolOutboxDispatcher } from "../../../packages/education/src/postgres-school-outbox-dispatcher.js";
 import { SchoolRealtimeHub } from "../../../packages/education/src/school-realtime.js";
 import type { Permission } from "../../../packages/security/src/policy.js";
 
@@ -62,7 +64,7 @@ class PooledTransactionClient implements PostgresTransactionClient{
     if(!this.client)this.client=await this.pool.connect();
     try{
       const result=await this.client.query<T>(sql,values);
-      const command=sql.trim().split(/\\s+/)[0]?.toUpperCase();
+      const command=sql.trim().split(/\s+/)[0]?.toUpperCase();
       if(command==="COMMIT"||command==="ROLLBACK"){this.client.release();this.client=undefined;}
       return {rows:result.rows,rowCount:result.rowCount};
     }catch(error){
@@ -132,10 +134,38 @@ export async function buildProductionApiServer(config:RuntimeConfig):Promise<{se
   finally{migrationClient.release();}
   const authenticate=await authenticateFactory(pool);
   const realtime=new SchoolRealtimeHub(Number(process.env.TPAY_REALTIME_QUEUE_LIMIT??"100"));
+  const outboxDispatcher=new PostgresSchoolOutboxDispatcher(
+    ()=>new PooledTransactionClient(pool),
+    realtime,
+    {append:async(event)=>{
+      const client=new PooledTransactionClient(pool);
+      try{return await new PostgresSchoolRealtimeStore(client).append(event);}
+      finally{client.release();}
+    }}
+  );
+  let outboxPollInFlight=false;
+  const outboxWorkerId="tpay-school-outbox-"+randomUUID();
+  const dispatchPendingSchoolEvents=async()=>{
+    if(outboxPollInFlight)return;
+    outboxPollInFlight=true;
+    try{
+      const scopes=await pool.query(
+        "SELECT DISTINCT tenant_id,organization_id FROM education_actors ORDER BY tenant_id,organization_id"
+      );
+      for(const row of scopes.rows as Array<{tenant_id:string;organization_id:string}>){
+        await outboxDispatcher.dispatchScope(row.tenant_id,row.organization_id,outboxWorkerId,50);
+      }
+    }catch(error){
+      console.error("T.Pay school Outbox poll failed",error instanceof Error?error.message:"UNKNOWN");
+    }finally{outboxPollInFlight=false;}
+  };
+  const outboxTimer=setInterval(()=>void dispatchPendingSchoolEvents(),1500);
+  outboxTimer.unref();
   const server=createSchoolApiServer({
     db:pool,
     authenticate,
     syncClient:()=>new PooledTransactionClient(pool),
+    mutationClient:()=>new PooledTransactionClient(pool),
     realtime,
     corsOrigins:config.webOrigins,
     realtimeStore:{
@@ -147,6 +177,11 @@ export async function buildProductionApiServer(config:RuntimeConfig):Promise<{se
       replay:async(tenantId:string,organizationId:string,afterSequence:bigint)=>{
         const client=new PooledTransactionClient(pool);
         try{return await new PostgresSchoolRealtimeStore(client).replay(tenantId,organizationId,afterSequence);}
+        finally{client.release();}
+      },
+      getById:async(tenantId:string,organizationId:string,eventId:string)=>{
+        const client=new PooledTransactionClient(pool);
+        try{return await new PostgresSchoolRealtimeStore(client).getById(tenantId,organizationId,eventId);}
         finally{client.release();}
       }
     }
@@ -165,6 +200,8 @@ export async function buildProductionApiServer(config:RuntimeConfig):Promise<{se
       return server;
     }
   });
+  server.once("close",()=>clearInterval(outboxTimer));
+  void dispatchPendingSchoolEvents();
   return {server,pool};
 }
 

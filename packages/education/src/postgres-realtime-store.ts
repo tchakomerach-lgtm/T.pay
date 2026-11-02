@@ -49,6 +49,26 @@ export class PostgresSchoolRealtimeStore {
     }catch(error){await this.client.query("ROLLBACK");throw error;}
   }
 
+
+  async getById(tenantId:string,organizationId:string,eventId:string):Promise<SchoolRealtimeEvent|null>{
+    if(!tenantId||!organizationId||!eventId)throw new Error("REALTIME_EVENT_SCOPE_REQUIRED");
+    const result=await this.client.query<{
+      id:string;stream_sequence:string;event_type:SchoolRealtimeEvent["type"];
+      occurred_at:string;entity_id:string;version:string;data:Record<string,unknown>;
+    }>(
+      `SELECT id,stream_sequence::text,event_type,occurred_at,entity_id,version::text,data
+         FROM education_realtime_events
+        WHERE tenant_id=$1 AND organization_id=$2 AND id=$3
+        LIMIT 1`,
+      [tenantId,organizationId,eventId]
+    );
+    const row=result.rows[0];
+    if(!row)return null;
+    return {id:row.id,tenantId,organizationId,type:row.event_type,
+      occurredAt:new Date(row.occurred_at).toISOString(),streamSequence:row.stream_sequence,
+      entityId:row.entity_id,version:Number(row.version),data:row.data};
+  }
+
   async replay(
     tenantId:string,
     organizationId:string,

@@ -19,6 +19,7 @@ export class ApiGatewayRepository{
   const row=existing.rows[0];
   if(!row)throw new Error("API_IDEMPOTENCY_RACE_UNRESOLVED");
   if(row.request_hash!==input.requestHash||row.route!==input.route)return {status:"conflict",requestId:String(row.id),state:String(row.state)};
+  if(row.state==="reserved")return {status:"conflict",requestId:String(row.id),state:"reserved"};
   const replay:IdempotencyResult={status:"replay",requestId:String(row.id),state:String(row.state)};
   if(row.response_hash!=null) replay.responseHash=String(row.response_hash);
   if(row.status_code!=null) replay.statusCode=Number(row.status_code);

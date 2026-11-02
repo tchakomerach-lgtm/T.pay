@@ -21,12 +21,13 @@ export class PostgresSchoolMutationUnitOfWork {
 
   async execute<T>(
     scope: SchoolMutationScope,
-    mutation: (tx: PostgresTransactionClient) => Promise<{data:T; event:Omit<SchoolOutboxEvent,"id"|"tenantId"|"organizationId"> & {id?:string}}>
+    mutation: (tx: PostgresTransactionClient) => Promise<{data:T; event:Omit<SchoolOutboxEvent,"id"|"tenantId"|"organizationId"> & {id?:string}; responseHash?:string}>
   ): Promise<SchoolMutationResult<T>> {
     if(!scope.tenantId||!scope.organizationId||!scope.actorId||!scope.requestId||!scope.route||!scope.correlationId)
       throw new Error("SCHOOL_MUTATION_SCOPE_REQUIRED");
     await this.client.query("BEGIN");
     try {
+      await this.client.query("SET LOCAL ROLE tpay_school_runtime");
       await this.client.query("SELECT set_config('tpay.tenant_id',$1,true), set_config('tpay.organization_id',$2,true)",[scope.tenantId,scope.organizationId]);
       const result=await mutation(this.client);
       const event:SchoolOutboxEvent={
@@ -39,19 +40,29 @@ export class PostgresSchoolMutationUnitOfWork {
         throw new Error("SCHOOL_OUTBOX_EVENT_INVALID");
       const payload=JSON.stringify({type:event.type,entityId:event.entityId,version:event.version,data:event.data});
       const payloadHash=sha(payload);
-      await this.client.query(
+      const audit=await this.client.query(
         `INSERT INTO api_request_audit
          (id,organization_id,request_id,route,actor_id,auth_class,outcome,correlation_id,occurred_at,metadata_hash)
          VALUES($1,$2,$3,$4,$5,'member','accepted',$6,now(),$7)`,
         [randomUUID(),scope.organizationId,scope.requestId,scope.route,scope.actorId,scope.correlationId,sha(JSON.stringify({eventId:event.id,eventType:event.type,entityId:event.entityId,version:event.version}))]
       );
-      await this.client.query(
+      if((audit.rowCount??0)!==1)throw new Error("SCHOOL_MUTATION_AUDIT_WRITE_FAILED");
+      const outbox=await this.client.query(
         `INSERT INTO education_transactional_outbox
          (tenant_id,organization_id,event_id,event_type,entity_id,entity_version,occurred_at,payload,payload_hash)
          VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)
          ON CONFLICT(tenant_id,organization_id,event_id) DO NOTHING`,
         [scope.tenantId,scope.organizationId,event.id,event.type,event.entityId,event.version,event.occurredAt,payload,payloadHash]
       );
+      if((outbox.rowCount??0)!==1)throw new Error("SCHOOL_OUTBOX_WRITE_FAILED");
+      if(result.responseHash){
+        if(!/^[a-f0-9]{64}$/.test(result.responseHash))throw new Error("SCHOOL_MUTATION_RESPONSE_HASH_INVALID");
+        const completed=await this.client.query(
+          "UPDATE api_request_deduplication SET state='succeeded',response_hash=$2,status_code=200 WHERE id=$1 AND state='reserved'",
+          [scope.requestId,result.responseHash]
+        );
+        if((completed.rowCount??0)!==1)throw new Error("API_IDEMPOTENCY_COMPLETION_FAILED");
+      }
       await this.client.query("COMMIT");
       return {data:result.data,event};
     } catch(error) {
@@ -108,15 +119,19 @@ export async function markSchoolOutboxPublished(
 
 export async function retrySchoolOutbox(
   client:PostgresTransactionClient,outboxId:string,workerId:string,errorCode:string,maxAttempts=12
-):Promise<void>{
+):Promise<"PENDING"|"DEAD">{
   if(!/^[A-Z0-9_]{1,80}$/.test(errorCode))throw new Error("SCHOOL_OUTBOX_ERROR_CODE_INVALID");
   const r=await client.query(
     `UPDATE education_transactional_outbox
         SET state=CASE WHEN attempts >= $4 THEN 'DEAD' ELSE 'PENDING' END,
             available_at=now()+LEAST(3600,power(2,LEAST(attempts,10)))::text::interval,
             locked_by=NULL,locked_until=NULL,last_error_code=$3,updated_at=now()
-      WHERE outbox_id=$1 AND state='PROCESSING' AND locked_by=$2`,
+      WHERE outbox_id=$1 AND state='PROCESSING' AND locked_by=$2
+      RETURNING state`,
     [outboxId,workerId,errorCode,maxAttempts]
   );
   if((r.rowCount??0)!==1)throw new Error("SCHOOL_OUTBOX_LEASE_LOST");
+  const state=(r.rows[0] as {state?:"PENDING"|"DEAD"}|undefined)?.state;
+  if(state!=="PENDING"&&state!=="DEAD")throw new Error("SCHOOL_OUTBOX_RETRY_STATE_INVALID");
+  return state;
 }

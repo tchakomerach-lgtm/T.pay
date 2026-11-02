@@ -8,6 +8,7 @@ import { applyMigrations } from "../packages/finance/src/postgres-migrations.js"
 import { PostgresDurableTontineSettlementRepository } from "../packages/finance/src/postgres-settlement-uow.js";
 import { executeDurableTontineSettlement } from "../packages/microfinance/src/tontine-settlement-uow.js";
 import { PostgresCommunityTontineMfSettlementRepository } from "../packages/microfinance/src/community-tontine-mf-settlement-repository.js";
+import { PostgresSchoolMutationUnitOfWork, claimSchoolOutbox } from "../packages/education/src/postgres-school-mutation-uow.js";
 
 const databaseUrl = process.env.TPAY_DATABASE_URL;
 
@@ -982,5 +983,109 @@ test("P056 live PostgreSQL school enrollment enforces tenant scope, uniqueness a
     } finally {
       await client.end();
     }
+  }
+});
+
+
+test("P056.1 live PostgreSQL commits school mutation, audit and Outbox atomically and claims concurrently", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const admin = new pg.Client({ connectionString: databaseUrl });
+  const workerA = new pg.Client({ connectionString: databaseUrl });
+  const workerB = new pg.Client({ connectionString: databaseUrl });
+  const tenantId = "live-p0561-" + randomUUID();
+  const organizationId = randomUUID();
+  const actorId = randomUUID();
+  const requestIds = [randomUUID(), randomUUID()];
+  const entityIds = [randomUUID(), randomUUID()];
+  const eventIds = [randomUUID(), randomUUID()];
+  const probeIds = [randomUUID(), randomUUID()];
+  const workerIds = ["p0561-worker-a-" + randomUUID(), "p0561-worker-b-" + randomUUID()];
+  try {
+    await admin.connect();
+    await workerA.connect();
+    await workerB.connect();
+    await applyMigrations(admin, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await admin.query(`
+      CREATE TABLE IF NOT EXISTS tpay_school_uow_integration_probe (
+        id uuid PRIMARY KEY, tenant_id text NOT NULL, organization_id uuid NOT NULL
+      )
+    `);
+    await admin.query("GRANT INSERT,SELECT ON tpay_school_uow_integration_probe TO tpay_school_runtime");
+
+    for (let i = 0; i < 2; i++) {
+      const uow = new PostgresSchoolMutationUnitOfWork(admin as any);
+      await uow.execute({
+        tenantId, organizationId, actorId, requestId: requestIds[i]!,
+        route: "/v1/education/classes", correlationId: randomUUID()
+      }, async tx => {
+        await tx.query(
+          "INSERT INTO tpay_school_uow_integration_probe(id,tenant_id,organization_id) VALUES($1,$2,$3)",
+          [probeIds[i], tenantId, organizationId]
+        );
+        return {
+          data: { id: probeIds[i] },
+          event: {
+            id: eventIds[i]!, type: "class.changed" as const, occurredAt: new Date().toISOString(),
+            entityId: entityIds[i]!, version: 1, data: { operation: "POST", classId: entityIds[i] }
+          }
+        };
+      });
+    }
+
+    const committed = await admin.query(
+      "SELECT (SELECT count(*)::int FROM tpay_school_uow_integration_probe WHERE tenant_id=$1) AS mutations, (SELECT count(*)::int FROM api_request_audit WHERE request_id=ANY($2::text[])) AS audits, (SELECT count(*)::int FROM education_transactional_outbox WHERE tenant_id=$1 AND organization_id=$3) AS events",
+      [tenantId, requestIds, organizationId]
+    );
+    assert.deepEqual(committed.rows[0], { mutations: 2, audits: 2, events: 2 });
+
+    const failingScope = {
+      tenantId, organizationId, actorId: "not-a-uuid", requestId: randomUUID(),
+      route: "/v1/education/classes", correlationId: randomUUID()
+    };
+    const failedProbe = randomUUID();
+    await assert.rejects(
+      new PostgresSchoolMutationUnitOfWork(admin as any).execute(failingScope, async tx => {
+        await tx.query(
+          "INSERT INTO tpay_school_uow_integration_probe(id,tenant_id,organization_id) VALUES($1,$2,$3)",
+          [failedProbe, tenantId, organizationId]
+        );
+        return {
+          data: true,
+          event: {
+            type: "class.changed" as const, occurredAt: new Date().toISOString(),
+            entityId: randomUUID(), version: 1, data: { operation: "POST" }
+          }
+        };
+      })
+    );
+    const rolledBack = await admin.query(
+      "SELECT count(*)::int AS count FROM tpay_school_uow_integration_probe WHERE id=$1",
+      [failedProbe]
+    );
+    assert.equal(rolledBack.rows[0]?.count, 0);
+
+    for (const [client, workerId] of [[workerA, workerIds[0]], [workerB, workerIds[1]]] as const) {
+      await client.query("BEGIN");
+      await client.query("SET LOCAL ROLE tpay_school_runtime");
+      await client.query(
+        "SELECT set_config('tpay.tenant_id',$1,true),set_config('tpay.organization_id',$2,true)",
+        [tenantId, organizationId]
+      );
+    }
+    const [claimA, claimB] = await Promise.all([
+      claimSchoolOutbox(workerA as any, workerIds[0]!, 1, 30),
+      claimSchoolOutbox(workerB as any, workerIds[1]!, 1, 30)
+    ]);
+    assert.equal(claimA.length, 1);
+    assert.equal(claimB.length, 1);
+    assert.notEqual(claimA[0]?.event_id, claimB[0]?.event_id);
+    await workerA.query("ROLLBACK");
+    await workerB.query("ROLLBACK");
+  } finally {
+    await workerA.query("ROLLBACK").catch(() => {});
+    await workerB.query("ROLLBACK").catch(() => {});
+    await admin.query("DELETE FROM education_transactional_outbox WHERE tenant_id=$1 AND organization_id=$2", [tenantId, organizationId]).catch(() => {});
+    await admin.query("DELETE FROM api_request_audit WHERE request_id=ANY($1::text[])", [requestIds]).catch(() => {});
+    await admin.query("DELETE FROM tpay_school_uow_integration_probe WHERE tenant_id=$1", [tenantId]).catch(() => {});
+    await Promise.all([admin.end().catch(() => {}), workerA.end().catch(() => {}), workerB.end().catch(() => {})]);
   }
 });
