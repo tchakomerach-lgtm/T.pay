@@ -115,6 +115,21 @@ async function executeSchoolMutation<T>(
  }finally{client.release?.();}
 }
 
+
+async function executeSchoolRead<T>(deps:SchoolApiDependencies,tenantId:string,organizationId:string,work:(tx:PostgresTransactionClient)=>Promise<T>):Promise<T>{
+ if(!deps.mutationClient)throw new Error("EDUCATION_TRANSACTIONAL_CLIENT_REQUIRED");
+ const client=await deps.mutationClient();
+ try{
+  await client.query("BEGIN");
+  await client.query("SET LOCAL ROLE tpay_school_runtime");
+  await client.query("SELECT set_config('tpay.tenant_id',$1,true),set_config('tpay.organization_id',$2,true)",[tenantId,organizationId]);
+  const result=await work(client);
+  await client.query("COMMIT");
+  return result;
+ }catch(error){try{await client.query("ROLLBACK");}catch{/* preserve original failure */}throw error;}
+ finally{client.release?.();}
+}
+
 export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
 
 export function createSchoolApiServer(deps:SchoolApiDependencies, options:SchoolApiServerOptions={}){
@@ -215,10 +230,10 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       const url=new URL(rawUrl,"https://tpay.invalid");
       const academicYear=url.searchParams.get("academicYear");
       if(academicYear && !/^\d{4}-\d{4}$/.test(academicYear))throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
-      const q=await deps.db.query(
+      const q=await executeSchoolRead(deps,auth.tenantId,organizationId,tx=>tx.query(
         "SELECT class_id,academic_year,code,name,level,capacity,status,version,created_at,updated_at FROM education_classes WHERE tenant_id=$1 AND organization_id=$2 AND ($3::text IS NULL OR academic_year=$3) ORDER BY academic_year DESC,code ASC",
         [auth.tenantId,organizationId,academicYear]
-      );
+      ));
       data=q.rows;
     }else if(method==="POST"){
       const input=body as Record<string,unknown>;
@@ -252,10 +267,10 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       const classId=url.searchParams.get("classId");
       const academicYear=url.searchParams.get("academicYear");
       if(academicYear && !/^\d{4}-\d{4}$/.test(academicYear))throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
-      const q=await deps.db.query(
+      const q=await executeSchoolRead(deps,auth.tenantId,organizationId,tx=>tx.query(
         "SELECT e.enrollment_id,e.student_id,e.class_id,e.academic_year,e.status,e.enrolled_at,e.version,c.code AS class_code,c.name AS class_name FROM education_enrollments e JOIN education_classes c ON c.tenant_id=e.tenant_id AND c.organization_id=e.organization_id AND c.class_id=e.class_id AND c.academic_year=e.academic_year WHERE e.tenant_id=$1 AND e.organization_id=$2 AND ($3::text IS NULL OR e.class_id=$3) AND ($4::text IS NULL OR e.academic_year=$4) ORDER BY e.enrolled_at DESC,e.enrollment_id ASC",
         [auth.tenantId,organizationId,classId,academicYear]
-      );
+      ));
       data=q.rows;
     }else if(method==="POST"){
       const input=body as Record<string,unknown>;
