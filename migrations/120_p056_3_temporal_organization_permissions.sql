@@ -32,7 +32,7 @@ ALTER TABLE api_actor_permissions
     CHECK (valid_until IS NULL OR valid_until > valid_from),
   DROP CONSTRAINT IF EXISTS api_actor_permissions_revocation_check,
   ADD CONSTRAINT api_actor_permissions_revocation_check
-    CHECK (revoked_at IS NULL OR revoked_at >= valid_from),
+    CHECK (revoked_at IS NULL OR revoked_at >= granted_at),
   DROP CONSTRAINT IF EXISTS api_actor_permissions_reason_check,
   ADD CONSTRAINT api_actor_permissions_reason_check
     CHECK (grant_reason IS NULL OR length(btrim(grant_reason)) BETWEEN 1 AND 500);
