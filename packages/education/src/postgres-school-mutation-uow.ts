@@ -21,7 +21,7 @@ export class PostgresSchoolMutationUnitOfWork {
 
   async execute<T>(
     scope: SchoolMutationScope,
-    mutation: (tx: PostgresTransactionClient) => Promise<{data:T; event:Omit<SchoolOutboxEvent,"id"|"tenantId"|"organizationId"> & {id?:string}}>
+    mutation: (tx: PostgresTransactionClient) => Promise<{data:T; event:Omit<SchoolOutboxEvent,"id"|"tenantId"|"organizationId"> & {id?:string}; responseHash?:string}>
   ): Promise<SchoolMutationResult<T>> {
     if(!scope.tenantId||!scope.organizationId||!scope.actorId||!scope.requestId||!scope.route||!scope.correlationId)
       throw new Error("SCHOOL_MUTATION_SCOPE_REQUIRED");
@@ -52,6 +52,14 @@ export class PostgresSchoolMutationUnitOfWork {
          ON CONFLICT(tenant_id,organization_id,event_id) DO NOTHING`,
         [scope.tenantId,scope.organizationId,event.id,event.type,event.entityId,event.version,event.occurredAt,payload,payloadHash]
       );
+      if(result.responseHash){
+        if(!/^[a-f0-9]{64}$/.test(result.responseHash))throw new Error("SCHOOL_MUTATION_RESPONSE_HASH_INVALID");
+        const completed=await this.client.query(
+          "UPDATE api_request_deduplication SET state='succeeded',response_hash=$2,status_code=200 WHERE id=$1 AND state='reserved'",
+          [scope.requestId,result.responseHash]
+        );
+        if((completed.rowCount??0)!==1)throw new Error("API_IDEMPOTENCY_COMPLETION_FAILED");
+      }
       await this.client.query("COMMIT");
       return {data:result.data,event};
     } catch(error) {
