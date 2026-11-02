@@ -7,7 +7,7 @@ function fakeClient(failAt?:string){
  return {calls,async query(sql:string,values:unknown[]=[]){
    calls.push({sql,values});
    if(failAt && sql.includes(failAt))throw new Error("INJECTED_FAILURE");
-   if(sql.includes("UPDATE education_transactional_outbox SET state='PUBLISHED'"))return {rows:[],rowCount:0};
+   if(sql.includes("UPDATE education_transactional_outbox SET state='PUBLISHED'"))return {rows:[],rowCount:1};
    if(sql.includes("RETURNING state"))return {rows:[{state:"PENDING"}],rowCount:1};
    if(sql.includes("UPDATE education_transactional_outbox"))return {rows:[],rowCount:1};
    if(sql.includes("WITH candidates"))return {rows:[],rowCount:0};
