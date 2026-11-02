@@ -9,6 +9,7 @@ import { DeviceTrustRepository } from "../../../packages/api-gateway/src/auth-de
 import { createSchoolApiServer } from "../../../packages/education/src/education-http.js";
 import { PostgresEducationSyncStore, type PostgresTransactionClient } from "../../../packages/education/src/postgres-sync-fabric.js";
 import { PostgresSchoolRealtimeStore } from "../../../packages/education/src/postgres-realtime-store.js";
+import { PostgresSchoolOutboxDispatcher } from "../../../packages/education/src/postgres-school-outbox-dispatcher.js";
 import { SchoolRealtimeHub } from "../../../packages/education/src/school-realtime.js";
 import type { Permission } from "../../../packages/security/src/policy.js";
 
@@ -132,6 +133,32 @@ export async function buildProductionApiServer(config:RuntimeConfig):Promise<{se
   finally{migrationClient.release();}
   const authenticate=await authenticateFactory(pool);
   const realtime=new SchoolRealtimeHub(Number(process.env.TPAY_REALTIME_QUEUE_LIMIT??"100"));
+  const outboxDispatcher=new PostgresSchoolOutboxDispatcher(
+    ()=>new PooledTransactionClient(pool),
+    realtime,
+    {append:async(event)=>{
+      const client=new PooledTransactionClient(pool);
+      try{return await new PostgresSchoolRealtimeStore(client).append(event);}
+      finally{client.release();}
+    }}
+  );
+  let outboxPollInFlight=false;
+  const dispatchPendingSchoolEvents=async()=>{
+    if(outboxPollInFlight)return;
+    outboxPollInFlight=true;
+    try{
+      const scopes=await pool.query(
+        "SELECT DISTINCT tenant_id,organization_id FROM education_actors WHERE active=true ORDER BY tenant_id,organization_id LIMIT 500"
+      );
+      for(const row of scopes.rows as Array<{tenant_id:string;organization_id:string}>){
+        await outboxDispatcher.dispatchScope(row.tenant_id,row.organization_id,"tpay-school-outbox-"+process.pid,50);
+      }
+    }catch(error){
+      console.error("T.Pay school Outbox poll failed",error instanceof Error?error.message:"UNKNOWN");
+    }finally{outboxPollInFlight=false;}
+  };
+  const outboxTimer=setInterval(()=>void dispatchPendingSchoolEvents(),1500);
+  outboxTimer.unref();
   const server=createSchoolApiServer({
     db:pool,
     authenticate,
@@ -166,6 +193,8 @@ export async function buildProductionApiServer(config:RuntimeConfig):Promise<{se
       return server;
     }
   });
+  server.once("close",()=>clearInterval(outboxTimer));
+  void dispatchPendingSchoolEvents();
   return {server,pool};
 }
 
