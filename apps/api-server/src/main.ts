@@ -1,5 +1,6 @@
 import { createServer as createHttpsServer } from "node:https";
 import { readFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import pg, { type Pool, type PoolClient, type QueryResultRow } from "pg";
@@ -143,15 +144,16 @@ export async function buildProductionApiServer(config:RuntimeConfig):Promise<{se
     }}
   );
   let outboxPollInFlight=false;
+  const outboxWorkerId="tpay-school-outbox-"+randomUUID();
   const dispatchPendingSchoolEvents=async()=>{
     if(outboxPollInFlight)return;
     outboxPollInFlight=true;
     try{
       const scopes=await pool.query(
-        "SELECT DISTINCT tenant_id,organization_id FROM education_actors WHERE active=true ORDER BY tenant_id,organization_id LIMIT 500"
+        "SELECT DISTINCT tenant_id,organization_id FROM education_actors ORDER BY tenant_id,organization_id"
       );
       for(const row of scopes.rows as Array<{tenant_id:string;organization_id:string}>){
-        await outboxDispatcher.dispatchScope(row.tenant_id,row.organization_id,"tpay-school-outbox-"+process.pid,50);
+        await outboxDispatcher.dispatchScope(row.tenant_id,row.organization_id,outboxWorkerId,50);
       }
     }catch(error){
       console.error("T.Pay school Outbox poll failed",error instanceof Error?error.message:"UNKNOWN");
