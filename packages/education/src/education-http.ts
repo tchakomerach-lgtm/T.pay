@@ -23,7 +23,7 @@ export interface SchoolApiDependencies {
   mutationClient?: () => PostgresTransactionClient | Promise<PostgresTransactionClient>;
   now?: () => Date;
   realtime?: SchoolRealtimeHub;
-  realtimeStore?: Pick<PostgresSchoolRealtimeStore,"replay"|"append">;
+  realtimeStore?: Pick<PostgresSchoolRealtimeStore,"replay"|"append"> & Partial<Pick<PostgresSchoolRealtimeStore,"getById">>;
   corsOrigins?: readonly string[];
 }
 const CORRELATION_ID=/^[A-Za-z0-9._:-]{1,128}$/;
@@ -362,7 +362,14 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     const updated=await deps.db.query("UPDATE education_service_requests SET status=$1,version=$2,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND request_id=$5 AND version=$6 RETURNING *",[next.status,next.version,auth.tenantId,organizationId,r[1],Number((q.rows[0] as any).version)]);
     if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
    }
-   if(deps.realtime && deps.realtimeStore && method!=="GET" && r[0]!=="actor" && !["classes","enrollments","enrollment-status"].includes(r[0])){
+   if(r[0]==="sync" && deps.realtime && deps.realtimeStore?.getById){
+    const eventId=String((data as any)?.eventId??"");
+    if(eventId){
+      const stored=await deps.realtimeStore.getById(auth.tenantId,organizationId,eventId);
+      if(stored)deps.realtime.publish(stored);
+    }
+   }
+   if(deps.realtime && deps.realtimeStore && method!=="GET" && r[0]!=="actor" && r[0]!=="sync" && !["classes","enrollments","enrollment-status"].includes(r[0])){
     const typeMap:Record<string,SchoolRealtimeEvent["type"]>={classes:"class.changed",enrollments:"enrollment.changed","enrollment-status":"enrollment.changed",sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
     const eventType=typeMap[r[0]];
     if(eventType){
