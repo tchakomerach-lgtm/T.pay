@@ -27,6 +27,7 @@ export class PostgresSchoolMutationUnitOfWork {
       throw new Error("SCHOOL_MUTATION_SCOPE_REQUIRED");
     await this.client.query("BEGIN");
     try {
+      await this.client.query("SET LOCAL ROLE tpay_school_runtime");
       await this.client.query("SELECT set_config('tpay.tenant_id',$1,true), set_config('tpay.organization_id',$2,true)",[scope.tenantId,scope.organizationId]);
       const result=await mutation(this.client);
       const event:SchoolOutboxEvent={
@@ -39,19 +40,21 @@ export class PostgresSchoolMutationUnitOfWork {
         throw new Error("SCHOOL_OUTBOX_EVENT_INVALID");
       const payload=JSON.stringify({type:event.type,entityId:event.entityId,version:event.version,data:event.data});
       const payloadHash=sha(payload);
-      await this.client.query(
+      const audit=await this.client.query(
         `INSERT INTO api_request_audit
          (id,organization_id,request_id,route,actor_id,auth_class,outcome,correlation_id,occurred_at,metadata_hash)
          VALUES($1,$2,$3,$4,$5,'member','accepted',$6,now(),$7)`,
         [randomUUID(),scope.organizationId,scope.requestId,scope.route,scope.actorId,scope.correlationId,sha(JSON.stringify({eventId:event.id,eventType:event.type,entityId:event.entityId,version:event.version}))]
       );
-      await this.client.query(
+      if((audit.rowCount??0)!==1)throw new Error("SCHOOL_MUTATION_AUDIT_WRITE_FAILED");
+      const outbox=await this.client.query(
         `INSERT INTO education_transactional_outbox
          (tenant_id,organization_id,event_id,event_type,entity_id,entity_version,occurred_at,payload,payload_hash)
          VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)
          ON CONFLICT(tenant_id,organization_id,event_id) DO NOTHING`,
         [scope.tenantId,scope.organizationId,event.id,event.type,event.entityId,event.version,event.occurredAt,payload,payloadHash]
       );
+      if((outbox.rowCount??0)!==1)throw new Error("SCHOOL_OUTBOX_WRITE_FAILED");
       if(result.responseHash){
         if(!/^[a-f0-9]{64}$/.test(result.responseHash))throw new Error("SCHOOL_MUTATION_RESPONSE_HASH_INVALID");
         const completed=await this.client.query(
