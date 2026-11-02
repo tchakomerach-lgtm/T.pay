@@ -1024,7 +1024,7 @@ test("P056.1 live PostgreSQL commits school mutation, audit and Outbox atomicall
         return {
           data: { id: probeIds[i] },
           event: {
-            id: eventIds[i], type: "class.changed" as const, occurredAt: new Date().toISOString(),
+            id: eventIds[i]!, type: "class.changed" as const, occurredAt: new Date().toISOString(),
             entityId: entityIds[i]!, version: 1, data: { operation: "POST", classId: entityIds[i] }
           }
         };
