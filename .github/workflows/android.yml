@@ -22,3 +22,11 @@ jobs:
       - name: Build Android debug APK
         working-directory: android/tpay-shell
         run: gradle :app:assembleDebug --no-daemon
+
+      - name: Upload Android preview APK
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: tpay-android-preview-${{ github.sha }}
+          path: android/tpay-shell/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
