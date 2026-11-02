@@ -337,31 +337,49 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     finally{ syncClient.release?.(); }
    } else if(r[0]==="attendance"){
     const incoming=body as AttendanceRecord; incoming.organizationId=organizationId;
-    const q=await deps.db.query("SELECT * FROM education_attendance WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3 AND class_id=$4",[auth.tenantId,organizationId,incoming.studentId,incoming.classId]);
-    const existing=(q.rows[0]??null) as AttendanceRecord|null;
-    const accepted=reconcileAttendance(existing,incoming);
-    await deps.db.query(`INSERT INTO education_attendance(student_id,class_id,tenant_id,organization_id,status,recorded_by,occurred_at,source,correction_reason,version,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now()) ON CONFLICT(tenant_id,organization_id,student_id,class_id) DO UPDATE SET status=EXCLUDED.status,recorded_by=EXCLUDED.recorded_by,occurred_at=EXCLUDED.occurred_at,source=EXCLUDED.source,correction_reason=EXCLUDED.correction_reason,version=EXCLUDED.version,updated_at=now() WHERE education_attendance.version < EXCLUDED.version`,[accepted.studentId,accepted.classId,auth.tenantId,organizationId,accepted.status,accepted.recordedBy,accepted.occurredAt,accepted.source,accepted.correctionReason??null,accepted.version]);
-    data=accepted;
+    data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
+      const q=await tx.query("SELECT * FROM education_attendance WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3 AND class_id=$4",[auth.tenantId,organizationId,incoming.studentId,incoming.classId]);
+      const existing=(q.rows[0]??null) as AttendanceRecord|null;
+      const accepted=reconcileAttendance(existing,incoming);
+      const saved=await tx.query("INSERT INTO education_attendance(student_id,class_id,tenant_id,organization_id,status,recorded_by,occurred_at,source,correction_reason,version,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now()) ON CONFLICT(tenant_id,organization_id,student_id,class_id) DO UPDATE SET status=EXCLUDED.status,recorded_by=EXCLUDED.recorded_by,occurred_at=EXCLUDED.occurred_at,source=EXCLUDED.source,correction_reason=EXCLUDED.correction_reason,version=EXCLUDED.version,updated_at=now() WHERE education_attendance.version < EXCLUDED.version RETURNING student_id,class_id,status,recorded_by,occurred_at,source,correction_reason,version,updated_at",[accepted.studentId,accepted.classId,auth.tenantId,organizationId,accepted.status,accepted.recordedBy,accepted.occurredAt,accepted.source,accepted.correctionReason??null,accepted.version]);
+      const row=saved.rows[0];if(!row)throw new Error("ATTENDANCE_VERSION_CONFLICT");
+      return {data:row,event:{type:"attendance.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.student_id)+":"+String(row.class_id),version:Number(row.version),data:{status:row.status,source:row.source}}};
+    });
    } else if(r[0]==="work-create"){
-    const item=body as WorkItem; if(item.organizationId!==organizationId)throw new Error("RESOURCE_ORGANIZATION_MISMATCH");
-    await deps.db.query("INSERT INTO education_work_items(work_item_id,tenant_id,organization_id,status,priority,due_at,owner_actor_id,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",[item.id,auth.tenantId,organizationId,item.status,item.priority,item.dueAt,item.ownerActorId,item.version]);
-    data=item;
+    const item=body as WorkItem;if(item.organizationId!==organizationId)throw new Error("RESOURCE_ORGANIZATION_MISMATCH");
+    data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
+      const saved=await tx.query("INSERT INTO education_work_items(work_item_id,tenant_id,organization_id,status,priority,due_at,owner_actor_id,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *",[item.id,auth.tenantId,organizationId,item.status,item.priority,item.dueAt,item.ownerActorId,item.version]);
+      const row=saved.rows[0];if(!row)throw new Error("WORK_ITEM_CREATE_FAILED");
+      return {data:row,event:{type:"work_item.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.work_item_id),version:Number(row.version),data:{operation:"POST",status:row.status}}};
+    });
    } else if(r[0]==="work"){
-    const q=await deps.db.query("SELECT * FROM education_work_items WHERE tenant_id=$1 AND organization_id=$2 AND work_item_id=$3",[auth.tenantId,organizationId,r[1]]);
-    if(!q.rows[0])throw new Error("WORK_ITEM_NOT_FOUND"); const item=q.rows[0] as unknown as WorkItem;
-    const next=r[2]==="claim"?claimWorkItem(item,auth.principal.userId):resolveWorkItem(item,auth.principal.userId);
-    const updated=await deps.db.query("UPDATE education_work_items SET status=$1,owner_actor_id=$2,version=$3,updated_at=now() WHERE tenant_id=$4 AND organization_id=$5 AND work_item_id=$6 AND version=$7 RETURNING *",[next.status,next.ownerActorId,next.version,auth.tenantId,organizationId,r[1],item.version]);
-    if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
+    data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
+      const q=await tx.query("SELECT * FROM education_work_items WHERE tenant_id=$1 AND organization_id=$2 AND work_item_id=$3",[auth.tenantId,organizationId,r[1]]);
+      if(!q.rows[0])throw new Error("WORK_ITEM_NOT_FOUND");const item=q.rows[0] as unknown as WorkItem;
+      const next=r[2]==="claim"?claimWorkItem(item,auth.principal.userId):resolveWorkItem(item,auth.principal.userId);
+      const updated=await tx.query("UPDATE education_work_items SET status=$1,owner_actor_id=$2,version=$3,updated_at=now() WHERE tenant_id=$4 AND organization_id=$5 AND work_item_id=$6 AND version=$7 RETURNING *",[next.status,next.ownerActorId,next.version,auth.tenantId,organizationId,r[1],item.version]);
+      const row=updated.rows[0];if(!row)throw new Error("CONCURRENT_MODIFICATION");
+      return {data:row,event:{type:"work_item.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.work_item_id),version:Number(row.version),data:{operation:r[2],status:row.status}}};
+    });
    } else if(r[0]==="service-create"){
     const item={...(body as ServiceRequest),organizationId,requesterId:auth.principal.userId};
-    await deps.db.query("INSERT INTO education_service_requests(request_id,tenant_id,organization_id,requester_id,service_code,status,priority,assigned_to,created_at,due_at,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",[item.id,auth.tenantId,organizationId,item.requesterId,item.serviceCode,item.status,item.priority,item.assignedTo,item.createdAt,item.dueAt,item.version]); data=item;
+    data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
+      const saved=await tx.query("INSERT INTO education_service_requests(request_id,tenant_id,organization_id,requester_id,service_code,status,priority,assigned_to,created_at,due_at,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *",[item.id,auth.tenantId,organizationId,item.requesterId,item.serviceCode,item.status,item.priority,item.assignedTo,item.createdAt,item.dueAt,item.version]);
+      const row=saved.rows[0];if(!row)throw new Error("SERVICE_REQUEST_CREATE_FAILED");
+      return {data:row,event:{type:"service_request.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.request_id),version:Number(row.version),data:{operation:"POST",status:row.status}}};
+    });
    } else {
-    const q=await deps.db.query("SELECT * FROM education_service_requests WHERE tenant_id=$1 AND organization_id=$2 AND request_id=$3",[auth.tenantId,organizationId,r[1]]);
-    if(!q.rows[0])throw new Error("SERVICE_REQUEST_NOT_FOUND");
-    const next=transitionService(q.rows[0] as unknown as ServiceRequest,body as any);
-    const updated=await deps.db.query("UPDATE education_service_requests SET status=$1,version=$2,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND request_id=$5 AND version=$6 RETURNING *",[next.status,next.version,auth.tenantId,organizationId,r[1],Number((q.rows[0] as any).version)]);
-    if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
+   } else {
+    data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
+      const q=await tx.query("SELECT * FROM education_service_requests WHERE tenant_id=$1 AND organization_id=$2 AND request_id=$3",[auth.tenantId,organizationId,r[1]]);
+      if(!q.rows[0])throw new Error("SERVICE_REQUEST_NOT_FOUND");const current=q.rows[0] as unknown as ServiceRequest;
+      const next=transitionService(current,body as any);
+      const updated=await tx.query("UPDATE education_service_requests SET status=$1,version=$2,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND request_id=$5 AND version=$6 RETURNING *",[next.status,next.version,auth.tenantId,organizationId,r[1],Number(current.version)]);
+      const row=updated.rows[0];if(!row)throw new Error("CONCURRENT_MODIFICATION");
+      return {data:row,event:{type:"service_request.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.request_id),version:Number(row.version),data:{operation:"TRANSITION",status:row.status}}};
+    });
    }
+
    if(r[0]==="sync" && deps.realtime && deps.realtimeStore?.getById){
     const eventId=String((data as any)?.eventId??"");
     if(eventId){
@@ -369,7 +387,8 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       if(stored)deps.realtime.publish(stored);
     }
    }
-   if(deps.realtime && deps.realtimeStore && method!=="GET" && r[0]!=="actor" && r[0]!=="sync" && !["classes","enrollments","enrollment-status"].includes(r[0])){
+   const transactionalSchoolWrite=method!=="GET" && ["classes","enrollments","enrollment-status","attendance","work-create","work","service-create","service-transition"].includes(r[0]);
+   if(deps.realtime && deps.realtimeStore && method!=="GET" && r[0]!=="actor" && r[0]!=="sync" && !transactionalSchoolWrite){
     const typeMap:Record<string,SchoolRealtimeEvent["type"]>={classes:"class.changed",enrollments:"enrollment.changed","enrollment-status":"enrollment.changed",sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
     const eventType=typeMap[r[0]];
     if(eventType){
@@ -389,7 +408,6 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     }
    }
    const response=buildApiSuccess("v1",correlationId,data);
-   const transactionalSchoolWrite=method!=="GET" && ["classes","enrollments","enrollment-status"].includes(r[0]);
    if(dedupe?.status==="reserved" && !transactionalSchoolWrite)await gateway.completeIdempotency({requestId:dedupe.requestId,state:"succeeded",responseHash:canonicalRequestHash("RESPONSE",path,JSON.stringify(response)),statusCode:200});
    if(!transactionalSchoolWrite)await gateway.audit({organizationId,requestId:dedupe?.requestId??correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path})});
    json(res,200,response,correlationId);
