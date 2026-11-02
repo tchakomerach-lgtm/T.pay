@@ -93,9 +93,10 @@ async function authenticateFactory(pool:Pool){
     );
     const actorRow=actor.rows[0] as {tenant_id?:string;organization_id?:string;active?:boolean}|undefined;
     if(!actorRow?.active||!actorRow.tenant_id||actorRow.organization_id!==validated.organizationId)throw new Error("AUTH_ACTOR_INVALID");
+    const authorizationTime=new Date().toISOString();
     const permissions=await pool.query(
-      "SELECT permission FROM api_actor_permissions WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",
-      [actorRow.tenant_id,validated.organizationId,validated.actorId]
+      "SELECT DISTINCT permission FROM api_actor_permissions WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3 AND valid_from <= $4::timestamptz AND (valid_until IS NULL OR valid_until > $4::timestamptz) AND revoked_at IS NULL",
+      [actorRow.tenant_id,validated.organizationId,validated.actorId,authorizationTime]
     );
     const granted=permissions.rows.map(row=>String((row as {permission:string}).permission)).filter((value):value is Permission=>permissionSet.has(value as Permission));
     if(granted.length===0)throw new Error("AUTH_PERMISSIONS_EMPTY");
