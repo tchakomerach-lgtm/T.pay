@@ -43,3 +43,17 @@ CREATE INDEX IF NOT EXISTS api_actor_permissions_effective_lookup
 
 CREATE INDEX IF NOT EXISTS api_actor_permissions_grant_history
   ON api_actor_permissions (tenant_id, organization_id, actor_id, granted_at DESC);
+
+-- Permission reads and administrative writes use the same tenant/org runtime context as school APIs.
+ALTER TABLE api_actor_permissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_actor_permissions FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS api_actor_permissions_runtime_scope ON api_actor_permissions;
+CREATE POLICY api_actor_permissions_runtime_scope ON api_actor_permissions
+  FOR ALL TO tpay_school_runtime
+  USING (tenant_id = NULLIF(current_setting('tpay.tenant_id', true), '')
+     AND organization_id = NULLIF(current_setting('tpay.organization_id', true), ''))
+  WITH CHECK (tenant_id = NULLIF(current_setting('tpay.tenant_id', true), '')
+          AND organization_id = NULLIF(current_setting('tpay.organization_id', true), ''));
+
+GRANT SELECT, INSERT, UPDATE ON api_actor_permissions TO tpay_school_runtime;
