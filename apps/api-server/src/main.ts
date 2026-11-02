@@ -136,6 +136,7 @@ export async function buildProductionApiServer(config:RuntimeConfig):Promise<{se
     db:pool,
     authenticate,
     syncClient:()=>new PooledTransactionClient(pool),
+    mutationClient:()=>new PooledTransactionClient(pool),
     realtime,
     corsOrigins:config.webOrigins,
     realtimeStore:{
