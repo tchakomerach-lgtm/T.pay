@@ -6,7 +6,8 @@ import { assertSessionActive, assertSessionOrganization, type OrganizationSessio
 import { authorizeRoute } from "../../api-gateway/src/policy.js";
 import { buildApiError, buildApiSuccess } from "../../api-gateway/src/api-contract.js";
 import { canonicalRequestHash, newCorrelationId, ApiGatewayRepository, type ApiDb } from "../../api-gateway/src/repository.js";
-import { PostgresEducationSyncStore } from "./postgres-sync-fabric.js";
+import { PostgresEducationSyncStore, type PostgresTransactionClient } from "./postgres-sync-fabric.js";
+import { PostgresSchoolMutationUnitOfWork } from "./postgres-school-mutation-uow.js";
 import { computeSyncPayloadHash } from "./sync-fabric.js";
 import { SchoolRealtimeHub, toSseMessage, type SchoolRealtimeEvent } from "./school-realtime.js";
 import { PostgresSchoolRealtimeStore } from "./postgres-realtime-store.js";
@@ -19,6 +20,7 @@ export interface SchoolApiDependencies {
   db: ApiDb & { query(sql:string,values?:unknown[]):Promise<{rows:Record<string,unknown>[];rowCount:number|null}> };
   authenticate(request: IncomingMessage): Promise<SchoolAuthContext>;
   syncClient(): ConstructorParameters<typeof PostgresEducationSyncStore>[0] | Promise<ConstructorParameters<typeof PostgresEducationSyncStore>[0]>;
+  mutationClient?: () => PostgresTransactionClient | Promise<PostgresTransactionClient>;
   now?: () => Date;
   realtime?: SchoolRealtimeHub;
   realtimeStore?: Pick<PostgresSchoolRealtimeStore,"replay"|"append">;
@@ -95,6 +97,24 @@ function permissionFor(kind:string,method:string):Permission{
  if(kind==="classes"||kind==="enrollments"||kind==="enrollment-status")return "org.manage";
  return "member.manage";
 }
+
+async function executeSchoolMutation<T>(
+ deps:SchoolApiDependencies,
+ scope:{tenantId:string;organizationId:string;actorId:string;requestId:string;route:string;correlationId:string},
+ mutation:(tx:PostgresTransactionClient)=>Promise<{data:T;event:Omit<SchoolRealtimeEvent,"id"|"tenantId"|"organizationId"> & {id?:string}}>
+):Promise<T>{
+ if(!deps.mutationClient)throw new Error("EDUCATION_TRANSACTIONAL_CLIENT_REQUIRED");
+ const client=await deps.mutationClient();
+ try{
+  const result=await new PostgresSchoolMutationUnitOfWork(client).execute(scope,async tx=>{
+   const value=await mutation(tx);
+   const response=buildApiSuccess("v1",scope.correlationId,value.data);
+   return {...value,responseHash:canonicalRequestHash("RESPONSE",scope.route,JSON.stringify(response))};
+  });
+  return result.data;
+ }finally{client.release?.();}
+}
+
 export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
 
 export function createSchoolApiServer(deps:SchoolApiDependencies, options:SchoolApiServerOptions={}){
@@ -214,11 +234,17 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       if(!name||name.length>120||!level||level.length>80)throw new Error("EDUCATION_CLASS_DETAILS_INVALID");
       if(!Number.isSafeInteger(capacity)||capacity<1||capacity>3000)throw new Error("EDUCATION_CLASS_CAPACITY_INVALID");
       const classId=randomUUID();
-      const q=await deps.db.query(
-        "INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,code,name,level,capacity,status,created_by,version,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'ACTIVE',$9,1,now(),now()) RETURNING class_id,academic_year,code,name,level,capacity,status,version,created_at,updated_at",
-        [classId,auth.tenantId,organizationId,academicYear,code,name,level,capacity,auth.principal.userId]
-      );
-      data=q.rows[0];
+      data=await executeSchoolMutation(deps,{
+        tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,
+        requestId:dedupe?.requestId??correlationId,route:path,correlationId
+      },async tx=>{
+        const q=await tx.query(
+          "INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,code,name,level,capacity,status,created_by,version,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'ACTIVE',$9,1,now(),now()) RETURNING class_id,academic_year,code,name,level,capacity,status,version,created_at,updated_at",
+          [classId,auth.tenantId,organizationId,academicYear,code,name,level,capacity,auth.principal.userId]
+        );
+        const row=q.rows[0];if(!row)throw new Error("EDUCATION_CLASS_CREATE_FAILED");
+        return {data:row,event:{type:"class.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:classId,version:Number(row.version??1),data:{operation:"POST",route:path,status:row.status??null}}};
+      });
     }else throw new Error("EDUCATION_CLASS_METHOD_NOT_ALLOWED");
    } else if(r[0]==="enrollments"){
     if(method==="GET"){
@@ -243,11 +269,17 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       if(!/^\d{4}-\d{4}$/.test(academicYear)||Number(academicYear.slice(5))!==Number(academicYear.slice(0,4))+1)throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
       if(!Number.isFinite(Date.parse(enrolledAt)))throw new Error("EDUCATION_ENROLLMENT_DATE_INVALID");
       const enrollmentId=randomUUID();
-      const q=await deps.db.query(
-        "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,enrolled_at,created_by,version) VALUES($1,$2,$3,$4,$5,$6,'ACTIVE',$7,$8,1) RETURNING enrollment_id,student_id,class_id,academic_year,status,enrolled_at,created_by,version",
-        [enrollmentId,auth.tenantId,organizationId,studentId,classId,academicYear,enrolledAt,auth.principal.userId]
-      );
-      data=q.rows[0];
+      data=await executeSchoolMutation(deps,{
+        tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,
+        requestId:dedupe?.requestId??correlationId,route:path,correlationId
+      },async tx=>{
+        const q=await tx.query(
+          "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,enrolled_at,created_by,version) VALUES($1,$2,$3,$4,$5,$6,'ACTIVE',$7,$8,1) RETURNING enrollment_id,student_id,class_id,academic_year,status,enrolled_at,created_by,version",
+          [enrollmentId,auth.tenantId,organizationId,studentId,classId,academicYear,enrolledAt,auth.principal.userId]
+        );
+        const row=q.rows[0];if(!row)throw new Error("EDUCATION_ENROLLMENT_CREATE_FAILED");
+        return {data:row,event:{type:"enrollment.changed",occurredAt:enrolledAt,entityId:enrollmentId,version:Number(row.version??1),data:{operation:"POST",route:path,status:row.status??null}}};
+      });
     }else throw new Error("EDUCATION_ENROLLMENT_METHOD_NOT_ALLOWED");
    } else if(r[0]==="enrollment-status"){
     if(method!=="PATCH")throw new Error("EDUCATION_ENROLLMENT_METHOD_NOT_ALLOWED");
@@ -257,19 +289,25 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     const expectedVersion=Number(input.expectedVersion);
     if(!["WITHDRAWN","CANCELLED","COMPLETED"].includes(nextStatus))throw new Error("EDUCATION_ENROLLMENT_TRANSITION_INVALID");
     if(!Number.isSafeInteger(expectedVersion)||expectedVersion<1)throw new Error("EDUCATION_ENROLLMENT_VERSION_REQUIRED");
-    const updated=await deps.db.query(
-      "UPDATE education_enrollments SET status=$1,version=version+1,updated_at=now() WHERE tenant_id=$2 AND organization_id=$3 AND enrollment_id=$4 AND status='ACTIVE' AND version=$5 RETURNING enrollment_id,student_id,class_id,academic_year,status,enrolled_at,version,updated_at",
-      [nextStatus,auth.tenantId,organizationId,r[1],expectedVersion]
-    );
-    if(!updated.rows[0]){
-      const current=await deps.db.query(
-        "SELECT status,version FROM education_enrollments WHERE tenant_id=$1 AND organization_id=$2 AND enrollment_id=$3",
-        [auth.tenantId,organizationId,r[1]]
+    data=await executeSchoolMutation(deps,{
+        tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,
+        requestId:dedupe?.requestId??correlationId,route:path,correlationId
+      },async tx=>{
+      const updated=await tx.query(
+        "UPDATE education_enrollments SET status=$1,version=version+1,updated_at=now() WHERE tenant_id=$2 AND organization_id=$3 AND enrollment_id=$4 AND status='ACTIVE' AND version=$5 RETURNING enrollment_id,student_id,class_id,academic_year,status,enrolled_at,version,updated_at",
+        [nextStatus,auth.tenantId,organizationId,r[1],expectedVersion]
       );
-      if(!current.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("EDUCATION_ENROLLMENT_NOT_FOUND"),correlationId),correlationId);return;}
-      res.statusCode=409;json(res,409,buildApiError(new Error("EDUCATION_ENROLLMENT_STATE_OR_VERSION_CONFLICT"),correlationId),correlationId);return;
-    }
-    data=updated.rows[0];
+      if(!updated.rows[0]){
+        const current=await tx.query(
+          "SELECT status,version FROM education_enrollments WHERE tenant_id=$1 AND organization_id=$2 AND enrollment_id=$3",
+          [auth.tenantId,organizationId,r[1]]
+        );
+        if(!current.rows[0])throw new Error("EDUCATION_ENROLLMENT_NOT_FOUND");
+        throw new Error("EDUCATION_ENROLLMENT_STATE_OR_VERSION_CONFLICT");
+      }
+      const row=updated.rows[0];
+      return {data:row,event:{type:"enrollment.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.enrollment_id),version:Number(row.version??1),data:{operation:"PATCH",route:path,status:row.status??null}}};
+    });
    } else if(r[0]==="actor"){
     const q=await deps.db.query("SELECT actor_id,organization_id,kind,active,data,version,updated_at FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,r[1]]);
     if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("ACTOR_NOT_FOUND"),correlationId),correlationId);return;}
@@ -306,7 +344,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     const updated=await deps.db.query("UPDATE education_service_requests SET status=$1,version=$2,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND request_id=$5 AND version=$6 RETURNING *",[next.status,next.version,auth.tenantId,organizationId,r[1],Number((q.rows[0] as any).version)]);
     if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
    }
-   if(deps.realtime && deps.realtimeStore && r[0]!=="actor"){
+   if(deps.realtime && deps.realtimeStore && method!=="GET" && r[0]!=="actor" && !["classes","enrollments","enrollment-status"].includes(r[0])){
     const typeMap:Record<string,SchoolRealtimeEvent["type"]>={classes:"class.changed",enrollments:"enrollment.changed","enrollment-status":"enrollment.changed",sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
     const eventType=typeMap[r[0]];
     if(eventType){
@@ -326,9 +364,10 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     }
    }
    const response=buildApiSuccess("v1",correlationId,data);
-   if(dedupe?.status==="reserved")await gateway.completeIdempotency({requestId:dedupe.requestId,state:"succeeded",responseHash:canonicalRequestHash("RESPONSE",path,JSON.stringify(response)),statusCode:200});
-   await gateway.audit({organizationId,requestId:dedupe?.requestId??correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path})});
+   const transactionalSchoolWrite=method!=="GET" && ["classes","enrollments","enrollment-status"].includes(r[0]);
+   if(dedupe?.status==="reserved" && !transactionalSchoolWrite)await gateway.completeIdempotency({requestId:dedupe.requestId,state:"succeeded",responseHash:canonicalRequestHash("RESPONSE",path,JSON.stringify(response)),statusCode:200});
+   if(!transactionalSchoolWrite)await gateway.audit({organizationId,requestId:dedupe?.requestId??correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path})});
    json(res,200,response,correlationId);
-  }catch(error){const status=String(error).startsWith("Error: FORBIDDEN")?403:400;json(res,status,buildApiError(error,correlationId),correlationId);}
+  }catch(error){const code=String(error);const status=code.includes("FORBIDDEN")?403:code.includes("EDUCATION_ENROLLMENT_NOT_FOUND")?404:code.includes("STATE_OR_VERSION_CONFLICT")?409:400;json(res,status,buildApiError(error,correlationId),correlationId);}
  });
 }
