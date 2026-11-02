@@ -24,3 +24,18 @@ test("P052 uses durable stream sequence as SSE Last-Event-ID cursor",()=>{
 test("P052 falls back to event id only for transient events without durable sequence",()=>{
  const s=toSseMessage({kind:"event",event:event("transient")});assert.match(s,/^id: transient\nevent: event/);
 });
+
+test("P056.1 hub suppresses duplicate delivery for the same durable event id",()=>{
+ const hub=new SchoolRealtimeHub();const received:any[]=[];
+ hub.subscribe({id:"dedupe",tenantId:"t1",organizationId:"o1",send:m=>received.push(m),close:()=>{}});
+ hub.publish(event("durable-event"));
+ hub.publish(event("durable-event"));
+ assert.equal(received.length,1);
+});
+test("P056.1 one broken subscriber cannot block delivery to other subscribers",()=>{
+ const hub=new SchoolRealtimeHub();const received:any[]=[];let closed=0;
+ hub.subscribe({id:"broken",tenantId:"t1",organizationId:"o1",send:()=>{throw new Error("socket closed");},close:()=>{closed++;}});
+ hub.subscribe({id:"healthy",tenantId:"t1",organizationId:"o1",send:m=>received.push(m),close:()=>{}});
+ hub.publish(event("durable-event-2"));
+ assert.equal(closed,1);assert.equal(received.length,1);
+});
