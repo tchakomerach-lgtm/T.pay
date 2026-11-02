@@ -12,7 +12,7 @@ function makeAuth(permissions: Permission[] = ["org.read","org.manage"]) {
   };
 }
 async function withServer(db: any, permissions: Permission[], run: (base:string)=>Promise<void>) {
-  const server=createSchoolApiServer({db,authenticate:async()=>makeAuth(permissions),syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any});
+  const server=createSchoolApiServer({db,authenticate:async()=>makeAuth(permissions),syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any,mutationClient:()=>db as any});
   await new Promise<void>(resolve=>server.listen(0,resolve));
   const address=server.address() as {port:number};
   try { await run(`http://127.0.0.1:${address.port}`); }
@@ -25,6 +25,8 @@ function responseDb() {
     async query(sql:string,values:unknown[] = []) {
       calls.push({sql,values});
       if(sql.includes("INSERT INTO api_request_deduplication")) return {rows:[{id:"idempotency-reservation"}],rowCount:1};
+      if(sql.includes("UPDATE api_request_deduplication SET state='succeeded'")) return {rows:[],rowCount:1};
+      if(sql.includes("INSERT INTO api_request_audit")||sql.includes("INSERT INTO education_transactional_outbox")) return {rows:[],rowCount:1};
       if(sql.includes("INSERT INTO education_classes")) return {rows:[{class_id:"class-created",code:"6E-A",name:"Sixième A",academic_year:"2026-2027",capacity:45,status:"ACTIVE",version:1}],rowCount:1};
       if(sql.includes("INSERT INTO education_enrollments")) return {rows:[{enrollment_id:"enrollment-created",student_id:"student-1",class_id:"class-1",academic_year:"2026-2027",status:"ACTIVE",version:1}],rowCount:1};
       if(sql.includes("UPDATE education_enrollments SET status=")) return {rows:[{enrollment_id:"enrollment-1",student_id:"student-1",class_id:"class-1",academic_year:"2026-2027",status:values[0],version:2}],rowCount:1};
@@ -157,17 +159,18 @@ test("P056 enrollment lifecycle requires org.manage",async()=>{
 });
 
 
-test("P056 class and enrollment mutations append tenant-scoped realtime events",async()=>{
+test("P056.1 class and enrollment mutations commit audit plus Outbox without direct realtime publication",async()=>{
   const db=responseDb();
-  const events:Array<Record<string,unknown>>=[];
+  const directEvents:Array<Record<string,unknown>>=[];
   const realtime=new SchoolRealtimeHub();
   const server=createSchoolApiServer({
     db,
     authenticate:async()=>makeAuth(["org.read","org.manage"]),
     syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any,
+    mutationClient:()=>db as any,
     realtime,
     realtimeStore:{
-      append:async(event)=>{events.push(event as unknown as Record<string,unknown>);return 7n;},
+      append:async(event)=>{directEvents.push(event as unknown as Record<string,unknown>);return 7n;},
       replay:async()=>({state:"OK" as const,events:[],oldestSequence:null,latestSequence:null})
     }
   });
@@ -176,12 +179,13 @@ test("P056 class and enrollment mutations append tenant-scoped realtime events",
   try{
     const res=await fetch("http://127.0.0.1:"+address.port+"/v1/education/enrollments/enrollment-1",{method:"PATCH",headers:{"content-type":"application/json","x-idempotency-key":"enrollment-event-0001"},body:JSON.stringify({status:"WITHDRAWN",expectedVersion:1})});
     assert.equal(res.status,200);
-    assert.equal(events.length,1);
-    assert.equal(events[0]?.type,"enrollment.changed");
-    assert.equal(events[0]?.tenantId,"tenant-school");
-    assert.equal(events[0]?.organizationId,"org-school");
-    assert.equal(events[0]?.entityId,"enrollment-1");
-    assert.equal((events[0]?.data as Record<string,unknown>)?.status,"WITHDRAWN");
+    assert.equal(directEvents.length,0,"transactional school writes must not append/publish directly");
+    assert.ok(db.calls.some(x=>x.sql.includes("INSERT INTO api_request_audit")));
+    assert.ok(db.calls.some(x=>x.sql.includes("INSERT INTO education_transactional_outbox")));
+    assert.ok(db.calls.some(x=>x.sql.includes("UPDATE api_request_deduplication SET state='succeeded'")));
+    const statements=db.calls.map(x=>x.sql);
+    assert.ok(statements.indexOf("BEGIN")<statements.findIndex(x=>x.includes("UPDATE education_enrollments SET status=")));
+    assert.ok(statements.indexOf("COMMIT")>statements.findIndex(x=>x.includes("INSERT INTO education_transactional_outbox")));
   }finally{
     server.closeAllConnections();
     await new Promise<void>(resolve=>server.close(()=>resolve()));
