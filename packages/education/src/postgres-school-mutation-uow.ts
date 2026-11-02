@@ -119,15 +119,19 @@ export async function markSchoolOutboxPublished(
 
 export async function retrySchoolOutbox(
   client:PostgresTransactionClient,outboxId:string,workerId:string,errorCode:string,maxAttempts=12
-):Promise<void>{
+):Promise<"PENDING"|"DEAD">{
   if(!/^[A-Z0-9_]{1,80}$/.test(errorCode))throw new Error("SCHOOL_OUTBOX_ERROR_CODE_INVALID");
   const r=await client.query(
     `UPDATE education_transactional_outbox
         SET state=CASE WHEN attempts >= $4 THEN 'DEAD' ELSE 'PENDING' END,
             available_at=now()+LEAST(3600,power(2,LEAST(attempts,10)))::text::interval,
             locked_by=NULL,locked_until=NULL,last_error_code=$3,updated_at=now()
-      WHERE outbox_id=$1 AND state='PROCESSING' AND locked_by=$2`,
+      WHERE outbox_id=$1 AND state='PROCESSING' AND locked_by=$2
+      RETURNING state`,
     [outboxId,workerId,errorCode,maxAttempts]
   );
   if((r.rowCount??0)!==1)throw new Error("SCHOOL_OUTBOX_LEASE_LOST");
+  const state=(r.rows[0] as {state?:"PENDING"|"DEAD"}|undefined)?.state;
+  if(state!=="PENDING"&&state!=="DEAD")throw new Error("SCHOOL_OUTBOX_RETRY_STATE_INVALID");
+  return state;
 }
