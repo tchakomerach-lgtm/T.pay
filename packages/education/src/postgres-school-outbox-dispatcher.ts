@@ -53,8 +53,8 @@ export class PostgresSchoolOutboxDispatcher{
     result.published++;
    }catch{
     try{
-     await this.scoped(tenantId,organizationId,client=>retrySchoolOutbox(client,row.outbox_id,workerId,"SCHOOL_REALTIME_DELIVERY_FAILED"));
-     result.retried++;
+     const state=await this.scoped(tenantId,organizationId,client=>retrySchoolOutbox(client,row.outbox_id,workerId,"SCHOOL_REALTIME_DELIVERY_FAILED"));
+     if(state==="DEAD")result.dead++;else result.retried++;
     }catch{/* lease may have expired and been reclaimed by another worker */}
    }
   }
