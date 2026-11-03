@@ -71,3 +71,14 @@ GRANT SELECT, INSERT, UPDATE ON education_class_assignments TO tpay_school_runti
 
 COMMENT ON TABLE education_class_assignments IS
   'Teaching assignments scoped to one tenant, organization, academic class and year; all mutations are audited and Outbox-backed.';
+
+-- The assignment API must validate that its teacher is active and belongs to the
+-- same organization while using the runtime role, not an owner connection.
+ALTER TABLE education_actors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE education_actors FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS education_actors_runtime_scope ON education_actors;
+CREATE POLICY education_actors_runtime_scope ON education_actors
+  FOR SELECT TO tpay_school_runtime
+  USING (tenant_id = NULLIF(current_setting('tpay.tenant_id', true), '')
+     AND organization_id = NULLIF(current_setting('tpay.organization_id', true), ''));
+GRANT SELECT ON education_actors TO tpay_school_runtime;
