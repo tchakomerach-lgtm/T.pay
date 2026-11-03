@@ -307,7 +307,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       const classId=url.searchParams.get("classId");
       const academicYear=url.searchParams.get("academicYear");
       const teacherId=url.searchParams.get("teacherId");
-      if(academicYear && !/^\\d{4}-\\d{4}$/.test(academicYear))throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
+      if(academicYear && !/^\d{4}-\d{4}$/.test(academicYear))throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
       const q=await executeSchoolRead(deps,auth.tenantId,organizationId,tx=>tx.query(
         "SELECT assignment_id,class_id,academic_year,teacher_actor_id,subject_code,weekly_hours,valid_from,valid_until,status,version,created_at,updated_at FROM education_class_assignments WHERE tenant_id=$1 AND organization_id=$2 AND ($3::text IS NULL OR class_id=$3) AND ($4::text IS NULL OR academic_year=$4) AND ($5::text IS NULL OR teacher_actor_id=$5) ORDER BY academic_year DESC,class_id,subject_code,teacher_actor_id",
         [auth.tenantId,organizationId,classId,academicYear,teacherId]
@@ -325,11 +325,11 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       const validFrom=String(input.validFrom??"");
       const validUntil=input.validUntil===null||input.validUntil===undefined||input.validUntil===""?null:String(input.validUntil);
       if(!classId||classId.length>128||!teacherActorId||teacherActorId.length>128)throw new Error("EDUCATION_ASSIGNMENT_REFERENCE_INVALID");
-      if(!/^\\d{4}-\\d{4}$/.test(academicYear)||Number(academicYear.slice(5))!==Number(academicYear.slice(0,4))+1)throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
+      if(!/^\d{4}-\d{4}$/.test(academicYear)||Number(academicYear.slice(5))!==Number(academicYear.slice(0,4))+1)throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
       if(!/^[A-Za-z0-9._-]{1,32}$/.test(subjectCode))throw new Error("EDUCATION_SUBJECT_CODE_INVALID");
       if(!Number.isFinite(weeklyHours)||weeklyHours<=0||weeklyHours>60)throw new Error("EDUCATION_WEEKLY_HOURS_INVALID");
-      if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(validFrom)||Number.isNaN(Date.parse(validFrom+"T00:00:00Z")))throw new Error("EDUCATION_ASSIGNMENT_START_DATE_INVALID");
-      if(validUntil!==null&&(!/^\\d{4}-\\d{2}-\\d{2}$/.test(validUntil)||Number.isNaN(Date.parse(validUntil+"T00:00:00Z"))||validUntil<validFrom))throw new Error("EDUCATION_ASSIGNMENT_END_DATE_INVALID");
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(validFrom)||Number.isNaN(Date.parse(validFrom+"T00:00:00Z")))throw new Error("EDUCATION_ASSIGNMENT_START_DATE_INVALID");
+      if(validUntil!==null&&(!/^\d{4}-\d{2}-\d{2}$/.test(validUntil)||Number.isNaN(Date.parse(validUntil+"T00:00:00Z"))||validUntil<validFrom))throw new Error("EDUCATION_ASSIGNMENT_END_DATE_INVALID");
       const assignmentId=randomUUID();
       data=await executeSchoolMutation(deps,{
         tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,
