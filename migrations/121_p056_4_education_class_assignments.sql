@@ -75,7 +75,6 @@ COMMENT ON TABLE education_class_assignments IS
 -- The assignment API must validate that its teacher is active and belongs to the
 -- same organization while using the runtime role, not an owner connection.
 ALTER TABLE education_actors ENABLE ROW LEVEL SECURITY;
-ALTER TABLE education_actors FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS education_actors_runtime_scope ON education_actors;
 CREATE POLICY education_actors_runtime_scope ON education_actors
   FOR SELECT TO tpay_school_runtime
