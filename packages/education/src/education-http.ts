@@ -81,6 +81,8 @@ function route(path:string){
  if(parts[0]!=="v1"||parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
  if(parts[2]==="classes"&&parts.length===3)return ["classes"] as const;
+ if(parts[2]==="class-assignments"&&parts.length===3)return ["class-assignments"] as const;
+ if(parts[2]==="class-assignments"&&parts.length===4&&parts[3])return ["class-assignment-revoke",parts[3]] as const;
  if(parts[2]==="enrollments"&&parts.length===3)return ["enrollments"] as const;
  if(parts[2]==="enrollments"&&parts.length===4&&parts[3])return ["enrollment-status",parts[3]] as const;
  if(parts[2]==="sync"&&parts[3]==="events"&&parts.length===4)return ["sync"] as const;
@@ -94,7 +96,7 @@ function route(path:string){
 }
 function permissionFor(kind:string,method:string):Permission{
  if(kind==="actor"||((kind==="classes"||kind==="enrollments")&&method==="GET"))return "org.read";
- if(kind==="classes"||kind==="enrollments"||kind==="enrollment-status")return "org.manage";
+ if(kind==="classes"||kind==="enrollments"||kind==="enrollment-status"||kind==="class-assignments"||kind==="class-assignment-revoke")return "org.manage";
  return "member.manage";
 }
 
@@ -299,6 +301,77 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
         return {data:row,event:{type:"enrollment.changed",occurredAt:enrolledAt,entityId:enrollmentId,version:Number(row.version??1),data:{operation:"POST",route:path,status:row.status??null}}};
       });
     }else throw new Error("EDUCATION_ENROLLMENT_METHOD_NOT_ALLOWED");
+   } else if(r[0]==="class-assignments"){
+    if(method==="GET"){
+      const url=new URL(rawUrl,"https://tpay.invalid");
+      const classId=url.searchParams.get("classId");
+      const academicYear=url.searchParams.get("academicYear");
+      const teacherId=url.searchParams.get("teacherId");
+      if(academicYear && !/^\\d{4}-\\d{4}$/.test(academicYear))throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
+      const q=await executeSchoolRead(deps,auth.tenantId,organizationId,tx=>tx.query(
+        "SELECT assignment_id,class_id,academic_year,teacher_actor_id,subject_code,weekly_hours,valid_from,valid_until,status,version,created_at,updated_at FROM education_class_assignments WHERE tenant_id=$1 AND organization_id=$2 AND ($3::text IS NULL OR class_id=$3) AND ($4::text IS NULL OR academic_year=$4) AND ($5::text IS NULL OR teacher_actor_id=$5) ORDER BY academic_year DESC,class_id,subject_code,teacher_actor_id",
+        [auth.tenantId,organizationId,classId,academicYear,teacherId]
+      ));
+      data=q.rows;
+    }else if(method==="POST"){
+      const input=body as Record<string,unknown>;
+      const allowed=["classId","academicYear","teacherActorId","subjectCode","weeklyHours","validFrom","validUntil"];
+      if(Object.keys(input).some(key=>!allowed.includes(key)))throw new Error("EDUCATION_ASSIGNMENT_FIELDS_NOT_ALLOWED");
+      const classId=String(input.classId??"").trim();
+      const academicYear=String(input.academicYear??"");
+      const teacherActorId=String(input.teacherActorId??"").trim();
+      const subjectCode=String(input.subjectCode??"").trim();
+      const weeklyHours=Number(input.weeklyHours);
+      const validFrom=String(input.validFrom??"");
+      const validUntil=input.validUntil===null||input.validUntil===undefined||input.validUntil===""?null:String(input.validUntil);
+      if(!classId||classId.length>128||!teacherActorId||teacherActorId.length>128)throw new Error("EDUCATION_ASSIGNMENT_REFERENCE_INVALID");
+      if(!/^\\d{4}-\\d{4}$/.test(academicYear)||Number(academicYear.slice(5))!==Number(academicYear.slice(0,4))+1)throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
+      if(!/^[A-Za-z0-9._-]{1,32}$/.test(subjectCode))throw new Error("EDUCATION_SUBJECT_CODE_INVALID");
+      if(!Number.isFinite(weeklyHours)||weeklyHours<=0||weeklyHours>60)throw new Error("EDUCATION_WEEKLY_HOURS_INVALID");
+      if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(validFrom)||Number.isNaN(Date.parse(validFrom+"T00:00:00Z")))throw new Error("EDUCATION_ASSIGNMENT_START_DATE_INVALID");
+      if(validUntil!==null&&(!/^\\d{4}-\\d{2}-\\d{2}$/.test(validUntil)||Number.isNaN(Date.parse(validUntil+"T00:00:00Z"))||validUntil<validFrom))throw new Error("EDUCATION_ASSIGNMENT_END_DATE_INVALID");
+      const assignmentId=randomUUID();
+      data=await executeSchoolMutation(deps,{
+        tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,
+        requestId:dedupe?.requestId??correlationId,route:path,correlationId
+      },async tx=>{
+        const teacher=await tx.query(
+          "SELECT actor_id FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3 AND kind='TEACHER' AND active=true",
+          [auth.tenantId,organizationId,teacherActorId]
+        );
+        if(!teacher.rows[0])throw new Error("EDUCATION_ACTIVE_TEACHER_NOT_FOUND");
+        const saved=await tx.query(
+          "INSERT INTO education_class_assignments(assignment_id,tenant_id,organization_id,class_id,academic_year,teacher_actor_id,subject_code,weekly_hours,valid_from,valid_until,status,created_by,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::date,$10::date,'ACTIVE',$11,1) RETURNING assignment_id,class_id,academic_year,teacher_actor_id,subject_code,weekly_hours,valid_from,valid_until,status,version,created_at,updated_at",
+          [assignmentId,auth.tenantId,organizationId,classId,academicYear,teacherActorId,subjectCode,weeklyHours,validFrom,validUntil,auth.principal.userId]
+        );
+        const row=saved.rows[0];if(!row)throw new Error("EDUCATION_ASSIGNMENT_CREATE_FAILED");
+        return {data:row,event:{type:"class_assignment.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:assignmentId,version:Number(row.version??1),data:{operation:"POST",status:row.status,subjectCode}}};
+      });
+    }else throw new Error("EDUCATION_ASSIGNMENT_METHOD_NOT_ALLOWED");
+   } else if(r[0]==="class-assignment-revoke"){
+    if(method!=="PATCH")throw new Error("EDUCATION_ASSIGNMENT_METHOD_NOT_ALLOWED");
+    const input=body as Record<string,unknown>;
+    if(Object.keys(input).some(key=>!["expectedVersion","reason"].includes(key)))throw new Error("EDUCATION_ASSIGNMENT_REVOCATION_FIELDS_NOT_ALLOWED");
+    const expectedVersion=Number(input.expectedVersion);
+    const reason=String(input.reason??"").trim();
+    if(!Number.isSafeInteger(expectedVersion)||expectedVersion<1)throw new Error("EDUCATION_ASSIGNMENT_VERSION_REQUIRED");
+    if(!reason||reason.length>500)throw new Error("EDUCATION_ASSIGNMENT_REVOCATION_REASON_REQUIRED");
+    data=await executeSchoolMutation(deps,{
+      tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,
+      requestId:dedupe?.requestId??correlationId,route:path,correlationId
+    },async tx=>{
+      const updated=await tx.query(
+        "UPDATE education_class_assignments SET status='REVOKED',revoked_by=$1,revocation_reason=$2,version=version+1,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND assignment_id=$5::uuid AND status='ACTIVE' AND version=$6 RETURNING assignment_id,class_id,academic_year,teacher_actor_id,subject_code,status,revoked_by,revocation_reason,version,updated_at",
+        [auth.principal.userId,reason,auth.tenantId,organizationId,r[1],expectedVersion]
+      );
+      if(!updated.rows[0]){
+        const current=await tx.query("SELECT status,version FROM education_class_assignments WHERE tenant_id=$1 AND organization_id=$2 AND assignment_id=$3::uuid",[auth.tenantId,organizationId,r[1]]);
+        if(!current.rows[0])throw new Error("EDUCATION_ASSIGNMENT_NOT_FOUND");
+        throw new Error("EDUCATION_ASSIGNMENT_STATE_OR_VERSION_CONFLICT");
+      }
+      const row=updated.rows[0];
+      return {data:row,event:{type:"class_assignment.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.assignment_id),version:Number(row.version??1),data:{operation:"PATCH",status:row.status,reason}}};
+    });
    } else if(r[0]==="enrollment-status"){
     if(method!=="PATCH")throw new Error("EDUCATION_ENROLLMENT_METHOD_NOT_ALLOWED");
     const input=body as Record<string,unknown>;
@@ -386,9 +459,9 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       if(stored)deps.realtime.publish(stored);
     }
    }
-   const transactionalSchoolWrite=method!=="GET" && ["classes","enrollments","enrollment-status","attendance","work-create","work","service-create","service-transition"].includes(r[0]);
+   const transactionalSchoolWrite=method!=="GET" && ["classes","enrollments","enrollment-status","class-assignments","class-assignment-revoke","attendance","work-create","work","service-create","service-transition"].includes(r[0]);
    if(deps.realtime && deps.realtimeStore && method!=="GET" && r[0]!=="actor" && r[0]!=="sync" && !transactionalSchoolWrite){
-    const typeMap:Record<string,SchoolRealtimeEvent["type"]>={classes:"class.changed",enrollments:"enrollment.changed","enrollment-status":"enrollment.changed",sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
+    const typeMap:Record<string,SchoolRealtimeEvent["type"]>={classes:"class.changed",enrollments:"enrollment.changed","enrollment-status":"enrollment.changed","class-assignments":"class_assignment.changed","class-assignment-revoke":"class_assignment.changed",sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
     const eventType=typeMap[r[0]];
     if(eventType){
       const event:SchoolRealtimeEvent={
