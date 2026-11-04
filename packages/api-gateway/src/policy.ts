@@ -13,6 +13,8 @@ export const API_ROUTE_POLICIES:readonly ApiRoutePolicy[]=[
  {route:"/v1/tontines/contributions",methods:["POST"],auth:"member",financial:true},
  {route:"/v1/education/actors/:actorId",methods:["GET"],auth:"member",financial:false},
  {route:"/v1/education/classes",methods:["GET","POST"],auth:"member",financial:false},
+ {route:"/v1/education/subjects",methods:["GET","POST"],auth:"member",financial:false},
+ {route:"/v1/education/subjects/:subjectCode",methods:["PATCH"],auth:"member",financial:false},
  {route:"/v1/education/class-assignments",methods:["GET","POST"],auth:"member",financial:false},
  {route:"/v1/education/class-assignments/:assignmentId",methods:["PATCH"],auth:"member",financial:false},
  {route:"/v1/education/enrollments",methods:["GET","POST"],auth:"member",financial:false},
