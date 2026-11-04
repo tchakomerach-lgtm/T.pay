@@ -81,6 +81,8 @@ function route(path:string){
  if(parts[0]!=="v1"||parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
  if(parts[2]==="classes"&&parts.length===3)return ["classes"] as const;
+ if(parts[2]==="subjects"&&parts.length===3)return ["subjects"] as const;
+ if(parts[2]==="subjects"&&parts.length===4&&parts[3])return ["subject",parts[3]] as const;
  if(parts[2]==="class-assignments"&&parts.length===3)return ["class-assignments"] as const;
  if(parts[2]==="class-assignments"&&parts.length===4&&parts[3])return ["class-assignment-revoke",parts[3]] as const;
  if(parts[2]==="enrollments"&&parts.length===3)return ["enrollments"] as const;
@@ -96,6 +98,8 @@ function route(path:string){
 }
 function permissionFor(kind:string,method:string):Permission{
  if(kind==="actor"||((kind==="classes"||kind==="enrollments")&&method==="GET"))return "org.read";
+ if(kind==="subjects"&&method==="GET")return "org.read";
+ if(kind==="subjects"||kind==="subject")return "org.manage";
  if(kind==="classes"||kind==="enrollments"||kind==="enrollment-status"||kind==="class-assignments"||kind==="class-assignment-revoke")return "org.manage";
  return "member.manage";
 }
@@ -340,6 +344,8 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
           [auth.tenantId,organizationId,teacherActorId]
         );
         if(!teacher.rows[0])throw new Error("EDUCATION_ACTIVE_TEACHER_NOT_FOUND");
+        const subject=await tx.query("SELECT subject_code FROM education_subjects WHERE tenant_id=$1 AND organization_id=$2 AND subject_code=$3 AND active=true",[auth.tenantId,organizationId,subjectCode]);
+        if(!subject.rows[0])throw new Error("EDUCATION_ACTIVE_SUBJECT_NOT_FOUND");
         const saved=await tx.query(
           "INSERT INTO education_class_assignments(assignment_id,tenant_id,organization_id,class_id,academic_year,teacher_actor_id,subject_code,weekly_hours,valid_from,valid_until,status,created_by,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::date,$10::date,'ACTIVE',$11,1) RETURNING assignment_id,class_id,academic_year,teacher_actor_id,subject_code,weekly_hours,valid_from,valid_until,status,version,created_at,updated_at",
           [assignmentId,auth.tenantId,organizationId,classId,academicYear,teacherActorId,subjectCode,weeklyHours,validFrom,validUntil,auth.principal.userId]
@@ -408,6 +414,62 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     const syncClient=await deps.syncClient();
     try{ data=await new PostgresEducationSyncStore(syncClient).accept(event as any); }
     finally{ syncClient.release?.(); }
+   } else if(r[0]==="subjects"){
+    if(method==="GET"){
+      const url=new URL(rawUrl,"https://tpay.invalid");
+      const activeParam=url.searchParams.get("active");
+      if(activeParam!==null&&activeParam!=="true"&&activeParam!=="false")throw new Error("EDUCATION_SUBJECT_ACTIVE_FILTER_INVALID");
+      const active=activeParam===null?null:activeParam==="true";
+      const q=await executeSchoolRead(deps,auth.tenantId,organizationId,tx=>tx.query(
+        "SELECT subject_id,subject_code,name,description,coefficient,active,version,created_at,updated_at FROM education_subjects WHERE tenant_id=$1 AND organization_id=$2 AND ($3::boolean IS NULL OR active=$3) ORDER BY subject_code ASC",
+        [auth.tenantId,organizationId,active]
+      ));
+      data=q.rows;
+    }else if(method==="POST"){
+      const input=body as Record<string,unknown>;
+      const allowed=["subjectCode","name","description","coefficient"];
+      if(Object.keys(input).some(key=>!allowed.includes(key)))throw new Error("EDUCATION_SUBJECT_FIELDS_NOT_ALLOWED");
+      const subjectCode=String(input.subjectCode??"").trim().toUpperCase();
+      const name=String(input.name??"").trim();
+      const description=input.description===undefined||input.description===null?"":String(input.description).trim();
+      const coefficient=input.coefficient===undefined?1:Number(input.coefficient);
+      if(!/^[A-Z0-9][A-Z0-9._-]{0,31}$/.test(subjectCode))throw new Error("EDUCATION_SUBJECT_CODE_INVALID");
+      if(!name||name.length>120)throw new Error("EDUCATION_SUBJECT_NAME_INVALID");
+      if(description.length>1000)throw new Error("EDUCATION_SUBJECT_DESCRIPTION_INVALID");
+      if(!Number.isFinite(coefficient)||coefficient<=0||coefficient>100)throw new Error("EDUCATION_SUBJECT_COEFFICIENT_INVALID");
+      data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
+        const saved=await tx.query(
+          "INSERT INTO education_subjects(tenant_id,organization_id,subject_code,name,description,coefficient,active,created_by) VALUES($1,$2,$3,$4,$5,$6,true,$7) RETURNING subject_id,subject_code,name,description,coefficient,active,version,created_at,updated_at",
+          [auth.tenantId,organizationId,subjectCode,name,description||null,coefficient,auth.principal.userId]
+        );
+        const row=saved.rows[0];if(!row)throw new Error("EDUCATION_SUBJECT_CREATE_FAILED");
+        return {data:row,event:{type:"subject.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.subject_id),version:Number(row.version),data:{operation:"POST",subjectCode,active:true}}};
+      });
+    }else throw new Error("EDUCATION_SUBJECT_METHOD_NOT_ALLOWED");
+   } else if(r[0]==="subject"){
+    if(method!=="PATCH")throw new Error("EDUCATION_SUBJECT_METHOD_NOT_ALLOWED");
+    const input=body as Record<string,unknown>;
+    const allowed=["name","description","coefficient","active","expectedVersion"];
+    if(Object.keys(input).some(key=>!allowed.includes(key)))throw new Error("EDUCATION_SUBJECT_FIELDS_NOT_ALLOWED");
+    const expectedVersion=Number(input.expectedVersion);
+    if(!Number.isSafeInteger(expectedVersion)||expectedVersion<1)throw new Error("EDUCATION_SUBJECT_VERSION_REQUIRED");
+    const name=input.name===undefined?null:String(input.name).trim();
+    const description=input.description===undefined?null:(input.description===null?"":String(input.description).trim());
+    const coefficient=input.coefficient===undefined?null:Number(input.coefficient);
+    const active=input.active===undefined?null:input.active;
+    if(name!==null&&(!name||name.length>120))throw new Error("EDUCATION_SUBJECT_NAME_INVALID");
+    if(description!==null&&description.length>1000)throw new Error("EDUCATION_SUBJECT_DESCRIPTION_INVALID");
+    if(coefficient!==null&&(!Number.isFinite(coefficient)||coefficient<=0||coefficient>100))throw new Error("EDUCATION_SUBJECT_COEFFICIENT_INVALID");
+    if(active!==null&&typeof active!=="boolean")throw new Error("EDUCATION_SUBJECT_ACTIVE_INVALID");
+    if(name===null&&description===null&&coefficient===null&&active===null)throw new Error("EDUCATION_SUBJECT_UPDATE_EMPTY");
+    data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
+      const saved=await tx.query(
+        "UPDATE education_subjects SET name=COALESCE($1,name),description=CASE WHEN $2::boolean THEN $3 ELSE description END,coefficient=COALESCE($4,coefficient),active=COALESCE($5,active),version=version+1,updated_at=now() WHERE tenant_id=$6 AND organization_id=$7 AND subject_code=$8 AND version=$9 RETURNING subject_id,subject_code,name,description,coefficient,active,version,created_at,updated_at",
+        [name,description!==null,description,coefficient,active,auth.tenantId,organizationId,r[1],expectedVersion]
+      );
+      const row=saved.rows[0];if(!row)throw new Error("EDUCATION_SUBJECT_VERSION_CONFLICT");
+      return {data:row,event:{type:"subject.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.subject_id),version:Number(row.version),data:{operation:"PATCH",subjectCode:row.subject_code,active:row.active}}};
+    });
    } else if(r[0]==="attendance"){
     const incoming=body as AttendanceRecord; incoming.organizationId=organizationId;
     data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
@@ -459,9 +521,9 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       if(stored)deps.realtime.publish(stored);
     }
    }
-   const transactionalSchoolWrite=method!=="GET" && ["classes","enrollments","enrollment-status","class-assignments","class-assignment-revoke","attendance","work-create","work","service-create","service-transition"].includes(r[0]);
+   const transactionalSchoolWrite=method!=="GET" && ["classes","subjects","subject","enrollments","enrollment-status","class-assignments","class-assignment-revoke","attendance","work-create","work","service-create","service-transition"].includes(r[0]);
    if(deps.realtime && deps.realtimeStore && method!=="GET" && r[0]!=="actor" && r[0]!=="sync" && !transactionalSchoolWrite){
-    const typeMap:Record<string,SchoolRealtimeEvent["type"]>={classes:"class.changed",enrollments:"enrollment.changed","enrollment-status":"enrollment.changed","class-assignments":"class_assignment.changed","class-assignment-revoke":"class_assignment.changed",sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
+    const typeMap:Record<string,SchoolRealtimeEvent["type"]>={classes:"class.changed",subjects:"subject.changed",subject:"subject.changed",enrollments:"enrollment.changed","enrollment-status":"enrollment.changed","class-assignments":"class_assignment.changed","class-assignment-revoke":"class_assignment.changed",sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
     const eventType=typeMap[r[0]];
     if(eventType){
       const event:SchoolRealtimeEvent={
