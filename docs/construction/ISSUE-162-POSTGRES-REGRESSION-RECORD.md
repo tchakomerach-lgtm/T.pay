@@ -46,18 +46,37 @@ Repair the three live PostgreSQL failures recorded against P057.2 commit `66ce63
 ## Validation status
 - Source changes committed to `fix/issue-162-postgres-live-regressions`.
 - Targeted PostgreSQL 17 tests and full CI are **pending**; no passing result is claimed in this record.
-- PR #163 is open and marked ready for review (not draft). Its validation remains blocked: the exact head SHA has not completed any test step.
+- PR #163 is open and not a draft. Its validation remains blocked: the exact head SHA has not completed any test step.
 - Required gates remain targeted PostgreSQL 17 regressions, full `npm run test:postgres`, `npm run check`, `npm run security:fortress`, Web build and Android build.
 - No merge, production certification or release approval is implied.
 
 ## Next gate
 Run the full PostgreSQL 17 suite on the PR head, inspect any new failure at its root cause, then run the complete required CI matrix on one exact SHA. Only after those gates pass may P057.1/P057.2 be approved for merge and P057.3 implementation begin.
 
+## CI runner diagnosis — 2026-11-06 (updated 20:36 UTC)
 
-## CI runner diagnosis — 2026-11-06
-- The latest CI run for the PR head `fcfef5616cf1ae370d41bce20c6e45855f84d254` is run `42228061366` (quality); the Android run is `42228061357`.
-- GitHub job records report `runner_id: 0`, empty `runner_name`, and `steps: null` for both jobs; the jobs expose no step execution or log URL.
-- This is consistent with failure before a runner starts. It does **not** establish a source-code test failure and does not prove the code is correct.
-- Both workflows declare `runs-on: ubuntu-latest`; no custom self-hosted runner is configured in these workflow files.
-- The next diagnostic is administrative: verify that GitHub Actions is enabled for this private repository, that GitHub-hosted runners are permitted for the repository/owner, and that any applicable usage/billing/policy restrictions allow jobs to start. Re-run the exact SHA only after runner allocation is restored.
-- Do not change application code or weaken CI gates to disguise an infrastructure-level runner allocation failure.
+### PR #163 — current head
+- Current PR #163 head at the time of this record: `872be3c16df9c5a85496b29f524e5a391ddd1879`.
+- Latest push runs: Quality `42235898905` and Android `42235898973`; both completed with failure on attempt 2.
+- Their jobs (`127955481082` and `127955503296`) return `steps: null` and `logs_url: null`. No test command started.
+
+### Distinguishing earlier test failures from the runner-allocation failure
+- Earlier Android run `42189284459` successfully executed all steps, including `gradle :app:assembleDebug`.
+- Earlier Quality run `42189284722` successfully started a runner, completed checkout, dependency installation, build, migrations and least-privilege runtime provisioning, then failed at `npm run test:postgres` (step 9).
+- Therefore the earlier PostgreSQL failure is a real test-suite failure; the later `runner_id: 0` / null-step jobs are a separate pre-execution infrastructure or usage-policy failure.
+
+### Workflow trigger correction
+- Both workflows previously restricted `pull_request.branches` to `main` and `feat/education-classes-enrollments-api-001`, excluding the stacked PR base branch `feat/p057-2-runtime-session-rls`.
+- The filters were removed on that base branch so pull-request validation now applies to all target branches.
+- CI workflow commit: `faa911760bf11908bf8e956f8c3a5fe5fd6340f1`.
+- Android workflow commit: `79f8ee80cdb56e84d525f2b556075c637fdee084`.
+- The corrected workflow generated pull-request runs for PR #161: Quality `42289470408` and Android `42289470418`. Both still failed before the first step, with null steps/logs. The trigger-filter defect is corrected; runner provisioning is not.
+
+### Remaining administrative diagnosis
+- GitHub-hosted standard runners for private repositories consume the repository owner's included compute usage and may incur charges after the included allowance is consumed.
+- Earlier successful runner allocations followed by later pre-step failures make a usage/quota/budget restriction plausible, but the repository connector cannot inspect the owner's private billing dashboard or prove that quota exhaustion is the root cause.
+- Repository owner must verify included compute remaining, spending limit, payment status and Actions policy in GitHub Billing and repository Settings.
+- Do not switch to `self-hosted` until a real runner is registered and online. Do not change runner labels or disable checks to disguise the allocation failure.
+
+### Release gate
+No test is considered successful on the blocked SHA. No merge, production certification or P057.3 implementation is authorized until the runner issue is resolved and the full required CI matrix passes on one exact SHA.
