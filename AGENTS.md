@@ -108,6 +108,6 @@ Migration `115_education_classes_enrollments.sql` and authenticated class/enroll
 - Branch: `feat/p056-3-temporal-grant-lifecycle`.
 - Adds organization-scoped GET/POST/PATCH APIs for grant history, grant creation and revocation.
 - Mutations require `security.manage` plus a step-up session; target actor must be active in the same tenant/organization.
-- Migration 123 stores revocation actor/reason and forces tenant/organization RLS for runtime actor lookups.
+- Migration 123 stores revocation actor/reason and grants runtime actor lookup; actor queries remain explicitly tenant/organization scoped. Full actor-table RLS waits for P057 to bind verified tenant context into the session contract.
 - Grant mutation, audit and idempotency completion share one PostgreSQL transaction. No security-grant details are emitted to the general School SSE stream.
 - Remaining gates: run exact-head PostgreSQL 17 tests; prove with a dedicated non-owner/non-superuser/NOBYPASSRLS API login; add rollback/concurrency/replay assertions; run full CI, Web build, Android build and terrain verification. No certification or merge.
