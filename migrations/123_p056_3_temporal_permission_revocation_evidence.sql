@@ -12,18 +12,9 @@ CREATE INDEX IF NOT EXISTS api_actor_permissions_revoked_history
   ON api_actor_permissions (tenant_id, organization_id, revoked_at DESC)
   WHERE revoked_at IS NOT NULL;
 
--- Runtime actor lookup must be scoped by the same transaction-local tenant/org context.
-ALTER TABLE education_actors ENABLE ROW LEVEL SECURITY;
-ALTER TABLE education_actors FORCE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS education_actors_runtime_scope ON education_actors;
-CREATE POLICY education_actors_runtime_scope ON education_actors
-  FOR SELECT TO tpay_school_runtime
-  USING (
-    tenant_id = NULLIF(current_setting('tpay.tenant_id', true), '')
-    AND organization_id = NULLIF(current_setting('tpay.organization_id', true), '')
-  );
-
+-- The session contract currently carries organization but not tenant. Until P057
+-- adds a verified tenant claim, runtime actor reads are narrowly constrained by
+-- explicit tenant_id + organization_id predicates in the API query.
 GRANT SELECT ON education_actors TO tpay_school_runtime;
 
 -- RLS is ENABLED and FORCED by migration 120. Runtime has no DELETE grant.
