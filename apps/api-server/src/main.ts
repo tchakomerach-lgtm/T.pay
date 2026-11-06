@@ -87,18 +87,23 @@ async function authenticateFactory(pool:Pool){
     if(!validated.valid||!validated.sessionId||!validated.actorId||!validated.organizationId||!validated.issuedAt||!validated.expiresAt){
       throw new Error("AUTH_SESSION_INVALID");
     }
-    const actor=await pool.query(
-      "SELECT tenant_id,organization_id,active FROM education_actors WHERE actor_id=$1 AND organization_id=$2 LIMIT 1",
-      [validated.actorId,validated.organizationId]
-    );
-    const actorRow=actor.rows[0] as {tenant_id?:string;organization_id?:string;active?:boolean}|undefined;
-    if(!actorRow?.active||!actorRow.tenant_id||actorRow.organization_id!==validated.organizationId)throw new Error("AUTH_ACTOR_INVALID");
     const authorizationTime=new Date().toISOString();
     const permissionClient=await pool.connect();
+    let actorRow:{tenant_id?:string;organization_id?:string;active?:boolean}|undefined;
     let permissions:pg.QueryResult;
     try{
       await permissionClient.query("BEGIN");
       await permissionClient.query("SET LOCAL ROLE tpay_school_runtime");
+      await permissionClient.query(
+        "SELECT set_config('tpay.tenant_id',$1,true),set_config('tpay.organization_id',$2,true)",
+        ["pending",validated.organizationId]
+      );
+      const actor=await permissionClient.query(
+        "SELECT tenant_id,organization_id,active FROM education_actors WHERE actor_id=$1 AND organization_id=$2 LIMIT 1",
+        [validated.actorId,validated.organizationId]
+      );
+      actorRow=actor.rows[0] as {tenant_id?:string;organization_id?:string;active?:boolean}|undefined;
+      if(!actorRow?.active||!actorRow.tenant_id||actorRow.organization_id!==validated.organizationId)throw new Error("AUTH_ACTOR_INVALID");
       await permissionClient.query(
         "SELECT set_config('tpay.tenant_id',$1,true),set_config('tpay.organization_id',$2,true)",
         [actorRow.tenant_id,validated.organizationId]
