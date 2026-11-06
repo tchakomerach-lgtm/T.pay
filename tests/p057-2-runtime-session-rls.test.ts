@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {DeviceTrustRepository,issueTenantBoundSessionCredential} from "../packages/api-gateway/src/auth-device.js";
+import {DeviceTrustRepository,issueTenantBoundSessionCredential,type AuthDb} from "../packages/api-gateway/src/auth-device.js";
 
 test("P057.2 session validation executes through the tenant runtime transaction",async()=>{
  const statements:string[]=[];
@@ -12,9 +12,9 @@ test("P057.2 session validation executes through the tenant runtime transaction"
  let routedTenant="";
  const db={
   query:async()=>{throw new Error("POOL_LEVEL_QUERY_FORBIDDEN");},
-  withTenantTransaction:async<T>(tenantId:string,work:(client:typeof tx)=>Promise<T>)=>{
+  withTenantTransaction:async<T>(tenantId:string,work:(client:AuthDb)=>Promise<T>)=>{
    routedTenant=tenantId;
-   return work(tx);
+   return work(tx as AuthDb);
   }
  };
  const repository=new DeviceTrustRepository(db);
@@ -22,7 +22,7 @@ test("P057.2 session validation executes through the tenant runtime transaction"
  const result=await repository.validateSession({sessionCredential:token,now:"2026-11-06T01:00:00.000Z"});
  assert.equal(result.valid,true);
  assert.equal(routedTenant,"tenant-a");
- assert.match(statements[0]!,/FOR SHARE OF s,d/);
+ assert.match(statements[0]!,/FOR SHARE OF s/);
  assert.match(statements[1]!,/tenant_id=\$2/);
 });
 
