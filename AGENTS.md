@@ -127,3 +127,12 @@ Migration `115_education_classes_enrollments.sql` and authenticated class/enroll
 - Production session validation uses one transaction, SET LOCAL ROLE tpay_school_runtime, tenant GUC, SELECT locks and a constrained last_seen_at update.
 - API actor/permission lookup now executes under the same least-privilege role and verified tenant/organization predicates.
 - Deployment prerequisite: TPAY_DATABASE_URL is the non-owner/non-superuser/NOBYPASSRLS runtime login; TPAY_MIGRATION_DATABASE_URL is a separate migration-only connection; runtime login has explicit membership in tpay_school_runtime. CI provisions an isolated disposable runtime login and runs live PostgreSQL cross-tenant read/update denial. Production still requires equivalent credentials and terrain evidence.
+
+
+## Issue #162 — PostgreSQL integration regression repair (under validation)
+- Branch: `fix/issue-162-postgres-live-regressions`, stacked on P057.2.
+- Corrects S-03.4 test fixtures to persist the actual tontine group and membership required by composite tenant/group foreign keys.
+- Normalizes the Community Tontine partner settlement currency bind parameter to PostgreSQL `text` consistently; maker/checker and Financial Core boundaries are unchanged.
+- Corrects the P056 cross-tenant enrollment fixture to use a separate active class with available capacity, so the test reaches the intended tenant foreign-key guard without weakening the capacity guard.
+- Construction record: `docs/construction/ISSUE-162-POSTGRES-REGRESSION-RECORD.md`.
+- PostgreSQL 17 targeted/full CI, security fortress, Web and Android gates are pending on the exact PR SHA. Do not merge or certify until all required gates pass.
