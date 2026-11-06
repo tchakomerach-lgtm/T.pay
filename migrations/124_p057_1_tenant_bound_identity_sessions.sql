@@ -5,10 +5,10 @@ ALTER TABLE api_sessions ADD COLUMN IF NOT EXISTS tenant_id text;
 -- Backfill only from the authoritative actor/organization relation.
 UPDATE api_devices d
    SET tenant_id = a.tenant_id,
-       organization_id = COALESCE(d.organization_id,a.organization_id)
+       organization_id = COALESCE(d.organization_id,NULLIF(a.organization_id,'')::uuid)
   FROM education_actors a
- WHERE d.actor_id = a.actor_id
-   AND (d.organization_id IS NULL OR d.organization_id = a.organization_id)
+ WHERE d.actor_id::text = a.actor_id
+   AND (d.organization_id IS NULL OR d.organization_id::text = a.organization_id)
    AND d.tenant_id IS NULL;
 
 UPDATE api_sessions s
