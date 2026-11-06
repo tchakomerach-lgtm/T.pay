@@ -28,6 +28,7 @@ function env(name:string):string{
 
 export interface RuntimeConfig{
   databaseUrl:string;
+  migrationDatabaseUrl?:string;
   tlsKeyFile:string;
   tlsCertFile:string;
   host:string;
@@ -39,6 +40,8 @@ export function readRuntimeConfig(source=process.env):RuntimeConfig{
   for(const name of REQUIRED_ENV)if(!source[name]?.trim())throw new Error(`TPAY_ENV_REQUIRED:${name}`);
   const port=Number(source.TPAY_API_PORT??"8443");
   if(!Number.isInteger(port)||port<1||port>65535)throw new Error("TPAY_API_PORT_INVALID");
+  const migrationDatabaseUrl=source.TPAY_MIGRATION_DATABASE_URL?.trim();
+  if(source.NODE_ENV==="production"&&!migrationDatabaseUrl)throw new Error("TPAY_ENV_REQUIRED:TPAY_MIGRATION_DATABASE_URL");
   const webOrigins=(source.TPAY_WEB_ORIGINS??"").split(",").map(value=>value.trim()).filter(Boolean);
   for(const origin of webOrigins){
     let parsed:URL;
@@ -49,6 +52,7 @@ export function readRuntimeConfig(source=process.env):RuntimeConfig{
   }
   return {
     databaseUrl:source.TPAY_DATABASE_URL!.trim(),
+    migrationDatabaseUrl,
     tlsKeyFile:source.TPAY_TLS_KEY_FILE!.trim(),
     tlsCertFile:source.TPAY_TLS_CERT_FILE!.trim(),
     host:source.TPAY_API_HOST?.trim()||"0.0.0.0",
@@ -170,9 +174,16 @@ export async function buildProductionApiServer(config:RuntimeConfig):Promise<{se
     max:20,
     ssl:process.env.TPAY_DATABASE_SSL==="require"?{rejectUnauthorized:true}:undefined
   });
-  const migrationClient=await pool.connect();
-  try{await applyMigrations(migrationClient, pathToFileURL(join(process.cwd(),"migrations")+"/"));}
-  finally{migrationClient.release();}
+  const migrationDatabaseUrl=config.migrationDatabaseUrl??(localInsecureDb?config.databaseUrl:undefined);
+  if(migrationDatabaseUrl){
+    const migrationClient=new pg.Client({
+      connectionString:migrationDatabaseUrl,
+      ssl:process.env.TPAY_DATABASE_SSL==="require"?{rejectUnauthorized:true}:undefined
+    });
+    await migrationClient.connect();
+    try{await applyMigrations(migrationClient,pathToFileURL(join(process.cwd(),"migrations")+"/"));}
+    finally{await migrationClient.end();}
+  }
   const authenticate=await authenticateFactory(pool);
   const realtime=new SchoolRealtimeHub(Number(process.env.TPAY_REALTIME_QUEUE_LIMIT??"100"));
   const outboxDispatcher=new PostgresSchoolOutboxDispatcher(
