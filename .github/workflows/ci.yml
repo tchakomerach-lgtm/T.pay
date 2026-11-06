@@ -42,7 +42,8 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
-      # Provision schema with the dedicated migration identity before runtime-role tests.
+      # Compile the migration runner, then provision schema with the dedicated migration identity.
+      - run: npm run build
       - run: npm run db:migrate
       - name: Provision disposable least-privilege API login
         run: |
