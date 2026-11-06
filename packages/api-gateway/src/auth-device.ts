@@ -4,6 +4,7 @@ export type DeviceStatus="active"|"locked"|"revoked";
 export type SessionStatus="active"|"revoked"|"expired";
 export interface AuthDb{
  query(sql:string,values?:unknown[]):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
+ withTenantTransaction?<T>(tenantId:string,work:(client:AuthDb)=>Promise<T>):Promise<T>;
 }
 const HEX64=/^[a-f0-9]{64}$/;
 const TENANT=/^[A-Za-z0-9_-]{1,128}$/;
@@ -83,17 +84,23 @@ export class DeviceTrustRepository{
   let tenantId:string;
   try{tenantId=readSessionTenantId(input.sessionCredential);}catch{return {valid:false};}
   const sessionHash=hashCredential(input.sessionCredential);
-  const r=await this.db.query(
-   "SELECT s.id,s.tenant_id,s.organization_id,s.actor_id,s.device_id,s.status,s.issued_at,s.expires_at,s.trust_epoch,d.status AS device_status,d.trust_epoch AS device_epoch FROM api_sessions s JOIN api_devices d ON d.id=s.device_id AND d.tenant_id=s.tenant_id WHERE s.session_hash=$1 AND s.tenant_id=$2",
-   [sessionHash,tenantId]
-  );
-  const row=r.rows[0];
-  if(!row||String(row.tenant_id)!==tenantId||String(row.status)!=="active"||String(row.device_status)!=="active"||Date.parse(String(row.expires_at))<=Date.parse(input.now)||Number(row.trust_epoch)!==Number(row.device_epoch))return {valid:false};
-  await this.db.query("UPDATE api_sessions SET last_seen_at=$3::timestamptz WHERE id=$1 AND tenant_id=$2 AND status='active'",[row.id,tenantId,input.now]);
-  const out:{valid:true;tenantId?:string;sessionId?:string;organizationId?:string;actorId?:string;deviceId?:string;issuedAt?:string;expiresAt?:string}={
-   valid:true,tenantId,sessionId:String(row.id),actorId:String(row.actor_id),deviceId:String(row.device_id),issuedAt:String(row.issued_at),expiresAt:String(row.expires_at)
+  const validate=async(client:AuthDb)=>{
+   const r=await client.query(
+    "SELECT s.id,s.tenant_id,s.organization_id,s.actor_id,s.device_id,s.status,s.issued_at,s.expires_at,s.trust_epoch,d.status AS device_status,d.trust_epoch AS device_epoch FROM api_sessions s JOIN api_devices d ON d.id=s.device_id AND d.tenant_id=s.tenant_id WHERE s.session_hash=$1 AND s.tenant_id=$2 FOR SHARE OF s",
+    [sessionHash,tenantId]
+   );
+   const row=r.rows[0];
+   if(!row||String(row.tenant_id)!==tenantId||String(row.status)!=="active"||String(row.device_status)!=="active"||Date.parse(String(row.expires_at))<=Date.parse(input.now)||Number(row.trust_epoch)!==Number(row.device_epoch))return {valid:false} as const;
+   const updated=await client.query("UPDATE api_sessions SET last_seen_at=$3::timestamptz WHERE id=$1 AND tenant_id=$2 AND status='active'",[row.id,tenantId,input.now]);
+   if((updated.rowCount??0)!==1)return {valid:false} as const;
+   const out:{valid:true;tenantId?:string;sessionId?:string;organizationId?:string;actorId?:string;deviceId?:string;issuedAt?:string;expiresAt?:string}={
+    valid:true,tenantId,sessionId:String(row.id),actorId:String(row.actor_id),deviceId:String(row.device_id),issuedAt:String(row.issued_at),expiresAt:String(row.expires_at)
+   };
+   if(row.organization_id!=null)out.organizationId=String(row.organization_id);
+   return out;
   };
-  if(row.organization_id!=null)out.organizationId=String(row.organization_id);
-  return out;
+  return this.db.withTenantTransaction
+   ? await this.db.withTenantTransaction(tenantId,validate)
+   : await validate(this.db);
  }
 }

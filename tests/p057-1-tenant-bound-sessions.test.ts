@@ -13,7 +13,7 @@ test("P057.1 bearer embeds a tenant routing claim but stores only the full crede
 test("P057.1 session validation is scoped to tenant and fails closed for legacy credentials",async()=>{
  const calls:Array<{sql:string;values?:unknown[]}>=[];
  const db={query:async(sql:string,values?:unknown[])=>{
-  calls.push(values===undefined?{sql}:{sql,values});
+  calls.push({sql,values});
   if(sql.startsWith("SELECT s.id"))return {rows:[{id:"session-1",tenant_id:"tenant-a",organization_id:"org-a",actor_id:"actor-a",device_id:"device-a",status:"active",issued_at:"2026-11-06T00:00:00.000Z",expires_at:"2026-11-07T00:00:00.000Z",trust_epoch:2,device_status:"active",device_epoch:2}],rowCount:1};
   return {rows:[],rowCount:1};
  }};

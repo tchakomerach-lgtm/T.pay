@@ -28,6 +28,7 @@ function env(name:string):string{
 
 export interface RuntimeConfig{
   databaseUrl:string;
+  migrationDatabaseUrl?:string;
   tlsKeyFile:string;
   tlsCertFile:string;
   host:string;
@@ -39,6 +40,9 @@ export function readRuntimeConfig(source=process.env):RuntimeConfig{
   for(const name of REQUIRED_ENV)if(!source[name]?.trim())throw new Error(`TPAY_ENV_REQUIRED:${name}`);
   const port=Number(source.TPAY_API_PORT??"8443");
   if(!Number.isInteger(port)||port<1||port>65535)throw new Error("TPAY_API_PORT_INVALID");
+  const migrationDatabaseUrl=source.TPAY_MIGRATION_DATABASE_URL?.trim();
+  if(source.NODE_ENV==="production"&&!migrationDatabaseUrl)throw new Error("TPAY_ENV_REQUIRED:TPAY_MIGRATION_DATABASE_URL");
+  if(source.NODE_ENV==="production"&&migrationDatabaseUrl===source.TPAY_DATABASE_URL?.trim())throw new Error("TPAY_MIGRATION_DATABASE_URL_MUST_BE_SEPARATE");
   const webOrigins=(source.TPAY_WEB_ORIGINS??"").split(",").map(value=>value.trim()).filter(Boolean);
   for(const origin of webOrigins){
     let parsed:URL;
@@ -49,6 +53,7 @@ export function readRuntimeConfig(source=process.env):RuntimeConfig{
   }
   return {
     databaseUrl:source.TPAY_DATABASE_URL!.trim(),
+    migrationDatabaseUrl,
     tlsKeyFile:source.TPAY_TLS_KEY_FILE!.trim(),
     tlsCertFile:source.TPAY_TLS_CERT_FILE!.trim(),
     host:source.TPAY_API_HOST?.trim()||"0.0.0.0",
@@ -76,8 +81,32 @@ class PooledTransactionClient implements PostgresTransactionClient{
   release():void{this.client?.release();this.client=undefined;}
 }
 
+async function withTenantRuntimeTransaction<T>(
+ pool:Pool,
+ tenantId:string,
+ work:(client:{query(sql:string,values?:unknown[]):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>})=>Promise<T>
+):Promise<T>{
+ const client=await pool.connect();
+ try{
+  await client.query("BEGIN");
+  await client.query("SET LOCAL ROLE tpay_school_runtime");
+  await client.query("SELECT set_config('tpay.tenant_id',$1,true)",[tenantId]);
+  const result=await work({query:async(sql,values)=>{const r=await client.query(sql,values);return {rows:r.rows as Record<string,unknown>[],rowCount:r.rowCount};}});
+  await client.query("COMMIT");
+  return result;
+ }catch(error){
+  await client.query("ROLLBACK").catch(()=>undefined);
+  throw error;
+ }finally{client.release();}
+}
+
 async function authenticateFactory(pool:Pool){
-  const devices=new DeviceTrustRepository(pool);
+  const devices=new DeviceTrustRepository({
+    query:async(sql,values)=>{const result=await pool.query(sql,values);return {rows:result.rows as Record<string,unknown>[],rowCount:result.rowCount};},
+    withTenantTransaction:async<T>(tenantId:string,work:(client:import("../../../packages/api-gateway/src/auth-device.js").AuthDb)=>Promise<T>)=>{
+      return withTenantRuntimeTransaction(pool,tenantId,work);
+    }
+  });
   return async(request:IncomingMessage)=>{
     const header=String(request.headers.authorization??"");
     if(!header.startsWith("Bearer "))throw new Error("AUTH_BEARER_REQUIRED");
@@ -87,25 +116,26 @@ async function authenticateFactory(pool:Pool){
     if(!validated.valid||!validated.tenantId||!validated.sessionId||!validated.actorId||!validated.organizationId||!validated.issuedAt||!validated.expiresAt){
       throw new Error("AUTH_SESSION_INVALID");
     }
-    const actor=await pool.query(
-      "SELECT tenant_id,organization_id,active FROM education_actors WHERE actor_id=$1 AND organization_id=$2 AND tenant_id=$3 LIMIT 1",
-      [validated.actorId,validated.organizationId,validated.tenantId]
-    );
-    const actorRow=actor.rows[0] as {tenant_id?:string;organization_id?:string;active?:boolean}|undefined;
-    if(!actorRow?.active||!actorRow.tenant_id||actorRow.tenant_id!==validated.tenantId||actorRow.organization_id!==validated.organizationId)throw new Error("AUTH_ACTOR_INVALID");
     const authorizationTime=new Date().toISOString();
     const permissionClient=await pool.connect();
     let permissions:pg.QueryResult;
+    let actorRow:{tenant_id?:string;organization_id?:string;active?:boolean}|undefined;
     try{
       await permissionClient.query("BEGIN");
       await permissionClient.query("SET LOCAL ROLE tpay_school_runtime");
       await permissionClient.query(
         "SELECT set_config('tpay.tenant_id',$1,true),set_config('tpay.organization_id',$2,true)",
-        [actorRow.tenant_id,validated.organizationId]
+        [validated.tenantId,validated.organizationId]
       );
+      const actor=await permissionClient.query(
+        "SELECT tenant_id,organization_id,active FROM education_actors WHERE actor_id=$1 AND organization_id=$2 AND tenant_id=$3 LIMIT 1",
+        [validated.actorId,validated.organizationId,validated.tenantId]
+      );
+      actorRow=actor.rows[0] as {tenant_id?:string;organization_id?:string;active?:boolean}|undefined;
+      if(!actorRow?.active||!actorRow.tenant_id||actorRow.tenant_id!==validated.tenantId||actorRow.organization_id!==validated.organizationId)throw new Error("AUTH_ACTOR_INVALID");
       permissions=await permissionClient.query(
         "SELECT DISTINCT permission FROM api_actor_permissions WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3 AND valid_from <= $4::timestamptz AND (valid_until IS NULL OR valid_until > $4::timestamptz) AND revoked_at IS NULL",
-        [actorRow.tenant_id,validated.organizationId,validated.actorId,authorizationTime]
+        [validated.tenantId,validated.organizationId,validated.actorId,authorizationTime]
       );
       await permissionClient.query("COMMIT");    }catch(error){
       await permissionClient.query("ROLLBACK").catch(()=>undefined);
@@ -145,9 +175,16 @@ export async function buildProductionApiServer(config:RuntimeConfig):Promise<{se
     max:20,
     ssl:process.env.TPAY_DATABASE_SSL==="require"?{rejectUnauthorized:true}:undefined
   });
-  const migrationClient=await pool.connect();
-  try{await applyMigrations(migrationClient, pathToFileURL(join(process.cwd(),"migrations")+"/"));}
-  finally{migrationClient.release();}
+  const migrationDatabaseUrl=config.migrationDatabaseUrl??(localInsecureDb?config.databaseUrl:undefined);
+  if(migrationDatabaseUrl){
+    const migrationClient=new pg.Client({
+      connectionString:migrationDatabaseUrl,
+      ssl:process.env.TPAY_DATABASE_SSL==="require"?{rejectUnauthorized:true}:undefined
+    });
+    await migrationClient.connect();
+    try{await applyMigrations(migrationClient,pathToFileURL(join(process.cwd(),"migrations")+"/"));}
+    finally{await migrationClient.end();}
+  }
   const authenticate=await authenticateFactory(pool);
   const realtime=new SchoolRealtimeHub(Number(process.env.TPAY_REALTIME_QUEUE_LIMIT??"100"));
   const outboxDispatcher=new PostgresSchoolOutboxDispatcher(
