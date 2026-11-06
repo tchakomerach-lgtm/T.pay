@@ -51,3 +51,11 @@ Repair the three live PostgreSQL failures recorded against P057.2 commit `66ce63
 
 ## Next gate
 Run the full PostgreSQL 17 suite on the PR head, inspect any new failure at its root cause, then run the complete required CI matrix on one exact SHA. Only after those gates pass may P057.1/P057.2 proceed to review and P057.3 planning.
+
+
+## CI runner diagnosis — 2026-11-06
+- The two latest GitHub Actions jobs on SHA `46cb18512b5c628e4de0162d37592cc457217255` both completed in approximately two seconds.
+- GitHub's job records report `runner_id: 0`, empty `runner_name`, and `steps: []` for both the quality and Android jobs.
+- The log-download endpoint returns 404 because no runner log artifact is available.
+- This evidence indicates failure before a GitHub-hosted runner started; it does **not** establish a source-code test failure and does not prove the code is correct.
+- No source-level fix can be responsibly inferred from an unallocated runner. The next diagnostic is to trigger a fresh push/check and inspect repository Actions availability, runner allocation, usage/billing limits, and organization policy if `runner_id: 0` persists.
