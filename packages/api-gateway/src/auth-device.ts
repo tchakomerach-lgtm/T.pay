@@ -99,8 +99,7 @@ export class DeviceTrustRepository{
    if(row.organization_id!=null)out.organizationId=String(row.organization_id);
    return out;
   };
-  return this.db.withTenantTransaction
-   ? await this.db.withTenantTransaction(tenantId,validate)
-   : await validate(this.db);
+  if(!this.db.withTenantTransaction)throw new Error("AUTH_TENANT_TRANSACTION_REQUIRED");
+  return this.db.withTenantTransaction(tenantId,validate);
  }
 }
