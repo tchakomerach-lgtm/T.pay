@@ -25,6 +25,12 @@ test("P057.2 live PostgreSQL runtime login is NOBYPASSRLS and cannot cross tenan
  await admin.connect();await runtime.connect();
  try{
   await applyMigrations(admin,pathToFileURL(join(process.cwd(),"migrations")+"/"));
+  const legacyVault=await admin.query("SELECT to_regclass('public.fortress_vaults') AS table_name");
+  if(legacyVault.rows[0]?.table_name===null){
+   const skipped=await admin.query("SELECT version,applied_by FROM schema_migrations WHERE version IN ('054','055','056') ORDER BY version");
+   assert.deepEqual(skipped.rows.map(x=>x.version),["054","055","056"]);
+   assert.ok(skipped.rows.every(x=>String(x.applied_by)==="conditional-skip:legacy-schema-absent:fortress_vaults"));
+  }
   await admin.query("INSERT INTO api_devices(id,tenant_id,organization_id,actor_id,device_key_hash,device_label,shared_device,status,trust_epoch,failed_auth_count,created_at,updated_at) VALUES($1,$2,$3,$4,$5,'p0572-a',false,'active',1,0,$6,$6),($7,$8,$9,$10,$11,'p0572-b',false,'active',1,0,$6,$6)",[
    deviceA,tenantA,orgA,actorA,hash(randomBytes(32).toString("base64url")),now,deviceB,tenantB,orgB,actorB,hash(randomBytes(32).toString("base64url"))
   ]);
