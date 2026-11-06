@@ -36,3 +36,11 @@ test("P057.2 database failure during tenant runtime validation rejects the sessi
   now:"2026-11-06T01:00:00.000Z"
  }),/RUNTIME_ROLE_UNAVAILABLE/);
 });
+
+test("P057.2 refuses unscoped database access when tenant transaction support is missing",async()=>{
+ const repository=new DeviceTrustRepository({query:async()=>{throw new Error("UNSCOPED_QUERY_MUST_NOT_RUN");}});
+ await assert.rejects(()=>repository.validateSession({
+  sessionCredential:issueTenantBoundSessionCredential("tenant-a","g".repeat(32)),
+  now:"2026-11-06T01:00:00.000Z"
+ }),/AUTH_TENANT_TRANSACTION_REQUIRED/);
+});
