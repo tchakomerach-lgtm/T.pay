@@ -107,8 +107,7 @@ async function authenticateFactory(pool:Pool){
         "SELECT DISTINCT permission FROM api_actor_permissions WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3 AND valid_from <= $4::timestamptz AND (valid_until IS NULL OR valid_until > $4::timestamptz) AND revoked_at IS NULL",
         [actorRow.tenant_id,validated.organizationId,validated.actorId,authorizationTime]
       );
-      await permissionClient.query("COMMIT");
-    }catch(error){
+      await permissionClient.query("COMMIT");    }catch(error){
       await permissionClient.query("ROLLBACK").catch(()=>undefined);
       throw error;
     }finally{

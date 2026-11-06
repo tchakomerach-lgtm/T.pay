@@ -21,3 +21,14 @@ test("P056.4 teaching assignment routes require an authenticated member and reje
  assert.equal(authorizeRoute({method:"GET",route:"/v1/education/class-assignments",authClass:"anonymous"}).allowed,false);
  assert.equal(authorizeRoute({method:"DELETE",route:"/v1/education/class-assignments",authClass:"member"}).allowed,false);
 });
+
+test("P056.3.1 temporal permission grant routes are allowlisted only for authenticated members",()=>{
+ const list=resolveRoutePolicy("GET","/v1/education/permission-grants");
+ const create=resolveRoutePolicy("POST","/v1/education/permission-grants");
+ const revoke=resolveRoutePolicy("PATCH","/v1/education/permission-grants/6d83f0b7-77d6-4e28-9f58-9b4f4e85e0f1");
+ assert.equal(list?.auth,"member");
+ assert.equal(create?.auth,"member");
+ assert.equal(revoke?.auth,"member");
+ assert.equal(authorizeRoute({method:"GET",route:"/v1/education/permission-grants",authClass:"anonymous"}).allowed,false);
+ assert.equal(authorizeRoute({method:"DELETE",route:"/v1/education/permission-grants",authClass:"member"}).allowed,false);
+});

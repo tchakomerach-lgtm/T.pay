@@ -102,3 +102,12 @@ Governance, community commerce and intelligence are now represented by `tontine-
 
 ## P056 school classes and enrollment API
 Migration `115_education_classes_enrollments.sql` and authenticated class/enrollment endpoints are under review on `feat/education-classes-enrollments-api-001`. Read access requires `org.read`; writes require `org.manage`. PostgreSQL owns tenant-safe class/student/actor relationships, one-active-enrollment uniqueness and atomic class-capacity admission. No school endpoint may write fees or ledger state; all financial operations remain in Financial Core. See `docs/construction/P056-EDUCATION-CLASSES-ENROLLMENTS.md`. This brick is not validated until exact-head CI and the live PostgreSQL concurrency test are green; PR remains draft.
+
+
+## P056.3.1 — temporal permission grant lifecycle (under validation)
+- Branch: `feat/p056-3-temporal-grant-lifecycle`.
+- Adds organization-scoped GET/POST/PATCH APIs for grant history, grant creation and revocation.
+- Mutations require `security.manage` plus a step-up session; target actor must be active in the same tenant/organization.
+- Migration 123 stores revocation actor/reason and grants runtime actor lookup; actor queries remain explicitly tenant/organization scoped. Full actor-table RLS waits for P057 to bind verified tenant context into the session contract.
+- Grant mutation, audit and idempotency completion share one PostgreSQL transaction. No security-grant details are emitted to the general School SSE stream.
+- Remaining gates: run exact-head PostgreSQL 17 tests; prove with a dedicated non-owner/non-superuser/NOBYPASSRLS API login; add rollback/concurrency/replay assertions; run full CI, Web build, Android build and terrain verification. No certification or merge.
