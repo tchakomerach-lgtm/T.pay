@@ -53,7 +53,7 @@ export function readRuntimeConfig(source=process.env):RuntimeConfig{
   }
   return {
     databaseUrl:source.TPAY_DATABASE_URL!.trim(),
-    migrationDatabaseUrl,
+    ...(migrationDatabaseUrl?{migrationDatabaseUrl}:{}),
     tlsKeyFile:source.TPAY_TLS_KEY_FILE!.trim(),
     tlsCertFile:source.TPAY_TLS_CERT_FILE!.trim(),
     host:source.TPAY_API_HOST?.trim()||"0.0.0.0",
