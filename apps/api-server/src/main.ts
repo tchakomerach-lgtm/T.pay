@@ -102,7 +102,7 @@ async function withTenantRuntimeTransaction<T>(
 
 async function authenticateFactory(pool:Pool){
   const devices=new DeviceTrustRepository({
-    query:async(sql,values)=>{const result=await pool.query(sql,values);return {rows:result.rows as Record<string,unknown>[],rowCount:result.rowCount};},
+    query:async()=>{throw new Error("AUTH_DIRECT_DATABASE_QUERY_DISABLED");},
     withTenantTransaction:async<T>(tenantId:string,work:(client:import("../../../packages/api-gateway/src/auth-device.js").AuthDb)=>Promise<T>)=>{
       return withTenantRuntimeTransaction(pool,tenantId,work);
     }
