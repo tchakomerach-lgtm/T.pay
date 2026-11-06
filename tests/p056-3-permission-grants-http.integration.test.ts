@@ -103,6 +103,8 @@ test("P056.3.1 permission grant lifecycle is authenticated, step-up protected an
  }finally{
   if(server){server.closeAllConnections();await new Promise<void>(resolve=>server!.close(()=>resolve()));}
   await pool.query("DELETE FROM api_actor_permissions WHERE tenant_id=$1 AND organization_id=$2",[tenantId,organizationId]).catch(()=>undefined);
+  await pool.query("DELETE FROM api_request_audit WHERE organization_id=$1",[organizationId]).catch(()=>undefined);
+  await pool.query("DELETE FROM api_request_deduplication WHERE organization_id=$1",[organizationId]).catch(()=>undefined);
   await pool.query("DELETE FROM education_actors WHERE tenant_id=$1 AND (organization_id=$2 OR organization_id=$3)",[tenantId,organizationId,otherOrganizationId]).catch(()=>undefined);
   await pool.end();
  }
