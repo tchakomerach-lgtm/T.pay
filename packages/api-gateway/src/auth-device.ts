@@ -86,7 +86,7 @@ export class DeviceTrustRepository{
   const sessionHash=hashCredential(input.sessionCredential);
   const validate=async(client:AuthDb)=>{
    const r=await client.query(
-    "SELECT s.id,s.tenant_id,s.organization_id,s.actor_id,s.device_id,s.status,s.issued_at,s.expires_at,s.trust_epoch,d.status AS device_status,d.trust_epoch AS device_epoch FROM api_sessions s JOIN api_devices d ON d.id=s.device_id AND d.tenant_id=s.tenant_id WHERE s.session_hash=$1 AND s.tenant_id=$2 FOR SHARE OF s,d",
+    "SELECT s.id,s.tenant_id,s.organization_id,s.actor_id,s.device_id,s.status,s.issued_at,s.expires_at,s.trust_epoch,d.status AS device_status,d.trust_epoch AS device_epoch FROM api_sessions s JOIN api_devices d ON d.id=s.device_id AND d.tenant_id=s.tenant_id WHERE s.session_hash=$1 AND s.tenant_id=$2 FOR SHARE OF s",
     [sessionHash,tenantId]
    );
    const row=r.rows[0];
