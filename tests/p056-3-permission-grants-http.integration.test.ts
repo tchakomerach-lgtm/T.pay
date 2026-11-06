@@ -19,6 +19,8 @@ test("P056.3.1 permission grant lifecycle is authenticated, step-up protected an
  const foreignActorId=randomUUID();
  let server:ReturnType<typeof createSchoolApiServer>|undefined;
  let port=0;
+ let assurance:"standard"|"step_up"="step_up";
+ let permissions:("security.manage"|"org.read")[]=["security.manage"];
  try{
   const migrationClient=await pool.connect();
   try{await applyMigrations(migrationClient,pathToFileURL(join(process.cwd(),"migrations")+"/"));}
@@ -27,10 +29,10 @@ test("P056.3.1 permission grant lifecycle is authenticated, step-up protected an
    "INSERT INTO education_actors(actor_id,tenant_id,organization_id,kind,active,data,version,updated_at) VALUES($1,$2,$3,'ADMIN',true,'{}'::jsonb,1,now()),($4,$2,$5,'ADMIN',true,'{}'::jsonb,1,now())",
    [targetActorId,tenantId,organizationId,foreignActorId,otherOrganizationId]
   );
-  const auth=(assurance:"standard"|"step_up"="step_up",permissions:("security.manage"|"org.read")[]=["security.manage"])=>({
-   principal:{userId:grantorId,organizationId,permissions,sessionId:randomUUID()},
+  const auth=()=>({
+   principal:{userId:grantorId,organizationId,permissions,sessionId:grantorId},
    tenantId,
-   session:{sessionId:randomUUID(),userId:grantorId,organizationId,createdAt:Date.now()-1000,expiresAt:Date.now()+60000,assurance}
+   session:{sessionId:grantorId,userId:grantorId,organizationId,createdAt:Date.now()-1000,expiresAt:Date.now()+60000,assurance}
   });
   server=createSchoolApiServer({
    db:pool as any,
@@ -41,6 +43,14 @@ test("P056.3.1 permission grant lifecycle is authenticated, step-up protected an
   await new Promise<void>(resolve=>server!.listen(0,"127.0.0.1",resolve));
   port=(server.address() as any).port;
   const base=`http://127.0.0.1:${port}/v1/education/permission-grants`;
+  assurance="standard";
+  const noStepUp=await fetch(base,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"grant-no-stepup-"+randomUUID()},body:JSON.stringify({actorId:targetActorId,permission:"org.read",reason:"Must require step-up"})});
+  assert.equal(noStepUp.status,403);
+  assurance="step_up";
+  permissions=["org.read"];
+  const noSecurityPermission=await fetch(base,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"grant-no-security-"+randomUUID()},body:JSON.stringify({actorId:targetActorId,permission:"org.read",reason:"Must require security.manage"})});
+  assert.equal(noSecurityPermission.status,403);
+  permissions=["security.manage"];
   const post=await fetch(base,{
    method:"POST",
    headers:{"content-type":"application/json","x-idempotency-key":"grant-create-"+randomUUID()},
@@ -98,26 +108,3 @@ test("P056.3.1 permission grant lifecycle is authenticated, step-up protected an
  }
 });
 
-test("P056.3.1 permission grant mutations reject missing step-up and missing security.manage", async()=>{
- const run=async(assurance:"standard"|"step_up",permissions:("security.manage"|"org.read")[])=>{
-  const server=createSchoolApiServer({
-   db:{query:async()=>({rows:[],rowCount:0})} as any,
-   authenticate:async()=>({
-    principal:{userId:randomUUID(),organizationId:randomUUID(),permissions,sessionId:randomUUID()},
-    tenantId:"tenant-test",
-    session:{sessionId:randomUUID(),userId:"actor-test",organizationId:"org-test",createdAt:Date.now()-1000,expiresAt:Date.now()+60000,assurance}
-   }),
-   syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any
-  });
-  await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
-  const port=(server.address() as any).port;
-  const response=await fetch(`http://127.0.0.1:${port}/v1/education/permission-grants`,{
-   method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"grant-denial-"+randomUUID()},
-   body:JSON.stringify({actorId:randomUUID(),permission:"org.read",reason:"Test"})
-  });
-  server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));
-  return response.status;
- };
- assert.equal(await run("standard",["security.manage"]),403);
- assert.equal(await run("step_up",["org.read"]),403);
-});
