@@ -37,6 +37,20 @@ export async function applyMigrations(client:Client,migrationDirectory:URL):Prom
         }
         continue;
       }
+      const legacyPrerequisite=({ "054":"fortress_vaults", "055":"fortress_vaults", "056":"fortress_vaults" } as Record<string,string>)[version];
+      if(existing.rowCount===0&&legacyPrerequisite){
+        const prerequisite=await client.query<{present:boolean}>(
+          "SELECT to_regclass($1) IS NOT NULL AS present",
+          ["public."+legacyPrerequisite]
+        );
+        if(!prerequisite.rows[0]?.present){
+          await client.query(
+            "INSERT INTO schema_migrations(version,checksum,applied_by) VALUES($1,$2,$3)",
+            [version,digest,"conditional-skip:legacy-schema-absent:"+legacyPrerequisite]
+          );
+          continue;
+        }
+      }
       await client.query("BEGIN");
       try{
         await client.query(sql);
