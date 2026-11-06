@@ -76,8 +76,32 @@ class PooledTransactionClient implements PostgresTransactionClient{
   release():void{this.client?.release();this.client=undefined;}
 }
 
+async function withTenantRuntimeTransaction<T>(
+ pool:Pool,
+ tenantId:string,
+ work:(client:{query(sql:string,values?:unknown[]):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>})=>Promise<T>
+):Promise<T>{
+ const client=await pool.connect();
+ try{
+  await client.query("BEGIN");
+  await client.query("SET LOCAL ROLE tpay_school_runtime");
+  await client.query("SELECT set_config('tpay.tenant_id',$1,true)",[tenantId]);
+  const result=await work({query:async(sql,values)=>{const r=await client.query(sql,values);return {rows:r.rows as Record<string,unknown>[],rowCount:r.rowCount};}});
+  await client.query("COMMIT");
+  return result;
+ }catch(error){
+  await client.query("ROLLBACK").catch(()=>undefined);
+  throw error;
+ }finally{client.release();}
+}
+
 async function authenticateFactory(pool:Pool){
-  const devices=new DeviceTrustRepository(pool);
+  const devices=new DeviceTrustRepository({
+    query:async(sql,values)=>{const result=await pool.query(sql,values);return {rows:result.rows as Record<string,unknown>[],rowCount:result.rowCount};},
+    withTenantTransaction:async<T>(tenantId:string,work:(client:import("../../../packages/api-gateway/src/auth-device.js").AuthDb)=>Promise<T>)=>{
+      return withTenantRuntimeTransaction(pool,tenantId,work);
+    }
+  });
   return async(request:IncomingMessage)=>{
     const header=String(request.headers.authorization??"");
     if(!header.startsWith("Bearer "))throw new Error("AUTH_BEARER_REQUIRED");
@@ -87,25 +111,26 @@ async function authenticateFactory(pool:Pool){
     if(!validated.valid||!validated.tenantId||!validated.sessionId||!validated.actorId||!validated.organizationId||!validated.issuedAt||!validated.expiresAt){
       throw new Error("AUTH_SESSION_INVALID");
     }
-    const actor=await pool.query(
-      "SELECT tenant_id,organization_id,active FROM education_actors WHERE actor_id=$1 AND organization_id=$2 AND tenant_id=$3 LIMIT 1",
-      [validated.actorId,validated.organizationId,validated.tenantId]
-    );
-    const actorRow=actor.rows[0] as {tenant_id?:string;organization_id?:string;active?:boolean}|undefined;
-    if(!actorRow?.active||!actorRow.tenant_id||actorRow.tenant_id!==validated.tenantId||actorRow.organization_id!==validated.organizationId)throw new Error("AUTH_ACTOR_INVALID");
     const authorizationTime=new Date().toISOString();
     const permissionClient=await pool.connect();
     let permissions:pg.QueryResult;
+    let actorRow:{tenant_id?:string;organization_id?:string;active?:boolean}|undefined;
     try{
       await permissionClient.query("BEGIN");
       await permissionClient.query("SET LOCAL ROLE tpay_school_runtime");
       await permissionClient.query(
         "SELECT set_config('tpay.tenant_id',$1,true),set_config('tpay.organization_id',$2,true)",
-        [actorRow.tenant_id,validated.organizationId]
+        [validated.tenantId,validated.organizationId]
       );
+      const actor=await permissionClient.query(
+        "SELECT tenant_id,organization_id,active FROM education_actors WHERE actor_id=$1 AND organization_id=$2 AND tenant_id=$3 LIMIT 1",
+        [validated.actorId,validated.organizationId,validated.tenantId]
+      );
+      actorRow=actor.rows[0] as {tenant_id?:string;organization_id?:string;active?:boolean}|undefined;
+      if(!actorRow?.active||!actorRow.tenant_id||actorRow.tenant_id!==validated.tenantId||actorRow.organization_id!==validated.organizationId)throw new Error("AUTH_ACTOR_INVALID");
       permissions=await permissionClient.query(
         "SELECT DISTINCT permission FROM api_actor_permissions WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3 AND valid_from <= $4::timestamptz AND (valid_until IS NULL OR valid_until > $4::timestamptz) AND revoked_at IS NULL",
-        [actorRow.tenant_id,validated.organizationId,validated.actorId,authorizationTime]
+        [validated.tenantId,validated.organizationId,validated.actorId,authorizationTime]
       );
       await permissionClient.query("COMMIT");    }catch(error){
       await permissionClient.query("ROLLBACK").catch(()=>undefined);
