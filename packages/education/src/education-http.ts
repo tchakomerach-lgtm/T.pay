@@ -80,6 +80,8 @@ function route(path:string){
  const parts=path.split("/").filter(Boolean);
  if(parts[0]!=="v1"||parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
+ if(parts[2]==="permission-grants"&&parts.length===3)return ["permission-grants"] as const;
+ if(parts[2]==="permission-grants"&&parts.length===4&&parts[3])return ["permission-grant-revoke",parts[3]] as const;
  if(parts[2]==="classes"&&parts.length===3)return ["classes"] as const;
  if(parts[2]==="subjects"&&parts.length===3)return ["subjects"] as const;
  if(parts[2]==="subjects"&&parts.length===4&&parts[3])return ["subject",parts[3]] as const;
@@ -97,6 +99,7 @@ function route(path:string){
  return null;
 }
 function permissionFor(kind:string,method:string):Permission{
+ if(kind==="permission-grants"||kind==="permission-grant-revoke")return "security.manage";
  if(kind==="actor"||((kind==="classes"||kind==="enrollments")&&method==="GET"))return "org.read";
  if(kind==="subjects"&&method==="GET")return "org.read";
  if(kind==="subjects"||kind==="subject")return "org.manage";
@@ -134,6 +137,37 @@ async function executeSchoolRead<T>(deps:SchoolApiDependencies,tenantId:string,o
   return result;
  }catch(error){try{await client.query("ROLLBACK");}catch{/* preserve original failure */}throw error;}
  finally{client.release?.();}
+}
+
+async function executePermissionGrantMutation<T>(
+ deps:SchoolApiDependencies,
+ scope:{tenantId:string;organizationId:string;actorId:string;requestId:string;route:string;correlationId:string},
+ work:(tx:PostgresTransactionClient)=>Promise<T>
+):Promise<T>{
+ if(!deps.mutationClient)throw new Error("EDUCATION_TRANSACTIONAL_CLIENT_REQUIRED");
+ const client=await deps.mutationClient();
+ try{
+  await client.query("BEGIN");
+  await client.query("SET LOCAL ROLE tpay_school_runtime");
+  await client.query("SELECT set_config('tpay.tenant_id',$1,true),set_config('tpay.organization_id',$2,true)",[scope.tenantId,scope.organizationId]);
+  const data=await work(client);
+  const response=buildApiSuccess("v1",scope.correlationId,data);
+  const audit=await client.query(
+   "INSERT INTO api_request_audit (id,organization_id,request_id,route,actor_id,auth_class,outcome,correlation_id,occurred_at,metadata_hash) VALUES($1,$2,$3,$4,$5,'member','accepted',$6,now(),$7)",
+   [randomUUID(),scope.organizationId,scope.requestId,scope.route,scope.actorId,scope.correlationId,canonicalRequestHash("AUDIT",scope.route,JSON.stringify({operation:"permission_grant_lifecycle"}))]
+  );
+  if((audit.rowCount??0)!==1)throw new Error("PERMISSION_GRANT_AUDIT_WRITE_FAILED");
+  const completed=await client.query(
+   "UPDATE api_request_deduplication SET state='succeeded',response_hash=$2,status_code=200 WHERE id=$1 AND state='reserved'",
+   [scope.requestId,canonicalRequestHash("RESPONSE",scope.route,JSON.stringify(response))]
+  );
+  if((completed.rowCount??0)!==1)throw new Error("API_IDEMPOTENCY_COMPLETION_FAILED");
+  await client.query("COMMIT");
+  return data;
+ }catch(error){
+  try{await client.query("ROLLBACK");}catch{/* preserve original failure */}
+  throw error;
+ }finally{client.release?.();}
 }
 
 export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
@@ -234,7 +268,79 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(dedupe?.status==="conflict")throw new Error("API_IDEMPOTENCY_CONFLICT");
    if(dedupe?.status==="replay"){res.statusCode=dedupe.statusCode??200;json(res,res.statusCode,{ok:true,replayed:true,requestId:dedupe.requestId},correlationId);return;}
    let data:unknown;
-   if(r[0]==="classes"){
+   if(r[0]==="permission-grants"){
+    if(method==="GET"){
+      const url=new URL(rawUrl,"https://tpay.invalid");
+      const actorId=url.searchParams.get("actorId");
+      if(actorId!==null&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(actorId))throw new Error("PERMISSION_GRANT_ACTOR_ID_INVALID");
+      const q=await executeSchoolRead(deps,auth.tenantId,organizationId,tx=>tx.query(
+       "SELECT grant_id,actor_id,permission,granted_at,valid_from,valid_until,revoked_at,granted_by,grant_reason,revoked_by,revocation_reason FROM api_actor_permissions WHERE tenant_id=$1 AND organization_id=$2 AND ($3::uuid IS NULL OR actor_id=$3::uuid) ORDER BY granted_at DESC,grant_id",
+       [auth.tenantId,organizationId,actorId]
+      ));
+      data=q.rows;
+    }else if(method==="POST"){
+      if(auth.session.assurance!=="step_up")throw new Error("STEP_UP_AUTH_REQUIRED");
+      const input=body as Record<string,unknown>;
+      const allowed=["actorId","permission","validFrom","validUntil","reason"];
+      if(Object.keys(input).some(key=>!allowed.includes(key)))throw new Error("PERMISSION_GRANT_FIELDS_NOT_ALLOWED");
+      const actorId=String(input.actorId??"").trim();
+      const permission=String(input.permission??"") as Permission;
+      const reason=String(input.reason??"").trim();
+      const validFrom=input.validFrom===undefined?(deps.now??(()=>new Date()))().toISOString():String(input.validFrom);
+      const validUntil=input.validUntil===undefined||input.validUntil===null||input.validUntil===""?null:String(input.validUntil);
+      const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      const grantable:readonly Permission[]=["org.read","org.manage","member.manage","finance.read","finance.initiate","finance.approve","ledger.read","ledger.post","audit.read","security.manage"];
+      if(!uuid.test(actorId))throw new Error("PERMISSION_GRANT_ACTOR_ID_INVALID");
+      if(!grantable.includes(permission))throw new Error("PERMISSION_GRANT_PERMISSION_INVALID");
+      if(!reason||reason.length>500)throw new Error("PERMISSION_GRANT_REASON_REQUIRED");
+      const fromMs=Date.parse(validFrom);
+      if(!Number.isFinite(fromMs)||!/(Z|[+-]\\d{2}:\\d{2})$/i.test(validFrom))throw new Error("PERMISSION_GRANT_VALID_FROM_INVALID");
+      if(validUntil!==null){
+       const untilMs=Date.parse(validUntil);
+       if(!Number.isFinite(untilMs)||!/(Z|[+-]\\d{2}:\\d{2})$/i.test(validUntil)||untilMs<=fromMs)throw new Error("PERMISSION_GRANT_VALID_UNTIL_INVALID");
+      }
+      const grantId=randomUUID();
+      data=await executePermissionGrantMutation(deps,{
+       tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,
+       requestId:dedupe?.requestId??correlationId,route:path,correlationId
+      },async tx=>{
+       const target=await tx.query(
+        "SELECT actor_id FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3 AND active=true",
+        [auth.tenantId,organizationId,actorId]
+       );
+       if(!target.rows[0])throw new Error("PERMISSION_GRANT_TARGET_ACTOR_NOT_FOUND");
+       const saved=await tx.query(
+        "INSERT INTO api_actor_permissions(grant_id,tenant_id,organization_id,actor_id,permission,granted_at,valid_from,valid_until,granted_by,grant_reason) VALUES($1,$2,$3,$4::uuid,$5,now(),$6::timestamptz,$7::timestamptz,$8::uuid,$9) RETURNING grant_id,actor_id,permission,granted_at,valid_from,valid_until,revoked_at,granted_by,grant_reason,revoked_by,revocation_reason",
+        [grantId,auth.tenantId,organizationId,actorId,permission,validFrom,validUntil,auth.principal.userId,reason]
+       );
+       if(!saved.rows[0])throw new Error("PERMISSION_GRANT_CREATE_FAILED");
+       return saved.rows[0];
+      });
+    }else throw new Error("PERMISSION_GRANT_METHOD_NOT_ALLOWED");
+   }else if(r[0]==="permission-grant-revoke"){
+    if(method!=="PATCH")throw new Error("PERMISSION_GRANT_METHOD_NOT_ALLOWED");
+    if(auth.session.assurance!=="step_up")throw new Error("STEP_UP_AUTH_REQUIRED");
+    const input=body as Record<string,unknown>;
+    if(Object.keys(input).some(key=>key!=="reason"))throw new Error("PERMISSION_GRANT_REVOCATION_FIELDS_NOT_ALLOWED");
+    const reason=String(input.reason??"").trim();
+    if(!reason||reason.length>500)throw new Error("PERMISSION_GRANT_REVOCATION_REASON_REQUIRED");
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(r[1]))throw new Error("PERMISSION_GRANT_ID_INVALID");
+    data=await executePermissionGrantMutation(deps,{
+     tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,
+     requestId:dedupe?.requestId??correlationId,route:path,correlationId
+    },async tx=>{
+     const updated=await tx.query(
+      "UPDATE api_actor_permissions SET revoked_at=now(),revoked_by=$1::uuid,revocation_reason=$2 WHERE tenant_id=$3 AND organization_id=$4 AND grant_id=$5::uuid AND revoked_at IS NULL RETURNING grant_id,actor_id,permission,granted_at,valid_from,valid_until,revoked_at,granted_by,grant_reason,revoked_by,revocation_reason",
+      [auth.principal.userId,reason,auth.tenantId,organizationId,r[1]]
+     );
+     if(!updated.rows[0]){
+      const current=await tx.query("SELECT revoked_at FROM api_actor_permissions WHERE tenant_id=$1 AND organization_id=$2 AND grant_id=$3::uuid",[auth.tenantId,organizationId,r[1]]);
+      if(!current.rows[0])throw new Error("PERMISSION_GRANT_NOT_FOUND");
+      throw new Error("PERMISSION_GRANT_CONFLICT_ALREADY_REVOKED");
+     }
+     return updated.rows[0];
+    });
+   }else if(r[0]==="classes"){
     if(method==="GET"){
       const url=new URL(rawUrl,"https://tpay.invalid");
       const academicYear=url.searchParams.get("academicYear");
@@ -521,7 +627,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       if(stored)deps.realtime.publish(stored);
     }
    }
-   const transactionalSchoolWrite=method!=="GET" && ["classes","subjects","subject","enrollments","enrollment-status","class-assignments","class-assignment-revoke","attendance","work-create","work","service-create","service-transition"].includes(r[0]);
+   const transactionalSchoolWrite=method!=="GET" && ["permission-grants","permission-grant-revoke","classes","subjects","subject","enrollments","enrollment-status","class-assignments","class-assignment-revoke","attendance","work-create","work","service-create","service-transition"].includes(r[0]);
    if(deps.realtime && deps.realtimeStore && method!=="GET" && r[0]!=="actor" && r[0]!=="sync" && !transactionalSchoolWrite){
     const typeMap:Record<string,SchoolRealtimeEvent["type"]>={classes:"class.changed",subjects:"subject.changed",subject:"subject.changed",enrollments:"enrollment.changed","enrollment-status":"enrollment.changed","class-assignments":"class_assignment.changed","class-assignment-revoke":"class_assignment.changed",sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
     const eventType=typeMap[r[0]];
@@ -547,7 +653,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    json(res,200,response,correlationId);
   }catch(error){
     const code=String(error);
-    const status=code.includes("FORBIDDEN")?403:
+    const status=code.includes("FORBIDDEN")||code.includes("STEP_UP_AUTH_REQUIRED")?403:
       code.includes("NOT_FOUND")?404:
       code.includes("CONFLICT")?409:
       code.includes("INVALID")||code.includes("REQUIRED")||code.includes("NOT_ALLOWED")||code.includes("METHOD_NOT_ALLOWED")?400:500;
