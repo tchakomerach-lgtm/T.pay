@@ -84,15 +84,15 @@ async function authenticateFactory(pool:Pool){
     const credential=header.slice(7).trim();
     if(!credential)throw new Error("AUTH_BEARER_REQUIRED");
     const validated=await devices.validateSession({sessionCredential:credential,now:new Date().toISOString()});
-    if(!validated.valid||!validated.sessionId||!validated.actorId||!validated.organizationId||!validated.issuedAt||!validated.expiresAt){
+    if(!validated.valid||!validated.tenantId||!validated.sessionId||!validated.actorId||!validated.organizationId||!validated.issuedAt||!validated.expiresAt){
       throw new Error("AUTH_SESSION_INVALID");
     }
     const actor=await pool.query(
-      "SELECT tenant_id,organization_id,active FROM education_actors WHERE actor_id=$1 AND organization_id=$2 LIMIT 1",
-      [validated.actorId,validated.organizationId]
+      "SELECT tenant_id,organization_id,active FROM education_actors WHERE actor_id=$1 AND organization_id=$2 AND tenant_id=$3 LIMIT 1",
+      [validated.actorId,validated.organizationId,validated.tenantId]
     );
     const actorRow=actor.rows[0] as {tenant_id?:string;organization_id?:string;active?:boolean}|undefined;
-    if(!actorRow?.active||!actorRow.tenant_id||actorRow.organization_id!==validated.organizationId)throw new Error("AUTH_ACTOR_INVALID");
+    if(!actorRow?.active||!actorRow.tenant_id||actorRow.tenant_id!==validated.tenantId||actorRow.organization_id!==validated.organizationId)throw new Error("AUTH_ACTOR_INVALID");
     const authorizationTime=new Date().toISOString();
     const permissionClient=await pool.connect();
     let permissions:pg.QueryResult;
