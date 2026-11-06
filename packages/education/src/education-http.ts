@@ -294,10 +294,10 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       if(!grantable.includes(permission))throw new Error("PERMISSION_GRANT_PERMISSION_INVALID");
       if(!reason||reason.length>500)throw new Error("PERMISSION_GRANT_REASON_REQUIRED");
       const fromMs=Date.parse(validFrom);
-      if(!Number.isFinite(fromMs)||!/(Z|[+-]\\d{2}:\\d{2})$/i.test(validFrom))throw new Error("PERMISSION_GRANT_VALID_FROM_INVALID");
+      if(!Number.isFinite(fromMs)||!/(Z|[+-]\d{2}:\d{2})$/i.test(validFrom))throw new Error("PERMISSION_GRANT_VALID_FROM_INVALID");
       if(validUntil!==null){
        const untilMs=Date.parse(validUntil);
-       if(!Number.isFinite(untilMs)||!/(Z|[+-]\\d{2}:\\d{2})$/i.test(validUntil)||untilMs<=fromMs)throw new Error("PERMISSION_GRANT_VALID_UNTIL_INVALID");
+       if(!Number.isFinite(untilMs)||!/(Z|[+-]\d{2}:\d{2})$/i.test(validUntil)||untilMs<=fromMs)throw new Error("PERMISSION_GRANT_VALID_UNTIL_INVALID");
       }
       const grantId=randomUUID();
       data=await executePermissionGrantMutation(deps,{
