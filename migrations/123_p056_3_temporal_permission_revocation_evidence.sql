@@ -12,5 +12,19 @@ CREATE INDEX IF NOT EXISTS api_actor_permissions_revoked_history
   ON api_actor_permissions (tenant_id, organization_id, revoked_at DESC)
   WHERE revoked_at IS NOT NULL;
 
--- RLS is already ENABLED and FORCED by migration 120. Runtime has no DELETE grant.
+-- Runtime actor lookup must be scoped by the same transaction-local tenant/org context.
+ALTER TABLE education_actors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE education_actors FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS education_actors_runtime_scope ON education_actors;
+CREATE POLICY education_actors_runtime_scope ON education_actors
+  FOR SELECT TO tpay_school_runtime
+  USING (
+    tenant_id = NULLIF(current_setting('tpay.tenant_id', true), '')
+    AND organization_id = NULLIF(current_setting('tpay.organization_id', true), '')
+  );
+
+GRANT SELECT ON education_actors TO tpay_school_runtime;
+
+-- RLS is ENABLED and FORCED by migration 120. Runtime has no DELETE grant.
 GRANT SELECT, INSERT, UPDATE ON api_actor_permissions TO tpay_school_runtime;
