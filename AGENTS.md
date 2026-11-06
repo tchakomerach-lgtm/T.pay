@@ -126,4 +126,4 @@ Migration `115_education_classes_enrollments.sql` and authenticated class/enroll
 - Migration 125 enables and forces tenant-scoped RLS on api_devices and api_sessions.
 - Production session validation uses one transaction, SET LOCAL ROLE tpay_school_runtime, tenant GUC, SELECT locks and a constrained last_seen_at update.
 - API actor/permission lookup now executes under the same least-privilege role and verified tenant/organization predicates.
-- Deployment prerequisite: the API login must be a non-owner, non-superuser, NOBYPASSRLS role with explicit membership in tpay_school_runtime. No merge until live PostgreSQL proves the effective role and cross-tenant denial.
+- Deployment prerequisite: TPAY_DATABASE_URL is the non-owner/non-superuser/NOBYPASSRLS runtime login; TPAY_MIGRATION_DATABASE_URL is a separate migration-only connection; runtime login has explicit membership in tpay_school_runtime. No merge until live PostgreSQL proves the effective role and cross-tenant denial.
