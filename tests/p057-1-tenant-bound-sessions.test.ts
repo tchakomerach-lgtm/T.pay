@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {DeviceTrustRepository,issueTenantBoundSessionCredential,readSessionTenantId,hashCredential} from "../packages/api-gateway/src/auth-device.js";
+import {DeviceTrustRepository,issueTenantBoundSessionCredential,readSessionTenantId,hashCredential,type AuthDb} from "../packages/api-gateway/src/auth-device.js";
 
 test("P057.1 bearer embeds a tenant routing claim but stores only the full credential hash",()=>{
  const token=issueTenantBoundSessionCredential("tenant-a","a".repeat(32));
@@ -12,11 +12,12 @@ test("P057.1 bearer embeds a tenant routing claim but stores only the full crede
 
 test("P057.1 session validation is scoped to tenant and fails closed for legacy credentials",async()=>{
  const calls:Array<{sql:string;values?:unknown[]}>=[];
- const db={query:async(sql:string,values?:unknown[])=>{
+ const query=async(sql:string,values?:unknown[])=>{
   calls.push(values===undefined?{sql}:{sql,values});
   if(sql.startsWith("SELECT s.id"))return {rows:[{id:"session-1",tenant_id:"tenant-a",organization_id:"org-a",actor_id:"actor-a",device_id:"device-a",status:"active",issued_at:"2026-11-06T00:00:00.000Z",expires_at:"2026-11-07T00:00:00.000Z",trust_epoch:2,device_status:"active",device_epoch:2}],rowCount:1};
   return {rows:[],rowCount:1};
- }};
+ };
+ const db={query,withTenantTransaction:async<T>(tenantId:string,work:(client:AuthDb)=>Promise<T>)=>work({query} as AuthDb)};
  const repository=new DeviceTrustRepository(db);
  const legacy=await repository.validateSession({sessionCredential:"legacy-unbound-session-credential",now:"2026-11-06T01:00:00.000Z"});
  assert.deepEqual(legacy,{valid:false});
