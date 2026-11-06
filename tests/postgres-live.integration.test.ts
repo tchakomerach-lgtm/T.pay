@@ -71,6 +71,10 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
   const client = new pg.Client({ connectionString: databaseUrl });
   await client.connect();
   const organizationId = randomUUID();
+  const groupId = randomUUID();
+  const membershipId = randomUUID();
+  const groupCreatorId = randomUUID();
+  const memberClientId = randomUUID();
   const cashAccount = randomUUID();
   const tontineAccount = randomUUID();
   const microfinanceFeeAccount = randomUUID();
@@ -91,8 +95,16 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
       [cashAccount, organizationId, tontineAccount, microfinanceFeeAccount, now, tpayFeeAccount]
     );
     await client.query(
+      "INSERT INTO tontine_groups (id,organization_id,name,country_code,currency,frequency,contribution_mode,fixed_amount_minor,minimum_amount_minor,governance,status,created_by,created_at) VALUES ($1,$2,'S-03.4 live group','TG','XOF','daily','fixed',1000,1000,'founder_managed','active',$3,$4)",
+      [groupId, organizationId, groupCreatorId, now]
+    );
+    await client.query(
+      "INSERT INTO tontine_memberships (id,organization_id,group_id,client_id,role,status,joined_at) VALUES ($1,$2,$3,$4,'member','active',$5)",
+      [membershipId, organizationId, groupId, memberClientId, now]
+    );
+    await client.query(
       "INSERT INTO tontine_contributions (id,organization_id,group_id,membership_id,amount_minor,currency,idempotency_key,status,channel,scheduled_for,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF',$5,'pending','mobile_money',$6,$6)",
-      [contributionId, organizationId, randomUUID(), randomUUID(), idempotencyKey, now]
+      [contributionId, organizationId, groupId, membershipId, idempotencyKey, now]
     );
     await client.query(
       "INSERT INTO tontine_payment_intents (id,organization_id,contribution_id,idempotency_key,amount_minor,currency,provider,provider_reference,status,created_at,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF','tmoney','TM-LIVE','provider_confirmed',$5,$5)",
@@ -108,7 +120,7 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
         status: "provider_confirmed" as const, createdAt: now, updatedAt: now
       },
       contribution: {
-        id: contributionId as never, groupId: randomUUID() as never, membershipId: randomUUID() as never,
+        id: contributionId as never, groupId: groupId as never, membershipId: membershipId as never,
         scheduledFor: now, amountMinor: 1000n, currency: "XOF", status: "pending" as const,
         channel: "mobile_money" as const, idempotencyKey
       },
@@ -166,7 +178,7 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
     const rollbackKey = "live-s03.4-rollback-" + randomUUID();
     await client.query(
       "INSERT INTO tontine_contributions (id,organization_id,group_id,membership_id,amount_minor,currency,idempotency_key,status,channel,scheduled_for,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF',$5,'pending','mobile_money',$6,$6)",
-      [rollbackContribution, organizationId, randomUUID(), randomUUID(), rollbackKey, now]
+      [rollbackContribution, organizationId, groupId, membershipId, rollbackKey, now]
     );
     await client.query(
       "INSERT INTO tontine_payment_intents (id,organization_id,contribution_id,idempotency_key,amount_minor,currency,provider,provider_reference,status,created_at,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF','tmoney','TM-ROLLBACK','provider_confirmed',$5,$5)",
@@ -206,6 +218,8 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
     await client.query("DELETE FROM ledger_transactions WHERE organization_id=$1", [organizationId]);
     await client.query("DELETE FROM tontine_payment_intents WHERE organization_id=$1", [organizationId]);
     await client.query("DELETE FROM tontine_contributions WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM tontine_memberships WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM tontine_groups WHERE organization_id=$1", [organizationId]);
     await client.query("DELETE FROM financial_accounts WHERE organization_id=$1", [organizationId]);
     await client.query("DELETE FROM organizations WHERE id=$1", [organizationId]);
     await client.end();
@@ -887,14 +901,19 @@ test("P056 live PostgreSQL school enrollment enforces tenant scope, uniqueness a
     );
 
     const foreignStudentId = "p056-foreign-student-" + randomUUID();
+    const foreignScopeClassId = "p056-class-cross-scope-" + randomUUID();
     await client.query(
       "INSERT INTO education_students(student_id,tenant_id,organization_id,lifecycle,version,updated_at) VALUES($1,$2,$3,'ACTIVE',1,$4)",
       [foreignStudentId,otherTenantId,otherOrganizationId,now]
     );
+    await client.query(
+      "INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,code,name,level,capacity,status,created_by) VALUES($1,$2,$3,'2026-2027','6E-XTEN','Sixième Cross Tenant','COLLEGE',10,'ACTIVE',$4)",
+      [foreignScopeClassId,tenantId,organizationId,actorId]
+    );
     await assert.rejects(
       client.query(
         "INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,'2026-2027','ACTIVE',$6)",
-        ["p056-cross-tenant-" + randomUUID(),tenantId,organizationId,foreignStudentId,classId,actorId]
+        ["p056-cross-tenant-" + randomUUID(),tenantId,organizationId,foreignStudentId,foreignScopeClassId,actorId]
       ),
       /foreign key|violates foreign key/i
     );
