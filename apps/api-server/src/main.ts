@@ -42,6 +42,7 @@ export function readRuntimeConfig(source=process.env):RuntimeConfig{
   if(!Number.isInteger(port)||port<1||port>65535)throw new Error("TPAY_API_PORT_INVALID");
   const migrationDatabaseUrl=source.TPAY_MIGRATION_DATABASE_URL?.trim();
   if(source.NODE_ENV==="production"&&!migrationDatabaseUrl)throw new Error("TPAY_ENV_REQUIRED:TPAY_MIGRATION_DATABASE_URL");
+  if(source.NODE_ENV==="production"&&migrationDatabaseUrl===source.TPAY_DATABASE_URL?.trim())throw new Error("TPAY_MIGRATION_DATABASE_URL_MUST_BE_SEPARATE");
   const webOrigins=(source.TPAY_WEB_ORIGINS??"").split(",").map(value=>value.trim()).filter(Boolean);
   for(const origin of webOrigins){
     let parsed:URL;
