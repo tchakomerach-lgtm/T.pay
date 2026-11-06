@@ -11,7 +11,7 @@
     "test": "npm run build && node --test dist/tests/*.test.js",
     "check": "npm run typecheck && npm test",
     "db:migrate": "node dist/scripts/migrate.js",
-    "test:postgres": "npm run build && node --test dist/tests/postgres-live.integration.test.js dist/tests/p056-3-temporal-permissions.integration.test.js dist/tests/p056-3-permission-grants-http.integration.test.js dist/tests/p056-4-teaching-assignment-rls.integration.test.js dist/tests/p056-5-subject-rls.integration.test.js",
+    "test:postgres": "npm run build && node --test dist/tests/postgres-live.integration.test.js dist/tests/p056-3-temporal-permissions.integration.test.js dist/tests/p056-3-permission-grants-http.integration.test.js dist/tests/p056-4-teaching-assignment-rls.integration.test.js dist/tests/p056-5-subject-rls.integration.test.js dist/tests/p057-2-runtime-session-rls.postgres.integration.test.js",
     "web:dev": "vite --config apps/education-web/vite.config.ts",
     "web:build": "vite build --config apps/education-web/vite.config.ts",
     "api:start": "npm run build && node dist/apps/api-server/src/main.js",
