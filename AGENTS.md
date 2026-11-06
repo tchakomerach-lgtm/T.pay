@@ -120,3 +120,10 @@ Migration `115_education_classes_enrollments.sql` and authenticated class/enroll
 - Device/session repository operations bind tenant, actor, device and trust_epoch. API actor lookup independently verifies tenant and organization against the session claim.
 - This is P057.1 only. Session/device runtime RLS, dedicated least-privilege database role, session refresh/revocation API, passkey challenge persistence/counter checks, recovery, rate limiting and terrain validation remain open.
 - Existing unbound bearer sessions are intentionally rejected; migration revokes only legacy sessions whose tenant cannot be resolved. Reauthentication is required for unbound tokens.
+
+
+## P057.2 — identity session runtime RLS (under validation)
+- Migration 125 enables and forces tenant-scoped RLS on api_devices and api_sessions.
+- Production session validation uses one transaction, SET LOCAL ROLE tpay_school_runtime, tenant GUC, SELECT locks and a constrained last_seen_at update.
+- API actor/permission lookup now executes under the same least-privilege role and verified tenant/organization predicates.
+- Deployment prerequisite: the API login must be a non-owner, non-superuser, NOBYPASSRLS role with explicit membership in tpay_school_runtime. No merge until live PostgreSQL proves the effective role and cross-tenant denial.
