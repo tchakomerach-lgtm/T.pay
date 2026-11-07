@@ -25,7 +25,7 @@ jobs:
           adb version
           gradle --version | head -n 5
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Validate local terrain environment
         shell: bash
