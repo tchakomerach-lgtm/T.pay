@@ -111,3 +111,12 @@ Migration `115_education_classes_enrollments.sql` and authenticated class/enroll
 - Migration 123 stores revocation actor/reason and grants runtime actor lookup; actor queries remain explicitly tenant/organization scoped. Full actor-table RLS waits for P057 to bind verified tenant context into the session contract.
 - Grant mutation, audit and idempotency completion share one PostgreSQL transaction. No security-grant details are emitted to the general School SSE stream.
 - Remaining gates: run exact-head PostgreSQL 17 tests; prove with a dedicated non-owner/non-superuser/NOBYPASSRLS API login; add rollback/concurrency/replay assertions; run full CI, Web build, Android build and terrain verification. No certification or merge.
+
+
+## P057.1 — tenant-bound identity session foundation (under validation)
+- Branch: `feat/p057-1-tenant-bound-sessions`, stacked on the open P056.3.1 PR #159; not merged.
+- Migration 124 adds tenant_id to api_devices/api_sessions, backfills only from education_actors, revokes unresolved legacy sessions, and adds tenant-scoped indexes.
+- Bearer format is `tpay1.<tenantId>.<high-entropy-secret>`; the tenant segment is an untrusted routing claim and the complete bearer hash must match the persisted session row.
+- Device/session repository operations bind tenant, actor, device and trust_epoch. API actor lookup independently verifies tenant and organization against the session claim.
+- This is P057.1 only. Session/device runtime RLS, dedicated least-privilege database role, session refresh/revocation API, passkey challenge persistence/counter checks, recovery, rate limiting and terrain validation remain open.
+- Existing unbound bearer sessions are intentionally rejected; migration revokes only legacy sessions whose tenant cannot be resolved. Reauthentication is required for unbound tokens.
