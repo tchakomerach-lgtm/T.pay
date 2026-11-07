@@ -96,10 +96,11 @@ function route(path:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string,method:string):Permission{
+export function permissionFor(kind:string,method:string):Permission{
  if(kind==="actor"||((kind==="classes"||kind==="enrollments")&&method==="GET"))return "org.read";
  if(kind==="subjects"&&method==="GET")return "org.read";
  if(kind==="subjects"||kind==="subject")return "org.manage";
+ if(kind==="class-assignments"&&method==="GET")return "org.read";
  if(kind==="classes"||kind==="enrollments"||kind==="enrollment-status"||kind==="class-assignments"||kind==="class-assignment-revoke")return "org.manage";
  return "member.manage";
 }
