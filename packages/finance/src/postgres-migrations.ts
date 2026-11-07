@@ -14,11 +14,14 @@ export async function applyMigrations(client:Client,migrationDirectory:URL):Prom
   const ownerId="migration-"+randomUUID();
   let locked=false;
   try{
-    const lock=await client.query<{acquired:boolean}>(
-      "INSERT INTO deployment_locks(lock_name,owner_id,lease_until,acquired_at) VALUES($1,$2,now()+interval '5 minutes',now()) ON CONFLICT(lock_name) DO UPDATE SET owner_id=EXCLUDED.owner_id,lease_until=EXCLUDED.lease_until,acquired_at=EXCLUDED.acquired_at WHERE deployment_locks.lease_until <= now() RETURNING true AS acquired",
-      ["schema-migrations",ownerId]
-    );
-    locked=lock.rows.length===1;
+    for(let attempt=0;attempt<30&&!locked;attempt++){
+      const lock=await client.query<{acquired:boolean}>(
+        "INSERT INTO deployment_locks(lock_name,owner_id,lease_until,acquired_at) VALUES($1,$2,now()+interval '5 minutes',now()) ON CONFLICT(lock_name) DO UPDATE SET owner_id=EXCLUDED.owner_id,lease_until=EXCLUDED.lease_until,acquired_at=EXCLUDED.acquired_at WHERE deployment_locks.lease_until <= now() RETURNING true AS acquired",
+        ["schema-migrations",ownerId]
+      );
+      locked=lock.rows.length===1;
+      if(!locked) await new Promise(resolve=>setTimeout(resolve,250));
+    }
     if(!locked) throw new Error("MIGRATION_LOCK_BUSY");
   }catch(error){ throw error; }
 

@@ -13,6 +13,7 @@ import { PostgresSchoolRealtimeStore } from "./postgres-realtime-store.js";
 import type { SchoolRealtimeMessage } from "./school-realtime.js";
 import { reconcileAttendance, claimWorkItem, resolveWorkItem, type AttendanceRecord, type WorkItem } from "./school-operations.js";
 import { assignService, transitionService, type ActorRef, type ServiceRequest } from "./actor-services.js";
+import { decideChildDataAccess, type EducationActorRole } from "./child-data-firewall.js";
 
 export interface SchoolAuthContext { principal: Principal; session: OrganizationSession; tenantId: string; }
 export interface SchoolApiDependencies {
@@ -78,6 +79,7 @@ function route(path:string){
  const parts=path.split("/").filter(Boolean);
  if(parts[0]!=="v1"||parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
+ if(parts[2]==="students"&&parts.length===4&&parts[3])return ["student",parts[3]] as const;
  if(parts[2]==="sync"&&parts[3]==="events"&&parts.length===4)return ["sync"] as const;
  if(parts[2]==="attendance"&&parts.length===3)return ["attendance"] as const;
  if(parts[2]==="work-items"&&parts.length===3)return ["work-create"] as const;
@@ -87,7 +89,7 @@ function route(path:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="actor"?"org.read":"member.manage";}
+function permissionFor(kind:string):Permission{return kind==="actor"||kind==="student"?"org.read":"member.manage";}
 export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
 
 export function createSchoolApiServer(deps:SchoolApiDependencies, options:SchoolApiServerOptions={}){
@@ -187,13 +189,65 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     const q=await deps.db.query("SELECT actor_id,organization_id,kind,active,data,version,updated_at FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,r[1]]);
     if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("ACTOR_NOT_FOUND"),correlationId),correlationId);return;}
     data=q.rows[0];
+   } else if(r[0]==="student"){
+    if(method!=="GET")throw new Error("STUDENT_READ_ONLY_ROUTE");
+    const studentId=r[1];
+    const actor=await deps.db.query("SELECT kind,active FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,auth.principal.userId]);
+    const actorRole=String(actor.rows[0]?.kind??"") as EducationActorRole;
+    if(!actor.rows[0]?.active)throw new Error("ACTOR_INACTIVE");
+    if(actorRole==="STUDENT" && auth.principal.userId!==studentId)throw new Error("STUDENT_RESOURCE_OWNER_REQUIRED");
+    if(actorRole==="PARENT"){
+      const link=await deps.db.query("SELECT 1 FROM education_parent_student_links WHERE tenant_id=$1 AND organization_id=$2 AND parent_actor_id=$3 AND student_id=$4 AND active=true",[auth.tenantId,organizationId,auth.principal.userId,studentId]);
+      if(!link.rows[0])throw new Error("PARENT_STUDENT_RELATION_REQUIRED");
+    }
+    if(actorRole==="TEACHER"){
+      const assignment=await deps.db.query("SELECT 1 FROM education_teacher_student_assignments WHERE tenant_id=$1 AND organization_id=$2 AND teacher_actor_id=$3 AND student_id=$4 AND active=true",[auth.tenantId,organizationId,auth.principal.userId,studentId]);
+      if(!assignment.rows[0])throw new Error("TEACHER_STUDENT_ASSIGNMENT_REQUIRED");
+    }
+    if(!["STUDENT","PARENT","TEACHER","ADMIN","DIRECTOR","FOUNDER"].includes(actorRole))throw new Error("STUDENT_ROLE_DENIED");
+    const q=await deps.db.query("SELECT student_id,lifecycle,version,updated_at,data FROM education_students WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3",[auth.tenantId,organizationId,studentId]);
+    if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("STUDENT_NOT_FOUND"),correlationId),correlationId);return;}
+    const decision=decideChildDataAccess({tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,actorRole,purpose:"ACADEMIC",requestedFields:["student.id","student.name","student.academic_record"],targetStudentId:studentId,export:false,aiProcessing:false});
+    if(!decision.allowed)throw new Error("STUDENT_DATA_POLICY_DENIED");
+    const raw=(q.rows[0].data??{}) as Record<string,unknown>;
+    data={studentId, lifecycle:q.rows[0].lifecycle, version:q.rows[0].version, updatedAt:q.rows[0].updated_at, fields:{
+      id:raw.id??studentId,
+      name:raw.name??null,
+      academicRecord:raw.academic_record??null
+    }};
+    await gateway.audit({organizationId,requestId:correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path,studentId,actorRole,purpose:"ACADEMIC",policyVersion:decision.policyVersion})});
    } else if(r[0]==="sync"){
-    const event={...body,tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,payloadHash:computeSyncPayloadHash((body as any).payload)};
+    const rawEvent=body as Record<string,unknown>;
+    let sequence:bigint; try{sequence=BigInt(String(rawEvent.sequence??""));}catch{throw new Error("SYNC_INVALID_SEQUENCE");}
+    const actor=await deps.db.query("SELECT kind,active FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,auth.principal.userId]);
+    const actorRole=String(actor.rows[0]?.kind??"") as EducationActorRole;
+    if(!actor.rows[0]?.active)throw new Error("ACTOR_INACTIVE");
+    // Recognize the established school.attendance.recorded alias as well as
+    // canonical attendance names; an alias must never bypass student assignment checks.
+    const syncEventType=String(rawEvent.eventType??"").trim().toLowerCase();
+    if(syncEventType==="attendance" || syncEventType.includes("attendance")){
+      const payload=(rawEvent.payload??{}) as Record<string,unknown>;
+      const studentId=String(payload.studentId??"");
+      if(!studentId)throw new Error("SYNC_STUDENT_REQUIRED");
+      if(actorRole==="TEACHER"){
+        const assignment=await deps.db.query("SELECT 1 FROM education_teacher_student_assignments WHERE tenant_id=$1 AND organization_id=$2 AND teacher_actor_id=$3 AND student_id=$4 AND active=true",[auth.tenantId,organizationId,auth.principal.userId,studentId]);
+        if(!assignment.rows[0])throw new Error("SYNC_STUDENT_ASSIGNMENT_REQUIRED");
+      } else if(!["ADMIN","DIRECTOR","FOUNDER"].includes(actorRole))throw new Error("ATTENDANCE_ROLE_DENIED");
+    }
+    const event={...rawEvent,tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,sequence,payloadHash:computeSyncPayloadHash(rawEvent.payload)};
     const syncClient=await deps.syncClient();
     try{ data=await new PostgresEducationSyncStore(syncClient).accept(event as any); }
     finally{ syncClient.release?.(); }
    } else if(r[0]==="attendance"){
     const incoming=body as AttendanceRecord; incoming.organizationId=organizationId;
+    const actor=await deps.db.query("SELECT kind,active FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,auth.principal.userId]);
+    const actorRole=String(actor.rows[0]?.kind??"") as EducationActorRole;
+    if(!actor.rows[0]?.active)throw new Error("ACTOR_INACTIVE");
+    if(actorRole==="TEACHER"){
+      const assignment=await deps.db.query("SELECT 1 FROM education_teacher_student_assignments WHERE tenant_id=$1 AND organization_id=$2 AND teacher_actor_id=$3 AND student_id=$4 AND active=true",[auth.tenantId,organizationId,auth.principal.userId,incoming.studentId]);
+      if(!assignment.rows[0])throw new Error("TEACHER_STUDENT_ASSIGNMENT_REQUIRED");
+    } else if(!["ADMIN","DIRECTOR","FOUNDER"].includes(actorRole))throw new Error("ATTENDANCE_ROLE_DENIED");
+    incoming.recordedBy=auth.principal.userId;
     const q=await deps.db.query("SELECT * FROM education_attendance WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3 AND class_id=$4",[auth.tenantId,organizationId,incoming.studentId,incoming.classId]);
     const existing=(q.rows[0]??null) as AttendanceRecord|null;
     const accepted=reconcileAttendance(existing,incoming);
@@ -242,6 +296,19 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(dedupe?.status==="reserved")await gateway.completeIdempotency({requestId:dedupe.requestId,state:"succeeded",responseHash:canonicalRequestHash("RESPONSE",path,JSON.stringify(response)),statusCode:200});
    await gateway.audit({organizationId,requestId:dedupe?.requestId??correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path})});
    json(res,200,response,correlationId);
-  }catch(error){const status=String(error).startsWith("Error: FORBIDDEN")?403:400;json(res,status,buildApiError(error,correlationId),correlationId);}
+  }catch(error){
+    const code=String(error).replace(/^Error:\s*/,"");
+    const status=
+      code==="SESSION_EXPIRED"||code==="SESSION_REVOKED"||code==="AUTHENTICATION_REQUIRED"?401:
+      code==="STUDENT_NOT_FOUND"||code==="ACTOR_NOT_FOUND"||code==="WORK_ITEM_NOT_FOUND"||code==="SERVICE_REQUEST_NOT_FOUND"||code==="PARENT_STUDENT_RELATION_REQUIRED"?404:
+      code.startsWith("FORBIDDEN")||[
+        "ORGANIZATION_SESSION_MISMATCH","STUDENT_RESOURCE_OWNER_REQUIRED",
+        "TEACHER_STUDENT_ASSIGNMENT_REQUIRED","SYNC_STUDENT_ASSIGNMENT_REQUIRED",
+        "SYNC_STUDENT_REQUIRED","ATTENDANCE_ROLE_DENIED",
+        "STUDENT_ROLE_DENIED","STUDENT_DATA_POLICY_DENIED","ACTOR_INACTIVE",
+        "TENANT_CONTEXT_REQUIRED","ORGANIZATION_CONTEXT_REQUIRED"
+      ].includes(code)?403:400;
+    json(res,status,buildApiError(error,correlationId),correlationId);
+  }
  });
 }
