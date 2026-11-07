@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { authorizeRoute, resolveRoutePolicy } from "../packages/api-gateway/src/policy.js";
+import { permissionFor } from "../packages/education/src/education-http.js";
 
 test("parameterized API routes resolve against concrete paths",()=>{
  const policy=resolveRoutePolicy("GET","/v1/education/actors/teacher-1");
@@ -31,4 +32,11 @@ test("P056.3.1 temporal permission grant routes are allowlisted only for authent
  assert.equal(revoke?.auth,"member");
  assert.equal(authorizeRoute({method:"GET",route:"/v1/education/permission-grants",authClass:"anonymous"}).allowed,false);
  assert.equal(authorizeRoute({method:"DELETE",route:"/v1/education/permission-grants",authClass:"member"}).allowed,false);
+});
+
+
+test("P056.4 class assignment reads require org.read while writes require org.manage",()=>{
+ assert.equal(permissionFor("class-assignments","GET"),"org.read");
+ assert.equal(permissionFor("class-assignments","POST"),"org.manage");
+ assert.equal(permissionFor("class-assignment-revoke","PATCH"),"org.manage");
 });
