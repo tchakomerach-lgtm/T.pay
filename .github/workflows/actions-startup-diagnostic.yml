@@ -1,0 +1,34 @@
+name: T.Pay Actions Startup Diagnostic
+
+on:
+  push:
+    branches:
+      - diagnostics/codespaces-actions-startup-001
+    paths:
+      - ".github/workflows/actions-startup-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tpay-actions-startup-diagnostic-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  runner-smoke-test:
+    name: Confirm GitHub-hosted runner starts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Confirm job execution
+        run: |
+          echo "TPAY_ACTIONS_DIAGNOSTIC=runner_started"
+          echo "event=${{ github.event_name }}"
+          echo "ref=${{ github.ref }}"
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Confirm repository checkout
+        run: |
+          test -f package.json
+          echo "TPAY_ACTIONS_DIAGNOSTIC=checkout_ok"
