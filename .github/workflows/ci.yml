@@ -5,9 +5,6 @@ on:
     branches:
       - "**"
   pull_request:
-    branches:
-      - main
-      - feat/education-classes-enrollments-api-001
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 permissions:
@@ -34,13 +31,33 @@ jobs:
           --health-retries 20
     env:
       TPAY_DATABASE_URL: postgresql://postgres:tpay_ci@127.0.0.1:5432/tpay_ci
+      TPAY_MIGRATION_DATABASE_URL: postgresql://postgres:tpay_ci@127.0.0.1:5432/tpay_ci
+      TPAY_RUNTIME_DATABASE_URL: postgresql://tpay_api_runtime:tpay_ci_runtime@127.0.0.1:5432/tpay_ci
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
-      # PostgreSQL migrations and live concurrency gates run before API/unit behavior tests.
+      # Compile the migration runner, then provision schema with the dedicated migration identity.
+      - run: npm run build
+      - run: npm run db:migrate
+      - name: Provision disposable least-privilege API login
+        run: |
+          psql "$TPAY_MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $role$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'tpay_api_runtime') THEN
+              CREATE ROLE tpay_api_runtime LOGIN PASSWORD 'tpay_ci_runtime'
+                NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            END IF;
+          END
+          $role$;
+          ALTER ROLE tpay_api_runtime NOSUPERUSER NOCREATEDB NOCREATEROLE
+            NOREPLICATION NOBYPASSRLS;
+          GRANT tpay_school_runtime TO tpay_api_runtime;
+          SQL
+      # PostgreSQL migrations and live concurrency/RLS gates run before API/unit behavior tests.
       - run: npm run test:postgres
       - run: npm run check
       - run: npm run security:fortress

@@ -24,3 +24,11 @@ test("P050 runtime config rejects plaintext, wildcard and non-canonical CORS ori
     assert.throws(()=>readRuntimeConfig({...base,TPAY_WEB_ORIGINS:origin}),/TPAY_WEB_ORIGIN_/);
   }
 });
+
+test("P057.2 production requires a separate migration database identity",()=>{
+  assert.throws(()=>readRuntimeConfig({...base,NODE_ENV:"production"}),/TPAY_MIGRATION_DATABASE_URL/);
+  assert.throws(()=>readRuntimeConfig({...base,NODE_ENV:"production",TPAY_MIGRATION_DATABASE_URL:base.TPAY_DATABASE_URL}),/TPAY_MIGRATION_DATABASE_URL_MUST_BE_SEPARATE/);
+  const config=readRuntimeConfig({...base,NODE_ENV:"production",TPAY_MIGRATION_DATABASE_URL:"postgresql://migration@localhost/tpay"});
+  assert.equal(config.databaseUrl,base.TPAY_DATABASE_URL);
+  assert.equal(config.migrationDatabaseUrl,"postgresql://migration@localhost/tpay");
+});
