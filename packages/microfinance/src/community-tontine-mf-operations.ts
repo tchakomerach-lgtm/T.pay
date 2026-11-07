@@ -60,10 +60,11 @@ export class CommunityTontineMfOperationsService implements CommunityTontineMfOp
     if (!instruction.destinationRef.trim()) throw new Error("COMMUNITY_TONTINE_DESTINATION_REQUIRED");
     if (instruction.preparedBy && instruction.preparedBy !== preparerId) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_PREPARER_MISMATCH");
     if (!instruction.requiresHumanApproval) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_HUMAN_APPROVAL_REQUIRED");
+    const { approvedBy: _approvedBy, ...instructionWithoutApproval } = instruction;
+    void _approvedBy;
     const prepared: CommunityTontineMfSettlementInstruction = {
-      ...instruction,
+      ...instructionWithoutApproval,
       preparedBy: preparerId,
-      approvedBy: undefined,
       state: "prepared"
     };
     return this.settlementRepository.savePrepared(organizationId, prepared);
