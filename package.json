@@ -11,7 +11,7 @@
     "test": "npm run build && node --test dist/tests/*.test.js",
     "check": "npm run typecheck && npm test",
     "db:migrate": "node dist/scripts/migrate.js",
-    "test:postgres": "npm run build && node --test dist/tests/postgres-live.integration.test.js",
+    "test:postgres": "npm run build && npm run db:migrate && node --test dist/tests/postgres-live.integration.test.js",
     "web:dev": "vite --config apps/education-web/vite.config.ts",
     "web:build": "vite build --config apps/education-web/vite.config.ts",
     "api:start": "npm run build && node dist/apps/api-server/src/main.js",
