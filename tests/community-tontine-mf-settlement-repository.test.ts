@@ -43,6 +43,8 @@ test("preparation cannot overwrite an already approved instruction", async () =>
   await assert.rejects(() => repository.savePrepared(id,instruction), /PERSISTENCE_CONFLICT/);
   assert.match(calls[0]!.sql,/ON CONFLICT DO NOTHING/);
   assert.match(calls[0]!.sql,/FROM payout_intents pi/);
+  assert.match(calls[0]!.sql,/SELECT \$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8::text,\$9/);
+  assert.match(calls[0]!.sql,/pi\.currency=\$8::text/);
   assert.match(calls[0]!.sql,/pi\.state='approved'/);
   assert.match(calls[1]!.sql,/state='prepared'/);
   assert.match(calls[1]!.sql,/beneficiary_client_id=\$6/);
