@@ -1,5 +1,11 @@
 name: T.Pay CI
 on:
+  push:
+    branches: [main, investor/tpay-os-prototype]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
   # Authoritative validation for every branch commit and every PR synchronization.
   push:
     branches:
@@ -13,11 +19,14 @@ permissions:
   contents: read
 concurrency:
   group: tpay-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+concurrency:
+  group: tpay-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
     services:
       postgres:
         image: postgres:17
