@@ -107,4 +107,4 @@ The prototype covers the investor-facing product surfaces across Experience OS, 
 
 The main CI now includes a dedicated `npm run investor:build` step, a full migration run before live PostgreSQL integration, PostgreSQL 17, a 35-minute timeout and concurrency cancellation. The GitHub Actions execution result on the exact merge commit is not yet evidenced as green. The existing Vercel production deployment for the merge commit reached READY, but its project build settings still target the existing School/Web app; an isolated investor preview deployment is pending separate Vercel project authorization/configuration.
 
-The CI optimization PR #165 remains separate and draft; its Android workflow changes have not been merged. Do not close or merge it without comparing its remaining diff to current main.
+The effective CI optimization and Android workflow changes from PR #165 were applied to main in separate commits after comparing the remaining diff. PR #165 was closed as superseded (not merged). Its prior failing/unconfirmed checks are not treated as green.
