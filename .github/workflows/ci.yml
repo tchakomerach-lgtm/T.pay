@@ -1,15 +1,9 @@
 name: T.Pay CI
 on:
   push:
-    branches: [main, investor/tpay-os-prototype]
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review]
-  workflow_dispatch:
-  # Authoritative validation for every branch commit and every PR synchronization.
-  push:
     branches:
-      - "**"
+      - main
+      - investor/tpay-os-prototype
   pull_request:
     branches:
       - main
@@ -20,9 +14,6 @@ permissions:
 concurrency:
   group: tpay-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-concurrency:
-  group: tpay-ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
 jobs:
   quality:
     runs-on: ubuntu-latest
@@ -47,9 +38,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
-      - run: npm run check
-      - run: npm run test:postgres
-      - run: npm run security:fortress
-      - run: npm run web:build
-      - run: npm audit --omit=dev --audit-level=high
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: TypeScript and unit/invariant checks
+        run: npm run check
+      - name: Apply full migration chain and run live PostgreSQL integration
+        run: npm run test:postgres
+      - name: Security fortress checks
+        run: npm run security:fortress
+      - name: Existing School/Web production build
+        run: npm run web:build
+      - name: Investor prototype production build
+        run: npm run investor:build
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=high
