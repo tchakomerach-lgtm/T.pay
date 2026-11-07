@@ -1,11 +1,17 @@
 name: T.Pay Android
 on:
   push:
-    branches: ["**"]
+    branches:
+      - main
+      - fix/ci-compute-budget
   pull_request:
-    branches: ["main"]
+    branches: [main]
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: tpay-android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   android:
     runs-on: ubuntu-latest
