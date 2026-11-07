@@ -259,7 +259,7 @@ function renderTour(){
 function render(){document.getElementById("app").innerHTML=shell();wire();}
 function wire(){
  document.querySelectorAll("[data-nav]").forEach(el=>el.addEventListener("click",()=>{active=el.dataset.nav;search="";render();}));
- document.querySelectorAll("[data-action]").forEach(el=>el.addEventListener("click",e=>{e.stopPropagation();act(el.dataset.action,el.dataset);}));
+ document.querySelectorAll("[data-action]").forEach(el=>el.addEventListener("click",e=>{e.stopPropagation();if(el.dataset.action==="close-modal"&&e.target!==el)return;act(el.dataset.action,el.dataset);}));
  const input=document.getElementById("global-search");if(input)input.addEventListener("input",e=>{search=e.target.value;filterSearch();});
  const form=document.getElementById("demo-form");if(form)form.addEventListener("submit",submitForm);
  document.querySelectorAll("[data-tab]").forEach(el=>el.addEventListener("click",()=>{document.querySelectorAll("[data-tab]").forEach(x=>x.classList.remove("selected"));el.classList.add("selected");eventLog("Vue School OS sélectionnée",el.dataset.tab);}));
