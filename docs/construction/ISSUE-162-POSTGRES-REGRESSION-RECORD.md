@@ -80,3 +80,26 @@ Run the full PostgreSQL 17 suite on the PR head, inspect any new failure at its 
 
 ### Release gate
 No test is considered successful on the blocked SHA. No merge, production certification or P057.3 implementation is authorized until the runner issue is resolved and the full required CI matrix passes on one exact SHA.
+
+
+## CI runner recheck — 2026-11-07
+
+### Exact repository state observed
+- PR: #163 — `test(postgres): repair Issue #162 integration regressions`.
+- Branch: `fix/issue-162-postgres-live-regressions`.
+- Observed PR head: `bab90c061222ce96c5217f4e045a04d1a7a9e418`.
+- PR remains open, non-draft and not merged.
+
+### Latest workflow attempts observed for this exact head
+- Quality workflow run: `42289605659` — completed with failure.
+- Android workflow run: `42289605870` — completed with failure.
+- Quality job: `128139259780`; Android job: `128139260108`.
+- Both job responses expose `steps: null` and `logs_url: null`; no test/build step or job log is available from these attempts.
+- The Vercel status context reports success, but this is not a substitute for PostgreSQL, security, CI quality or Android validation.
+
+### Classification and decision
+- These two latest attempts provide no evidence that the PostgreSQL regression tests, TypeScript checks, security fortress, Web build or Android build executed on the observed head.
+- Classify the current failure as a pre-step GitHub Actions runner/workflow execution blockage until job-level evidence proves otherwise. Do not classify it as a code-test failure, and do not infer quota exhaustion without checking the repository owner's GitHub Billing and Actions settings.
+- No check is considered passed merely because it was configured or because Vercel preview succeeded.
+- Keep PR #163 and its dependent P057 sequence unmerged. Do not begin P057.3, certify P056/P057, disable checks, or switch to self-hosted runners without a registered and online runner.
+- Next action: repository owner verifies included Actions compute, spending limit, payment status and repository Actions policy; then rerun the required matrix on one exact head SHA and inspect actual job steps/logs.
