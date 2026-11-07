@@ -11,7 +11,7 @@
     "test": "npm run build && node --test dist/tests/*.test.js",
     "check": "npm run typecheck && npm test",
     "db:migrate": "node dist/scripts/migrate.js",
-    "test:postgres": "npm run build && node --test dist/tests/postgres-live.integration.test.js",
+    "test:postgres": "npm run build && npm run db:migrate && node --test dist/tests/postgres-live.integration.test.js",
     "web:dev": "vite --config apps/education-web/vite.config.ts",
     "web:build": "vite build --config apps/education-web/vite.config.ts",
     "api:start": "npm run build && node dist/apps/api-server/src/main.js",
@@ -19,7 +19,9 @@
     "api:seed:test": "npm run build && node dist/scripts/bootstrap-local-test.js",
     "test:terrain": "npm run check && npm run security:fortress && npm run test:postgres && node scripts/replit-terrain-certification.mjs",
     "security:fortress": "node scripts/security-fortress-check.mjs",
-    "test:vault": "npm run build && node --test dist/tests/fortress-vault.test.js"
+    "test:vault": "npm run build && node --test dist/tests/fortress-vault.test.js",
+    "investor:dev": "vite --config apps/investor-demo/vite.config.ts",
+    "investor:build": "vite build --config apps/investor-demo/vite.config.ts"
   },
   "engines": {
     "node": ">=22"
