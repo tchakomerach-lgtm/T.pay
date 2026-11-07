@@ -98,3 +98,13 @@ Field continuity is implemented as signed, expiring, monotonic-sequence offline 
 
 This sequence is not production-complete until PostgreSQL live/concurrency tests, signed provider callback integration tests, offline end-to-end reconciliation, incident/refund integration, full CI and migration execution are green.
 Governance, community commerce and intelligence are now represented by `tontine-governance-policy.ts`, `tontine-economic-network.ts`, `tontine-intelligence.ts` and migrations `048_tontine_economic_intelligence.sql` / `049_tontine_governance.sql`. Intelligence remains advisory and evidence-bound; commerce never merges its operational state with the financial ledger; governance changes are versioned and quorum-controlled.
+
+
+## Investor prototype status — 2026-11-07
+The interactive multi-domain investor prototype is integrated on main by PR #166 (squash commit `0bab42236621476a70b48a4fb5bfc515d1c042ff`). Its isolated Vite app lives in `apps/investor-demo`; launch/build instructions are in its README and the senior-team coverage/boundary matrix is in `docs/investor/TPAY-INVESTOR-PROTOTYPE-HANDOVER.md`.
+
+The prototype covers the investor-facing product surfaces across Experience OS, Organizations, Education, School Subsidy, Microfinance, Community Tontine, Financial Core, Wallet, Marketplace, Opportunity/Work, Social, Investment Core, AI Core, Documents, Workflows/Projects, Time/Reservations, Super Admin and planned verticals. It uses fictional browser-local data only. It does not implement production services, real authentication, RLS, provider connectivity, financial settlement, credit, KYC, investment execution or field certification. Never label this prototype production-ready.
+
+The main CI now includes a dedicated `npm run investor:build` step, a full migration run before live PostgreSQL integration, PostgreSQL 17, a 35-minute timeout and concurrency cancellation. The GitHub Actions execution result on the exact merge commit is not yet evidenced as green. The existing Vercel production deployment for the merge commit reached READY, but its project build settings still target the existing School/Web app; an isolated investor preview deployment is pending separate Vercel project authorization/configuration.
+
+The CI optimization PR #165 remains separate and draft; its Android workflow changes have not been merged. Do not close or merge it without comparing its remaining diff to current main.
