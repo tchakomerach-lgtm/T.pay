@@ -170,6 +170,18 @@ export async function processVerifiedTontinePayoutCallback(
       return { state: "processed", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
     }
 
+    // A provider callback is evidence of external delivery, not authorization
+    // to release funds. Only a server-approved payout may enter settlement.
+    if (row.state !== "approved") {
+      await tx.query(
+        `UPDATE tontine_provider_callback_receipts
+            SET state='rejected', failure_code='PAYOUT_NOT_APPROVED', processed_at=now()
+          WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3`,
+        [callback.organizationId, callback.provider, callback.providerEventId]
+      );
+      return { state: "rejected", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
+    }
+
     await settlementBridge.settle(
       tx,
       payout,
