@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS education_bulletin_snapshots (
     (state = 'PUBLISHED' AND voided_by IS NULL AND voided_at IS NULL AND void_reason_code IS NULL)
     OR
     (state = 'VOID' AND voided_by IS NOT NULL AND voided_at IS NOT NULL
-      AND void_reason_code ~ '^[A-Z0-9_]{3,80}$')
+      AND void_reason_code IS NOT NULL
+      AND void_reason_code ~ '^[A-Z0-9_]{3,80}
   )
 );
 CREATE INDEX IF NOT EXISTS idx_education_bulletins_student_period
@@ -80,7 +81,91 @@ BEGIN
   END IF;
   IF OLD.state = 'VOID' OR NEW.state <> 'VOID'
     OR NEW.voided_by IS NULL OR NEW.voided_at IS NULL
-    OR NEW.void_reason_code !~ '^[A-Z0-9_]{3,80}$' THEN
+    OR NEW.void_reason_code IS NULL
+    OR NEW.void_reason_code !~ '^[A-Z0-9_]{3,80}
+    RAISE EXCEPTION 'EDUCATION_BULLETIN_VOID_TRANSITION_INVALID';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_education_bulletin_snapshot_immutable ON education_bulletin_snapshots;
+CREATE TRIGGER trg_education_bulletin_snapshot_immutable
+BEFORE UPDATE ON education_bulletin_snapshots
+FOR EACH ROW EXECUTE FUNCTION guard_education_bulletin_snapshot_update();
+
+COMMENT ON TABLE education_bulletin_snapshots IS
+  'Immutable versioned academic bulletin snapshots. Financial obligations remain exclusively in Financial Core.';
+ THEN
+    RAISE EXCEPTION 'EDUCATION_BULLETIN_VOID_TRANSITION_INVALID';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_education_bulletin_snapshot_immutable ON education_bulletin_snapshots;
+CREATE TRIGGER trg_education_bulletin_snapshot_immutable
+BEFORE UPDATE ON education_bulletin_snapshots
+FOR EACH ROW EXECUTE FUNCTION guard_education_bulletin_snapshot_update();
+
+COMMENT ON TABLE education_bulletin_snapshots IS
+  'Immutable versioned academic bulletin snapshots. Financial obligations remain exclusively in Financial Core.';
+)
+  )
+);
+CREATE INDEX IF NOT EXISTS idx_education_bulletins_student_period
+  ON education_bulletin_snapshots
+  (tenant_id, organization_id, student_id, academic_year, period_code, revision DESC);
+CREATE INDEX IF NOT EXISTS idx_education_bulletins_class_period
+  ON education_bulletin_snapshots
+  (tenant_id, organization_id, class_id, academic_year, period_code, created_at DESC);
+
+ALTER TABLE education_bulletin_snapshots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE education_bulletin_snapshots FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS education_bulletins_runtime_scope ON education_bulletin_snapshots;
+CREATE POLICY education_bulletins_runtime_scope ON education_bulletin_snapshots
+  FOR ALL TO tpay_school_runtime
+  USING (tenant_id = NULLIF(current_setting('tpay.tenant_id', true), '')
+     AND organization_id = NULLIF(current_setting('tpay.organization_id', true), ''))
+  WITH CHECK (tenant_id = NULLIF(current_setting('tpay.tenant_id', true), '')
+          AND organization_id = NULLIF(current_setting('tpay.organization_id', true), ''));
+GRANT SELECT, INSERT ON education_bulletin_snapshots TO tpay_school_runtime;
+GRANT UPDATE (state, voided_by, voided_at, void_reason_code) ON education_bulletin_snapshots TO tpay_school_runtime;
+
+-- Snapshot payload and identity are immutable; only the explicit VOID transition is allowed.
+CREATE OR REPLACE FUNCTION guard_education_bulletin_snapshot_update()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.bulletin_id IS DISTINCT FROM OLD.bulletin_id
+    OR NEW.tenant_id IS DISTINCT FROM OLD.tenant_id
+    OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
+    OR NEW.student_id IS DISTINCT FROM OLD.student_id
+    OR NEW.class_id IS DISTINCT FROM OLD.class_id
+    OR NEW.academic_year IS DISTINCT FROM OLD.academic_year
+    OR NEW.period_code IS DISTINCT FROM OLD.period_code
+    OR NEW.revision IS DISTINCT FROM OLD.revision
+    OR NEW.content_hash IS DISTINCT FROM OLD.content_hash
+    OR NEW.snapshot_schema_version IS DISTINCT FROM OLD.snapshot_schema_version
+    OR NEW.snapshot IS DISTINCT FROM OLD.snapshot
+    OR NEW.created_by IS DISTINCT FROM OLD.created_by
+    OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+    RAISE EXCEPTION 'EDUCATION_BULLETIN_SNAPSHOT_IMMUTABLE';
+  END IF;
+  IF OLD.state = 'VOID' OR NEW.state <> 'VOID'
+    OR NEW.voided_by IS NULL OR NEW.voided_at IS NULL
+    OR NEW.void_reason_code IS NULL
+    OR NEW.void_reason_code !~ '^[A-Z0-9_]{3,80}
+    RAISE EXCEPTION 'EDUCATION_BULLETIN_VOID_TRANSITION_INVALID';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_education_bulletin_snapshot_immutable ON education_bulletin_snapshots;
+CREATE TRIGGER trg_education_bulletin_snapshot_immutable
+BEFORE UPDATE ON education_bulletin_snapshots
+FOR EACH ROW EXECUTE FUNCTION guard_education_bulletin_snapshot_update();
+
+COMMENT ON TABLE education_bulletin_snapshots IS
+  'Immutable versioned academic bulletin snapshots. Financial obligations remain exclusively in Financial Core.';
+ THEN
     RAISE EXCEPTION 'EDUCATION_BULLETIN_VOID_TRANSITION_INVALID';
   END IF;
   RETURN NEW;
