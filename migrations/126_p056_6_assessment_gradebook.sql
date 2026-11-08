@@ -98,7 +98,7 @@ GRANT SELECT, INSERT, UPDATE ON education_grades TO tpay_school_runtime;
 -- Database-level invariants: a grade belongs to an active enrollment in the
 -- assessment class/year, is bounded by max_score, and cannot change after lock.
 CREATE OR REPLACE FUNCTION guard_education_grade_write()
-RETURNS trigger LANGUAGE plpgsql AS $
+RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
   assessment_row education_assessments%ROWTYPE;
   enrollment_row education_enrollments%ROWTYPE;
@@ -134,7 +134,7 @@ BEGIN
   NEW.updated_at := now();
   RETURN NEW;
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS trg_education_grade_write_guard ON education_grades;
 CREATE TRIGGER trg_education_grade_write_guard
