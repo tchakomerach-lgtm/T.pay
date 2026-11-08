@@ -93,3 +93,32 @@ test("P049 fortress request envelope rejects oversized URL/header and emits hard
   sse.body?.cancel();
  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
+
+
+test("failed idempotency reservation is finalized within its organization scope",async()=>{
+ const requestId="00000000-0000-4000-8000-000000000123";
+ const statements:{sql:string;values?:unknown[]}[]=[];
+ const database={async query(sql:string,values?:unknown[]){
+  statements.push({sql,values});
+  if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:requestId}],rowCount:1};
+  return {rows:[],rowCount:1};
+ }};
+ const principal=auth();
+ principal.principal.permissions=["org.manage"] as const;
+ const server=createSchoolApiServer({db:database as any,authenticate:async()=>principal,syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any});
+ await new Promise<void>(resolve=>server.listen(0,resolve));
+ const port=(server.address() as any).port;
+ try{
+  const response=await fetch(`http://127.0.0.1:${port}/v1/education/classes`,{
+   method:"POST",
+   headers:{"content-type":"application/json","x-idempotency-key":"school-class-invalid-payload"},
+   body:JSON.stringify({unexpected:"field"})
+  });
+  assert.equal(response.status,400);
+  const failed=statements.find(x=>x.sql.includes("UPDATE api_request_deduplication SET state='failed'"));
+  assert.ok(failed);
+  assert.match(failed!.sql,/organization_id=\$4/);
+  assert.equal(failed!.values?.[0],requestId);
+  assert.equal(failed!.values?.[3],"org-1");
+ }finally{server.close();}
+});
