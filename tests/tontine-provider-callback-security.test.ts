@@ -34,7 +34,7 @@ function createHarness() {
         return { rows: [] as Row[], rowCount: 1 };
       }
       if (sql.includes("SELECT payout_id,organization_id,state,idempotency_key")) {
-        return { rows: [{ payout_id: id, organization_id: id, state: "initiated", idempotency_key: "payout-1" }] as Row[], rowCount: 1 };
+        return { rows: [{ payout_id: id, organization_id: id, state: "approved", idempotency_key: "payout-1" }] as Row[], rowCount: 1 };
       }
       if (sql.includes("INSERT INTO tontine_provider_callback_receipts")) {
         receipt = { hash: String(values?.[4]), payoutId: values?.[6] as UUID, state: "processed" };
