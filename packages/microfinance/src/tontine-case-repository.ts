@@ -13,47 +13,44 @@ import type { TontineSqlExecutor } from "./tontine-repositories.js";
 type Row = Record<string, unknown>;
 
 function caseFromRow(row: Row): TontineCase {
-  const value: TontineCase = {
+  return {
     id: row.id as UUID,
     organizationId: row.organization_id as UUID,
     groupId: row.group_id as UUID,
     type: row.type as TontineCase["type"],
     state: row.state as TontineCaseState,
     openedBy: row.opened_by as UUID,
+    ...(row.payout_id == null ? {} : { payoutId: row.payout_id as UUID }),
+    ...(row.contribution_id == null ? {} : { contributionId: row.contribution_id as UUID }),
     severity: row.severity as TontineCase["severity"],
     summary: String(row.summary),
     createdAt: new Date(String(row.created_at)).toISOString()
   };
-  if (row.payout_id != null) value.payoutId = row.payout_id as UUID;
-  if (row.contribution_id != null) value.contributionId = row.contribution_id as UUID;
-  return value;
 }
 
 function evidenceFromRow(row: Row): TontineCaseEvidence {
-  const value: TontineCaseEvidence = {
+  return {
     id: row.id as UUID,
     caseId: row.case_id as UUID,
     type: row.type as TontineCaseEvidence["type"],
     contentHash: String(row.content_hash),
+    ...(row.object_reference == null ? {} : { objectReference: String(row.object_reference) }),
     capturedBy: row.captured_by as UUID,
     capturedAt: new Date(String(row.captured_at)).toISOString()
   };
-  if (row.object_reference != null) value.objectReference = String(row.object_reference);
-  return value;
 }
 
 function holdFromRow(row: Row): TontineTargetedHold {
-  const value: TontineTargetedHold = {
+  return {
     id: row.id as UUID,
     organizationId: row.organization_id as UUID,
     caseId: row.case_id as UUID,
     scope: row.scope as TontineTargetedHold["scope"],
     reference: String(row.reference),
-    reason: String(row.reason)
+    reason: String(row.reason),
+    ...(row.expires_at == null ? {} : { expiresAt: new Date(String(row.expires_at)).toISOString() }),
+    ...(row.released_at == null ? {} : { releasedAt: new Date(String(row.released_at)).toISOString() })
   };
-  if (row.expires_at != null) value.expiresAt = new Date(String(row.expires_at)).toISOString();
-  if (row.released_at != null) value.releasedAt = new Date(String(row.released_at)).toISOString();
-  return value;
 }
 
 function refundFromRow(row: Row): TontineRefundRequest {
