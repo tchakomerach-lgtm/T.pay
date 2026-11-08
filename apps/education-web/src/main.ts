@@ -65,7 +65,7 @@ function AuthScreen(){
             React.createElement("div",{className:"auth-options"},
               React.createElement("label",{className:"remember-option"},React.createElement("input",{type:"checkbox",name:"remember"}),React.createElement("span",null,"Se souvenir de moi")),
               React.createElement("span",{className:"recovery-note"},"Besoin d’aide ? Contactez votre administrateur")),
-            React.createElement("button",{type:"submit",className:"login-button", "Se connecter",React.createElement("span",{ "aria-hidden":true },"→")),
+            React.createElement("button",{type:"submit",className:"login-button"},"Se connecter",React.createElement("span",{ "aria-hidden":true },"→")),
             notice?React.createElement("p",{className:"auth-notice","role":"status"},notice):null),
           React.createElement("div",{className:"auth-security"},
             React.createElement("span",{className:"security-icon"},"◇"),
