@@ -32,3 +32,26 @@ COMMENT ON COLUMN tontine_cases.source_event_key IS
   'Stable provider-event identity used to deduplicate automatically opened incidents.';
 COMMENT ON COLUMN tontine_cases.opened_by_system IS
   'True only for system-created cases; human actor identity is never fabricated.';
+
+-- Evidence created by automation has a system principal, not a fabricated human actor.
+ALTER TABLE tontine_case_evidence
+  ADD COLUMN IF NOT EXISTS captured_by_system boolean NOT NULL DEFAULT false;
+ALTER TABLE tontine_case_evidence
+  ALTER COLUMN captured_by DROP NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname='tontine_case_evidence_captured_by_actor_check'
+      AND conrelid='tontine_case_evidence'::regclass
+  ) THEN
+    ALTER TABLE tontine_case_evidence
+      ADD CONSTRAINT tontine_case_evidence_captured_by_actor_check
+      CHECK (
+        (captured_by IS NOT NULL AND captured_by_system = false)
+        OR (captured_by IS NULL AND captured_by_system = true)
+      );
+  END IF;
+END;
+$$;
