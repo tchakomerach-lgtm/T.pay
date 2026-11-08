@@ -567,11 +567,24 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
           );
           if(!assignment.rows[0])throw new Error("EDUCATION_GRADE_TEACHING_ASSIGNMENT_REQUIRED");
         }
-        const gradeId=randomUUID();
-        const saved=await tx.query(
-          "INSERT INTO education_grades(grade_id,tenant_id,organization_id,assessment_id,enrollment_id,score,teacher_comment,version,entered_by) VALUES($1,$2,$3,$4::uuid,$5,$6,$7,1,$8) ON CONFLICT(tenant_id,organization_id,assessment_id,enrollment_id) DO UPDATE SET score=EXCLUDED.score,teacher_comment=EXCLUDED.teacher_comment,entered_by=EXCLUDED.entered_by,version=education_grades.version+1,updated_at=now() WHERE education_grades.version=$9 RETURNING grade_id,assessment_id,enrollment_id,score,teacher_comment,version,entered_by,created_at,updated_at",
-          [gradeId,auth.tenantId,organizationId,r[1],grade.enrollmentId,grade.score,grade.teacherComment??null,auth.principal.userId,grade.expectedVersion??null]
+        const current=await tx.query(
+          "SELECT grade_id,version FROM education_grades WHERE tenant_id=$1 AND organization_id=$2 AND assessment_id=$3::uuid AND enrollment_id=$4 FOR UPDATE",
+          [auth.tenantId,organizationId,r[1],grade.enrollmentId]
         );
+        let saved;
+        if(current.rows[0]){
+          if(grade.expectedVersion!==Number(current.rows[0].version))throw new Error("EDUCATION_GRADE_VERSION_CONFLICT");
+          saved=await tx.query(
+            "UPDATE education_grades SET score=$1,teacher_comment=$2,entered_by=$3,version=version+1,updated_at=now() WHERE tenant_id=$4 AND organization_id=$5 AND assessment_id=$6::uuid AND enrollment_id=$7 AND version=$8 RETURNING grade_id,assessment_id,enrollment_id,score,teacher_comment,version,entered_by,created_at,updated_at",
+            [grade.score,grade.teacherComment??null,auth.principal.userId,auth.tenantId,organizationId,r[1],grade.enrollmentId,grade.expectedVersion]
+          );
+        }else{
+          if(grade.expectedVersion!==undefined)throw new Error("EDUCATION_GRADE_VERSION_CONFLICT");
+          saved=await tx.query(
+            "INSERT INTO education_grades(grade_id,tenant_id,organization_id,assessment_id,enrollment_id,score,teacher_comment,version,entered_by) VALUES($1,$2,$3,$4::uuid,$5,$6,$7,1,$8) RETURNING grade_id,assessment_id,enrollment_id,score,teacher_comment,version,entered_by,created_at,updated_at",
+            [randomUUID(),auth.tenantId,organizationId,r[1],grade.enrollmentId,grade.score,grade.teacherComment??null,auth.principal.userId]
+          );
+        }
         const row=saved.rows[0];if(!row)throw new Error("EDUCATION_GRADE_VERSION_CONFLICT");
         return {data:row,event:{type:"grade.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.grade_id),version:Number(row.version??1),data:{operation:"UPSERT",assessmentId:r[1],enrollmentId:grade.enrollmentId}}};
       });
