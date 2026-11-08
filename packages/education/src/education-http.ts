@@ -407,7 +407,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       return {data:row,event:{type:"enrollment.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.enrollment_id),version:Number(row.version??1),data:{operation:"PATCH",route:path,status:row.status??null}}};
     });
    } else if(r[0]==="actor"){
-    const q=await deps.db.query("SELECT actor_id,organization_id,kind,active,data,version,updated_at FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,r[1]]);
+    const q=await executeSchoolRead(deps,auth.tenantId,organizationId,tx=>tx.query("SELECT actor_id,organization_id,kind,active,data,version,updated_at FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,r[1]]));
     if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("ACTOR_NOT_FOUND"),correlationId),correlationId);return;}
     data=q.rows[0];
    } else if(r[0]==="sync"){
