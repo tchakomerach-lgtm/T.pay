@@ -20,6 +20,7 @@ export interface TermResultPolicy {
   targetScale?: number;
   absentAsZero?: boolean;
   requireAllAssessments?: boolean;
+  requireAllSubjects?: boolean;
 }
 export interface SubjectResult {
   subjectCode: string;
@@ -110,7 +111,8 @@ export function calculateStudentTermResult(
   const subjects = subjectRules.map(rule =>
     calculateSubjectResult(rule.subjectCode, input.marks, rule.coefficient, policy)
   );
-  const incomplete = subjects.some(subject => subject.status === "INCOMPLETE");
+  const incomplete = subjects.some(subject => subject.status === "INCOMPLETE" ||
+    ((policy.requireAllSubjects ?? true) && subject.status === "NO_GRADE"));
   const graded = subjects.filter(subject => subject.status === "COMPLETE" && subject.average !== null);
   const totalCoefficients = graded.reduce((sum, subject) => sum + subject.coefficient, 0);
   const average = totalCoefficients > 0
