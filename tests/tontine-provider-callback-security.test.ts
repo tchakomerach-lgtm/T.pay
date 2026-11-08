@@ -27,7 +27,7 @@ function createHarness(payoutState: "initiated" | "approved" | "blocked" | "sett
       if (sql.includes("UPDATE tontine_provider_callback_receipts")) {
         if (receipt && sql.includes("state='rejected'")) {
           receipt.state = "rejected";
-          receipt.failureCode = sql.includes("CALLBACK_PAYLOAD_MISMATCH") ? "CALLBACK_PAYLOAD_MISMATCH" : "CALLBACK_RECEIPT_STALE";
+          receipt.failureCode = sql.includes("CALLBACK_PAYLOAD_MISMATCH") ? "CALLBACK_PAYLOAD_MISMATCH" : sql.includes("PAYOUT_NOT_APPROVED") ? "PAYOUT_NOT_APPROVED" : "CALLBACK_RECEIPT_STALE";
         } else if (receipt && sql.includes("state='processed'")) {
           receipt.state = "processed";
         }
@@ -92,6 +92,6 @@ test("provider callback cannot settle a payout that has not been approved", asyn
   const { run, db } = createHarness("initiated");
   assert.equal((await run("body-A")).state, "rejected");
   assert.equal(db.getReceipt()?.state, "rejected");
-  assert.equal(db.getReceipt()?.failureCode, undefined);
+  assert.equal(db.getReceipt()?.failureCode, "PAYOUT_NOT_APPROVED");
   assert.equal(db.getSettlementCalls(), 0);
 });
