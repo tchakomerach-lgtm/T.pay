@@ -1,5 +1,5 @@
 export type SchoolRealtimeEvent={
- id:string; tenantId:string; organizationId:string; type:"student.changed"|"subject.changed"|"class.changed"|"enrollment.changed"|"class_assignment.changed"|"attendance.changed"|"work_item.changed"|"service_request.changed"|"sync.accepted"|"sync.pending";
+ id:string; tenantId:string; organizationId:string; type:"student.changed"|"subject.changed"|"class.changed"|"enrollment.changed"|"class_assignment.changed"|"attendance.changed"|"work_item.changed"|"service_request.changed"|"sync.accepted"|"sync.pending"|"assessment.changed"|"grade.changed";
  occurredAt:string; entityId:string; version:number; data:Record<string,unknown>; streamSequence?:string;
 };
 export type SchoolRealtimeMessage={kind:"event";event:SchoolRealtimeEvent}|{kind:"resync_required";reason:"QUEUE_OVERFLOW"|"CURSOR_EXPIRED";lastEventId:string|null};
