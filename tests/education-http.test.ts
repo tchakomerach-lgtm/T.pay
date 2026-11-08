@@ -99,7 +99,7 @@ test("failed idempotency reservation is finalized within its organization scope"
  const requestId="00000000-0000-4000-8000-000000000123";
  const statements:{sql:string;values?:unknown[]}[]=[];
  const database={async query(sql:string,values?:unknown[]){
-  statements.push({sql,values});
+  if(values===undefined)statements.push({sql});else statements.push({sql,values});
   if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:requestId}],rowCount:1};
   return {rows:[],rowCount:1};
  }};
