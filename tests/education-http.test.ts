@@ -103,8 +103,7 @@ test("failed idempotency reservation is finalized within its organization scope"
   if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:requestId}],rowCount:1};
   return {rows:[],rowCount:1};
  }};
- const principal=auth();
- principal.principal.permissions=["org.manage"] as const;
+ const principal={...auth(),principal:{...auth().principal,permissions:["org.manage"] as const}};
  const server=createSchoolApiServer({db:database as any,authenticate:async()=>principal,syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any});
  await new Promise<void>(resolve=>server.listen(0,resolve));
  const port=(server.address() as any).port;
