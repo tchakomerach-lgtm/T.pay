@@ -100,6 +100,7 @@ export function createBulletinSnapshot(input: BulletinSnapshotInput): BulletinSn
   const { result } = input;
   if (result.status !== "COMPLETE" || result.average === null ||
       !Number.isFinite(result.average) || result.average < 0 ||
+      !Number.isFinite(result.totalCoefficients) || result.totalCoefficients <= 0 ||
       !Number.isSafeInteger(result.rank ?? 1) || (result.rank !== null && result.rank < 1)) {
     throw new Error("EDUCATION_BULLETIN_TERM_RESULT_INCOMPLETE");
   }
