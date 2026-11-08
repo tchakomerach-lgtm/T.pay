@@ -14,6 +14,7 @@ import { PostgresSchoolRealtimeStore } from "./postgres-realtime-store.js";
 import type { SchoolRealtimeMessage } from "./school-realtime.js";
 import { reconcileAttendance, claimWorkItem, resolveWorkItem, type AttendanceRecord, type WorkItem } from "./school-operations.js";
 import { assignService, transitionService, type ActorRef, type ServiceRequest } from "./actor-services.js";
+import { validateAssessmentInput, validateGradeInput } from "./gradebook.js";
 
 export interface SchoolAuthContext { principal: Principal; session: OrganizationSession; tenantId: string; }
 export interface SchoolApiDependencies {
@@ -81,6 +82,9 @@ function route(path:string){
  if(parts[0]!=="v1"||parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
  if(parts[2]==="classes"&&parts.length===3)return ["classes"] as const;
+ if(parts[2]==="assessments"&&parts.length===3)return ["assessments"] as const;
+ if(parts[2]==="assessments"&&parts.length===4&&parts[3])return ["assessment-lock",parts[3]] as const;
+ if(parts[2]==="assessments"&&parts.length===5&&parts[3]&&parts[4]==="grades")return ["assessment-grades",parts[3]] as const;
  if(parts[2]==="subjects"&&parts.length===3)return ["subjects"] as const;
  if(parts[2]==="subjects"&&parts.length===4&&parts[3])return ["subject",parts[3]] as const;
  if(parts[2]==="class-assignments"&&parts.length===3)return ["class-assignments"] as const;
@@ -97,7 +101,9 @@ function route(path:string){
  return null;
 }
 export function permissionFor(kind:string,method:string):Permission{
- if(kind==="actor"||((kind==="classes"||kind==="enrollments")&&method==="GET"))return "org.read";
+ if(kind==="actor"||((kind==="classes"||kind==="enrollments"||kind==="assessments"||kind==="assessment-grades")&&method==="GET"))return "org.read";
+ if(kind==="assessments"||kind==="assessment-lock")return "org.manage";
+ if(kind==="assessment-grades")return "member.manage";
  if(kind==="subjects"&&method==="GET")return "org.read";
  if(kind==="subjects"||kind==="subject")return "org.manage";
  if(kind==="class-assignments"&&method==="GET")return "org.read";
@@ -177,7 +183,8 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(!routeAuth.allowed)throw new Error(routeAuth.reason);
    const organizationId=auth.principal.organizationId; if(!auth.tenantId)throw new Error("TENANT_CONTEXT_REQUIRED");
    if(!organizationId)throw new Error("ORGANIZATION_CONTEXT_REQUIRED");
-   assertAuthorized(auth.principal,{organizationId,requestedPermission:permissionFor(r[0],method)});
+   const requiredPermission=r[0]==="assessment-grades"&&method==="POST"&&auth.principal.permissions.includes("org.manage")?"org.manage":permissionFor(r[0],method);
+   assertAuthorized(auth.principal,{organizationId,requestedPermission:requiredPermission});
    if(r[0]==="stream"){
     if(method!=="GET")throw new Error("REALTIME_METHOD_NOT_ALLOWED");
     if(!deps.realtime)throw new Error("REALTIME_NOT_CONFIGURED");
@@ -472,6 +479,117 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       const row=saved.rows[0];if(!row)throw new Error("EDUCATION_SUBJECT_VERSION_CONFLICT");
       return {data:row,event:{type:"subject.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.subject_id),version:Number(row.version),data:{operation:"PATCH",subjectCode:row.subject_code,active:row.active}}};
     });
+   } else if(r[0]==="assessments"){
+    if(method==="GET"){
+      const url=new URL(rawUrl,"https://tpay.invalid");
+      const classId=url.searchParams.get("classId");
+      const academicYear=url.searchParams.get("academicYear");
+      const subjectCode=url.searchParams.get("subjectCode");
+      if(academicYear&&(!/^\\d{4}-\\d{4}$/.test(academicYear)||Number(academicYear.slice(5))!==Number(academicYear.slice(0,4))+1))throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
+      const q=await executeSchoolRead(deps,auth.tenantId,organizationId,tx=>tx.query(
+        "SELECT assessment_id,class_id,academic_year,subject_code,period_code,title,assessment_date,max_score,coefficient,status,version,created_by,locked_by,locked_at,created_at,updated_at FROM education_assessments WHERE tenant_id=$1 AND organization_id=$2 AND ($3::text IS NULL OR class_id=$3) AND ($4::text IS NULL OR academic_year=$4) AND ($5::text IS NULL OR subject_code=$5) ORDER BY assessment_date DESC,created_at DESC",
+        [auth.tenantId,organizationId,classId,academicYear,subjectCode]
+      ));
+      data=q.rows;
+    }else if(method==="POST"){
+      const input=body as Record<string,unknown>;
+      const allowed=["classId","academicYear","subjectCode","periodCode","title","assessmentDate","maxScore","coefficient"];
+      if(Object.keys(input).some(key=>!allowed.includes(key)))throw new Error("EDUCATION_ASSESSMENT_FIELDS_NOT_ALLOWED");
+      const assessment=validateAssessmentInput({
+        classId:String(input.classId??""),academicYear:String(input.academicYear??""),
+        subjectCode:String(input.subjectCode??""),periodCode:String(input.periodCode??""),
+        title:String(input.title??""),assessmentDate:String(input.assessmentDate??""),
+        maxScore:Number(input.maxScore),coefficient:input.coefficient===undefined?1:Number(input.coefficient)
+      });
+      const assessmentId=randomUUID();
+      data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
+        const refs=await tx.query(
+          "SELECT c.class_id,s.subject_code FROM education_classes c JOIN education_subjects s ON s.tenant_id=c.tenant_id AND s.organization_id=c.organization_id WHERE c.tenant_id=$1 AND c.organization_id=$2 AND c.class_id=$3 AND c.academic_year=$4 AND c.status='ACTIVE' AND s.subject_code=$5 AND s.active=true",
+          [auth.tenantId,organizationId,assessment.classId,assessment.academicYear,assessment.subjectCode]
+        );
+        if(!refs.rows[0])throw new Error("EDUCATION_ASSESSMENT_CLASS_OR_SUBJECT_NOT_FOUND");
+        const saved=await tx.query(
+          "INSERT INTO education_assessments(assessment_id,tenant_id,organization_id,class_id,academic_year,subject_code,period_code,title,assessment_date,max_score,coefficient,status,created_by,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::date,$10,$11,'OPEN',$12,1) RETURNING assessment_id,class_id,academic_year,subject_code,period_code,title,assessment_date,max_score,coefficient,status,version,created_by,created_at,updated_at",
+          [assessmentId,auth.tenantId,organizationId,assessment.classId,assessment.academicYear,assessment.subjectCode,assessment.periodCode,assessment.title,assessment.assessmentDate,assessment.maxScore,assessment.coefficient,auth.principal.userId]
+        );
+        const row=saved.rows[0];if(!row)throw new Error("EDUCATION_ASSESSMENT_CREATE_FAILED");
+        return {data:row,event:{type:"assessment.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:assessmentId,version:Number(row.version??1),data:{operation:"POST",status:"OPEN",subjectCode:assessment.subjectCode}}};
+      });
+    }else throw new Error("EDUCATION_ASSESSMENT_METHOD_NOT_ALLOWED");
+   } else if(r[0]==="assessment-lock"){
+    if(method!=="PATCH")throw new Error("EDUCATION_ASSESSMENT_METHOD_NOT_ALLOWED");
+    const input=body as Record<string,unknown>;
+    if(Object.keys(input).some(key=>key!=="expectedVersion"))throw new Error("EDUCATION_ASSESSMENT_LOCK_FIELDS_NOT_ALLOWED");
+    const expectedVersion=Number(input.expectedVersion);
+    if(!Number.isSafeInteger(expectedVersion)||expectedVersion<1)throw new Error("EDUCATION_ASSESSMENT_VERSION_REQUIRED");
+    data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
+      const saved=await tx.query(
+        "UPDATE education_assessments SET status='LOCKED',locked_by=$1,locked_at=now(),version=version+1,updated_at=now() WHERE tenant_id=$2 AND organization_id=$3 AND assessment_id=$4::uuid AND status='OPEN' AND version=$5 RETURNING assessment_id,status,version,locked_by,locked_at,updated_at",
+        [auth.principal.userId,auth.tenantId,organizationId,r[1],expectedVersion]
+      );
+      if(!saved.rows[0])throw new Error("EDUCATION_ASSESSMENT_STATE_OR_VERSION_CONFLICT");
+      const row=saved.rows[0];
+      return {data:row,event:{type:"assessment.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.assessment_id),version:Number(row.version),data:{operation:"PATCH",status:"LOCKED"}}};
+    });
+   } else if(r[0]==="assessment-grades"){
+    if(method==="GET"){
+      const q=await executeSchoolRead(deps,auth.tenantId,organizationId,tx=>tx.query(
+        "SELECT g.grade_id,g.assessment_id,g.enrollment_id,e.student_id,e.class_id,g.score,g.teacher_comment,g.version,g.entered_by,g.created_at,g.updated_at FROM education_grades g JOIN education_enrollments e ON e.tenant_id=g.tenant_id AND e.organization_id=g.organization_id AND e.enrollment_id=g.enrollment_id WHERE g.tenant_id=$1 AND g.organization_id=$2 AND g.assessment_id=$3::uuid ORDER BY e.student_id",
+        [auth.tenantId,organizationId,r[1]]
+      ));
+      data=q.rows;
+    }else if(method==="POST"){
+      const input=body as Record<string,unknown>;
+      const allowed=["enrollmentId","score","teacherComment","expectedVersion"];
+      if(Object.keys(input).some(key=>!allowed.includes(key)))throw new Error("EDUCATION_GRADE_FIELDS_NOT_ALLOWED");
+      const grade=validateGradeInput({
+        enrollmentId:String(input.enrollmentId??""),score:Number(input.score),
+        teacherComment:input.teacherComment===undefined||input.teacherComment===null?null:String(input.teacherComment),
+        ...(input.expectedVersion===undefined?{}:{expectedVersion:Number(input.expectedVersion)})
+      },1000);
+      data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
+        const assessment=await tx.query(
+          "SELECT assessment_id,class_id,academic_year,subject_code,max_score,status FROM education_assessments WHERE tenant_id=$1 AND organization_id=$2 AND assessment_id=$3::uuid FOR UPDATE",
+          [auth.tenantId,organizationId,r[1]]
+        );
+        const a=assessment.rows[0];if(!a)throw new Error("EDUCATION_ASSESSMENT_NOT_FOUND");
+        if(a.status!=="OPEN")throw new Error("EDUCATION_ASSESSMENT_LOCKED");
+        const maxScore=Number(a.max_score);
+        validateGradeInput(grade,maxScore);
+        const enrollment=await tx.query(
+          "SELECT enrollment_id FROM education_enrollments WHERE tenant_id=$1 AND organization_id=$2 AND enrollment_id=$3 AND class_id=$4 AND academic_year=$5 AND status='ACTIVE'",
+          [auth.tenantId,organizationId,grade.enrollmentId,a.class_id,a.academic_year]
+        );
+        if(!enrollment.rows[0])throw new Error("EDUCATION_GRADE_ACTIVE_ENROLLMENT_REQUIRED");
+        if(!auth.principal.permissions.includes("org.manage")){
+          const assignment=await tx.query(
+            "SELECT assignment_id FROM education_class_assignments WHERE tenant_id=$1 AND organization_id=$2 AND class_id=$3 AND academic_year=$4 AND teacher_actor_id=$5 AND subject_code=$6 AND status='ACTIVE' AND valid_from<=CURRENT_DATE AND (valid_until IS NULL OR valid_until>=CURRENT_DATE)",
+            [auth.tenantId,organizationId,a.class_id,a.academic_year,auth.principal.userId,a.subject_code]
+          );
+          if(!assignment.rows[0])throw new Error("EDUCATION_GRADE_TEACHING_ASSIGNMENT_REQUIRED");
+        }
+        const current=await tx.query(
+          "SELECT grade_id,version FROM education_grades WHERE tenant_id=$1 AND organization_id=$2 AND assessment_id=$3::uuid AND enrollment_id=$4 FOR UPDATE",
+          [auth.tenantId,organizationId,r[1],grade.enrollmentId]
+        );
+        let saved:{rows:Record<string,unknown>[];rowCount:number|null};
+        if(current.rows[0]){
+          if(grade.expectedVersion!==Number(current.rows[0].version))throw new Error("EDUCATION_GRADE_VERSION_CONFLICT");
+          saved=await tx.query(
+            "UPDATE education_grades SET score=$1,teacher_comment=$2,entered_by=$3,version=version+1,updated_at=now() WHERE tenant_id=$4 AND organization_id=$5 AND assessment_id=$6::uuid AND enrollment_id=$7 AND version=$8 RETURNING grade_id,assessment_id,enrollment_id,score,teacher_comment,version,entered_by,created_at,updated_at",
+            [grade.score,grade.teacherComment??null,auth.principal.userId,auth.tenantId,organizationId,r[1],grade.enrollmentId,grade.expectedVersion]
+          );
+        }else{
+          if(grade.expectedVersion!==undefined)throw new Error("EDUCATION_GRADE_VERSION_CONFLICT");
+          saved=await tx.query(
+            "INSERT INTO education_grades(grade_id,tenant_id,organization_id,assessment_id,enrollment_id,score,teacher_comment,version,entered_by) VALUES($1,$2,$3,$4::uuid,$5,$6,$7,1,$8) RETURNING grade_id,assessment_id,enrollment_id,score,teacher_comment,version,entered_by,created_at,updated_at",
+            [randomUUID(),auth.tenantId,organizationId,r[1],grade.enrollmentId,grade.score,grade.teacherComment??null,auth.principal.userId]
+          );
+        }
+        const row=saved.rows[0];if(!row)throw new Error("EDUCATION_GRADE_VERSION_CONFLICT");
+        return {data:row,event:{type:"grade.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.grade_id),version:Number(row.version??1),data:{operation:"UPSERT",assessmentId:r[1],enrollmentId:grade.enrollmentId}}};
+      });
+    }else throw new Error("EDUCATION_GRADE_METHOD_NOT_ALLOWED");
    } else if(r[0]==="attendance"){
     const incoming=body as AttendanceRecord; incoming.organizationId=organizationId;
     data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
