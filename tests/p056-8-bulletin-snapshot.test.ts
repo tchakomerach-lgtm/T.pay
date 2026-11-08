@@ -66,3 +66,12 @@ test("P056.8 rejects duplicate subject rows and non-complete subjects", () => {
   incomplete.result = { ...result, subjects: [{ ...result.subjects[0]!, status: "INCOMPLETE", average: null }] };
   assert.throws(() => createBulletinSnapshot(incomplete), /EDUCATION_BULLETIN_SUBJECT_RESULT_INCOMPLETE/);
 });
+
+test("P056.8 binds the calculated result to the exact student and grading scale", () => {
+  const mismatched = input();
+  mismatched.student.studentId = "another-student";
+  assert.throws(() => createBulletinSnapshot(mismatched), /EDUCATION_BULLETIN_STUDENT_CONTEXT_MISMATCH/);
+  const outsideScale = input();
+  outsideScale.result = { ...result, average: 21 };
+  assert.throws(() => createBulletinSnapshot(outsideScale), /EDUCATION_BULLETIN_AVERAGE_OUT_OF_RANGE/);
+});
