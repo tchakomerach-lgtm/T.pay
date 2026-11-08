@@ -12,7 +12,7 @@ const payout = {
   now: "2026-10-05T10:00:00Z"
 };
 
-function createHarness() {
+function createHarness(payoutState: "initiated" | "approved" | "blocked" | "settled" = "approved") {
   let receipt: { hash: string; payoutId: UUID; state: "processed" | "rejected" | "replayed"; failureCode?: string } | undefined;
   let settlementCalls = 0;
   const db = {
@@ -34,7 +34,7 @@ function createHarness() {
         return { rows: [] as Row[], rowCount: 1 };
       }
       if (sql.includes("SELECT payout_id,organization_id,state,idempotency_key")) {
-        return { rows: [{ payout_id: id, organization_id: id, state: "approved", idempotency_key: "payout-1" }] as Row[], rowCount: 1 };
+        return { rows: [{ payout_id: id, organization_id: id, state: payoutState, idempotency_key: "payout-1" }] as Row[], rowCount: 1 };
       }
       if (sql.includes("INSERT INTO tontine_provider_callback_receipts")) {
         receipt = { hash: String(values?.[4]), payoutId: values?.[6] as UUID, state: "processed" };
@@ -85,4 +85,13 @@ test("identical processed callback replay is acknowledged without rewriting or s
   assert.equal((await run("body-A")).state, "replayed");
   assert.equal(db.getReceipt()?.state, "processed");
   assert.equal(db.getSettlementCalls(), 1);
+});
+
+
+test("provider callback cannot settle a payout that has not been approved", async () => {
+  const { run, db } = createHarness("initiated");
+  assert.equal((await run("body-A")).state, "rejected");
+  assert.equal(db.getReceipt()?.state, "rejected");
+  assert.equal(db.getReceipt()?.failureCode, undefined);
+  assert.equal(db.getSettlementCalls(), 0);
 });
