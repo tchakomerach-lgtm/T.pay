@@ -49,6 +49,12 @@ test("P056.7 ranks complete results with competition ranking and stable tie orde
   assert.deepEqual(ranked.map(x => [x.studentId, x.rank]), [["a", 1], ["b", 1], ["c", null]]);
 });
 
+test("P056.7 does not publish an average when a required subject has no grades", () => {
+  const partial = calculateStudentTermResult({ studentId: "partial", marks: marks.filter(mark => mark.subjectCode === "MATH") }, rules);
+  assert.equal(partial.status, "INCOMPLETE");
+  assert.equal(partial.average, null);
+});
+
 test("P056.7 rejects duplicate assessment and student identities", () => {
   assert.throws(() => calculateSubjectResult("MATH", [marks[0]!, marks[0]!], 4), /EDUCATION_RESULT_DUPLICATE_ASSESSMENT/);
   const result = calculateStudentTermResult({ studentId: "same", marks }, rules);
