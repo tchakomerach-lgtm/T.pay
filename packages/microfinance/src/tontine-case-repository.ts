@@ -130,7 +130,7 @@ export class PostgresTontineCaseRepository implements TontineCaseRepository {
       const result = await tx.query<Row>(
         `UPDATE tontine_cases SET state=$4,updated_at=now()
          WHERE organization_id=$1 AND id=$2 AND state=$3
-         RETURNING * FOR UPDATE`,
+         RETURNING *`,
         [organizationId,caseId,expected,next]
       );
       if (!result.rows[0]) throw new Error("TONTINE_CASE_STATE_CONFLICT_OR_NOT_FOUND");
