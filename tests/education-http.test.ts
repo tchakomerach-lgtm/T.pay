@@ -7,7 +7,7 @@ function auth(){
 }
 function mutationClient(){
  const statements:string[]=[];
- return {statements,async query(sql:string,values?:unknown[]){
+ return {statements,async query(sql:string){
   statements.push(sql);
   if(sql.includes("SELECT actor_id"))return {rows:[{actor_id:"teacher-1",organization_id:"org-1",kind:"TEACHER",active:true,data:{display_name:"Teacher"},version:1,updated_at:new Date().toISOString()}],rowCount:1};
   return {rows:[],rowCount:0};
@@ -19,7 +19,7 @@ function db(){
 }
 test("School HTTP actor route enforces auth context and returns versioned contract",async()=>{
  const tx=mutationClient();
- const server=createSchoolApiServer({db:db() as any,authenticate:async()=>auth(),syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any,mutationClient:()=>mutationClient() as any,mutationClient:()=>tx as any});
+ const server=createSchoolApiServer({db:db() as any,authenticate:async()=>auth(),syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any,mutationClient:()=>tx as any});
  await new Promise<void>(resolve=>server.listen(0,resolve));
  const port=(server.address() as any).port; server.unref(); server.unref();
  const res=await fetch(`http://127.0.0.1:${port}/v1/education/actors/teacher-1`);
