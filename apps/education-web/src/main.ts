@@ -22,13 +22,9 @@ function BrandMark(){return React.createElement("div",{className:"brand-mark","a
 function AuthScreen(){
   const [showPassword,setShowPassword]=useState(false);
   const [notice,setNotice]=useState("");
-  const [busy,setBusy]=useState(false);
   const submit=(event:React.FormEvent<HTMLFormElement>)=>{
     event.preventDefault();
-    if(busy)return;
-    setBusy(true);
     setNotice("Le service d’authentification serveur n’est pas encore raccordé à cet écran. Aucun identifiant n’a été transmis ni enregistré.");
-    window.setTimeout(()=>setBusy(false),450);
   };
   return React.createElement("main",{className:"auth-page"},
     React.createElement("div",{className:"auth-ambient ambient-one"}),
@@ -69,7 +65,7 @@ function AuthScreen(){
             React.createElement("div",{className:"auth-options"},
               React.createElement("label",{className:"remember-option"},React.createElement("input",{type:"checkbox",name:"remember"}),React.createElement("span",null,"Se souvenir de moi")),
               React.createElement("span",{className:"recovery-note"},"Besoin d’aide ? Contactez votre administrateur")),
-            React.createElement("button",{type:"submit",className:"login-button",disabled:busy},busy?"Vérification…": "Se connecter",React.createElement("span",{ "aria-hidden":true },"→")),
+            React.createElement("button",{type:"submit",className:"login-button", "Se connecter",React.createElement("span",{ "aria-hidden":true },"→")),
             notice?React.createElement("p",{className:"auth-notice","role":"status"},notice):null),
           React.createElement("div",{className:"auth-security"},
             React.createElement("span",{className:"security-icon"},"◇"),
