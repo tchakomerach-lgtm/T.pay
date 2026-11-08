@@ -36,6 +36,8 @@ test("provider incident atomically persists case, hashed evidence and outbox",as
   assert.match(h.calls[1]!.sql,/opened_by_system,source_event_key/);
   assert.match(h.calls[1]!.sql,/ON CONFLICT \(organization_id,source_event_key\)/);
   assert.match(h.calls[2]!.sql,/provider_callback/);
+  assert.match(h.calls[2]!.sql,/captured_by_system/);
+  assert.match(h.calls[2]!.sql,/NULL,true/);
   assert.match(h.calls[3]!.sql,/tontine\.provider_incident\.opened/);
   assert.equal(h.calls[2]!.values[3] instanceof String,false);
   assert.equal(String(h.calls[2]!.values[3]).length,64);
