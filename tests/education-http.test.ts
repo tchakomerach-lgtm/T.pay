@@ -119,5 +119,5 @@ test("failed idempotency reservation is finalized within its organization scope"
   assert.match(failed!.sql,/organization_id=\$4/);
   assert.equal(failed!.values?.[0],requestId);
   assert.equal(failed!.values?.[3],"org-1");
- }finally{server.close();}
+ }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
