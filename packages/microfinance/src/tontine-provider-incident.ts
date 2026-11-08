@@ -74,8 +74,8 @@ export async function recordTontineProviderIncident(
 
   await tx.query(
     `INSERT INTO tontine_case_evidence
-      (id,organization_id,case_id,type,content_hash,object_reference,captured_by,captured_at)
-     VALUES ($1,$2,$3,'provider_callback',$4,$5,$2,$6::timestamptz)
+      (id,organization_id,case_id,type,content_hash,object_reference,captured_by,captured_by_system,captured_at)
+     VALUES ($1,$2,$3,'provider_callback',$4,$5,NULL,true,$6::timestamptz)
      ON CONFLICT (organization_id,case_id,content_hash) DO NOTHING`,
     [evidenceId,input.organizationId,caseId,contentHash,
      "provider-event:" + input.provider + ":" + input.providerEventId,input.occurredAt]
