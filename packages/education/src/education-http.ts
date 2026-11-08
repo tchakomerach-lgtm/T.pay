@@ -183,7 +183,8 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(!routeAuth.allowed)throw new Error(routeAuth.reason);
    const organizationId=auth.principal.organizationId; if(!auth.tenantId)throw new Error("TENANT_CONTEXT_REQUIRED");
    if(!organizationId)throw new Error("ORGANIZATION_CONTEXT_REQUIRED");
-   assertAuthorized(auth.principal,{organizationId,requestedPermission:permissionFor(r[0],method)});
+   const requiredPermission=r[0]==="assessment-grades"&&method==="POST"&&auth.principal.permissions.includes("org.manage")?"org.manage":permissionFor(r[0],method);
+   assertAuthorized(auth.principal,{organizationId,requestedPermission:requiredPermission});
    if(r[0]==="stream"){
     if(method!=="GET")throw new Error("REALTIME_METHOD_NOT_ALLOWED");
     if(!deps.realtime)throw new Error("REALTIME_NOT_CONFIGURED");
