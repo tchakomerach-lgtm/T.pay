@@ -571,7 +571,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
           "SELECT grade_id,version FROM education_grades WHERE tenant_id=$1 AND organization_id=$2 AND assessment_id=$3::uuid AND enrollment_id=$4 FOR UPDATE",
           [auth.tenantId,organizationId,r[1],grade.enrollmentId]
         );
-        let saved;
+        let saved:{rows:Record<string,unknown>[];rowCount:number|null};
         if(current.rows[0]){
           if(grade.expectedVersion!==Number(current.rows[0].version))throw new Error("EDUCATION_GRADE_VERSION_CONFLICT");
           saved=await tx.query(
