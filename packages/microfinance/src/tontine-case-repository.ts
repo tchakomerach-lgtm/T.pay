@@ -19,7 +19,7 @@ function caseFromRow(row: Row): TontineCase {
     groupId: row.group_id as UUID,
     type: row.type as TontineCase["type"],
     state: row.state as TontineCaseState,
-    openedBy: row.opened_by as UUID,
+    ...(row.opened_by == null ? {} : { openedBy: row.opened_by as UUID }),
     ...(row.payout_id == null ? {} : { payoutId: row.payout_id as UUID }),
     ...(row.contribution_id == null ? {} : { contributionId: row.contribution_id as UUID }),
     severity: row.severity as TontineCase["severity"],
@@ -35,7 +35,7 @@ function evidenceFromRow(row: Row): TontineCaseEvidence {
     type: row.type as TontineCaseEvidence["type"],
     contentHash: String(row.content_hash),
     ...(row.object_reference == null ? {} : { objectReference: String(row.object_reference) }),
-    capturedBy: row.captured_by as UUID,
+    ...(row.captured_by == null ? {} : { capturedBy: row.captured_by as UUID }),
     capturedAt: new Date(String(row.captured_at)).toISOString()
   };
 }
@@ -98,6 +98,7 @@ export class PostgresTontineCaseRepository implements TontineCaseRepository {
   constructor(private readonly db: TontineSqlExecutor) {}
 
   async createCase(value: TontineCase): Promise<TontineCase> {
+    if (!value.openedBy) throw new Error("TONTINE_CASE_HUMAN_ACTOR_REQUIRED");
     if (!value.summary.trim() || value.summary.length > 2000) throw new Error("TONTINE_CASE_SUMMARY_INVALID");
     const result = await this.db.query<Row>(
       `INSERT INTO tontine_cases
@@ -136,6 +137,7 @@ export class PostgresTontineCaseRepository implements TontineCaseRepository {
   }
 
   async addEvidence(organizationId: UUID, evidence: TontineCaseEvidence): Promise<TontineCaseEvidence> {
+    if (!evidence.capturedBy) throw new Error("TONTINE_CASE_EVIDENCE_HUMAN_ACTOR_REQUIRED");
     if (!/^[a-f0-9]{64}$/i.test(evidence.contentHash)) throw new Error("TONTINE_CASE_EVIDENCE_HASH_INVALID");
     const result = await this.db.query<Row>(
       `INSERT INTO tontine_case_evidence
