@@ -5,32 +5,79 @@ import type {SchoolWebConfig} from "./school-web.js";
 import "./style.css";
 
 declare global{interface Window{__TPAY_SCHOOL_CONFIG__?:{apiBaseUrl:string;accessToken:string;expiresAt:string}}}
-
-const STORAGE_KEY="tpay-school-test-config";
-const root=document.getElementById("root");if(!root)throw new Error("WEB_ROOT_REQUIRED");
+const root=document.getElementById("root");
+if(!root)throw new Error("WEB_ROOT_REQUIRED");
 
 function readConfig():SchoolWebConfig|null{
-  const raw=window.__TPAY_SCHOOL_CONFIG__??(()=>{try{const value=sessionStorage.getItem(STORAGE_KEY);return value?JSON.parse(value):undefined}catch{return undefined}})();
-  if(raw?.apiBaseUrl&&raw?.accessToken&&raw?.expiresAt)return {apiBaseUrl:raw.apiBaseUrl,session:{accessToken:raw.accessToken,expiresAt:raw.expiresAt}};
+  const raw=window.__TPAY_SCHOOL_CONFIG__;
+  if(raw?.apiBaseUrl&&raw?.accessToken&&raw?.expiresAt&&Date.parse(raw.expiresAt)>Date.now()){
+    return {apiBaseUrl:raw.apiBaseUrl,session:{accessToken:raw.accessToken,expiresAt:raw.expiresAt}};
+  }
   return null;
 }
 
-function Setup(){const [,refresh]=useState(0);
-  const submit=(event:React.FormEvent<HTMLFormElement>)=>{event.preventDefault();const form=new FormData(event.currentTarget);const apiBaseUrl=String(form.get("apiBaseUrl")??"").trim();const accessToken=String(form.get("accessToken")??"").trim();if(!apiBaseUrl||!accessToken)return;sessionStorage.setItem(STORAGE_KEY,JSON.stringify({apiBaseUrl,accessToken,expiresAt:new Date(Date.now()+86400000).toISOString()}));refresh(v=>v+1);};
-  const demo=()=>{sessionStorage.setItem(STORAGE_KEY,JSON.stringify({apiBaseUrl:"https://demo.invalid",accessToken:"demo-session",expiresAt:new Date(Date.now()+86400000).toISOString(),demo:true}));refresh(v=>v+1);};
-  const config=readConfig();
-  if(config)return React.createElement(SchoolApp,{config:{...config,demo:config.apiBaseUrl==="https://demo.invalid"}});
-  return React.createElement("main",{className:"school-shell"},
-    React.createElement("section",{className:"setup-panel"},React.createElement("p",{className:"eyebrow"},"T.PAY • TEST BOOTSTRAP"),React.createElement("h1",null,"Connexion de test"),React.createElement("p",null,"La version précédente plantait lorsque la configuration de session n'était pas injectée. Configure ici un endpoint HTTPS et un jeton de test. Les valeurs sont conservées uniquement dans sessionStorage."),
-      React.createElement("form",{onSubmit:submit,className:"setup-form"},
-        React.createElement("label",null,"API HTTPS",React.createElement("input",{name:"apiBaseUrl",placeholder:"https://127.0.0.1:8443",required:true})),
-        React.createElement("label",null,"Jeton de test",React.createElement("input",{name:"accessToken",type:"password",autoComplete:"off",required:true})),
-        React.createElement("button",{type:"submit"},"Lancer T.Pay")
-      ),
-      React.createElement("button",{type:"button",onClick:demo,className:"secondary"},"Ouvrir en mode démonstration"),
-      React.createElement("p",{className:"notice"},"Le mode démonstration vérifie le lancement du frontend sans prétendre fournir une API financière réelle.")
-    )
-  );
+function BrandMark(){return React.createElement("div",{className:"brand-mark","aria-hidden":true},
+  React.createElement("span",{className:"brand-mark-core"},"T."));}
+
+function AuthScreen(){
+  const [showPassword,setShowPassword]=useState(false);
+  const [notice,setNotice]=useState("");
+  const [busy,setBusy]=useState(false);
+  const submit=(event:React.FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();
+    if(busy)return;
+    setBusy(true);
+    setNotice("Le service d’authentification serveur n’est pas encore raccordé à cet écran. Aucun identifiant n’a été transmis ni enregistré.");
+    window.setTimeout(()=>setBusy(false),450);
+  };
+  return React.createElement("main",{className:"auth-page"},
+    React.createElement("div",{className:"auth-ambient ambient-one"}),
+    React.createElement("div",{className:"auth-ambient ambient-two"}),
+    React.createElement("section",{className:"auth-layout"},
+      React.createElement("aside",{className:"brand-panel"},
+        React.createElement("div",{className:"brand-top"},React.createElement(BrandMark),React.createElement("span",null,"T.PAY")),
+        React.createElement("div",{className:"brand-copy"},
+          React.createElement("span",{className:"brand-kicker"},"L’ÉCOSYSTÈME QUI VOUS CONNECTE"),
+          React.createElement("h1",null,"L’éducation mérite une expérience plus simple."),
+          React.createElement("p",null,"Un espace de travail sécurisé pour les établissements, les équipes pédagogiques, les élèves et les familles."),
+          React.createElement("div",{className:"brand-feature"},
+            React.createElement("span",{className:"feature-icon"},"✦"),
+            React.createElement("div",null,React.createElement("strong",null,"Tout votre établissement, au même endroit"),React.createElement("small",null,"Gestion · Pédagogie · Communication")))),
+        React.createElement("div",{className:"brand-footer"},
+          React.createElement("span",{className:"secure-dot"}),
+          React.createElement("span",null,"Un espace pensé pour la confiance"),
+          React.createElement("span",{className:"brand-version"},"SCHOOL OS"))),
+      React.createElement("section",{className:"auth-main"},
+        React.createElement("div",{className:"mobile-brand"},React.createElement(BrandMark),React.createElement("span",null,"T.PAY")),
+        React.createElement("div",{className:"auth-content"},
+          React.createElement("div",{className:"auth-heading"},
+            React.createElement("span",{className:"auth-eyebrow"},"VOTRE ESPACE T.PAY"),
+            React.createElement("h2",null,"Ravi de vous revoir."),
+            React.createElement("p",null,"Connectez-vous pour accéder à votre espace.")),
+          React.createElement("form",{className:"auth-form",onSubmit:submit},
+            React.createElement("label",{htmlFor:"identity"},"Adresse e-mail ou identifiant"),
+            React.createElement("div",{className:"field-wrap"},
+              React.createElement("span",{className:"field-icon","aria-hidden":true},"✉"),
+              React.createElement("input",{id:"identity",name:"identity",type:"text",autoComplete:"username",placeholder:"ex. nom@etablissement.tg",required:true})),
+            React.createElement("div",{className:"password-label"},
+              React.createElement("label",{htmlFor:"password"},"Mot de passe"),
+              React.createElement("span",{className:"password-hint"},"Accès personnel")),
+            React.createElement("div",{className:"field-wrap"},
+              React.createElement("span",{className:"field-icon","aria-hidden":true},"⌑"),
+              React.createElement("input",{id:"password",name:"password",type:showPassword?"text":"password",autoComplete:"current-password",placeholder:"Votre mot de passe",required:true}),
+              React.createElement("button",{type:"button",className:"reveal-button",onClick:()=>setShowPassword(v=>!v),"aria-label":showPassword?"Masquer le mot de passe":"Afficher le mot de passe"},showPassword?"Masquer":"Afficher")),
+            React.createElement("div",{className:"auth-options"},
+              React.createElement("label",{className:"remember-option"},React.createElement("input",{type:"checkbox",name:"remember"}),React.createElement("span",null,"Se souvenir de moi")),
+              React.createElement("span",{className:"recovery-note"},"Besoin d’aide ? Contactez votre administrateur")),
+            React.createElement("button",{type:"submit",className:"login-button",disabled:busy},busy?"Vérification…": "Se connecter",React.createElement("span",{ "aria-hidden":true },"→")),
+            notice?React.createElement("p",{className:"auth-notice","role":"status"},notice):null),
+          React.createElement("div",{className:"auth-security"},
+            React.createElement("span",{className:"security-icon"},"◇"),
+            React.createElement("p",null,React.createElement("strong",null,"Connexion protégée")," — vos accès doivent être vérifiés par les services sécurisés de T.Pay."))),
+        React.createElement("footer",{className:"auth-bottom"},
+          React.createElement("span",null,"© 2026 T.Pay · School OS"),
+          React.createElement("span",null,"Confidentialité · Sécurité")))));
 }
 
-createRoot(root).render(React.createElement(Setup));
+const config=readConfig();
+createRoot(root).render(config?React.createElement(SchoolApp,{config}):React.createElement(AuthScreen));
