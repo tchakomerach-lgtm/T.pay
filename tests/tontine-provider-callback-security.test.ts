@@ -27,7 +27,7 @@ function createHarness() {
       if (sql.includes("UPDATE tontine_provider_callback_receipts")) {
         if (receipt) {
           receipt.state = "rejected";
-          receipt.failureCode = String(values?.[0] ?? "CALLBACK_QUARANTINED");
+          receipt.failureCode = sql.includes("CALLBACK_PAYLOAD_MISMATCH") ? "CALLBACK_PAYLOAD_MISMATCH" : "CALLBACK_RECEIPT_STALE";
         }
         return { rows: [] as Row[], rowCount: 1 };
       }
