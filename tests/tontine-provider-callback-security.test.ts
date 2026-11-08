@@ -25,9 +25,11 @@ function createHarness() {
         }] as Row[], rowCount: 1 };
       }
       if (sql.includes("UPDATE tontine_provider_callback_receipts")) {
-        if (receipt) {
+        if (receipt && sql.includes("state='rejected'")) {
           receipt.state = "rejected";
           receipt.failureCode = sql.includes("CALLBACK_PAYLOAD_MISMATCH") ? "CALLBACK_PAYLOAD_MISMATCH" : "CALLBACK_RECEIPT_STALE";
+        } else if (receipt && sql.includes("state='processed'")) {
+          receipt.state = "processed";
         }
         return { rows: [] as Row[], rowCount: 1 };
       }
