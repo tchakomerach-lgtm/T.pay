@@ -94,6 +94,53 @@ CREATE POLICY education_grades_runtime_scope ON education_grades
           AND organization_id = NULLIF(current_setting('tpay.organization_id', true), ''));
 GRANT SELECT, INSERT, UPDATE ON education_grades TO tpay_school_runtime;
 
+
+-- Database-level invariants: a grade belongs to an active enrollment in the
+-- assessment class/year, is bounded by max_score, and cannot change after lock.
+CREATE OR REPLACE FUNCTION guard_education_grade_write()
+RETURNS trigger LANGUAGE plpgsql AS $
+DECLARE
+  assessment_row education_assessments%ROWTYPE;
+  enrollment_row education_enrollments%ROWTYPE;
+BEGIN
+  SELECT * INTO assessment_row
+    FROM education_assessments
+   WHERE tenant_id=NEW.tenant_id
+     AND organization_id=NEW.organization_id
+     AND assessment_id=NEW.assessment_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'EDUCATION_ASSESSMENT_SCOPE_NOT_FOUND';
+  END IF;
+  IF assessment_row.status <> 'OPEN' THEN
+    RAISE EXCEPTION 'EDUCATION_ASSESSMENT_LOCKED';
+  END IF;
+  IF NEW.score > assessment_row.max_score THEN
+    RAISE EXCEPTION 'EDUCATION_GRADE_SCORE_OUT_OF_RANGE';
+  END IF;
+
+  SELECT * INTO enrollment_row
+    FROM education_enrollments
+   WHERE tenant_id=NEW.tenant_id
+     AND organization_id=NEW.organization_id
+     AND enrollment_id=NEW.enrollment_id
+   FOR UPDATE;
+  IF NOT FOUND
+     OR enrollment_row.status <> 'ACTIVE'
+     OR enrollment_row.class_id <> assessment_row.class_id
+     OR enrollment_row.academic_year <> assessment_row.academic_year THEN
+    RAISE EXCEPTION 'EDUCATION_GRADE_ACTIVE_ENROLLMENT_REQUIRED';
+  END IF;
+  NEW.updated_at := now();
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS trg_education_grade_write_guard ON education_grades;
+CREATE TRIGGER trg_education_grade_write_guard
+BEFORE INSERT OR UPDATE ON education_grades
+FOR EACH ROW EXECUTE FUNCTION guard_education_grade_write();
+
 COMMENT ON TABLE education_assessments IS
   'Organization-scoped academic assessment definitions. No fees or monetary settlement data.';
 COMMENT ON TABLE education_grades IS
