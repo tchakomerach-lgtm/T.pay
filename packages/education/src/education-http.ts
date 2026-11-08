@@ -145,6 +145,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
   const correlationId=String(req.headers["x-correlation-id"]??newCorrelationId());
   let reservedRequestId:string|undefined;
   let reservedRoute:string|undefined;
+  let reservedOrganizationId:string|undefined;
   try{
    if(!CORRELATION_ID.test(correlationId))throw new Error("API_CORRELATION_ID_INVALID");
    setSecurityHeaders(res);
@@ -231,7 +232,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(method!=="GET" && !IDEMPOTENCY_KEY.test(idem))throw new Error("API_IDEMPOTENCY_KEY_INVALID");
    const gateway=new ApiGatewayRepository(deps.db);
    const dedupe=method==="GET"?null:await gateway.reserveOrReplay({organizationId,key:idem,requestHash,route:path,expiresAt:new Date(Date.now()+86400000).toISOString()});
-   if(dedupe?.status==="reserved"){reservedRequestId=dedupe.requestId;reservedRoute=path;}
+   if(dedupe?.status==="reserved"){reservedRequestId=dedupe.requestId;reservedRoute=path;reservedOrganizationId=organizationId;}
    if(dedupe?.status==="conflict")throw new Error("API_IDEMPOTENCY_CONFLICT");
    if(dedupe?.status==="replay"){res.statusCode=dedupe.statusCode??200;json(res,res.statusCode,{ok:true,replayed:true,requestId:dedupe.requestId},correlationId);return;}
    let data:unknown;
@@ -553,11 +554,11 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       code.includes("CONFLICT")?409:
       code.includes("INVALID")||code.includes("REQUIRED")||code.includes("NOT_ALLOWED")||code.includes("METHOD_NOT_ALLOWED")?400:500;
     const errorBody=buildApiError(error,correlationId);
-    if(reservedRequestId&&reservedRoute){
+    if(reservedRequestId&&reservedRoute&&reservedOrganizationId){
       try{
         await deps.db.query(
-          "UPDATE api_request_deduplication SET state='failed',response_hash=$2,status_code=$3 WHERE id=$1 AND state='reserved'",
-          [reservedRequestId,canonicalRequestHash("RESPONSE",reservedRoute,JSON.stringify(errorBody)),status]
+          "UPDATE api_request_deduplication SET state='failed',response_hash=$2,status_code=$3 WHERE id=$1 AND organization_id=$4 AND state='reserved'",
+          [reservedRequestId,canonicalRequestHash("RESPONSE",reservedRoute,JSON.stringify(errorBody)),status,reservedOrganizationId]
         );
       }catch{/* never hide the original API failure */}
     }
