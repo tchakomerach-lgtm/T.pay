@@ -1089,3 +1089,55 @@ test("P056.1 live PostgreSQL commits school mutation, audit and Outbox atomicall
     await Promise.all([admin.end().catch(() => {}), workerA.end().catch(() => {}), workerB.end().catch(() => {})]);
   }
 });
+
+
+test("P056.2 live PostgreSQL enforces tenant and organization RLS for attendance, work items and service requests", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const admin = new pg.Client({ connectionString: databaseUrl });
+  const runtime = new pg.Client({ connectionString: databaseUrl });
+  const tenantId = "p0562-" + randomUUID();
+  const organizationId = "p0562-org-" + randomUUID();
+  const foreignTenantId = "p0562-foreign-" + randomUUID();
+  const foreignOrganizationId = "p0562-foreign-org-" + randomUUID();
+  const attendanceStudent = "p0562-student-" + randomUUID();
+  const attendanceClass = "p0562-class-" + randomUUID();
+  const workId = "p0562-work-" + randomUUID();
+  const serviceId = "p0562-service-" + randomUUID();
+  try {
+    await admin.connect();
+    await runtime.connect();
+    await applyMigrations(admin, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await runtime.query("BEGIN");
+    await runtime.query("SET LOCAL ROLE tpay_school_runtime");
+    await runtime.query("SELECT set_config('tpay.tenant_id',$1,true),set_config('tpay.organization_id',$2,true)", [tenantId, organizationId]);
+    await runtime.query("INSERT INTO education_attendance(student_id,class_id,tenant_id,organization_id,status,recorded_by,occurred_at,source,version) VALUES($1,$2,$3,$4,'PRESENT','teacher-1',now(),'TEACHER',1)", [attendanceStudent, attendanceClass, tenantId, organizationId]);
+    await runtime.query("INSERT INTO education_work_items(work_item_id,tenant_id,organization_id,status,priority,version) VALUES($1,$2,$3,'OPEN','NORMAL',1)", [workId, tenantId, organizationId]);
+    await runtime.query("INSERT INTO education_service_requests(request_id,tenant_id,organization_id,requester_id,service_code,status,priority,created_at,version) VALUES($1,$2,$3,'actor-1','CERTIFICATE','OPEN','NORMAL',now(),1)", [serviceId, tenantId, organizationId]);
+    const visible = await runtime.query("SELECT (SELECT count(*)::int FROM education_attendance WHERE student_id=$1) AS attendance, (SELECT count(*)::int FROM education_work_items WHERE work_item_id=$2) AS work, (SELECT count(*)::int FROM education_service_requests WHERE request_id=$3) AS service", [attendanceStudent, workId, serviceId]);
+    assert.deepEqual(visible.rows[0], { attendance: 1, work: 1, service: 1 });
+    const hidden = await runtime.query("SELECT (SELECT count(*)::int FROM education_attendance WHERE tenant_id=$1 AND organization_id=$2) AS attendance, (SELECT count(*)::int FROM education_work_items WHERE tenant_id=$1 AND organization_id=$2) AS work, (SELECT count(*)::int FROM education_service_requests WHERE tenant_id=$1 AND organization_id=$2) AS service", [foreignTenantId, foreignOrganizationId]);
+    assert.deepEqual(hidden.rows[0], { attendance: 0, work: 0, service: 0 });
+    await runtime.query("COMMIT");
+
+    const crossScopeWrites = [
+      ["INSERT INTO education_attendance(student_id,class_id,tenant_id,organization_id,status,recorded_by,occurred_at,source,version) VALUES($1,$2,$3,$4,'PRESENT','teacher-1',now(),'TEACHER',1)", ["foreign-student-tenant-" + randomUUID(), "foreign-class-" + randomUUID(), foreignTenantId, organizationId]],
+      ["INSERT INTO education_attendance(student_id,class_id,tenant_id,organization_id,status,recorded_by,occurred_at,source,version) VALUES($1,$2,$3,$4,'PRESENT','teacher-1',now(),'TEACHER',1)", ["foreign-student-org-" + randomUUID(), "foreign-class-" + randomUUID(), tenantId, foreignOrganizationId]],
+      ["INSERT INTO education_work_items(work_item_id,tenant_id,organization_id,status,priority,version) VALUES($1,$2,$3,'OPEN','NORMAL',1)", ["foreign-work-tenant-" + randomUUID(), foreignTenantId, organizationId]],
+      ["INSERT INTO education_work_items(work_item_id,tenant_id,organization_id,status,priority,version) VALUES($1,$2,$3,'OPEN','NORMAL',1)", ["foreign-work-org-" + randomUUID(), tenantId, foreignOrganizationId]],
+      ["INSERT INTO education_service_requests(request_id,tenant_id,organization_id,requester_id,service_code,status,priority,created_at,version) VALUES($1,$2,$3,'actor-1','CERTIFICATE','OPEN','NORMAL',now(),1)", ["foreign-service-tenant-" + randomUUID(), foreignTenantId, organizationId]],
+      ["INSERT INTO education_service_requests(request_id,tenant_id,organization_id,requester_id,service_code,status,priority,created_at,version) VALUES($1,$2,$3,'actor-1','CERTIFICATE','OPEN','NORMAL',now(),1)", ["foreign-service-org-" + randomUUID(), tenantId, foreignOrganizationId]]
+    ] as const;
+    for (const [sql, values] of crossScopeWrites) {
+      await runtime.query("BEGIN");
+      await runtime.query("SET LOCAL ROLE tpay_school_runtime");
+      await runtime.query("SELECT set_config('tpay.tenant_id',$1,true),set_config('tpay.organization_id',$2,true)", [tenantId, organizationId]);
+      await assert.rejects(runtime.query(sql, [...values]), /row-level security|policy/i);
+      await runtime.query("ROLLBACK");
+    }
+  } finally {
+    await runtime.query("ROLLBACK").catch(() => {});
+    await admin.query("DELETE FROM education_attendance WHERE tenant_id=$1 AND organization_id=$2", [tenantId, organizationId]).catch(() => {});
+    await admin.query("DELETE FROM education_work_items WHERE tenant_id=$1 AND organization_id=$2", [tenantId, organizationId]).catch(() => {});
+    await admin.query("DELETE FROM education_service_requests WHERE tenant_id=$1 AND organization_id=$2", [tenantId, organizationId]).catch(() => {});
+    await Promise.all([admin.end().catch(() => {}), runtime.end().catch(() => {})]);
+  }
+});

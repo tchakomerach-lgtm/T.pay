@@ -81,6 +81,10 @@ function route(path:string){
  if(parts[0]!=="v1"||parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
  if(parts[2]==="classes"&&parts.length===3)return ["classes"] as const;
+ if(parts[2]==="subjects"&&parts.length===3)return ["subjects"] as const;
+ if(parts[2]==="subjects"&&parts.length===4&&parts[3])return ["subject",parts[3]] as const;
+ if(parts[2]==="class-assignments"&&parts.length===3)return ["class-assignments"] as const;
+ if(parts[2]==="class-assignments"&&parts.length===4&&parts[3])return ["class-assignment-revoke",parts[3]] as const;
  if(parts[2]==="enrollments"&&parts.length===3)return ["enrollments"] as const;
  if(parts[2]==="enrollments"&&parts.length===4&&parts[3])return ["enrollment-status",parts[3]] as const;
  if(parts[2]==="sync"&&parts[3]==="events"&&parts.length===4)return ["sync"] as const;
@@ -92,9 +96,12 @@ function route(path:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string,method:string):Permission{
+export function permissionFor(kind:string,method:string):Permission{
  if(kind==="actor"||((kind==="classes"||kind==="enrollments")&&method==="GET"))return "org.read";
- if(kind==="classes"||kind==="enrollments"||kind==="enrollment-status")return "org.manage";
+ if(kind==="subjects"&&method==="GET")return "org.read";
+ if(kind==="subjects"||kind==="subject")return "org.manage";
+ if(kind==="class-assignments"&&method==="GET")return "org.read";
+ if(kind==="classes"||kind==="enrollments"||kind==="enrollment-status"||kind==="class-assignments"||kind==="class-assignment-revoke")return "org.manage";
  return "member.manage";
 }
 
@@ -138,6 +145,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
   const correlationId=String(req.headers["x-correlation-id"]??newCorrelationId());
   let reservedRequestId:string|undefined;
   let reservedRoute:string|undefined;
+  let reservedOrganizationId:string|undefined;
   try{
    if(!CORRELATION_ID.test(correlationId))throw new Error("API_CORRELATION_ID_INVALID");
    setSecurityHeaders(res);
@@ -224,7 +232,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(method!=="GET" && !IDEMPOTENCY_KEY.test(idem))throw new Error("API_IDEMPOTENCY_KEY_INVALID");
    const gateway=new ApiGatewayRepository(deps.db);
    const dedupe=method==="GET"?null:await gateway.reserveOrReplay({organizationId,key:idem,requestHash,route:path,expiresAt:new Date(Date.now()+86400000).toISOString()});
-   if(dedupe?.status==="reserved"){reservedRequestId=dedupe.requestId;reservedRoute=path;}
+   if(dedupe?.status==="reserved"){reservedRequestId=dedupe.requestId;reservedRoute=path;reservedOrganizationId=organizationId;}
    if(dedupe?.status==="conflict")throw new Error("API_IDEMPOTENCY_CONFLICT");
    if(dedupe?.status==="replay"){res.statusCode=dedupe.statusCode??200;json(res,res.statusCode,{ok:true,replayed:true,requestId:dedupe.requestId},correlationId);return;}
    let data:unknown;
@@ -299,6 +307,79 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
         return {data:row,event:{type:"enrollment.changed",occurredAt:enrolledAt,entityId:enrollmentId,version:Number(row.version??1),data:{operation:"POST",route:path,status:row.status??null}}};
       });
     }else throw new Error("EDUCATION_ENROLLMENT_METHOD_NOT_ALLOWED");
+   } else if(r[0]==="class-assignments"){
+    if(method==="GET"){
+      const url=new URL(rawUrl,"https://tpay.invalid");
+      const classId=url.searchParams.get("classId");
+      const academicYear=url.searchParams.get("academicYear");
+      const teacherId=url.searchParams.get("teacherId");
+      if(academicYear && !/^\d{4}-\d{4}$/.test(academicYear))throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
+      const q=await executeSchoolRead(deps,auth.tenantId,organizationId,tx=>tx.query(
+        "SELECT assignment_id,class_id,academic_year,teacher_actor_id,subject_code,weekly_hours,valid_from,valid_until,status,version,created_at,updated_at FROM education_class_assignments WHERE tenant_id=$1 AND organization_id=$2 AND ($3::text IS NULL OR class_id=$3) AND ($4::text IS NULL OR academic_year=$4) AND ($5::text IS NULL OR teacher_actor_id=$5) ORDER BY academic_year DESC,class_id,subject_code,teacher_actor_id",
+        [auth.tenantId,organizationId,classId,academicYear,teacherId]
+      ));
+      data=q.rows;
+    }else if(method==="POST"){
+      const input=body as Record<string,unknown>;
+      const allowed=["classId","academicYear","teacherActorId","subjectCode","weeklyHours","validFrom","validUntil"];
+      if(Object.keys(input).some(key=>!allowed.includes(key)))throw new Error("EDUCATION_ASSIGNMENT_FIELDS_NOT_ALLOWED");
+      const classId=String(input.classId??"").trim();
+      const academicYear=String(input.academicYear??"");
+      const teacherActorId=String(input.teacherActorId??"").trim();
+      const subjectCode=String(input.subjectCode??"").trim();
+      const weeklyHours=Number(input.weeklyHours);
+      const validFrom=String(input.validFrom??"");
+      const validUntil=input.validUntil===null||input.validUntil===undefined||input.validUntil===""?null:String(input.validUntil);
+      if(!classId||classId.length>128||!teacherActorId||teacherActorId.length>128)throw new Error("EDUCATION_ASSIGNMENT_REFERENCE_INVALID");
+      if(!/^\d{4}-\d{4}$/.test(academicYear)||Number(academicYear.slice(5))!==Number(academicYear.slice(0,4))+1)throw new Error("EDUCATION_ACADEMIC_YEAR_INVALID");
+      if(!/^[A-Za-z0-9._-]{1,32}$/.test(subjectCode))throw new Error("EDUCATION_SUBJECT_CODE_INVALID");
+      if(!Number.isFinite(weeklyHours)||weeklyHours<=0||weeklyHours>60)throw new Error("EDUCATION_WEEKLY_HOURS_INVALID");
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(validFrom)||Number.isNaN(Date.parse(validFrom+"T00:00:00Z")))throw new Error("EDUCATION_ASSIGNMENT_START_DATE_INVALID");
+      if(validUntil!==null&&(!/^\d{4}-\d{2}-\d{2}$/.test(validUntil)||Number.isNaN(Date.parse(validUntil+"T00:00:00Z"))||validUntil<validFrom))throw new Error("EDUCATION_ASSIGNMENT_END_DATE_INVALID");
+      const assignmentId=randomUUID();
+      data=await executeSchoolMutation(deps,{
+        tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,
+        requestId:dedupe?.requestId??correlationId,route:path,correlationId
+      },async tx=>{
+        const teacher=await tx.query(
+          "SELECT actor_id FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3 AND kind='TEACHER' AND active=true",
+          [auth.tenantId,organizationId,teacherActorId]
+        );
+        if(!teacher.rows[0])throw new Error("EDUCATION_ACTIVE_TEACHER_NOT_FOUND");
+        const subject=await tx.query("SELECT subject_code FROM education_subjects WHERE tenant_id=$1 AND organization_id=$2 AND subject_code=$3 AND active=true",[auth.tenantId,organizationId,subjectCode]);
+        if(!subject.rows[0])throw new Error("EDUCATION_ACTIVE_SUBJECT_NOT_FOUND");
+        const saved=await tx.query(
+          "INSERT INTO education_class_assignments(assignment_id,tenant_id,organization_id,class_id,academic_year,teacher_actor_id,subject_code,weekly_hours,valid_from,valid_until,status,created_by,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::date,$10::date,'ACTIVE',$11,1) RETURNING assignment_id,class_id,academic_year,teacher_actor_id,subject_code,weekly_hours,valid_from,valid_until,status,version,created_at,updated_at",
+          [assignmentId,auth.tenantId,organizationId,classId,academicYear,teacherActorId,subjectCode,weeklyHours,validFrom,validUntil,auth.principal.userId]
+        );
+        const row=saved.rows[0];if(!row)throw new Error("EDUCATION_ASSIGNMENT_CREATE_FAILED");
+        return {data:row,event:{type:"class_assignment.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:assignmentId,version:Number(row.version??1),data:{operation:"POST",status:row.status,subjectCode}}};
+      });
+    }else throw new Error("EDUCATION_ASSIGNMENT_METHOD_NOT_ALLOWED");
+   } else if(r[0]==="class-assignment-revoke"){
+    if(method!=="PATCH")throw new Error("EDUCATION_ASSIGNMENT_METHOD_NOT_ALLOWED");
+    const input=body as Record<string,unknown>;
+    if(Object.keys(input).some(key=>!["expectedVersion","reason"].includes(key)))throw new Error("EDUCATION_ASSIGNMENT_REVOCATION_FIELDS_NOT_ALLOWED");
+    const expectedVersion=Number(input.expectedVersion);
+    const reason=String(input.reason??"").trim();
+    if(!Number.isSafeInteger(expectedVersion)||expectedVersion<1)throw new Error("EDUCATION_ASSIGNMENT_VERSION_REQUIRED");
+    if(!reason||reason.length>500)throw new Error("EDUCATION_ASSIGNMENT_REVOCATION_REASON_REQUIRED");
+    data=await executeSchoolMutation(deps,{
+      tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,
+      requestId:dedupe?.requestId??correlationId,route:path,correlationId
+    },async tx=>{
+      const updated=await tx.query(
+        "UPDATE education_class_assignments SET status='REVOKED',revoked_by=$1,revocation_reason=$2,version=version+1,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND assignment_id=$5::uuid AND status='ACTIVE' AND version=$6 RETURNING assignment_id,class_id,academic_year,teacher_actor_id,subject_code,status,revoked_by,revocation_reason,version,updated_at",
+        [auth.principal.userId,reason,auth.tenantId,organizationId,r[1],expectedVersion]
+      );
+      if(!updated.rows[0]){
+        const current=await tx.query("SELECT status,version FROM education_class_assignments WHERE tenant_id=$1 AND organization_id=$2 AND assignment_id=$3::uuid",[auth.tenantId,organizationId,r[1]]);
+        if(!current.rows[0])throw new Error("EDUCATION_ASSIGNMENT_NOT_FOUND");
+        throw new Error("EDUCATION_ASSIGNMENT_STATE_OR_VERSION_CONFLICT");
+      }
+      const row=updated.rows[0];
+      return {data:row,event:{type:"class_assignment.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.assignment_id),version:Number(row.version??1),data:{operation:"PATCH",status:row.status,reason}}};
+    });
    } else if(r[0]==="enrollment-status"){
     if(method!=="PATCH")throw new Error("EDUCATION_ENROLLMENT_METHOD_NOT_ALLOWED");
     const input=body as Record<string,unknown>;
@@ -327,7 +408,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       return {data:row,event:{type:"enrollment.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.enrollment_id),version:Number(row.version??1),data:{operation:"PATCH",route:path,status:row.status??null}}};
     });
    } else if(r[0]==="actor"){
-    const q=await deps.db.query("SELECT actor_id,organization_id,kind,active,data,version,updated_at FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,r[1]]);
+    const q=await executeSchoolRead(deps,auth.tenantId,organizationId,tx=>tx.query("SELECT actor_id,organization_id,kind,active,data,version,updated_at FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,r[1]]));
     if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("ACTOR_NOT_FOUND"),correlationId),correlationId);return;}
     data=q.rows[0];
    } else if(r[0]==="sync"){
@@ -335,33 +416,106 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     const syncClient=await deps.syncClient();
     try{ data=await new PostgresEducationSyncStore(syncClient).accept(event as any); }
     finally{ syncClient.release?.(); }
+   } else if(r[0]==="subjects"){
+    if(method==="GET"){
+      const url=new URL(rawUrl,"https://tpay.invalid");
+      const activeParam=url.searchParams.get("active");
+      if(activeParam!==null&&activeParam!=="true"&&activeParam!=="false")throw new Error("EDUCATION_SUBJECT_ACTIVE_FILTER_INVALID");
+      const active=activeParam===null?null:activeParam==="true";
+      const q=await executeSchoolRead(deps,auth.tenantId,organizationId,tx=>tx.query(
+        "SELECT subject_id,subject_code,name,description,coefficient,active,version,created_at,updated_at FROM education_subjects WHERE tenant_id=$1 AND organization_id=$2 AND ($3::boolean IS NULL OR active=$3) ORDER BY subject_code ASC",
+        [auth.tenantId,organizationId,active]
+      ));
+      data=q.rows;
+    }else if(method==="POST"){
+      const input=body as Record<string,unknown>;
+      const allowed=["subjectCode","name","description","coefficient"];
+      if(Object.keys(input).some(key=>!allowed.includes(key)))throw new Error("EDUCATION_SUBJECT_FIELDS_NOT_ALLOWED");
+      const subjectCode=String(input.subjectCode??"").trim().toUpperCase();
+      const name=String(input.name??"").trim();
+      const description=input.description===undefined||input.description===null?"":String(input.description).trim();
+      const coefficient=input.coefficient===undefined?1:Number(input.coefficient);
+      if(!/^[A-Z0-9][A-Z0-9._-]{0,31}$/.test(subjectCode))throw new Error("EDUCATION_SUBJECT_CODE_INVALID");
+      if(!name||name.length>120)throw new Error("EDUCATION_SUBJECT_NAME_INVALID");
+      if(description.length>1000)throw new Error("EDUCATION_SUBJECT_DESCRIPTION_INVALID");
+      if(!Number.isFinite(coefficient)||coefficient<=0||coefficient>100)throw new Error("EDUCATION_SUBJECT_COEFFICIENT_INVALID");
+      data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
+        const saved=await tx.query(
+          "INSERT INTO education_subjects(tenant_id,organization_id,subject_code,name,description,coefficient,active,created_by) VALUES($1,$2,$3,$4,$5,$6,true,$7) RETURNING subject_id,subject_code,name,description,coefficient,active,version,created_at,updated_at",
+          [auth.tenantId,organizationId,subjectCode,name,description||null,coefficient,auth.principal.userId]
+        );
+        const row=saved.rows[0];if(!row)throw new Error("EDUCATION_SUBJECT_CREATE_FAILED");
+        return {data:row,event:{type:"subject.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.subject_id),version:Number(row.version),data:{operation:"POST",subjectCode,active:true}}};
+      });
+    }else throw new Error("EDUCATION_SUBJECT_METHOD_NOT_ALLOWED");
+   } else if(r[0]==="subject"){
+    if(method!=="PATCH")throw new Error("EDUCATION_SUBJECT_METHOD_NOT_ALLOWED");
+    const input=body as Record<string,unknown>;
+    const allowed=["name","description","coefficient","active","expectedVersion"];
+    if(Object.keys(input).some(key=>!allowed.includes(key)))throw new Error("EDUCATION_SUBJECT_FIELDS_NOT_ALLOWED");
+    const expectedVersion=Number(input.expectedVersion);
+    if(!Number.isSafeInteger(expectedVersion)||expectedVersion<1)throw new Error("EDUCATION_SUBJECT_VERSION_REQUIRED");
+    const name=input.name===undefined?null:String(input.name).trim();
+    const description=input.description===undefined?null:(input.description===null?"":String(input.description).trim());
+    const coefficient=input.coefficient===undefined?null:Number(input.coefficient);
+    const active=input.active===undefined?null:input.active;
+    if(name!==null&&(!name||name.length>120))throw new Error("EDUCATION_SUBJECT_NAME_INVALID");
+    if(description!==null&&description.length>1000)throw new Error("EDUCATION_SUBJECT_DESCRIPTION_INVALID");
+    if(coefficient!==null&&(!Number.isFinite(coefficient)||coefficient<=0||coefficient>100))throw new Error("EDUCATION_SUBJECT_COEFFICIENT_INVALID");
+    if(active!==null&&typeof active!=="boolean")throw new Error("EDUCATION_SUBJECT_ACTIVE_INVALID");
+    if(name===null&&description===null&&coefficient===null&&active===null)throw new Error("EDUCATION_SUBJECT_UPDATE_EMPTY");
+    data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
+      const saved=await tx.query(
+        "UPDATE education_subjects SET name=COALESCE($1,name),description=CASE WHEN $2::boolean THEN $3 ELSE description END,coefficient=COALESCE($4,coefficient),active=COALESCE($5,active),version=version+1,updated_at=now() WHERE tenant_id=$6 AND organization_id=$7 AND subject_code=$8 AND version=$9 RETURNING subject_id,subject_code,name,description,coefficient,active,version,created_at,updated_at",
+        [name,description!==null,description,coefficient,active,auth.tenantId,organizationId,r[1],expectedVersion]
+      );
+      const row=saved.rows[0];if(!row)throw new Error("EDUCATION_SUBJECT_VERSION_CONFLICT");
+      return {data:row,event:{type:"subject.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.subject_id),version:Number(row.version),data:{operation:"PATCH",subjectCode:row.subject_code,active:row.active}}};
+    });
    } else if(r[0]==="attendance"){
     const incoming=body as AttendanceRecord; incoming.organizationId=organizationId;
-    const q=await deps.db.query("SELECT * FROM education_attendance WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3 AND class_id=$4",[auth.tenantId,organizationId,incoming.studentId,incoming.classId]);
-    const existing=(q.rows[0]??null) as AttendanceRecord|null;
-    const accepted=reconcileAttendance(existing,incoming);
-    await deps.db.query(`INSERT INTO education_attendance(student_id,class_id,tenant_id,organization_id,status,recorded_by,occurred_at,source,correction_reason,version,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now()) ON CONFLICT(tenant_id,organization_id,student_id,class_id) DO UPDATE SET status=EXCLUDED.status,recorded_by=EXCLUDED.recorded_by,occurred_at=EXCLUDED.occurred_at,source=EXCLUDED.source,correction_reason=EXCLUDED.correction_reason,version=EXCLUDED.version,updated_at=now() WHERE education_attendance.version < EXCLUDED.version`,[accepted.studentId,accepted.classId,auth.tenantId,organizationId,accepted.status,accepted.recordedBy,accepted.occurredAt,accepted.source,accepted.correctionReason??null,accepted.version]);
-    data=accepted;
+    data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
+      const q=await tx.query("SELECT * FROM education_attendance WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3 AND class_id=$4",[auth.tenantId,organizationId,incoming.studentId,incoming.classId]);
+      const existing=(q.rows[0]??null) as AttendanceRecord|null;
+      const accepted=reconcileAttendance(existing,incoming);
+      const saved=await tx.query("INSERT INTO education_attendance(student_id,class_id,tenant_id,organization_id,status,recorded_by,occurred_at,source,correction_reason,version,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now()) ON CONFLICT(tenant_id,organization_id,student_id,class_id) DO UPDATE SET status=EXCLUDED.status,recorded_by=EXCLUDED.recorded_by,occurred_at=EXCLUDED.occurred_at,source=EXCLUDED.source,correction_reason=EXCLUDED.correction_reason,version=EXCLUDED.version,updated_at=now() WHERE education_attendance.version < EXCLUDED.version RETURNING student_id,class_id,status,recorded_by,occurred_at,source,correction_reason,version,updated_at",[accepted.studentId,accepted.classId,auth.tenantId,organizationId,accepted.status,accepted.recordedBy,accepted.occurredAt,accepted.source,accepted.correctionReason??null,accepted.version]);
+      const row=saved.rows[0];if(!row)throw new Error("ATTENDANCE_VERSION_CONFLICT");
+      return {data:row,event:{type:"attendance.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.student_id)+":"+String(row.class_id),version:Number(row.version),data:{status:row.status,source:row.source}}};
+    });
    } else if(r[0]==="work-create"){
-    const item=body as WorkItem; if(item.organizationId!==organizationId)throw new Error("RESOURCE_ORGANIZATION_MISMATCH");
-    await deps.db.query("INSERT INTO education_work_items(work_item_id,tenant_id,organization_id,status,priority,due_at,owner_actor_id,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",[item.id,auth.tenantId,organizationId,item.status,item.priority,item.dueAt,item.ownerActorId,item.version]);
-    data=item;
+    const item=body as WorkItem;if(item.organizationId!==organizationId)throw new Error("RESOURCE_ORGANIZATION_MISMATCH");
+    data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
+      const saved=await tx.query("INSERT INTO education_work_items(work_item_id,tenant_id,organization_id,status,priority,due_at,owner_actor_id,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *",[item.id,auth.tenantId,organizationId,item.status,item.priority,item.dueAt,item.ownerActorId,item.version]);
+      const row=saved.rows[0];if(!row)throw new Error("WORK_ITEM_CREATE_FAILED");
+      return {data:row,event:{type:"work_item.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.work_item_id),version:Number(row.version),data:{operation:"POST",status:row.status}}};
+    });
    } else if(r[0]==="work"){
-    const q=await deps.db.query("SELECT * FROM education_work_items WHERE tenant_id=$1 AND organization_id=$2 AND work_item_id=$3",[auth.tenantId,organizationId,r[1]]);
-    if(!q.rows[0])throw new Error("WORK_ITEM_NOT_FOUND"); const item=q.rows[0] as unknown as WorkItem;
-    const next=r[2]==="claim"?claimWorkItem(item,auth.principal.userId):resolveWorkItem(item,auth.principal.userId);
-    const updated=await deps.db.query("UPDATE education_work_items SET status=$1,owner_actor_id=$2,version=$3,updated_at=now() WHERE tenant_id=$4 AND organization_id=$5 AND work_item_id=$6 AND version=$7 RETURNING *",[next.status,next.ownerActorId,next.version,auth.tenantId,organizationId,r[1],item.version]);
-    if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
+    data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
+      const q=await tx.query("SELECT * FROM education_work_items WHERE tenant_id=$1 AND organization_id=$2 AND work_item_id=$3",[auth.tenantId,organizationId,r[1]]);
+      if(!q.rows[0])throw new Error("WORK_ITEM_NOT_FOUND");const item=q.rows[0] as unknown as WorkItem;
+      const next=r[2]==="claim"?claimWorkItem(item,auth.principal.userId):resolveWorkItem(item,auth.principal.userId);
+      const updated=await tx.query("UPDATE education_work_items SET status=$1,owner_actor_id=$2,version=$3,updated_at=now() WHERE tenant_id=$4 AND organization_id=$5 AND work_item_id=$6 AND version=$7 RETURNING *",[next.status,next.ownerActorId,next.version,auth.tenantId,organizationId,r[1],item.version]);
+      const row=updated.rows[0];if(!row)throw new Error("CONCURRENT_MODIFICATION");
+      return {data:row,event:{type:"work_item.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.work_item_id),version:Number(row.version),data:{operation:r[2],status:row.status}}};
+    });
    } else if(r[0]==="service-create"){
     const item={...(body as ServiceRequest),organizationId,requesterId:auth.principal.userId};
-    await deps.db.query("INSERT INTO education_service_requests(request_id,tenant_id,organization_id,requester_id,service_code,status,priority,assigned_to,created_at,due_at,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",[item.id,auth.tenantId,organizationId,item.requesterId,item.serviceCode,item.status,item.priority,item.assignedTo,item.createdAt,item.dueAt,item.version]); data=item;
+    data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
+      const saved=await tx.query("INSERT INTO education_service_requests(request_id,tenant_id,organization_id,requester_id,service_code,status,priority,assigned_to,created_at,due_at,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *",[item.id,auth.tenantId,organizationId,item.requesterId,item.serviceCode,item.status,item.priority,item.assignedTo,item.createdAt,item.dueAt,item.version]);
+      const row=saved.rows[0];if(!row)throw new Error("SERVICE_REQUEST_CREATE_FAILED");
+      return {data:row,event:{type:"service_request.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.request_id),version:Number(row.version),data:{operation:"POST",status:row.status}}};
+    });
    } else {
-    const q=await deps.db.query("SELECT * FROM education_service_requests WHERE tenant_id=$1 AND organization_id=$2 AND request_id=$3",[auth.tenantId,organizationId,r[1]]);
-    if(!q.rows[0])throw new Error("SERVICE_REQUEST_NOT_FOUND");
-    const next=transitionService(q.rows[0] as unknown as ServiceRequest,body as any);
-    const updated=await deps.db.query("UPDATE education_service_requests SET status=$1,version=$2,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND request_id=$5 AND version=$6 RETURNING *",[next.status,next.version,auth.tenantId,organizationId,r[1],Number((q.rows[0] as any).version)]);
-    if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
+    data=await executeSchoolMutation(deps,{tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId,requestId:dedupe?.requestId??correlationId,route:path,correlationId},async tx=>{
+      const q=await tx.query("SELECT * FROM education_service_requests WHERE tenant_id=$1 AND organization_id=$2 AND request_id=$3",[auth.tenantId,organizationId,r[1]]);
+      if(!q.rows[0])throw new Error("SERVICE_REQUEST_NOT_FOUND");const current=q.rows[0] as unknown as ServiceRequest;
+      const next=transitionService(current,body as any);
+      const updated=await tx.query("UPDATE education_service_requests SET status=$1,version=$2,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND request_id=$5 AND version=$6 RETURNING *",[next.status,next.version,auth.tenantId,organizationId,r[1],Number(current.version)]);
+      const row=updated.rows[0];if(!row)throw new Error("CONCURRENT_MODIFICATION");
+      return {data:row,event:{type:"service_request.changed",occurredAt:(deps.now??(()=>new Date()))().toISOString(),entityId:String(row.request_id),version:Number(row.version),data:{operation:"TRANSITION",status:row.status}}};
+    });
    }
+
    if(r[0]==="sync" && deps.realtime && deps.realtimeStore?.getById){
     const eventId=String((data as any)?.eventId??"");
     if(eventId){
@@ -369,8 +523,9 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       if(stored)deps.realtime.publish(stored);
     }
    }
-   if(deps.realtime && deps.realtimeStore && method!=="GET" && r[0]!=="actor" && r[0]!=="sync" && !["classes","enrollments","enrollment-status"].includes(r[0])){
-    const typeMap:Record<string,SchoolRealtimeEvent["type"]>={classes:"class.changed",enrollments:"enrollment.changed","enrollment-status":"enrollment.changed",sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
+   const transactionalSchoolWrite=method!=="GET" && ["classes","subjects","subject","enrollments","enrollment-status","class-assignments","class-assignment-revoke","attendance","work-create","work","service-create","service-transition"].includes(r[0]);
+   if(deps.realtime && deps.realtimeStore && method!=="GET" && r[0]!=="actor" && r[0]!=="sync" && !transactionalSchoolWrite){
+    const typeMap:Record<string,SchoolRealtimeEvent["type"]>={classes:"class.changed",subjects:"subject.changed",subject:"subject.changed",enrollments:"enrollment.changed","enrollment-status":"enrollment.changed","class-assignments":"class_assignment.changed","class-assignment-revoke":"class_assignment.changed",sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
     const eventType=typeMap[r[0]];
     if(eventType){
       const event:SchoolRealtimeEvent={
@@ -389,7 +544,6 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     }
    }
    const response=buildApiSuccess("v1",correlationId,data);
-   const transactionalSchoolWrite=method!=="GET" && ["classes","enrollments","enrollment-status"].includes(r[0]);
    if(dedupe?.status==="reserved" && !transactionalSchoolWrite)await gateway.completeIdempotency({requestId:dedupe.requestId,state:"succeeded",responseHash:canonicalRequestHash("RESPONSE",path,JSON.stringify(response)),statusCode:200});
    if(!transactionalSchoolWrite)await gateway.audit({organizationId,requestId:dedupe?.requestId??correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path})});
    json(res,200,response,correlationId);
@@ -400,11 +554,11 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       code.includes("CONFLICT")?409:
       code.includes("INVALID")||code.includes("REQUIRED")||code.includes("NOT_ALLOWED")||code.includes("METHOD_NOT_ALLOWED")?400:500;
     const errorBody=buildApiError(error,correlationId);
-    if(reservedRequestId&&reservedRoute){
+    if(reservedRequestId&&reservedRoute&&reservedOrganizationId){
       try{
         await deps.db.query(
-          "UPDATE api_request_deduplication SET state='failed',response_hash=$2,status_code=$3 WHERE id=$1 AND state='reserved'",
-          [reservedRequestId,canonicalRequestHash("RESPONSE",reservedRoute,JSON.stringify(errorBody)),status]
+          "UPDATE api_request_deduplication SET state='failed',response_hash=$2,status_code=$3 WHERE id=$1 AND organization_id=$4 AND state='reserved'",
+          [reservedRequestId,canonicalRequestHash("RESPONSE",reservedRoute,JSON.stringify(errorBody)),status,reservedOrganizationId]
         );
       }catch{/* never hide the original API failure */}
     }
