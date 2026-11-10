@@ -17,6 +17,7 @@ test("Fortress Admin Plane RLS is isolated from User Plane and vault audit is ap
   const userVaultId = randomUUID();
   const actorId = randomUUID();
   const auditId = randomUUID();
+  const adminSessionId = randomUUID();
   const userRole = "tpay_vault_user_" + randomUUID().replaceAll("-", "");
   await client.connect();
   try {
@@ -37,8 +38,15 @@ test("Fortress Admin Plane RLS is isolated from User Plane and vault audit is ap
       "INSERT INTO tpay_vaults(id,tenant_id,organization_id,parent_vault_id,owner_actor_id,vault_class,module_code) VALUES($1,'tenant-a','org-a',NULL,$2,'finance','finance')",
       [userVaultId, actorId]
     );
+    await client.query(
+      "INSERT INTO tpay_vault_access_grants(id,vault_id,actor_id,permission,granted_by,valid_from,valid_until) VALUES($1,$2,$3,'read',$3,now()-interval '1 minute',now()+interval '10 minutes')",
+      [randomUUID(),adminVaultId,actorId]
+    );
 
     await client.query("SET LOCAL ROLE tpay_admin_runtime");
+    await client.query("SELECT set_config('tpay.actor_id',$1,true)", [actorId]);
+    await client.query("SELECT set_config('tpay.permission','read',true)");
+    await client.query("SELECT set_config('tpay.privileged_session_id',$1,true)", [adminSessionId]);
     await client.query("SELECT set_config('tpay.tenant_id','__platform__',true)");
     await client.query("SELECT set_config('tpay.vault_id',$1,true)", [adminVaultId]);
     const adminRows = await client.query("SELECT id FROM tpay_vaults WHERE id IN ($1,$2) ORDER BY id", [adminVaultId,userVaultId]);
