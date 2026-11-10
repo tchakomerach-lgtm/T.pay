@@ -21,8 +21,7 @@ function assertVaultBoundary(input:VaultBoundaryRequest,ref:VaultKeyRef,permissi
   if(input.vault.id!==ref.vaultId||input.requestedPermission!==permission){
     throw new Error("TPAY_VAULT_ACCESS_DENIED:VAULT_PERMISSION_MISMATCH");
   }
-  const decision=authorizeVaultBoundary(input);
-  if(!decision.allowed)throw new Error("TPAY_VAULT_ACCESS_DENIED:"+decision.reason);
+  assertVaultAccess(input);
 }
 
 function sha256(value:Buffer|string):Buffer{return createHash("sha256").update(value).digest();}
@@ -59,7 +58,7 @@ export async function decryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyR
   return plaintext;
 }
 
-export function assertVaultAccess(permission:"read"|"write"|"decrypt"|"seal"|"manage_access"|"destroy"|"rotate_key",validFrom:Date,validUntil:Date|null,now=new Date()):void{
-  if(now<validFrom || (validUntil!==null && now>=validUntil))throw new Error("TPAY_VAULT_ACCESS_EXPIRED");
-  if(!["read","write","decrypt","seal","manage_access","destroy","rotate_key"].includes(permission))throw new Error("TPAY_VAULT_PERMISSION_INVALID");
+export function assertVaultAccess(input:VaultBoundaryRequest):void{
+  const decision=authorizeVaultBoundary(input);
+  if(!decision.allowed)throw new Error("TPAY_VAULT_ACCESS_DENIED:"+decision.reason);
 }
