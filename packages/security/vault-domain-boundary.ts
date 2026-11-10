@@ -34,6 +34,7 @@ export interface VaultBoundaryRequest {
     expiresAt: string;
     revokedAt: string | null;
   };
+  requestedPermission: VaultPermission;
   grant: {
     vaultId: string;
     actorId: string;
@@ -86,7 +87,7 @@ export function authorizeVaultBoundary(input: VaultBoundaryRequest): VaultBounda
   if (input.grant.vaultId !== input.vault.id || input.grant.actorId !== input.principal.id) {
     return { allowed: false, reason: "GRANT_SCOPE_MISMATCH" };
   }
-  if (input.grant.permission.length === 0) return { allowed: false, reason: "VAULT_PERMISSION_MISMATCH" };
+  if (input.grant.permission !== input.requestedPermission) return { allowed: false, reason: "VAULT_PERMISSION_MISMATCH" };
   if (!Number.isFinite(time(input.grant.validFrom)) || time(input.grant.validFrom) > now) {
     return { allowed: false, reason: "GRANT_NOT_YET_VALID" };
   }
