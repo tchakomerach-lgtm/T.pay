@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { UUID } from "../../domain/src/types.js";
 import type { TontinePayoutContext } from "./tontine-payout.js";
 import type { TontineSqlExecutor } from "./tontine-repositories.js";
+import { recordTontineProviderIncident } from "./tontine-provider-incident.js";
 
 export interface VerifiedTontineProviderCallback {
   provider: string;
@@ -97,7 +98,14 @@ export async function processVerifiedTontinePayoutCallback(
     if (existing.rows[0]) {
       if (existing.rows[0].payload_sha256 !== payloadSha256 || existing.rows[0].payout_id !== callback.payoutId) {
         await tx.query("UPDATE tontine_provider_callback_receipts SET state='rejected', failure_code='CALLBACK_PAYLOAD_MISMATCH' WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3", [callback.organizationId, callback.provider, callback.providerEventId]);
-        throw new Error("TONTINE_CALLBACK_REPLAY_PAYLOAD_MISMATCH");
+        // Quarantine, incident case, immutable evidence and outbox event share this transaction.
+        await recordTontineProviderIncident(tx, {
+          organizationId: callback.organizationId, cycleId: payout.cycleId,
+          provider: callback.provider, providerEventId: callback.providerEventId,
+          rawBody: callback.rawBody, occurredAt: callback.receivedAt,
+          reason: "CALLBACK_PAYLOAD_MISMATCH"
+        });
+        return { state: "rejected", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
       }
       await tx.query(
         `UPDATE tontine_provider_callback_receipts
@@ -140,7 +148,37 @@ export async function processVerifiedTontinePayoutCallback(
       [callback.organizationId, callback.payoutId]
     );
     const row = intent.rows[0];
-    if (!row) throw new Error("TONTINE_PAYOUT_INTENT_NOT_FOUND");
+    if (!row) {
+      await tx.query(
+        `UPDATE tontine_provider_callback_receipts
+         SET state='rejected', failure_code='PAYOUT_INTENT_NOT_FOUND'
+         WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3`,
+        [callback.organizationId, callback.provider, callback.providerEventId]
+      );
+      await recordTontineProviderIncident(tx, {
+        organizationId: callback.organizationId, cycleId: payout.cycleId,
+        provider: callback.provider, providerEventId: callback.providerEventId,
+        rawBody: callback.rawBody, occurredAt: callback.receivedAt,
+        reason: "PAYOUT_INTENT_NOT_FOUND"
+      });
+      return { state: "rejected", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
+    }
+
+    if (row.state !== "approved" && row.state !== "settled") {
+      await tx.query(
+        `UPDATE tontine_provider_callback_receipts
+         SET state='rejected', failure_code='PAYOUT_NOT_APPROVED'
+         WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3`,
+        [callback.organizationId, callback.provider, callback.providerEventId]
+      );
+      await recordTontineProviderIncident(tx, {
+        organizationId: callback.organizationId, cycleId: payout.cycleId,
+        provider: callback.provider, providerEventId: callback.providerEventId,
+        rawBody: callback.rawBody, occurredAt: callback.receivedAt,
+        reason: "PAYOUT_NOT_APPROVED"
+      });
+      return { state: "rejected", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
+    }
 
     if (row.state === "settled") {
       await tx.query(
