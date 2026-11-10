@@ -23,7 +23,7 @@ test("Fortress Admin Plane RLS is isolated from User Plane and vault audit is ap
   try {
     await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
     await client.query(`CREATE ROLE "${userRole}" NOLOGIN NOSUPERUSER NOBYPASSRLS`);
-    await client.query(`GRANT SELECT ON tpay_vaults TO "${userRole}"`);
+    await client.query(`GRANT SELECT ON tpay_vaults,tpay_vault_access_grants TO "${userRole}"`);
 
     await client.query("BEGIN");
     await client.query(
@@ -39,7 +39,7 @@ test("Fortress Admin Plane RLS is isolated from User Plane and vault audit is ap
       [userVaultId, actorId]
     );
     await client.query(
-      "INSERT INTO tpay_vault_access_grants(id,vault_id,actor_id,permission,granted_by,valid_from,valid_until) VALUES($1,$2,$3,'read',$3,now()-interval '1 minute',now()+interval '10 minutes')",
+      "INSERT INTO tpay_vault_access_grants(id,tenant_id,vault_id,actor_id,permission,granted_by,valid_from,valid_until) VALUES($1,'__platform__',$2,$3,'read',$3,now()-interval '1 minute',now()+interval '10 minutes')",
       [randomUUID(),adminVaultId,actorId]
     );
 
@@ -73,11 +73,15 @@ test("Fortress Admin Plane RLS is isolated from User Plane and vault audit is ap
     await client.query("SET LOCAL ROLE \"" + userRole + "\"");
     await client.query("SELECT set_config('tpay.tenant_id','__platform__',true)");
     await client.query("SELECT set_config('tpay.vault_id',$1,true)", [adminVaultId]);
+    await client.query("SELECT set_config('tpay.actor_id',$1,true)", [actorId]);
+    await client.query("SELECT set_config('tpay.permission','read',true)");
+    await client.query("SELECT set_config('tpay.user_session_id',$1,true)", [randomUUID()]);
     const deniedAdminRows = await client.query("SELECT id FROM tpay_vaults WHERE id IN ($1,$2)", [adminVaultId,parentVaultId]);
     assert.equal(deniedAdminRows.rowCount, 0);
 
     await client.query("SELECT set_config('tpay.tenant_id','tenant-a',true)");
     await client.query("SELECT set_config('tpay.vault_id',$1,true)", [userVaultId]);
+    await client.query("SELECT set_config('tpay.user_session_id',$1,true)", [randomUUID()]);
     const userRows = await client.query("SELECT id FROM tpay_vaults WHERE id=$1", [userVaultId]);
     assert.equal(userRows.rowCount, 1);
 
