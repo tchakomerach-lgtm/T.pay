@@ -73,7 +73,7 @@ test("Fortress Admin Plane RLS is isolated from User Plane and vault audit is ap
     await client.query("SET LOCAL ROLE \"" + userRole + "\"");
     await client.query("SELECT set_config('tpay.tenant_id','__platform__',true)");
     await client.query("SELECT set_config('tpay.vault_id',$1,true)", [adminVaultId]);
-    const deniedAdminRows = await client.query("SELECT id FROM tpay_vaults WHERE id=$1", [adminVaultId]);
+    const deniedAdminRows = await client.query("SELECT id FROM tpay_vaults WHERE id IN ($1,$2)", [adminVaultId,parentVaultId]);
     assert.equal(deniedAdminRows.rowCount, 0);
 
     await client.query("SELECT set_config('tpay.tenant_id','tenant-a',true)");
