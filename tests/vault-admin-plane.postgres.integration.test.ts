@@ -74,6 +74,9 @@ test("Fortress Admin Plane RLS is isolated from User Plane and vault audit is ap
       [auditId]
     ));
     await client.query("ROLLBACK TO SAVEPOINT audit_owner_mutation");
+    await client.query("SAVEPOINT audit_truncate");
+    await assert.rejects(() => client.query("TRUNCATE tpay_vault_audit"));
+    await client.query("ROLLBACK TO SAVEPOINT audit_truncate");
     await client.query("SET LOCAL ROLE \"" + userRole + "\"");
     await client.query("SELECT set_config('tpay.tenant_id','__platform__',true)");
     await client.query("SELECT set_config('tpay.vault_id',$1,true)", [adminVaultId]);
