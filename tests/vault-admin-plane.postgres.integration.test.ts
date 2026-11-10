@@ -89,6 +89,7 @@ test("Fortress Admin Plane RLS is isolated from User Plane and vault audit is ap
     await client.query("SELECT set_config('tpay.tenant_id','tenant-a',true)");
     await client.query("SELECT set_config('tpay.vault_id',$1,true)", [userVaultId]);
     await client.query("SELECT set_config('tpay.user_session_id',$1,true)", [randomUUID()]);
+    await client.query("SELECT set_config('tpay.privileged_session_id','',true)");
     const userRows = await client.query("SELECT id FROM tpay_vaults WHERE id=$1", [userVaultId]);
     assert.equal(userRows.rowCount, 1);
 
