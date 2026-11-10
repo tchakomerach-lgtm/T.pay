@@ -29,7 +29,7 @@ test("P051 vault encrypt/decrypt is authenticated and integrity checked behind e
 test("P052 vault rejects ciphertext tampering",async()=>{
  const object=await encryptVaultObject(provider,ref,Buffer.from("secret"),"aad",access("write"));
  const tampered={...object,ciphertext:Buffer.from(object.ciphertext)};
- tampered.ciphertext[0]^=1;
+ tampered.ciphertext[0]=tampered.ciphertext[0]!^1;
  await assert.rejects(decryptVaultObject(provider,ref,tampered,"aad",access("decrypt")));
 });
 
