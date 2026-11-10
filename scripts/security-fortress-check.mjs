@@ -69,7 +69,7 @@ for(const [rel,pattern,code] of required){
 }
 for (const workflow of [".github/workflows/ci.yml",".github/workflows/android.yml",".github/workflows/terrain-certification.yml"]) {
   const source = await readFile(resolve(root,workflow),"utf8");
-  for (const match of source.matchAll(/^\s*uses:\s*([^\s#]+)/gm)) {
+  for (const match of source.matchAll(/^\s*-\s*uses:\s*([^\s#]+)/gm)) {
     const reference = match[1].split("@")[1] ?? "";
     if (!/^[a-f0-9]{40}$/.test(reference)) problems.push("CI_ACTION_NOT_PINNED_TO_FULL_SHA:" + workflow + ":" + match[1]);
   }
