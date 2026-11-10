@@ -109,7 +109,7 @@ USING (
     AND nullif(current_setting('tpay.user_session_id', true), '') IS NULL
     AND EXISTS (
       SELECT 1 FROM tpay_vault_access_grants g
-      WHERE g.tenant_id = tenant_id AND g.vault_id = id
+      WHERE g.tenant_id = tpay_vaults.tenant_id AND g.vault_id = tpay_vaults.id
         AND g.actor_id::text = current_setting('tpay.actor_id', true)
         AND g.permission = current_setting('tpay.permission', true)
         AND g.revoked_at IS NULL AND g.valid_from <= now()
@@ -127,7 +127,7 @@ USING (
     AND nullif(current_setting('tpay.privileged_session_id', true), '') IS NULL
     AND EXISTS (
       SELECT 1 FROM tpay_vault_access_grants g
-      WHERE g.tenant_id = tenant_id AND g.vault_id = id
+      WHERE g.tenant_id = tpay_vaults.tenant_id AND g.vault_id = tpay_vaults.id
         AND g.actor_id::text = current_setting('tpay.actor_id', true)
         AND g.permission = current_setting('tpay.permission', true)
         AND g.revoked_at IS NULL AND g.valid_from <= now()
@@ -146,7 +146,7 @@ WITH CHECK (
     AND nullif(current_setting('tpay.user_session_id', true), '') IS NULL
     AND EXISTS (
       SELECT 1 FROM tpay_vault_access_grants g
-      WHERE g.tenant_id = tenant_id AND g.vault_id = id
+      WHERE g.tenant_id = tpay_vaults.tenant_id AND g.vault_id = tpay_vaults.id
         AND g.actor_id::text = current_setting('tpay.actor_id', true)
         AND g.permission = current_setting('tpay.permission', true)
         AND g.revoked_at IS NULL AND g.valid_from <= now()
@@ -164,7 +164,7 @@ WITH CHECK (
     AND nullif(current_setting('tpay.privileged_session_id', true), '') IS NULL
     AND EXISTS (
       SELECT 1 FROM tpay_vault_access_grants g
-      WHERE g.tenant_id = tenant_id AND g.vault_id = id
+      WHERE g.tenant_id = tpay_vaults.tenant_id AND g.vault_id = tpay_vaults.id
         AND g.actor_id::text = current_setting('tpay.actor_id', true)
         AND g.permission = current_setting('tpay.permission', true)
         AND g.revoked_at IS NULL AND g.valid_from <= now()
