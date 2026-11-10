@@ -21,6 +21,12 @@ ALTER TABLE tpay_vaults
     'user_module','super_admin'
   ));
 
+ALTER TABLE tpay_vault_access_grants
+  DROP CONSTRAINT IF EXISTS tpay_vault_access_grants_permission_check;
+ALTER TABLE tpay_vault_access_grants
+  ADD CONSTRAINT tpay_vault_access_grants_permission_check
+  CHECK (permission IN ('read','write','decrypt','seal','manage_access','destroy','rotate_key'));
+
 ALTER TABLE tpay_vaults
   ADD CONSTRAINT tpay_vaults_parent_same_tenant_fk
   FOREIGN KEY (tenant_id,parent_vault_id)
