@@ -5,7 +5,7 @@ export interface VaultKeyProvider{
   decryptDataKey(ref:VaultKeyRef):Promise<Buffer>;
 }
 export interface VaultAuditSink{
-  record(event:{vaultId:string;actorId:string|null;action:"read"|"write"|"deny";objectId?:string;keyVersion?:number;correlationId?:string;reasonCode?:string}):Promise<void>;
+  record(event:{vaultId:string;actorId:string|null;action:"read"|"write"|"seal"|"grant"|"revoke"|"destroy"|"key_rotate"|"deny";objectId?:string;keyVersion?:number;correlationId?:string;reasonCode?:string}):Promise<void>;
 }
 export interface EncryptedVaultObject{
   nonce:Buffer;
@@ -47,7 +47,7 @@ export async function decryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyR
   return plaintext;
 }
 
-export function assertVaultAccess(permission:"read"|"write"|"seal"|"manage_access"|"destroy",validFrom:Date,validUntil:Date|null,now=new Date()):void{
+export function assertVaultAccess(permission:"read"|"write"|"decrypt"|"seal"|"manage_access"|"destroy"|"rotate_key",validFrom:Date,validUntil:Date|null,now=new Date()):void{
   if(now<validFrom || (validUntil!==null && now>=validUntil))throw new Error("TPAY_VAULT_ACCESS_EXPIRED");
-  if(!["read","write","seal","manage_access","destroy"].includes(permission))throw new Error("TPAY_VAULT_PERMISSION_INVALID");
+  if(!["read","write","decrypt","seal","manage_access","destroy","rotate_key"].includes(permission))throw new Error("TPAY_VAULT_PERMISSION_INVALID");
 }
