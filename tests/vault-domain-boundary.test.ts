@@ -95,3 +95,15 @@ test("Admin Control Plane requires exact hardware assurance", () => {
     allowed: false, reason: "ADMIN_PLANE_HARDWARE_ASSURANCE_REQUIRED"
   });
 });
+test("attested Service Plane cannot inherit an end-user session", () => {
+  const request = base();
+  request.plane = "SERVICE";
+  request.vault = { id: "service-vault", tenantId: "tenant-a", organizationId: null, vaultClass: "ai", status: "active" };
+  request.principal = { id: "workload-1", kind: "workload", active: true };
+  request.session = { id: "workload-session-1", kind: "workload", assurance: "attested_workload", expiresAt: "2026-11-10T13:00:00.000Z", revokedAt: null };
+  request.grant = { vaultId: "service-vault", actorId: "workload-1", permission: "read", validFrom: "2026-11-10T12:00:00.000Z", validUntil: null, revokedAt: null };
+  request.context = { tenantId: "tenant-a", organizationId: null, userSessionId: "user-session-1", privilegedSessionId: null, now: "2026-11-10T12:10:00.000Z" };
+  assert.deepEqual(authorizeVaultBoundary(request), {
+    allowed: false, reason: "SERVICE_PLANE_USER_CONTEXT_FORBIDDEN"
+  });
+});
