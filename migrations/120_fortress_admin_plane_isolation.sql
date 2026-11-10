@@ -364,6 +364,11 @@ CREATE TRIGGER tpay_vault_audit_no_mutation
 BEFORE UPDATE OR DELETE ON tpay_vault_audit
 FOR EACH ROW EXECUTE FUNCTION tpay_vault_audit_append_only();
 
+DROP TRIGGER IF EXISTS tpay_vault_audit_no_truncate ON tpay_vault_audit;
+CREATE TRIGGER tpay_vault_audit_no_truncate
+BEFORE TRUNCATE ON tpay_vault_audit
+FOR EACH STATEMENT EXECUTE FUNCTION tpay_vault_audit_append_only();
+
 COMMENT ON ROLE tpay_admin_runtime IS
 'NOLOGIN control-plane role. Only a separately provisioned Admin API login may SET ROLE to it; never grant membership to the ordinary User Plane login.';
 COMMENT ON TABLE tpay_vaults IS
