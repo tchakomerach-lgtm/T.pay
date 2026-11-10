@@ -94,7 +94,7 @@ test("Fortress Admin Plane RLS is isolated from User Plane and vault audit is ap
     await client.query("ROLLBACK").catch(() => undefined);
     throw error;
   } finally {
-    await client.query("REVOKE SELECT ON tpay_vaults FROM \"" + userRole + "\"").catch(() => undefined);
+    await client.query("REVOKE SELECT ON tpay_vaults,tpay_vault_access_grants FROM \"" + userRole + "\"").catch(() => undefined);
     await client.query("DROP ROLE IF EXISTS \"" + userRole + "\"").catch(() => undefined);
     await client.end();
   }
