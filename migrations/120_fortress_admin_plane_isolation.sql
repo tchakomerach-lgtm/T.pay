@@ -329,6 +329,7 @@ WITH CHECK (
     current_user = 'tpay_admin_runtime'
     AND tenant_id = '__platform__'
     AND current_setting('tpay.tenant_id', true) = '__platform__'
+    AND actor_id::text = current_setting('tpay.actor_id', true)
       AND nullif(current_setting('tpay.privileged_session_id', true), '') IS NOT NULL
       AND nullif(current_setting('tpay.user_session_id', true), '') IS NULL
     AND current_setting('tpay.vault_id', true) = vault_id::text
@@ -339,6 +340,7 @@ WITH CHECK (
     current_user <> 'tpay_admin_runtime'
     AND tenant_id = current_setting('tpay.tenant_id', true)
     AND current_setting('tpay.vault_id', true) = vault_id::text
+    AND actor_id::text = current_setting('tpay.actor_id', true)
     AND EXISTS (SELECT 1 FROM tpay_vaults v WHERE v.id = vault_id AND v.vault_class <> 'super_admin')
   )
 );
