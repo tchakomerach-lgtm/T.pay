@@ -42,6 +42,10 @@ test("Fortress Admin Plane RLS is isolated from User Plane and vault audit is ap
       "INSERT INTO tpay_vault_access_grants(id,tenant_id,vault_id,actor_id,permission,granted_by,valid_from,valid_until) VALUES($1,'__platform__',$2,$3,'read',$3,now()-interval '1 minute',now()+interval '10 minutes')",
       [randomUUID(),adminVaultId,actorId]
     );
+    await client.query(
+      "INSERT INTO tpay_vault_access_grants(id,tenant_id,vault_id,actor_id,permission,granted_by,valid_from,valid_until) VALUES($1,'tenant-a',$2,$3,'read',$3,now()-interval '1 minute',now()+interval '10 minutes')",
+      [randomUUID(),userVaultId,actorId]
+    );
 
     await client.query("SET LOCAL ROLE tpay_admin_runtime");
     await client.query("SELECT set_config('tpay.actor_id',$1,true)", [actorId]);
