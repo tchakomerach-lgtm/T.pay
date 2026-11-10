@@ -64,6 +64,12 @@ test("Fortress Admin Plane RLS is isolated from User Plane and vault audit is ap
     await client.query("ROLLBACK TO SAVEPOINT audit_mutation");
 
     await client.query("RESET ROLE");
+    await client.query("SAVEPOINT audit_owner_mutation");
+    await assert.rejects(() => client.query(
+      "UPDATE tpay_vault_audit SET reason_code='owner-tamper' WHERE id=$1",
+      [auditId]
+    ));
+    await client.query("ROLLBACK TO SAVEPOINT audit_owner_mutation");
     await client.query("SET LOCAL ROLE \"" + userRole + "\"");
     await client.query("SELECT set_config('tpay.tenant_id','__platform__',true)");
     await client.query("SELECT set_config('tpay.vault_id',$1,true)", [adminVaultId]);
