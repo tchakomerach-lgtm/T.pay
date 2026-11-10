@@ -48,10 +48,12 @@ test("Fortress Admin Plane RLS is isolated from User Plane and vault audit is ap
       "INSERT INTO tpay_vault_audit(id,tenant_id,vault_id,actor_id,action,correlation_id) VALUES($1,'__platform__',$2,$3,'open','fortress-isolation-test')",
       [auditId,adminVaultId,actorId]
     );
+    await client.query("SAVEPOINT audit_mutation");
     await assert.rejects(() => client.query(
       "UPDATE tpay_vault_audit SET reason_code='tampered' WHERE id=$1",
       [auditId]
     ));
+    await client.query("ROLLBACK TO SAVEPOINT audit_mutation");
 
     await client.query("RESET ROLE");
     await client.query("SET LOCAL ROLE \"" + userRole + "\"");
