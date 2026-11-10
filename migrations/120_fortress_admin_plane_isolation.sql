@@ -135,7 +135,7 @@ USING (EXISTS (
       AND v.tenant_id = '__platform__'
       AND current_setting('tpay.tenant_id', true) = '__platform__'
       AND current_setting('tpay.vault_id', true) = v.id::text
-      AND tpay_admin_vault_grant_active(v.id))
+    )
     OR
     (v.vault_class <> 'super_admin' AND current_user <> 'tpay_admin_runtime'
       AND v.tenant_id = current_setting('tpay.tenant_id', true)
