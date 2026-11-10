@@ -39,6 +39,7 @@ const required=[
   ["packages/security/vault-core.ts",/aes-256-gcm/,"VAULT_AES256GCM_REQUIRED"],
   ["packages/security/vault-core.ts",/TPAY_VAULT_DATA_KEY_INVALID/,"VAULT_KEY_LENGTH_GUARD_REQUIRED"],
   ["packages/security/vault-core.ts",/VaultAuditSink/,"VAULT_AUDIT_BOUNDARY_REQUIRED"],
+  ["packages/security/vault-core.ts",/authorizeVaultBoundary/,"VAULT_CRYPTO_POLICY_ENFORCEMENT_REQUIRED"],
   ["packages/security/vault-core.ts",/action:"read"/,"VAULT_READ_AUDIT_REQUIRED"],
   ["packages/security/vault-core.ts",/action:"write"/,"VAULT_WRITE_AUDIT_REQUIRED"],
   ["migrations/120_fortress_admin_plane_isolation.sql",/CREATE ROLE tpay_admin_runtime NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT/,"ADMIN_DB_ROLE_ISOLATION_REQUIRED"],
