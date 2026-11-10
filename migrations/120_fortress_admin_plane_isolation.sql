@@ -27,6 +27,23 @@ ALTER TABLE tpay_vault_access_grants
   ADD CONSTRAINT tpay_vault_access_grants_permission_check
   CHECK (permission IN ('read','write','decrypt','seal','manage_access','destroy','rotate_key'));
 
+ALTER TABLE tpay_vault_access_grants
+  ADD COLUMN tenant_id text;
+UPDATE tpay_vault_access_grants g
+SET tenant_id = v.tenant_id
+FROM tpay_vaults v
+WHERE v.id = g.vault_id AND g.tenant_id IS NULL;
+ALTER TABLE tpay_vault_access_grants
+  ALTER COLUMN tenant_id SET NOT NULL;
+ALTER TABLE tpay_vault_access_grants
+  ADD CONSTRAINT tpay_vault_access_grants_tenant_vault_fk
+  FOREIGN KEY (tenant_id,vault_id)
+  REFERENCES tpay_vaults(tenant_id,id)
+  ON DELETE RESTRICT;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_tpay_vault_access_active
+  ON tpay_vault_access_grants(tenant_id,vault_id,actor_id,permission)
+  WHERE revoked_at IS NULL;
+
 ALTER TABLE tpay_vaults
   ADD CONSTRAINT tpay_vaults_parent_same_tenant_fk
   FOREIGN KEY (tenant_id,parent_vault_id)
@@ -87,26 +104,35 @@ USING (
     AND current_user = 'tpay_admin_runtime'
     AND tenant_id = '__platform__'
     AND current_setting('tpay.tenant_id', true) = '__platform__'
-      AND nullif(current_setting('tpay.privileged_session_id', true), '') IS NOT NULL
-      AND nullif(current_setting('tpay.user_session_id', true), '') IS NULL
     AND current_setting('tpay.vault_id', true) = id::text
+    AND nullif(current_setting('tpay.privileged_session_id', true), '') IS NOT NULL
+    AND nullif(current_setting('tpay.user_session_id', true), '') IS NULL
     AND EXISTS (
       SELECT 1 FROM tpay_vault_access_grants g
-      WHERE g.vault_id = id
+      WHERE g.tenant_id = tenant_id AND g.vault_id = id
         AND g.actor_id::text = current_setting('tpay.actor_id', true)
         AND g.permission = current_setting('tpay.permission', true)
-        AND g.revoked_at IS NULL
-        AND g.valid_from <= now()
+        AND g.revoked_at IS NULL AND g.valid_from <= now()
         AND (g.valid_until IS NULL OR g.valid_until > now())
     )
   )
   OR
   (
     vault_class <> 'super_admin'
-    AND current_user <> 'tpay_admin_runtime'
     AND tenant_id <> '__platform__'
+    AND current_user <> 'tpay_admin_runtime'
     AND tenant_id = current_setting('tpay.tenant_id', true)
     AND current_setting('tpay.vault_id', true) = id::text
+    AND nullif(current_setting('tpay.user_session_id', true), '') IS NOT NULL
+    AND nullif(current_setting('tpay.privileged_session_id', true), '') IS NULL
+    AND EXISTS (
+      SELECT 1 FROM tpay_vault_access_grants g
+      WHERE g.tenant_id = tenant_id AND g.vault_id = id
+        AND g.actor_id::text = current_setting('tpay.actor_id', true)
+        AND g.permission = current_setting('tpay.permission', true)
+        AND g.revoked_at IS NULL AND g.valid_from <= now()
+        AND (g.valid_until IS NULL OR g.valid_until > now())
+    )
   )
 )
 WITH CHECK (
@@ -115,26 +141,35 @@ WITH CHECK (
     AND current_user = 'tpay_admin_runtime'
     AND tenant_id = '__platform__'
     AND current_setting('tpay.tenant_id', true) = '__platform__'
-      AND nullif(current_setting('tpay.privileged_session_id', true), '') IS NOT NULL
-      AND nullif(current_setting('tpay.user_session_id', true), '') IS NULL
     AND current_setting('tpay.vault_id', true) = id::text
+    AND nullif(current_setting('tpay.privileged_session_id', true), '') IS NOT NULL
+    AND nullif(current_setting('tpay.user_session_id', true), '') IS NULL
     AND EXISTS (
       SELECT 1 FROM tpay_vault_access_grants g
-      WHERE g.vault_id = id
+      WHERE g.tenant_id = tenant_id AND g.vault_id = id
         AND g.actor_id::text = current_setting('tpay.actor_id', true)
         AND g.permission = current_setting('tpay.permission', true)
-        AND g.revoked_at IS NULL
-        AND g.valid_from <= now()
+        AND g.revoked_at IS NULL AND g.valid_from <= now()
         AND (g.valid_until IS NULL OR g.valid_until > now())
     )
   )
   OR
   (
     vault_class <> 'super_admin'
-    AND current_user <> 'tpay_admin_runtime'
     AND tenant_id <> '__platform__'
+    AND current_user <> 'tpay_admin_runtime'
     AND tenant_id = current_setting('tpay.tenant_id', true)
     AND current_setting('tpay.vault_id', true) = id::text
+    AND nullif(current_setting('tpay.user_session_id', true), '') IS NOT NULL
+    AND nullif(current_setting('tpay.privileged_session_id', true), '') IS NULL
+    AND EXISTS (
+      SELECT 1 FROM tpay_vault_access_grants g
+      WHERE g.tenant_id = tenant_id AND g.vault_id = id
+        AND g.actor_id::text = current_setting('tpay.actor_id', true)
+        AND g.permission = current_setting('tpay.permission', true)
+        AND g.revoked_at IS NULL AND g.valid_from <= now()
+        AND (g.valid_until IS NULL OR g.valid_until > now())
+    )
   )
 );
 
@@ -210,15 +245,15 @@ CREATE POLICY tpay_vault_access_explicit_scope ON tpay_vault_access_grants
 USING (
   (
     current_user = 'tpay_admin_runtime'
-    AND current_setting('tpay.tenant_id', true) = '__platform__'
+    AND tenant_id = '__platform__'
+    AND tenant_id = current_setting('tpay.tenant_id', true)
+    AND current_setting('tpay.vault_id', true) = vault_id::text
     AND nullif(current_setting('tpay.privileged_session_id', true), '') IS NOT NULL
     AND nullif(current_setting('tpay.user_session_id', true), '') IS NULL
-    AND current_setting('tpay.vault_id', true) = vault_id::text
     AND (
       (actor_id::text = current_setting('tpay.actor_id', true)
         AND permission = current_setting('tpay.permission', true)
-        AND revoked_at IS NULL
-        AND valid_from <= now()
+        AND revoked_at IS NULL AND valid_from <= now()
         AND (valid_until IS NULL OR valid_until > now()))
       OR
       (granted_by::text = current_setting('tpay.actor_id', true)
@@ -228,35 +263,43 @@ USING (
   OR
   (
     current_user <> 'tpay_admin_runtime'
-    AND EXISTS (
-      SELECT 1 FROM tpay_vaults v
-      WHERE v.id = vault_id
-        AND v.vault_class <> 'super_admin'
-        AND v.tenant_id = current_setting('tpay.tenant_id', true)
-        AND current_setting('tpay.vault_id', true) = v.id::text
+    AND tenant_id <> '__platform__'
+    AND tenant_id = current_setting('tpay.tenant_id', true)
+    AND current_setting('tpay.vault_id', true) = vault_id::text
+    AND nullif(current_setting('tpay.user_session_id', true), '') IS NOT NULL
+    AND nullif(current_setting('tpay.privileged_session_id', true), '') IS NULL
+    AND (
+      (actor_id::text = current_setting('tpay.actor_id', true)
+        AND permission = current_setting('tpay.permission', true)
+        AND revoked_at IS NULL AND valid_from <= now()
+        AND (valid_until IS NULL OR valid_until > now()))
+      OR
+      (granted_by::text = current_setting('tpay.actor_id', true)
+        AND current_setting('tpay.permission', true) = 'manage_access')
     )
   )
 )
 WITH CHECK (
   (
     current_user = 'tpay_admin_runtime'
-    AND current_setting('tpay.tenant_id', true) = '__platform__'
+    AND tenant_id = '__platform__'
+    AND tenant_id = current_setting('tpay.tenant_id', true)
+    AND current_setting('tpay.vault_id', true) = vault_id::text
     AND nullif(current_setting('tpay.privileged_session_id', true), '') IS NOT NULL
     AND nullif(current_setting('tpay.user_session_id', true), '') IS NULL
-    AND current_setting('tpay.vault_id', true) = vault_id::text
     AND granted_by::text = current_setting('tpay.actor_id', true)
     AND current_setting('tpay.permission', true) = 'manage_access'
   )
   OR
   (
     current_user <> 'tpay_admin_runtime'
-    AND EXISTS (
-      SELECT 1 FROM tpay_vaults v
-      WHERE v.id = vault_id
-        AND v.vault_class <> 'super_admin'
-        AND v.tenant_id = current_setting('tpay.tenant_id', true)
-        AND current_setting('tpay.vault_id', true) = v.id::text
-    )
+    AND tenant_id <> '__platform__'
+    AND tenant_id = current_setting('tpay.tenant_id', true)
+    AND current_setting('tpay.vault_id', true) = vault_id::text
+    AND nullif(current_setting('tpay.user_session_id', true), '') IS NOT NULL
+    AND nullif(current_setting('tpay.privileged_session_id', true), '') IS NULL
+    AND granted_by::text = current_setting('tpay.actor_id', true)
+    AND current_setting('tpay.permission', true) = 'manage_access'
   )
 );
 
