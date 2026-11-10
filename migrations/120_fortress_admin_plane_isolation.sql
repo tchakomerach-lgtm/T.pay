@@ -98,6 +98,7 @@ USING (
   (
     vault_class <> 'super_admin'
     AND current_user <> 'tpay_admin_runtime'
+    AND tenant_id <> '__platform__'
     AND tenant_id = current_setting('tpay.tenant_id', true)
     AND current_setting('tpay.vault_id', true) = id::text
   )
@@ -125,6 +126,7 @@ WITH CHECK (
   (
     vault_class <> 'super_admin'
     AND current_user <> 'tpay_admin_runtime'
+    AND tenant_id <> '__platform__'
     AND tenant_id = current_setting('tpay.tenant_id', true)
     AND current_setting('tpay.vault_id', true) = id::text
   )
