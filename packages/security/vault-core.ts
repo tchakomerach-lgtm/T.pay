@@ -1,3 +1,4 @@
+import {authorizeVaultBoundary,type VaultBoundaryRequest} from "./vault-domain-boundary.js";
 import {createCipheriv,createDecipheriv,createHash,randomBytes} from "node:crypto";
 
 export type VaultKeyRef={vaultId:string;keyVersion:number;kmsKeyRef:string;algorithm:"AES-256-GCM"};
@@ -15,9 +16,19 @@ export interface EncryptedVaultObject{
   payloadSha256:Buffer;
 }
 
+
+function assertVaultBoundary(input:VaultBoundaryRequest,ref:VaultKeyRef,permission:"write"|"decrypt"):void{
+  if(input.vault.id!==ref.vaultId||input.requestedPermission!==permission){
+    throw new Error("TPAY_VAULT_ACCESS_DENIED:VAULT_PERMISSION_MISMATCH");
+  }
+  const decision=authorizeVaultBoundary(input);
+  if(!decision.allowed)throw new Error("TPAY_VAULT_ACCESS_DENIED:"+decision.reason);
+}
+
 function sha256(value:Buffer|string):Buffer{return createHash("sha256").update(value).digest();}
 
-export async function encryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyRef,plaintext:Buffer,aad:string,audit?:VaultAuditSink,context?:{actorId:string|null;objectId?:string;correlationId?:string}):Promise<EncryptedVaultObject>{
+export async function encryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyRef,plaintext:Buffer,aad:string,authorization:VaultBoundaryRequest,audit?:VaultAuditSink,context?:{actorId:string|null;objectId?:string;correlationId?:string}):Promise<EncryptedVaultObject>{
+  assertVaultBoundary(authorization,ref,"write");
   if(ref.algorithm!=="AES-256-GCM")throw new Error("TPAY_VAULT_ALGORITHM_UNSUPPORTED");
   const key=await provider.decryptDataKey(ref);
   if(key.length!==32)throw new Error("TPAY_VAULT_DATA_KEY_INVALID");
@@ -31,7 +42,8 @@ export async function encryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyR
   return result;
 }
 
-export async function decryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyRef,object:EncryptedVaultObject,aad:string,audit?:VaultAuditSink,context?:{actorId:string|null;objectId?:string;correlationId?:string}):Promise<Buffer>{
+export async function decryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyRef,object:EncryptedVaultObject,aad:string,authorization:VaultBoundaryRequest,audit?:VaultAuditSink,context?:{actorId:string|null;objectId?:string;correlationId?:string}):Promise<Buffer>{
+  assertVaultBoundary(authorization,ref,"decrypt");
   if(ref.algorithm!=="AES-256-GCM")throw new Error("TPAY_VAULT_ALGORITHM_UNSUPPORTED");
   if(object.nonce.length!==12||object.authTag.length!==16||object.aadSha256.length!==32||object.payloadSha256.length!==32)throw new Error("TPAY_VAULT_OBJECT_INVALID");
   const aadBytes=Buffer.from(aad,"utf8");
