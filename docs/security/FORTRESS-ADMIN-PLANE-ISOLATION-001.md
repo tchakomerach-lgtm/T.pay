@@ -56,7 +56,7 @@ The hierarchy is a governance/containment relationship, not an inheritance chain
 7. Root Trust operations require independent approvers from distinct provisioned trust domains, quorum and exact request digest. Self-approval is forbidden.
 8. HSM/KMS key operations, immutable/WORM backup restore drills, recovery clean-room and red-team gates must pass before production enablement.
 
-The migration creates only the NOLOGIN role and PostgreSQL boundaries. It does not create a login, grant role membership, activate an Admin API, provision HSM/KMS, or certify WebAuthn/PAM. These must be wired and evidenced separately. Do not mark the Admin Control Plane production-ready until those prerequisites are implemented.
+The migration must be executed by a controlled schema-migration identity capable of applying RLS/role DDL and evaluating the SECURITY DEFINER parent-integrity guard with row security disabled. This identity is never an API runtime credential. The migration creates only the NOLOGIN role and PostgreSQL boundaries. It does not create a login, grant role membership, activate an Admin API, provision HSM/KMS, or certify WebAuthn/PAM. These must be wired and evidenced separately. Do not mark the Admin Control Plane production-ready until those prerequisites are implemented.
 
 ## Rollback and operational notes
 
