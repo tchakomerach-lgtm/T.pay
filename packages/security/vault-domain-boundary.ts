@@ -63,7 +63,7 @@ export type VaultBoundaryDecision =
       | "ADMIN_PLANE_PLATFORM_SCOPE_REQUIRED" | "ADMIN_PLANE_HARDWARE_ASSURANCE_REQUIRED"
       | "USER_PLANE_CANNOT_ACCESS_ADMIN_VAULT" | "TENANT_SCOPE_MISMATCH"
       | "ORGANIZATION_SCOPE_REQUIRED" | "ORGANIZATION_SCOPE_MISMATCH"
-      | "USER_PLANE_SESSION_REQUIRED" | "SERVICE_PLANE_ATTESTATION_REQUIRED" };
+      | "USER_PLANE_SESSION_REQUIRED" | "SERVICE_PLANE_ATTESTATION_REQUIRED" | "SERVICE_PLANE_USER_CONTEXT_FORBIDDEN" };
 
 const time = (value: string): number => {
   const parsed = Date.parse(value);
@@ -117,6 +117,9 @@ export function authorizeVaultBoundary(input: VaultBoundaryRequest): VaultBounda
   } else if (input.plane === "SERVICE") {
     if (input.vault.vaultClass === "super_admin") {
       return { allowed: false, reason: "USER_PLANE_CANNOT_ACCESS_ADMIN_VAULT" };
+    }
+    if (input.context.userSessionId !== null) {
+      return { allowed: false, reason: "SERVICE_PLANE_USER_CONTEXT_FORBIDDEN" };
     }
     if (input.principal.kind !== "workload" || input.session.kind !== "workload" ||
         input.session.assurance !== "attested_workload" ||
