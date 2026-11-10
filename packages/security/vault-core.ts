@@ -54,7 +54,7 @@ export async function decryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyR
   decipher.setAuthTag(object.authTag);
   const plaintext=Buffer.concat([decipher.update(object.ciphertext),decipher.final()]);
   if(!sha256(plaintext).equals(object.payloadSha256))throw new Error("TPAY_VAULT_PAYLOAD_HASH_MISMATCH");
-  if(audit)await audit.record({vaultId:ref.vaultId,actorId:context?.actorId??null,action:"read",...(context?.objectId!==undefined?{objectId:context.objectId}:{}),keyVersion:ref.keyVersion,...(context?.correlationId!==undefined?{correlationId:context.correlationId}:{})};
+  if(audit)await audit.record({vaultId:ref.vaultId,actorId:context?.actorId??null,action:"read",...(context?.objectId!==undefined?{objectId:context.objectId}:{}),keyVersion:ref.keyVersion,...(context?.correlationId!==undefined?{correlationId:context.correlationId}:{})});
   return plaintext;
 }
 
