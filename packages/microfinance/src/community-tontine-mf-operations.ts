@@ -63,9 +63,9 @@ export class CommunityTontineMfOperationsService implements CommunityTontineMfOp
     const prepared: CommunityTontineMfSettlementInstruction = {
       ...instruction,
       preparedBy: preparerId,
-      approvedBy: undefined,
       state: "prepared"
     };
+    delete prepared.approvedBy;
     return this.settlementRepository.savePrepared(organizationId, prepared);
   }
 }
