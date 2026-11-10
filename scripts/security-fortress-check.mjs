@@ -66,6 +66,13 @@ for(const [rel,pattern,code] of required){
   const text=await readFile(resolve(root,rel),"utf8");
   if(!pattern.test(text))problems.push(code+":"+rel);
 }
+for (const workflow of [".github/workflows/ci.yml",".github/workflows/android.yml",".github/workflows/terrain-certification.yml"]) {
+  const source = await readFile(resolve(root,workflow),"utf8");
+  for (const match of source.matchAll(/^\\s*uses:\\s*([^\\s#]+)/gm)) {
+    const reference = match[1].split("@")[1] ?? "";
+    if (!/^[a-f0-9]{40}$/.test(reference)) problems.push("CI_ACTION_NOT_PINNED_TO_FULL_SHA:" + workflow + ":" + match[1]);
+  }
+}
 const ci=await readFile(resolve(root,".github/workflows/ci.yml"),"utf8");
 if(!/permissions:\s*\n\s+contents:\s+read/.test(ci))problems.push("CI_LEAST_PRIVILEGE_REQUIRED");
 if(!/cancel-in-progress:\s*false/.test(ci))problems.push("CI_AUTHORITATIVE_RUNS_MUST_NOT_BE_CANCELLED");
