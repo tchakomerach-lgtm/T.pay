@@ -71,36 +71,6 @@ BEFORE INSERT OR UPDATE OF vault_class,parent_vault_id,tenant_id,organization_id
 ON tpay_vaults
 FOR EACH ROW EXECUTE FUNCTION tpay_validate_super_admin_vault_parent();
 
--- Admin vault reads require a live, exact-vault grant and an independently
--- resolved privileged-session context. The SECURITY DEFINER function runs with
--- row_security=off so the grant lookup cannot recurse through the vault policies.
-CREATE OR REPLACE FUNCTION tpay_admin_vault_grant_active(p_vault_id uuid)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = pg_catalog, public
-SET row_security = off
-AS $function$
-  SELECT
-    current_setting('role', true) = 'tpay_admin_runtime'
-    AND current_setting('tpay.tenant_id', true) = '__platform__'
-    AND current_setting('tpay.vault_id', true) = p_vault_id::text
-    AND nullif(current_setting('tpay.privileged_session_id', true), '') IS NOT NULL
-    AND EXISTS (
-      SELECT 1
-      FROM public.tpay_vault_access_grants g
-      WHERE g.vault_id = p_vault_id
-        AND g.actor_id::text = current_setting('tpay.actor_id', true)
-        AND g.permission = current_setting('tpay.permission', true)
-        AND g.revoked_at IS NULL
-        AND g.valid_from <= now()
-        AND (g.valid_until IS NULL OR g.valid_until > now())
-    )
-$function$;
-REVOKE ALL ON FUNCTION tpay_admin_vault_grant_active(uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION tpay_admin_vault_grant_active(uuid) TO tpay_admin_runtime;
-
 -- Replace permissive policies rather than adding a second policy: PostgreSQL ORs
 -- permissive policies, which could otherwise reopen the old user-context path.
 DROP POLICY IF EXISTS tpay_vaults_explicit_scope ON tpay_vaults;
@@ -112,7 +82,15 @@ USING (
     AND tenant_id = '__platform__'
     AND current_setting('tpay.tenant_id', true) = '__platform__'
     AND current_setting('tpay.vault_id', true) = id::text
-    AND tpay_admin_vault_grant_active(id)
+    AND EXISTS (
+      SELECT 1 FROM tpay_vault_access_grants g
+      WHERE g.vault_id = id
+        AND g.actor_id::text = current_setting('tpay.actor_id', true)
+        AND g.permission = current_setting('tpay.permission', true)
+        AND g.revoked_at IS NULL
+        AND g.valid_from <= now()
+        AND (g.valid_until IS NULL OR g.valid_until > now())
+    )
   )
   OR
   (
@@ -129,6 +107,15 @@ WITH CHECK (
     AND tenant_id = '__platform__'
     AND current_setting('tpay.tenant_id', true) = '__platform__'
     AND current_setting('tpay.vault_id', true) = id::text
+    AND EXISTS (
+      SELECT 1 FROM tpay_vault_access_grants g
+      WHERE g.vault_id = id
+        AND g.actor_id::text = current_setting('tpay.actor_id', true)
+        AND g.permission = current_setting('tpay.permission', true)
+        AND g.revoked_at IS NULL
+        AND g.valid_from <= now()
+        AND (g.valid_until IS NULL OR g.valid_until > now())
+    )
   )
   OR
   (
@@ -200,32 +187,49 @@ WITH CHECK (EXISTS (
 
 DROP POLICY IF EXISTS tpay_vault_access_explicit_scope ON tpay_vault_access_grants;
 CREATE POLICY tpay_vault_access_explicit_scope ON tpay_vault_access_grants
-USING (EXISTS (
-  SELECT 1 FROM tpay_vaults v
-  WHERE v.id = vault_id AND (
-    (v.vault_class = 'super_admin' AND current_user = 'tpay_admin_runtime'
-      AND v.tenant_id = '__platform__'
-      AND current_setting('tpay.tenant_id', true) = '__platform__'
-      AND current_setting('tpay.vault_id', true) = v.id::text)
-    OR
-    (v.vault_class <> 'super_admin' AND current_user <> 'tpay_admin_runtime'
-      AND v.tenant_id = current_setting('tpay.tenant_id', true)
-      AND current_setting('tpay.vault_id', true) = v.id::text)
+USING (
+  (
+    current_user = 'tpay_admin_runtime'
+    AND current_setting('tpay.tenant_id', true) = '__platform__'
+    AND current_setting('tpay.vault_id', true) = vault_id::text
+    AND actor_id::text = current_setting('tpay.actor_id', true)
+    AND permission = current_setting('tpay.permission', true)
+    AND revoked_at IS NULL
+    AND valid_from <= now()
+    AND (valid_until IS NULL OR valid_until > now())
   )
-))
-WITH CHECK (EXISTS (
-  SELECT 1 FROM tpay_vaults v
-  WHERE v.id = vault_id AND (
-    (v.vault_class = 'super_admin' AND current_user = 'tpay_admin_runtime'
-      AND v.tenant_id = '__platform__'
-      AND current_setting('tpay.tenant_id', true) = '__platform__'
-      AND current_setting('tpay.vault_id', true) = v.id::text)
-    OR
-    (v.vault_class <> 'super_admin' AND current_user <> 'tpay_admin_runtime'
-      AND v.tenant_id = current_setting('tpay.tenant_id', true)
-      AND current_setting('tpay.vault_id', true) = v.id::text)
+  OR
+  (
+    current_user <> 'tpay_admin_runtime'
+    AND EXISTS (
+      SELECT 1 FROM tpay_vaults v
+      WHERE v.id = vault_id
+        AND v.vault_class <> 'super_admin'
+        AND v.tenant_id = current_setting('tpay.tenant_id', true)
+        AND current_setting('tpay.vault_id', true) = v.id::text
+    )
   )
-));
+)
+WITH CHECK (
+  (
+    current_user = 'tpay_admin_runtime'
+    AND current_setting('tpay.tenant_id', true) = '__platform__'
+    AND current_setting('tpay.vault_id', true) = vault_id::text
+    AND granted_by::text = current_setting('tpay.actor_id', true)
+    AND current_setting('tpay.permission', true) = 'manage_access'
+  )
+  OR
+  (
+    current_user <> 'tpay_admin_runtime'
+    AND EXISTS (
+      SELECT 1 FROM tpay_vaults v
+      WHERE v.id = vault_id
+        AND v.vault_class <> 'super_admin'
+        AND v.tenant_id = current_setting('tpay.tenant_id', true)
+        AND current_setting('tpay.vault_id', true) = v.id::text
+    )
+  )
+);
 
 DROP POLICY IF EXISTS tpay_vault_audit_explicit_scope ON tpay_vault_audit;
 CREATE POLICY tpay_vault_audit_explicit_scope ON tpay_vault_audit
@@ -236,7 +240,6 @@ USING (
     AND current_setting('tpay.tenant_id', true) = '__platform__'
     AND current_setting('tpay.vault_id', true) = vault_id::text
     AND EXISTS (SELECT 1 FROM tpay_vaults v WHERE v.id = vault_id AND v.vault_class = 'super_admin')
-    AND tpay_admin_vault_grant_active(vault_id)
   )
   OR
   (
@@ -267,7 +270,6 @@ WITH CHECK (
 -- and grant membership only to the isolated Admin Control Plane service.
 GRANT USAGE ON SCHEMA public TO tpay_admin_runtime;
 GRANT SELECT, INSERT, UPDATE ON tpay_vaults,tpay_vault_keys,tpay_vault_objects,tpay_vault_access_grants TO tpay_admin_runtime;
-GRANT EXECUTE ON FUNCTION tpay_admin_vault_grant_active(uuid) TO tpay_admin_runtime;
 GRANT SELECT, INSERT ON tpay_vault_audit TO tpay_admin_runtime;
 REVOKE UPDATE, DELETE, TRUNCATE ON tpay_vault_audit FROM PUBLIC,tpay_admin_runtime;
 
