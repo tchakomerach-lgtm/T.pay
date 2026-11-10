@@ -17,6 +17,7 @@ The platform uses one canonical Vault schema (`tpay_vaults`, migration 047). Do 
 - Preserves tenant/organization-scoped access to all non-Super-Admin module vaults. Parent-vault access is not inherited.
 - Makes Vault audit append-only with database privileges and a trigger, including protection against table-owner UPDATE/DELETE.
 - Adds a pure policy decision point for USER, ORGANIZATION, ADMIN_CONTROL and attested SERVICE planes.
+- Makes the Vault cryptographic entry points require the complete boundary decision: encryption requires an exact `write` grant and decryption requires an exact `decrypt` grant; a `read` grant cannot unwrap/decrypt a data key.
 - Adds unit and PostgreSQL integration tests for role separation, cross-plane denial, tenant/organization isolation, exact-vault grants, session expiry/revocation and append-only audit.
 - Adds the new boundary to the Security Fortress CI gate.
 
