@@ -20,7 +20,7 @@ function cborMap(entries:Array<[number,number|Buffer]>):Buffer{
  for(const [k,v] of entries)parts.push(cbor(k),cbor(v));
  return Buffer.concat(parts);
 }
-function fixture(options?:{badSignature?:boolean;expired?:boolean;replay?:boolean;noUv?:boolean}){
+function fixture(options?:{badSignature?:boolean;expired?:boolean;replay?:boolean;noUv?:boolean;counterReplay?:boolean}){
  const {publicKey,privateKey}=generateKeyPairSync("ec",{namedCurve:"prime256v1"});
  const jwk=publicKey.export({format:"jwk"});
  const cose=cborMap([[1,2],[3,-7],[-1,1],[-2,Buffer.from(jwk.x!,"base64url")],[-3,Buffer.from(jwk.y!,"base64url")]]);
@@ -29,12 +29,12 @@ function fixture(options?:{badSignature?:boolean;expired?:boolean;replay?:boolea
  const authData=Buffer.alloc(37);
  sha("admin.example.test").copy(authData,0);
  authData[32]=options?.noUv?1:5;
- authData.writeUInt32BE(9,33);
+ authData.writeUInt32BE(options?.counterReplay?8:9,33);
  const signed=Buffer.concat([authData,sha(clientData)]);
  const signature=sign("sha256",signed,privateKey);
  const calls:string[]=[];
  const challengeState={consumed:false};
- const credentialState={counter:8,status:"active"};
+ const credentialState={counter:options?.counterReplay?8:8,status:"active",audit:false};
  const client={
   async query(sql:string,params:unknown[]=[]):Promise<any>{
    const s=sql.trim().replace(/\s+/g," ");
@@ -97,4 +97,14 @@ test("P061 rejects challenge origin/RP mismatch",async()=>{
  const f=fixture();const wrong=Buffer.from(JSON.stringify({type:"webauthn.get",challenge:b64(f.challenge),origin:"https://evil.example",crossOrigin:false}));
  const result=await f.verifier.verifyAuthentication(input(f,{clientDataJSON:b64(wrong)}));
  assert.deepEqual(result,{verified:false,reason:"ORIGIN_OR_RP_ID_MISMATCH"});
+});
+
+test("P061 records a valid-signature counter anomaly and marks the credential suspect",async()=>{
+ const f=fixture({counterReplay:true});
+ // Set a previously observed non-zero counter equal to this valid signed assertion.
+ f.credentialState.counter=8;
+ const result=await f.verifier.verifyAuthentication(input(f));
+ assert.deepEqual(result,{verified:false,reason:"SIGN_COUNTER_REPLAY"});
+ assert.equal(f.credentialState.status,"suspect");
+ assert.equal(f.credentialState.audit,true);
 });
