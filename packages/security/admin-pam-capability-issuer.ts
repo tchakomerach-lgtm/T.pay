@@ -54,10 +54,13 @@ export class AdminPamCapabilityIssuer {
            FROM tpay_admin_sessions s
            JOIN tpay_admin_principals p ON p.id=s.principal_id
            JOIN tpay_admin_webauthn_credentials c ON c.id=s.credential_id
+           JOIN tpay_admin_webauthn_attestation_roots ar
+             ON ar.fingerprint_sha256=c.attestation_root_fingerprint AND ar.status='active'
           WHERE s.id=$1 AND s.principal_id=$2 AND s.token_hash=$3
             AND s.security_plane='ADMIN_CONTROL' AND s.revoked_at IS NULL
             AND s.expires_at>$4 AND p.status='active'
-            AND c.status='active' AND c.revoked_at IS NULL
+            AND s.assurance='hardware_key' AND c.status='active' AND c.revoked_at IS NULL
+            AND c.hardware_attested=true
           FOR UPDATE OF s`,
         [input.sessionId, input.principalId, digest(input.sessionToken), now]
       );
@@ -108,11 +111,13 @@ export class AdminPamCapabilityIssuer {
            JOIN tpay_admin_sessions s ON s.id=a.session_id
            JOIN tpay_admin_principals p ON p.id=a.approver_principal_id
            JOIN tpay_admin_webauthn_credentials c ON c.id=s.credential_id
+           JOIN tpay_admin_webauthn_attestation_roots ar
+             ON ar.fingerprint_sha256=c.attestation_root_fingerprint AND ar.status='active'
           WHERE a.request_id=$1 AND a.decision='approve'
             AND a.approver_principal_id<>$2
             AND p.status='active' AND s.assurance='hardware_key'
             AND s.revoked_at IS NULL AND s.expires_at>now()
-            AND c.status='active' AND c.revoked_at IS NULL`,
+            AND c.status='active' AND c.revoked_at IS NULL AND c.hardware_attested=true`,
         [r.id, r.requester_principal_id]
       );
       if (Number(quorum.rows[0]?.count ?? 0) < r.required_approvals) {

@@ -30,7 +30,7 @@ export type WebAuthnAssertionInput = {
 };
 
 export type WebAuthnAssertionResult =
-  | { verified: true; principalId: string; credentialRef: string; assurance: "webauthn_uv"; signCount: number }
+  | { verified: true; principalId: string; credentialRef: string; assurance: "webauthn_uv" | "hardware_key"; signCount: number }
   | { verified: false; reason: WebAuthnFailure };
 
 type Cbor = null | boolean | number | string | Buffer | Cbor[] | Map<Cbor, Cbor>;
@@ -188,16 +188,24 @@ export class AdminWebAuthnAssertionVerifier {
       const newCounter = authData.readUInt32BE(33);
       const credential = await client.query<{
         id: string; public_key_cose: Buffer; sign_count: string | number;
-        status: string; revoked_at: Date | null;
+        status: string; revoked_at: Date | null; hardware_attested: boolean;
+        attestation_root_fingerprint: string | null; root_status: string | null;
       }>(
-        `SELECT id,public_key_cose,sign_count,status,revoked_at
-           FROM tpay_admin_webauthn_credentials
-          WHERE principal_id=$1 AND credential_id=$2
-          FOR UPDATE`,
+        `SELECT c.id,c.public_key_cose,c.sign_count,c.status,c.revoked_at,
+                c.hardware_attested,c.attestation_root_fingerprint,r.status AS root_status
+           FROM tpay_admin_webauthn_credentials c
+           LEFT JOIN tpay_admin_webauthn_attestation_roots r
+             ON r.fingerprint_sha256=c.attestation_root_fingerprint
+          WHERE c.principal_id=$1 AND c.credential_id=$2
+          FOR UPDATE OF c`,
         [input.principalId, credentialId]
       );
       const cred = credential.rows[0];
       if (!cred || credential.rowCount !== 1 || cred.status !== "active" || cred.revoked_at) {
+        await client.query("ROLLBACK");
+        return deny("CREDENTIAL_NOT_FOUND_OR_REVOKED");
+      }
+      if (cred.hardware_attested && (!cred.attestation_root_fingerprint || cred.root_status !== "active")) {
         await client.query("ROLLBACK");
         return deny("CREDENTIAL_NOT_FOUND_OR_REVOKED");
       }
@@ -256,7 +264,7 @@ export class AdminWebAuthnAssertionVerifier {
       }
       await client.query("COMMIT");
       return { verified: true, principalId: input.principalId, credentialRef: cred.id,
-        assurance: "webauthn_uv", signCount: newCounter };
+        assurance: cred.hardware_attested ? "hardware_key" : "webauthn_uv", signCount: newCounter };
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);
       throw error;

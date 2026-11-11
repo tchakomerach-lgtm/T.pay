@@ -5,15 +5,16 @@ import type { Pool } from "pg";
 import { AdminPamCapabilityIssuer } from "../packages/security/admin-pam-capability-issuer.js";
 
 const hash=(v:string|Buffer)=>createHash("sha256").update(v).digest();
-function fixture(opts?:{missingQuorum?:boolean;auditFails?:boolean;wrongAssurance?:boolean}) {
+function fixture(opts?:{missingQuorum?:boolean;auditFails?:boolean;wrongAssurance?:boolean;rootRevoked?:boolean}) {
  const calls:string[]=[];
+ const sqlLog:string[]=[];
  const inserted:{capabilityHash?:Buffer;requestStatus?:string;audit?:boolean}={};
  const client={
   async query(sql:string,params:unknown[]=[]):Promise<any>{
-   calls.push(sql.trim().split(/\s+/).slice(0,3).join(" "));
+   calls.push(sql.trim().split(/\s+/).slice(0,3).join(" "));sqlLog.push(sql);
    if(sql==="BEGIN"||sql==="COMMIT"||sql==="ROLLBACK"||sql==="SET LOCAL ROLE tpay_admin_pam_runtime")return {rows:[],rowCount:0};
    if(sql.includes("set_config"))return {rows:[],rowCount:1};
-   if(sql.includes("FROM tpay_admin_sessions s")&&sql.includes("FOR UPDATE OF s"))return {
+   if(sql.includes("FROM tpay_admin_sessions s")&&sql.includes("FOR UPDATE OF s"))return opts?.rootRevoked?{rows:[],rowCount:0}:{
     rows:opts?.wrongAssurance?[{principal_status:"active",session_id:"sess",session_expires_at:new Date("2026-11-11T12:00:00Z"),assurance:"webauthn_uv",credential_status:"active",credential_id:"cred"}]:
     [{principal_status:"active",session_id:"sess",session_expires_at:new Date("2026-11-11T12:00:00Z"),assurance:"hardware_key",credential_status:"active",credential_id:"cred"}],rowCount:1};
    if(sql.includes("FROM tpay_admin_breakglass_requests")&&sql.includes("FOR UPDATE"))return {rows:[{
@@ -31,7 +32,7 @@ function fixture(opts?:{missingQuorum?:boolean;auditFails?:boolean;wrongAssuranc
   },
   release(){calls.push("release");}
  };
- return {pool:{connect:async()=>client} as unknown as Pool,calls,inserted};
+ return {pool:{connect:async()=>client} as unknown as Pool,calls,inserted,sqlLog};
 }
 const input={principalId:"admin-1",sessionId:"sess",sessionToken:"a".repeat(48),requestId:"req",now:"2026-11-11T10:05:00.000Z"};
 
@@ -69,4 +70,18 @@ test("P060 rolls back capability and request consumption when audit fails",async
  await assert.rejects(()=>new AdminPamCapabilityIssuer(f.pool).issue(input),/AUDIT_FAIL/);
  assert.ok(f.calls.includes("ROLLBACK"));
  assert.ok(!f.calls.includes("COMMIT"));
+});
+
+test("P064 PAM issuer binds requester and approver sessions to active hardware-attested roots",async()=>{
+ const f=fixture();
+ await new AdminPamCapabilityIssuer(f.pool).issue(input);
+ const sessionSql=f.sqlLog.find(q=>q.includes("FROM tpay_admin_sessions s")&&q.includes("FOR UPDATE OF s"))??"";
+ const quorumSql=f.sqlLog.find(q=>q.includes("FROM tpay_admin_breakglass_approvals"))??"";
+ assert.match(sessionSql,/tpay_admin_webauthn_attestation_roots/);
+ assert.match(sessionSql,/hardware_attested=true/);
+ assert.match(quorumSql,/tpay_admin_webauthn_attestation_roots/);
+ assert.match(quorumSql,/hardware_attested=true/);
+ const revoked=fixture({rootRevoked:true});
+ assert.deepEqual(await new AdminPamCapabilityIssuer(revoked.pool).issue(input),
+  {allowed:false,reason:"ADMIN_SESSION_INVALID_OR_INSUFFICIENT_ASSURANCE"});
 });

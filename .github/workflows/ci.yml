@@ -15,6 +15,7 @@ on:
       - security/p062-admin-session-lifecycle-007-rebased2
       - security/p062-admin-session-lifecycle-007-rebased2
       - security/p063-webauthn-attestation-enrollment-008
+      - security/p064-hardware-assurance-binding-009
   pull_request:
     branches:
       - main
@@ -26,6 +27,8 @@ on:
       - security/p062-admin-session-lifecycle-007
       - security/p060-admin-pam-executor-005-rebased
       - security/p061-webauthn-verifier-006-rebased
+      - security/p062-admin-session-lifecycle-007-rebased2
+      - security/p063-webauthn-attestation-enrollment-008
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 permissions:
