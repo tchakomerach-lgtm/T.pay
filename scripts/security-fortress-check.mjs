@@ -13,7 +13,9 @@ const files=[
   "android/tpay-shell/app/src/main/java/com/tpay/os/MainActivity.kt",
   "android/tpay-shell/app/src/main/res/xml/network_security_config.xml",
   "migrations/047_tpay_vault_fortress.sql",
-  "packages/security/vault-core.ts"
+  "packages/security/vault-core.ts",
+  "packages/security/vault-domain-boundary.ts",
+  "migrations/120_fortress_admin_plane_isolation.sql"
 ];
 
 const forbidden=[
@@ -37,8 +39,15 @@ const required=[
   ["packages/security/vault-core.ts",/aes-256-gcm/,"VAULT_AES256GCM_REQUIRED"],
   ["packages/security/vault-core.ts",/TPAY_VAULT_DATA_KEY_INVALID/,"VAULT_KEY_LENGTH_GUARD_REQUIRED"],
   ["packages/security/vault-core.ts",/VaultAuditSink/,"VAULT_AUDIT_BOUNDARY_REQUIRED"],
+  ["packages/security/vault-core.ts",/authorizeVaultBoundary/,"VAULT_CRYPTO_POLICY_ENFORCEMENT_REQUIRED"],
   ["packages/security/vault-core.ts",/action:"read"/,"VAULT_READ_AUDIT_REQUIRED"],
   ["packages/security/vault-core.ts",/action:"write"/,"VAULT_WRITE_AUDIT_REQUIRED"],
+  ["migrations/120_fortress_admin_plane_isolation.sql",/CREATE ROLE tpay_admin_runtime NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT/,"ADMIN_DB_ROLE_ISOLATION_REQUIRED"],
+  ["migrations/120_fortress_admin_plane_isolation.sql",/current_user = 'tpay_admin_runtime'/,"ADMIN_VAULT_ROLE_POLICY_REQUIRED"],
+  ["migrations/120_fortress_admin_plane_isolation.sql",/tpay_super_admin_vault_platform_scope/,"ADMIN_VAULT_PLATFORM_SCOPE_REQUIRED"],
+  ["migrations/120_fortress_admin_plane_isolation.sql",/TPAY_VAULT_AUDIT_APPEND_ONLY/,"VAULT_AUDIT_IMMUTABILITY_REQUIRED"],
+  ["packages/security/vault-domain-boundary.ts",/ADMIN_PLANE_USER_CONTEXT_FORBIDDEN/,"ADMIN_USER_CONTEXT_SEPARATION_REQUIRED"],
+  ["packages/security/vault-domain-boundary.ts",/USER_PLANE_CANNOT_ACCESS_ADMIN_VAULT/,"USER_TO_ADMIN_VAULT_DENIAL_REQUIRED"],
   ["apps/api-server/src/main.ts",/minVersion:\s*["']TLSv1\.3["']/,"API_TLS13_REQUIRED"],
   ["apps/education-web/vite.config.ts",/command===["']serve["'][\s\S]*?TPAY_WEB_HTTPS_CERTIFICATES_REQUIRED/,"WEB_HTTPS_FAIL_CLOSED"],
   ["packages/education/src/education-http.ts",/API_IDEMPOTENCY_KEY_INVALID/,"IDEMPOTENCY_VALIDATION_REQUIRED"],
@@ -57,6 +66,13 @@ for(const rel of files){
 for(const [rel,pattern,code] of required){
   const text=await readFile(resolve(root,rel),"utf8");
   if(!pattern.test(text))problems.push(code+":"+rel);
+}
+for (const workflow of [".github/workflows/ci.yml",".github/workflows/android.yml",".github/workflows/terrain-certification.yml"]) {
+  const source = await readFile(resolve(root,workflow),"utf8");
+  for (const match of source.matchAll(/^\s*-\s*uses:\s*([^\s#]+)/gm)) {
+    const reference = match[1].split("@")[1] ?? "";
+    if (!/^[a-f0-9]{40}$/.test(reference)) problems.push("CI_ACTION_NOT_PINNED_TO_FULL_SHA:" + workflow + ":" + match[1]);
+  }
 }
 const ci=await readFile(resolve(root,".github/workflows/ci.yml"),"utf8");
 if(!/permissions:\s*\n\s+contents:\s+read/.test(ci))problems.push("CI_LEAST_PRIVILEGE_REQUIRED");
