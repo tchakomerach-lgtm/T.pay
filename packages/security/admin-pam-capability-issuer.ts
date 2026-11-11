@@ -131,7 +131,8 @@ export class AdminPamCapabilityIssuer {
          r.target_tenant_id,r.target_organization_id,r.resource_type,r.resource_ref,
          r.requested_permission,r.purpose_code,r.incident_or_ticket_ref,r.expires_at]
       );
-      if (issued.rowCount !== 1) throw new Error("PAM_CAPABILITY_NOT_ISSUED");
+      const issuedRow = issued.rows[0];
+      if (issued.rowCount !== 1 || !issuedRow) throw new Error("PAM_CAPABILITY_NOT_ISSUED");
       const consumed = await client.query(
         "UPDATE tpay_admin_breakglass_requests SET status='consumed',consumed_at=now() WHERE id=$1 AND requester_principal_id=$2 AND status='approved'",
         [r.id,input.principalId]
@@ -153,7 +154,7 @@ export class AdminPamCapabilityIssuer {
       await client.query("COMMIT");
       return {
         allowed:true, capability, capabilityId,
-        expiresAt:new Date(issued.rows[0].expires_at).toISOString(),
+        expiresAt:new Date(issuedRow.expires_at).toISOString(),
         scope:{tenantId:r.target_tenant_id,organizationId:r.target_organization_id,
           resourceType:r.resource_type,resourceRef:r.resource_ref,
           permission:r.requested_permission,purposeCode:r.purpose_code,ticketRef:r.incident_or_ticket_ref}
