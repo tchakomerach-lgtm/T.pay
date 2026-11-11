@@ -7,6 +7,8 @@ on:
   pull_request:
     branches:
       - main
+      - security/p057-admin-identity-breakglass-002
+      - security/p058-data-compartment-fortress-003
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 permissions:
