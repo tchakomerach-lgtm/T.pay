@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Pool } from "pg";
-import type { WebAuthnAssertionResult } from "./admin-webauthn-assertion-verifier.js";
+import { AdminWebAuthnAssertionVerifier, type WebAuthnAssertionInput } from "./admin-webauthn-assertion-verifier.js";
 
 export type AdminSessionIssueResult =
  | { issued: true; sessionId: string; sessionToken: string; expiresAt: string; assurance: "webauthn_uv" }
@@ -31,7 +31,7 @@ export class AdminSessionLifecycle {
   private readonly clock:()=>Date;
   private readonly adminOrigin:string;
 
-  constructor(private readonly pool:Pool,options:AdminSessionServiceOptions){
+  constructor(private readonly pool:Pool,private readonly verifier:AdminWebAuthnAssertionVerifier,options:AdminSessionServiceOptions){
     const parsed=new URL(options.adminOrigin);
     if(parsed.protocol!=="https:" || parsed.pathname!=="/" || parsed.search || parsed.hash){
       throw new Error("ADMIN_ORIGIN_MUST_BE_HTTPS_ORIGIN");
@@ -44,8 +44,9 @@ export class AdminSessionLifecycle {
     this.clock=options.clock ?? (()=>new Date());
   }
 
-  async issueFromAssertion(assertion:WebAuthnAssertionResult):Promise<AdminSessionIssueResult>{
-    if(!assertion.verified) return {issued:false,reason:"WEBAUTHN_ASSERTION_NOT_VERIFIED"};
+  async issueFromAssertion(input:WebAuthnAssertionInput):Promise<AdminSessionIssueResult>{
+    const assertion=await this.verifier.verifyAuthentication(input);
+    if(!assertion.verified) return {issued:false,reason:`WEBAUTHN_${assertion.reason}`};
     if(assertion.assurance!=="webauthn_uv") return {issued:false,reason:"WEBAUTHN_ASSURANCE_NOT_ALLOWED"};
     const client=await this.pool.connect();
     const sessionId=randomUUID();
