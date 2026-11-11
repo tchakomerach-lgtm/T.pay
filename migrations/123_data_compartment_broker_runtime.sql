@@ -11,9 +11,14 @@ ALTER ROLE tpay_data_broker_runtime WITH NOLOGIN NOSUPERUSER NOCREATEDB NOCREATE
 -- P058 grants were record-scoped but did not persist the compartment identifier.
 -- P059 makes that scope explicit and enforces record/compartment consistency
 -- with a composite FK. Existing grants are backfilled from their exact record.
-ALTER TABLE tpay_data_records
-  ADD CONSTRAINT IF NOT EXISTS uq_tpay_data_records_tenant_record_compartment
-  UNIQUE (tenant_id,id,compartment_id);
+DO $p059_record_unique$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='uq_tpay_data_records_tenant_record_compartment') THEN
+    ALTER TABLE tpay_data_records
+      ADD CONSTRAINT uq_tpay_data_records_tenant_record_compartment
+      UNIQUE (tenant_id,id,compartment_id);
+  END IF;
+END $p059_record_unique$;
 ALTER TABLE tpay_data_record_grants
   ADD COLUMN IF NOT EXISTS compartment_id text;
 
