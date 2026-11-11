@@ -20,7 +20,7 @@ function cborMap(entries:Array<[number,number|Buffer]>):Buffer{
  for(const [k,v] of entries)parts.push(cbor(k),cbor(v));
  return Buffer.concat(parts);
 }
-function fixture(options?:{badSignature?:boolean;expired?:boolean;replay?:boolean;noUv?:boolean;counterReplay?:boolean}){
+function fixture(options?:{badSignature?:boolean;expired?:boolean;replay?:boolean;noUv?:boolean;counterReplay?:boolean;hardwareAttested?:boolean;rootActive?:boolean}){
  const {publicKey,privateKey}=generateKeyPairSync("ec",{namedCurve:"prime256v1"});
  const jwk=publicKey.export({format:"jwk"});
  const cose=cborMap([[1,2],[3,-7],[-1,1],[-2,Buffer.from(jwk.x!,"base64url")],[-3,Buffer.from(jwk.y!,"base64url")]]);
@@ -47,7 +47,7 @@ function fixture(options?:{badSignature?:boolean;expired?:boolean;replay?:boolea
     }],rowCount:1};
    }
    if(s.includes("FROM tpay_admin_webauthn_credentials")){
-    return {rows:[{id:"credential-1",public_key_cose:cose,sign_count:credentialState.counter,status:credentialState.status,revoked_at:null}],rowCount:1};
+    return {rows:[{id:"credential-1",public_key_cose:cose,sign_count:credentialState.counter,status:credentialState.status,revoked_at:null,hardware_attested:options?.hardwareAttested??false,attestation_root_fingerprint:options?.hardwareAttested?"a".repeat(64):null,root_status:options?.rootActive===false?null:(options?.hardwareAttested?"active":null)}],rowCount:1};
    }
    if(s.includes("SET consumed_at=now()")){
     if(challengeState.consumed)return {rows:[],rowCount:0};
@@ -107,4 +107,15 @@ test("P061 records a valid-signature counter anomaly and marks the credential su
  assert.deepEqual(result,{verified:false,reason:"SIGN_COUNTER_REPLAY"});
  assert.equal(f.credentialState.status,"suspect");
  assert.equal(f.credentialState.audit,true);
+});
+
+test("P064 elevates only an attested credential with an active pinned root",async()=>{
+ const trusted=fixture({hardwareAttested:true});
+ const accepted=await trusted.verifier.verifyAuthentication(input(trusted));
+ assert.equal(accepted.verified,true);
+ if(accepted.verified)assert.equal(accepted.assurance,"hardware_key");
+ const revoked=fixture({hardwareAttested:true,rootActive:false});
+ assert.deepEqual(await revoked.verifier.verifyAuthentication(input(revoked)),
+  {verified:false,reason:"CREDENTIAL_NOT_FOUND_OR_REVOKED"});
+ assert.equal(revoked.challengeState.consumed,false);
 });
