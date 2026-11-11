@@ -917,8 +917,8 @@ test("P059 live PostgreSQL consumes one exact decrypt grant once and denies repl
       [recordId, tenantId, organizationId, compartmentId, ciphertext, nonce, authTag, digest(aad), digest(plaintext)]
     );
     await setup.query(
-      "INSERT INTO tpay_data_record_grants (id,tenant_id,organization_id,record_id,actor_id,actor_kind,permission,purpose_code,valid_from,valid_until,max_uses,uses_count) VALUES ($1,$2,$3,$4,$5,'user','decrypt',$6,$7,$8,1,0)",
-      [grantId, tenantId, organizationId, recordId, actorId, purposeCode, nowIso, expiresAt]
+      "INSERT INTO tpay_data_record_grants (id,tenant_id,organization_id,record_id,compartment_id,actor_id,actor_kind,permission,purpose_code,valid_from,valid_until,max_uses,uses_count) VALUES ($1,$2,$3,$4,$5,$6,'user','decrypt',$7,$8,$9,1,0)",
+      [grantId, tenantId, organizationId, recordId, compartmentId, actorId, purposeCode, nowIso, expiresAt]
     );
 
     const broker = new VaultAccessBroker(pool, {
