@@ -2,10 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { AdminSessionLifecycle } from "../packages/security/admin-session-lifecycle.js";
+import type { AdminWebAuthnAssertionVerifier } from "../packages/security/admin-webauthn-assertion-verifier.js";
 import type { Pool } from "pg";
 
 const digest=(v:string)=>createHash("sha256").update(v).digest();
-function fixture(options?:{floor?:string;principal?:string;credential?:boolean;session?:boolean;expired?:boolean;revoked?:boolean}){
+function fixture(options?:{floor?:string;principal?:string;credential?:boolean;session?:boolean;expired?:boolean;revoked?:boolean;assertionFailure?:boolean}){
  const now=new Date("2026-11-11T12:00:00.000Z");
  const state={inserted:false,revoked:false,audit:0,sessionToken:""};
  const client={
@@ -34,13 +35,20 @@ function fixture(options?:{floor?:string;principal?:string;credential?:boolean;s
    return {rows:[],rowCount:1};
   }
  } as unknown as Pool;
- const service=new AdminSessionLifecycle(pool,{adminOrigin:"https://admin.example.test",clock:()=>now});
+ const verifier={
+  async verifyAuthentication(){
+   return options?.assertionFailure
+    ? {verified:false as const,reason:"SIGNATURE_INVALID" as const}
+    : {verified:true as const,principalId:"admin-1",credentialRef:"credential-1",assurance:"webauthn_uv" as const,signCount:1};
+  }
+ } as unknown as AdminWebAuthnAssertionVerifier;
+ const service=new AdminSessionLifecycle(pool,verifier,{adminOrigin:"https://admin.example.test",clock:()=>now});
  return {service,state,now};
 }
-const verified={verified:true as const,principalId:"admin-1",credentialRef:"credential-1",assurance:"webauthn_uv" as const,signCount:1};
+const assertionInput={principalId:"admin-1",challengeId:"challenge-1",credentialId:"Y3JlZGVudGlhbA",clientDataJSON:"e30",authenticatorData:"YXV0aA",signature:"c2lnbmF0dXJl"};
 
 test("P062 issues a short-lived session only from a verified assertion",async()=>{
- const f=fixture();const result=await f.service.issueFromAssertion(verified);
+ const f=fixture();const result=await f.service.issueFromAssertion(assertionInput);
  assert.equal(result.issued,true);
  if(result.issued){assert.equal(result.assurance,"webauthn_uv");assert.equal(new Date(result.expiresAt).getTime()-f.now.getTime(),900000);}
  assert.equal(f.state.inserted,true);assert.equal(f.state.audit,1);
@@ -59,9 +67,9 @@ test("P062 rejects inactive principals and revoked credentials",async()=>{
  assert.deepEqual(await c.service.issueFromAssertion(verified),{issued:false,reason:"WEBAUTHN_CREDENTIAL_REVOKED"});
 });
 
-test("P062 rejects a fabricated unverified assertion",async()=>{
- const f=fixture();const result=await f.service.issueFromAssertion({verified:false,reason:"SIGNATURE_INVALID"});
- assert.deepEqual(result,{issued:false,reason:"WEBAUTHN_ASSERTION_NOT_VERIFIED"});
+test("P062 refuses to issue a session when the cryptographic verifier rejects the assertion",async()=>{
+ const f=fixture({assertionFailure:true});const result=await f.service.issueFromAssertion(assertionInput);
+ assert.deepEqual(result,{issued:false,reason:"WEBAUTHN_SIGNATURE_INVALID"});
  assert.equal(f.state.inserted,false);
 });
 
