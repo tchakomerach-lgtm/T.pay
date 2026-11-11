@@ -16,7 +16,7 @@ function cbor(value:number|Buffer):Buffer{
  throw new Error("test CBOR bytes too long");
 }
 function cborMap(entries:Array<[number,number|Buffer]>):Buffer{
- const parts=[Buffer.from([0xa0+entries.length])];
+ const parts: Buffer[]=[Buffer.from([0xa0+entries.length])];
  for(const [k,v] of entries)parts.push(cbor(k),cbor(v));
  return Buffer.concat(parts);
 }
@@ -87,7 +87,7 @@ test("P061 rejects a consumed or expired challenge",async()=>{
 });
 
 test("P061 rejects a forged signature",async()=>{
- const f=fixture();const forged=Buffer.from(f.signature);forged[forged.length-1]^=1;
+ const f=fixture();const forged=Buffer.from(f.signature);forged[forged.length-1]=(forged.at(-1) ?? 0)^1;
  const result=await f.verifier.verifyAuthentication(input(f,{signature:b64(forged)}));
  assert.deepEqual(result,{verified:false,reason:"SIGNATURE_INVALID"});
  assert.equal(f.challengeState.consumed,false);
