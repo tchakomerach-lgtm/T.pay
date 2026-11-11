@@ -35,6 +35,7 @@ export interface CompartmentCryptoProvider {
     ciphertext: Buffer;
     authTag: Buffer;
     aad: Buffer;
+    signal?: AbortSignal;
   }): Promise<Buffer>;
 }
 
@@ -69,8 +70,13 @@ function aadFor(record: CompartmentCiphertext, authorization: DataCompartmentReq
 export class VaultAccessBroker {
   constructor(
     private readonly pool: Pool,
-    private readonly crypto: CompartmentCryptoProvider
-  ) {}
+    private readonly crypto: CompartmentCryptoProvider,
+    private readonly cryptoTimeoutMs = 10_000
+  ) {
+    if (!Number.isInteger(cryptoTimeoutMs) || cryptoTimeoutMs < 1 || cryptoTimeoutMs > 60_000) {
+      throw new Error("INVALID_CRYPTO_TIMEOUT");
+    }
+  }
 
   async readRecord(input: BrokerReadRequest): Promise<BrokerReadResult> {
     const request = input.authorization;
@@ -233,54 +239,80 @@ export class VaultAccessBroker {
         return { allowed: false, reason: "AAD_CONTEXT_MISMATCH" };
       }
 
-      const evidence = sha256(JSON.stringify({
+      // Keep the exact grant consumption, cryptographic operation, and final
+      // audit decision in one database transaction. A KMS/HSM failure must
+      // never leave an "allowed" audit event behind.
+      const aadForAudit = aad;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), this.cryptoTimeoutMs);
+      let plaintext: Buffer | null = null;
+      let cryptoFailure: "CRYPTOGRAPHIC_DECRYPTION_FAILED" | "CRYPTOGRAPHIC_TIMEOUT" | "PAYLOAD_HASH_MISMATCH" | null = null;
+      try {
+        plaintext = await this.crypto.decryptRecord({
+          kmsKeyRef: encrypted.kmsKeyRef,
+          wrappedDataKey: encrypted.wrappedDataKey,
+          keyVersion: encrypted.keyVersion,
+          algorithm: encrypted.algorithm,
+          nonce: encrypted.nonce,
+          ciphertext: encrypted.ciphertext,
+          authTag: encrypted.authTag,
+          aad: aadForAudit,
+          signal: controller.signal
+        });
+        if (!sha256(plaintext).equals(encrypted.payloadSha256)) {
+          plaintext.fill(0);
+          plaintext = null;
+          cryptoFailure = "PAYLOAD_HASH_MISMATCH";
+        }
+      } catch {
+        cryptoFailure = controller.signal.aborted
+          ? "CRYPTOGRAPHIC_TIMEOUT"
+          : "CRYPTOGRAPHIC_DECRYPTION_FAILED";
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      const decisionEvidence = sha256(JSON.stringify({
         correlationId, actorId: request.actor.id, actorKind: request.actor.kind,
         tenantId: request.tenantId, compartmentId: request.compartmentId,
         recordId: request.recordId, permission: "decrypt",
-        purposeCode: input.purposeCode, keyVersion: encrypted.keyVersion
+        purposeCode: input.purposeCode, keyVersion: encrypted.keyVersion,
+        outcome: cryptoFailure ?? "verified"
       }));
       await client.query(
         `INSERT INTO tpay_data_access_audit
           (id,tenant_id,organization_id,compartment_id,record_id,actor_id,
            actor_kind,session_ref,permission,purpose_code,decision,reason_code,
            correlation_id,evidence_sha256)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'decrypt',$9,'allowed',
-                 'EXACT_GRANT_CONSUMED',$10,$11)`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'decrypt',$9,$10,$11,$12,$13)`,
         [
           randomUUID(), request.tenantId, request.organizationId,
           request.compartmentId, request.recordId, request.actor.id,
           request.actor.kind, request.session.id, input.purposeCode,
-          correlationId, evidence
+          cryptoFailure ? "denied" : "allowed",
+          cryptoFailure ?? "EXACT_GRANT_DECRYPTED_AND_VERIFIED",
+          correlationId, decisionEvidence
         ]
       );
+
+      // Do not release plaintext until the audit write and transaction commit
+      // both succeed. A failed audit write rolls back the one-use grant too.
       await client.query("COMMIT");
+      if (cryptoFailure) return { allowed: false, reason: cryptoFailure };
+      if (!plaintext) return { allowed: false, reason: "CRYPTOGRAPHIC_DECRYPTION_FAILED" };
+      const verifiedPlaintext = plaintext;
+      plaintext = null;
+      return {
+        allowed: true,
+        recordId: encrypted.recordId,
+        plaintext: verifiedPlaintext,
+        keyVersion: encrypted.keyVersion
+      };
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);
       throw error;
     } finally {
       client.release();
-    }
-
-    if (!encrypted) return { allowed: false, reason: "ENCRYPTED_RECORD_NOT_FOUND" };
-    const aad = aadFor(encrypted, request);
-    try {
-      const plaintext = await this.crypto.decryptRecord({
-        kmsKeyRef: encrypted.kmsKeyRef,
-        wrappedDataKey: encrypted.wrappedDataKey,
-        keyVersion: encrypted.keyVersion,
-        algorithm: encrypted.algorithm,
-        nonce: encrypted.nonce,
-        ciphertext: encrypted.ciphertext,
-        authTag: encrypted.authTag,
-        aad
-      });
-      if (!sha256(plaintext).equals(encrypted.payloadSha256)) {
-        plaintext.fill(0);
-        return { allowed: false, reason: "PAYLOAD_HASH_MISMATCH" };
-      }
-      return { allowed: true, recordId: encrypted.recordId, plaintext, keyVersion: encrypted.keyVersion };
-    } catch {
-      return { allowed: false, reason: "CRYPTOGRAPHIC_DECRYPTION_FAILED" };
     }
   }
 }
