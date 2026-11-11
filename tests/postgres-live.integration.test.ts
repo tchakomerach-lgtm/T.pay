@@ -925,6 +925,9 @@ test("P059 live PostgreSQL consumes one exact decrypt grant once and denies repl
       decryptRecord: async input => {
         assert.equal(input.kmsKeyRef, "kms://test-key");
         assert.deepEqual(input.wrappedDataKey, Buffer.from("wrapped-test-dek"));
+        // Keep the first transaction open long enough for the competing
+        // one-use request to contend on the same PostgreSQL grant row.
+        await new Promise(resolve => setTimeout(resolve, 25));
         return Buffer.from(plaintext);
       }
     });
@@ -956,13 +959,21 @@ test("P059 live PostgreSQL consumes one exact decrypt grant once and denies repl
     };
     authorization.session.userSessionId = authorization.session.id;
 
-    const first = await broker.readRecord({ authorization, purposeCode, correlationId: randomUUID() });
-    assert.equal(first.allowed, true);
-    if (first.allowed) {
-      assert.equal(first.recordId, recordId);
-      assert.deepEqual(first.plaintext, plaintext);
-      first.plaintext.fill(0);
-    }
+    const [attemptA, attemptB] = await Promise.all([
+      broker.readRecord({ authorization, purposeCode, correlationId: randomUUID() }),
+      broker.readRecord({ authorization, purposeCode, correlationId: randomUUID() })
+    ]);
+    const attempts = [attemptA, attemptB];
+    const successes = attempts.filter(result => result.allowed);
+    const denials = attempts.filter(result => !result.allowed);
+    assert.equal(successes.length, 1, "exactly one concurrent request may consume the one-use grant");
+    assert.equal(denials.length, 1);
+    assert.deepEqual(denials[0], { allowed: false, reason: "PERSISTED_GRANT_NOT_CONSUMED" });
+    const successful = successes[0];
+    assert.ok(successful?.allowed);
+    assert.equal(successful.recordId, recordId);
+    assert.deepEqual(successful.plaintext, plaintext);
+    successful.plaintext.fill(0);
 
     const replay = await broker.readRecord({ authorization, purposeCode, correlationId: randomUUID() });
     assert.deepEqual(replay, { allowed: false, reason: "PERSISTED_GRANT_NOT_CONSUMED" });
@@ -976,7 +987,7 @@ test("P059 live PostgreSQL consumes one exact decrypt grant once and denies repl
       "SELECT decision,reason_code FROM tpay_data_access_audit WHERE tenant_id=$1 AND record_id=$2 ORDER BY CASE decision WHEN 'allowed' THEN 0 ELSE 1 END",
       [tenantId, recordId]
     );
-    assert.deepEqual(audit.rows.map(row => row.decision), ["allowed", "denied"]);
+    assert.deepEqual(audit.rows.map(row => row.decision), ["allowed", "denied", "denied"]);
   } finally {
     await pool.end();
     await setup.query("DELETE FROM tpay_data_access_audit WHERE tenant_id=$1", [tenantId]);
