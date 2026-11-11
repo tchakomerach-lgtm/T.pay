@@ -21,6 +21,8 @@ export interface DataCompartmentRequest {
  organizationId: string | null;
  subjectRef: string;
  moduleCode: string;
+ requestedPermission: DataPermission;
+ compartment: { id: string; tenantId: string; organizationId: string | null; subjectRef: string; moduleCode: string; vaultId: string; dataClass: DataClass };
  compartmentId: string;
  vaultId: string;
  dataClass: DataClass;
@@ -61,12 +63,15 @@ export function authorizeDataCompartment(input: DataCompartmentRequest): DataAcc
  if (input.session.revokedAt !== null) return deny("SESSION_REVOKED");
  const expiry = parseTime(input.session.expiresAt);
  if (!Number.isFinite(expiry) || expiry <= now) return deny("SESSION_EXPIRED");
- if (input.tenantId !== input.grant.tenantId) return deny("TENANT_MISMATCH");
- if (input.organizationId !== null && input.organizationId !== input.grant.tenantId && input.organizationId.length === 0) return deny("ORGANIZATION_MISMATCH");
+ if (input.tenantId !== input.grant.tenantId || input.tenantId !== input.compartment.tenantId) return deny("TENANT_MISMATCH");
+ if (input.compartment.id !== input.compartmentId || input.compartment.vaultId !== input.vaultId ||
+     input.compartment.subjectRef !== input.subjectRef || input.compartment.moduleCode !== input.moduleCode ||
+     input.compartment.dataClass !== input.dataClass) return deny("COMPARTMENT_MISMATCH");
+ if (input.plane === "ORGANIZATION" && input.organizationId !== input.compartment.organizationId) return deny("ORGANIZATION_MISMATCH");
  if (input.grant.recordId !== input.recordId || input.grant.compartmentId !== input.compartmentId ||
      input.grant.actorId !== input.actor.id || input.grant.actorKind !== input.actor.kind) return deny("GRANT_SCOPE_MISMATCH");
  if (input.grant.revokedAt !== null) return deny("GRANT_REVOKED");
- if (input.grant.permission !== input.grant.permission) return deny("GRANT_PERMISSION_MISMATCH");
+ if (input.grant.permission !== input.requestedPermission) return deny("GRANT_PERMISSION_MISMATCH");
  if (input.grant.validFrom.length === 0 || !Number.isFinite(parseTime(input.grant.validFrom)) || parseTime(input.grant.validFrom) > now) return deny("GRANT_NOT_YET_VALID");
  if (input.grant.validUntil !== null && (!Number.isFinite(parseTime(input.grant.validUntil)) || parseTime(input.grant.validUntil) <= now)) return deny("GRANT_EXPIRED");
  if (!input.grant.purposeCode.trim()) return deny("GRANT_PURPOSE_REQUIRED");
@@ -81,7 +86,7 @@ export function authorizeDataCompartment(input: DataCompartmentRequest): DataAcc
  if (input.plane === "SERVICE") {
   if (input.actor.kind !== "workload" || input.session.kind !== "workload" ||
       input.session.assurance !== "attested_workload" || input.session.userSessionId !== null ||
-      input.session.privilegedSessionId !== null) return deny("SERVICE_ATTESTATION_REQUIRED");
+      input.session.privilegedSessionId !== null || input.organizationId !== input.compartment.organizationId) return deny("SERVICE_ATTESTATION_REQUIRED");
  } else {
   if (input.actor.kind !== "user" || input.session.kind !== "user" ||
       input.session.userSessionId !== input.session.id || input.session.privilegedSessionId !== null) return deny("USER_SESSION_REQUIRED");
