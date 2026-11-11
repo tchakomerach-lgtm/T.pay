@@ -8,13 +8,22 @@ on:
       - security/p058-data-compartment-fortress-003
       - security/p059-vault-access-broker-004
       - security/p060-admin-pam-executor-005
+      - security/p061-webauthn-verifier-006
+      - security/p062-admin-session-lifecycle-007
+      - security/p060-admin-pam-executor-005-rebased
+      - security/p061-webauthn-verifier-006-rebased
+      - security/p062-admin-session-lifecycle-007-rebased
+      - security/p061-webauthn-verifier-006-rebased
+      - security/p062-admin-session-lifecycle-007-rebased
+      - security/p059-vault-access-broker-004
+      - security/p060-admin-pam-executor-005
+      - security/p061-webauthn-verifier-006
+      - security/p062-admin-session-lifecycle-007
   pull_request:
     branches:
       - main
       - security/p057-admin-identity-breakglass-002
       - security/p058-data-compartment-fortress-003
-      - security/p059-vault-access-broker-004
-      - security/p060-admin-pam-executor-005
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 permissions:
