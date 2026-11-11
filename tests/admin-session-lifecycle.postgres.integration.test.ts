@@ -67,7 +67,6 @@ test("P062 live PostgreSQL: verified WebAuthn assertion issues hashed Admin sess
    signature:signature.toString("base64url")
   });
   if(issued.issued===false)throw new Error("P062_SESSION_ISSUANCE_FAILED:"+issued.reason);
-  assert.equal(issued.issued,true);
   sessionToken=issued.sessionToken;sessionId=issued.sessionId;
   const stored=await admin.query("SELECT token_hash,assurance,security_plane FROM tpay_admin_sessions WHERE id=$1",[sessionId]);
   assert.equal(stored.rowCount,1);
