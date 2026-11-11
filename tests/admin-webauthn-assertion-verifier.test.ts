@@ -16,7 +16,7 @@ function cbor(value:number|Buffer):Buffer{
  throw new Error("test CBOR bytes too long");
 }
 function cborMap(entries:Array<[number,number|Buffer]>):Buffer{
- const parts: Buffer[]=[Buffer.from([0xa0+entries.length])];
+ const parts: Uint8Array[]=[Buffer.from([0xa0+entries.length])];
  for(const [k,v] of entries)parts.push(cbor(k),cbor(v));
  return Buffer.concat(parts);
 }
