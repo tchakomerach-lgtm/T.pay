@@ -3,11 +3,11 @@ import type { Pool } from "pg";
 import { AdminWebAuthnAssertionVerifier, type WebAuthnAssertionInput } from "./admin-webauthn-assertion-verifier.js";
 
 export type AdminSessionIssueResult =
- | { issued: true; sessionId: string; sessionToken: string; expiresAt: string; assurance: "webauthn_uv" }
+ | { issued: true; sessionId: string; sessionToken: string; expiresAt: string; assurance: "webauthn_uv" | "hardware_key" }
  | { issued: false; reason: string };
 
 export type AdminSessionValidation =
- | { authenticated: true; principalId: string; sessionId: string; credentialRef: string; assurance: "webauthn_uv"; expiresAt: string }
+ | { authenticated: true; principalId: string; sessionId: string; credentialRef: string; assurance: "webauthn_uv" | "hardware_key"; expiresAt: string }
  | { authenticated: false; reason: "SESSION_INVALID" | "SESSION_EXPIRED" | "PRINCIPAL_INACTIVE" | "CREDENTIAL_REVOKED" };
 
 export interface AdminSessionServiceOptions {
@@ -47,7 +47,7 @@ export class AdminSessionLifecycle {
   async issueFromAssertion(input:WebAuthnAssertionInput):Promise<AdminSessionIssueResult>{
     const assertion=await this.verifier.verifyAuthentication(input);
     if(!assertion.verified) return {issued:false,reason:`WEBAUTHN_${assertion.reason}`};
-    if(assertion.assurance!=="webauthn_uv") return {issued:false,reason:"WEBAUTHN_ASSURANCE_NOT_ALLOWED"};
+
     const client=await this.pool.connect();
     const sessionId=randomUUID();
     const sessionToken=opaqueToken();
@@ -65,24 +65,43 @@ export class AdminSessionLifecycle {
         await client.query("ROLLBACK");
         return {issued:false,reason:"ADMIN_PRINCIPAL_INACTIVE"};
       }
-      if(principal.rows[0]?.assurance_floor!=="webauthn_uv"){
+      const floor=principal.rows[0]?.assurance_floor;
+      if(floor==="hardware_key" && assertion.assurance!=="hardware_key"){
         await client.query("ROLLBACK");
         return {issued:false,reason:"HARDWARE_ATTESTATION_REQUIRED"};
       }
-      const credential=await client.query(
-        `SELECT id FROM tpay_admin_webauthn_credentials
+      const credential=await client.query<{
+        id:string;hardware_attested:boolean;attestation_root_fingerprint:string|null;
+      }>(
+        `SELECT id,hardware_attested,attestation_root_fingerprint
+           FROM tpay_admin_webauthn_credentials
           WHERE id=$1 AND principal_id=$2 AND status='active' AND revoked_at IS NULL
           FOR UPDATE`,[assertion.credentialRef,assertion.principalId]
       );
-      if(credential.rowCount!==1){
+      if(credential.rowCount!==1 || !credential.rows[0]){
         await client.query("ROLLBACK");
         return {issued:false,reason:"WEBAUTHN_CREDENTIAL_REVOKED"};
+      }
+      if(assertion.assurance==="hardware_key"){
+        if(!credential.rows[0].hardware_attested || !credential.rows[0].attestation_root_fingerprint){
+          await client.query("ROLLBACK");
+          return {issued:false,reason:"HARDWARE_ATTESTATION_REQUIRED"};
+        }
+        const root=await client.query(
+          `SELECT fingerprint_sha256 FROM tpay_admin_webauthn_attestation_roots
+            WHERE fingerprint_sha256=$1 AND status='active' FOR SHARE`,
+          [credential.rows[0].attestation_root_fingerprint]
+        );
+        if(root.rowCount!==1){
+          await client.query("ROLLBACK");
+          return {issued:false,reason:"HARDWARE_ATTESTATION_REVOKED"};
+        }
       }
       const expiresAt=new Date(now.getTime()+this.ttlSeconds*1000);
       await client.query(
         `INSERT INTO tpay_admin_sessions
           (id,principal_id,credential_id,token_hash,security_plane,assurance,origin,created_at,last_seen_at,expires_at)
-         VALUES($1,$2,$3,$4,'ADMIN_CONTROL','webauthn_uv',$5,$6,$6,$7)`,
+         VALUES($1,$2,$3,$4,'ADMIN_CONTROL','${assertion.assurance}',$5,$6,$6,$7)`,
         [sessionId,assertion.principalId,assertion.credentialRef,digest(sessionToken),this.adminOrigin,now,expiresAt]
       );
       await client.query(
@@ -91,11 +110,11 @@ export class AdminSessionLifecycle {
          VALUES($1,$2,$3,'admin.session.issued',$3,'created','WEBAUTHN_ASSERTION_VERIFIED',$4,$5)`,
         [randomUUID(),assertion.principalId,sessionId,correlationId,evidence({
           principalId:assertion.principalId,credentialRef:assertion.credentialRef,
-          sessionId,origin:this.adminOrigin,assurance:"webauthn_uv",expiresAt:expiresAt.toISOString()
+          sessionId,origin:this.adminOrigin,assurance:assertion.assurance,expiresAt:expiresAt.toISOString()
         })]
       );
       await client.query("COMMIT");
-      return {issued:true,sessionId,sessionToken,expiresAt:expiresAt.toISOString(),assurance:"webauthn_uv"};
+      return {issued:true,sessionId,sessionToken,expiresAt:expiresAt.toISOString(),assurance:assertion.assurance};
     }catch(error){
       await client.query("ROLLBACK").catch(()=>undefined);
       throw error;
@@ -113,10 +132,13 @@ export class AdminSessionLifecycle {
     }>(
       `SELECT s.principal_id,s.id AS session_id,s.credential_id,s.assurance,s.expires_at,
               p.status AS principal_status,c.status AS credential_status,c.revoked_at AS credential_revoked_at,
+              c.hardware_attested,c.attestation_root_fingerprint,r.status AS root_status,
               s.revoked_at AS session_revoked_at,s.origin
          FROM tpay_admin_sessions s
          JOIN tpay_admin_principals p ON p.id=s.principal_id
          JOIN tpay_admin_webauthn_credentials c ON c.id=s.credential_id
+         LEFT JOIN tpay_admin_webauthn_attestation_roots r
+           ON r.fingerprint_sha256=c.attestation_root_fingerprint
         WHERE s.token_hash=$1 AND s.security_plane='ADMIN_CONTROL'`,
       [digest(sessionToken)]
     );
@@ -126,7 +148,9 @@ export class AdminSessionLifecycle {
     if(row.expires_at<=this.clock()) return {authenticated:false,reason:"SESSION_EXPIRED"};
     if(row.principal_status!=="active") return {authenticated:false,reason:"PRINCIPAL_INACTIVE"};
     if(row.credential_status!=="active" || row.credential_revoked_at) return {authenticated:false,reason:"CREDENTIAL_REVOKED"};
-    if(row.assurance!=="webauthn_uv") return {authenticated:false,reason:"SESSION_INVALID"};
+    if(row.assurance!=="webauthn_uv" && row.assurance!=="hardware_key") return {authenticated:false,reason:"SESSION_INVALID"};
+    if(row.assurance==="hardware_key" && (!row.hardware_attested || !row.attestation_root_fingerprint || row.root_status!=="active"))
+      return {authenticated:false,reason:"CREDENTIAL_REVOKED"};
     // Touch is deliberately best-effort and does not extend the fixed expiry.
     await this.pool.query(
       `UPDATE tpay_admin_sessions SET last_seen_at=now()
@@ -134,7 +158,7 @@ export class AdminSessionLifecycle {
       [row.session_id]
     );
     return {authenticated:true,principalId:row.principal_id,sessionId:row.session_id,
-      credentialRef:row.credential_id,assurance:"webauthn_uv",expiresAt:row.expires_at.toISOString()};
+      credentialRef:row.credential_id,assurance:row.assurance as "webauthn_uv"|"hardware_key",expiresAt:row.expires_at.toISOString()};
   }
 
   async revoke(sessionToken:string,reason:string):Promise<{revoked:boolean;reason?:string}>{
