@@ -62,6 +62,14 @@ test("permission and compartment metadata must match exactly", () => {
   );
 });
 
+
+test("USER plane cannot silently enter an organization-owned compartment", () => {
+  assert.deepEqual(
+    authorizeDataCompartment({ ...base, plane: "USER", organizationId: null }),
+    { allowed: false, reason: "ORGANIZATION_MISMATCH" }
+  );
+});
+
 test("a grant for one student record cannot open another record or compartment", () => {
   assert.deepEqual(
     authorizeDataCompartment({ ...base, recordId: "different-student-record" }),
