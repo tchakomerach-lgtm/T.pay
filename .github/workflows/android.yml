@@ -3,8 +3,14 @@ on:
   push:
     branches:
       - main
+      - security/p057-admin-identity-breakglass-002
+      - security/p058-data-compartment-fortress-003
+      - security/p059-vault-access-broker-004
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - security/p057-admin-identity-breakglass-002
+      - security/p058-data-compartment-fortress-003
   workflow_dispatch:
 permissions:
   contents: read
