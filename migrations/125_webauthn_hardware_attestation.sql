@@ -53,7 +53,7 @@ REVOKE ALL ON tpay_admin_webauthn_attestation_roots FROM PUBLIC,tpay_admin_webau
 GRANT SELECT ON tpay_admin_webauthn_attestation_roots TO tpay_admin_webauthn_enroll_runtime;
 GRANT SELECT,INSERT,UPDATE ON tpay_admin_webauthn_credentials TO tpay_admin_webauthn_enroll_runtime;
 GRANT SELECT,UPDATE ON tpay_admin_webauthn_challenges TO tpay_admin_webauthn_enroll_runtime;
-GRANT SELECT,UPDATE ON tpay_admin_principals TO tpay_admin_webauthn_enroll_runtime;
+GRANT SELECT ON tpay_admin_principals TO tpay_admin_webauthn_enroll_runtime;
 GRANT INSERT ON tpay_admin_security_audit TO tpay_admin_webauthn_enroll_runtime;
 
 DO $p063$
