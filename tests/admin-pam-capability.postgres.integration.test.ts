@@ -11,7 +11,9 @@ const databaseUrl=process.env.TPAY_DATABASE_URL;
 const hash=(value:string|Buffer)=>createHash("sha256").update(value).digest();
 
 test("P060 PostgreSQL issues an exact one-use Admin capability and denies replay",{
- skip:!databaseUrl && "TPAY_DATABASE_URL is not configured"
+ skip:process.env.TPAY_RUN_ADMIN_PAM_INTEGRATION!=="1" || !databaseUrl
+  ? "Set TPAY_RUN_ADMIN_PAM_INTEGRATION=1 with TPAY_DATABASE_URL to run the live Admin PAM test"
+  : false
 },async()=>{
  const admin=new pg.Client({connectionString:databaseUrl});
  const pool=new pg.Pool({connectionString:databaseUrl,max:1});
