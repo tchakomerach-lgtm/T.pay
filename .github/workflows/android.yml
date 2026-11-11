@@ -4,7 +4,10 @@ on:
     branches:
       - main
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - security/p057-admin-identity-breakglass-002
+      - security/p058-data-compartment-fortress-003
   workflow_dispatch:
 permissions:
   contents: read
