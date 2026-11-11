@@ -19,7 +19,7 @@ export interface BreakglassContext {
 }
 export type AdminAccessDenial =
  | "ADMIN_SESSION_INACTIVE"|"ADMIN_SESSION_REVOKED"|"ADMIN_SESSION_EXPIRED"|"ADMIN_SESSION_PLANE_MISMATCH"|"ADMIN_HARDWARE_KEY_REQUIRED"
- | "BREAKGLASS_NOT_APPROVED"|"BREAKGLASS_SCOPE_MISMATCH"|"BREAKGLASS_PERMISSION_MISMATCH"|"BREAKGLASS_PURPOSE_REQUIRED"
+ | "BREAKGLASS_NOT_APPROVED"|"BREAKGLASS_EXECUTOR_MISMATCH"|"BREAKGLASS_SCOPE_MISMATCH"|"BREAKGLASS_PERMISSION_MISMATCH"|"BREAKGLASS_PURPOSE_REQUIRED"
  | "BREAKGLASS_JUSTIFICATION_REQUIRED"|"BREAKGLASS_TICKET_REQUIRED"|"BREAKGLASS_SELF_APPROVAL"|"BREAKGLASS_QUORUM_NOT_MET"
  | "BREAKGLASS_APPROVER_INVALID"|"BREAKGLASS_NOT_YET_VALID"|"BREAKGLASS_EXPIRED"|"BREAKGLASS_REVOKED"
  | "BREAKGLASS_ALREADY_CONSUMED"|"BREAKGLASS_DURATION_INVALID";
@@ -43,9 +43,10 @@ export function authorizeBreakglassAccess(
  now:string
 ):AdminAccessDecision {
  const e=authorizeAdminSession(s,now); if(e)return deny(e);
- if(r.status!=="approved")return deny("BREAKGLASS_NOT_APPROVED");
  if(r.revokedAt!==null)return deny("BREAKGLASS_REVOKED");
  if(r.consumedAt!==null||r.status==="consumed")return deny("BREAKGLASS_ALREADY_CONSUMED");
+ if(r.status!=="approved")return deny("BREAKGLASS_NOT_APPROVED");
+ if(s.principalId!==r.requesterPrincipalId)return deny("BREAKGLASS_EXECUTOR_MISMATCH");
  if(r.targetTenantId!==t.tenantId||r.targetOrganizationId!==t.organizationId||r.resourceType!==t.resourceType||r.resourceRef!==t.resourceRef)return deny("BREAKGLASS_SCOPE_MISMATCH");
  if(r.permission!==t.permission)return deny("BREAKGLASS_PERMISSION_MISMATCH");
  if(!r.purposeCode.trim())return deny("BREAKGLASS_PURPOSE_REQUIRED");
