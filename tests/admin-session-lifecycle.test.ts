@@ -6,7 +6,7 @@ import type { AdminWebAuthnAssertionVerifier } from "../packages/security/admin-
 import type { Pool } from "pg";
 
 const digest=(v:string)=>createHash("sha256").update(v).digest();
-function fixture(options?:{floor?:string;principal?:string;credential?:boolean;session?:boolean;expired?:boolean;revoked?:boolean;assertionFailure?:boolean}){
+function fixture(options?:{floor?:string;principal?:string;credential?:boolean;session?:boolean;expired?:boolean;revoked?:boolean;assertionFailure?:boolean;assurance?:"webauthn_uv"|"hardware_key";attested?:boolean;rootActive?:boolean}){
  const now=new Date("2026-11-11T12:00:00.000Z");
  const state={inserted:false,revoked:false,audit:0,sessionToken:""};
  const client={
@@ -14,7 +14,8 @@ function fixture(options?:{floor?:string;principal?:string;credential?:boolean;s
    const s=sql.trim().replace(/\s+/g," ");
    if(["BEGIN","COMMIT","ROLLBACK"].includes(s))return {rows:[],rowCount:0};
    if(s.includes("FROM tpay_admin_principals"))return {rows:[{status:options?.principal??"active",assurance_floor:options?.floor??"webauthn_uv"}],rowCount:1};
-   if(s.includes("FROM tpay_admin_webauthn_credentials"))return {rows:[],rowCount:options?.credential===false?0:1};
+   if(s.includes("FROM tpay_admin_webauthn_credentials"))return {rows:[{id:"credential-1",hardware_attested:options?.attested??false,attestation_root_fingerprint:options?.attested?"b".repeat(64):null}],rowCount:options?.credential===false?0:1};
+   if(s.includes("FROM tpay_admin_webauthn_attestation_roots"))return {rows:[],rowCount:options?.rootActive===false?0:1};
    if(s.includes("INSERT INTO tpay_admin_sessions")){state.inserted=true;state.sessionToken=String(params[3]);return {rows:[],rowCount:1};}
    if(s.includes("INSERT INTO tpay_admin_security_audit")){state.audit++;return {rows:[],rowCount:1};}
    if(s.includes("FROM tpay_admin_sessions")&&s.includes("FOR UPDATE"))return {rows:[{id:"session-1",principal_id:"admin-1"}],rowCount:1};
@@ -28,7 +29,7 @@ function fixture(options?:{floor?:string;principal?:string;credential?:boolean;s
    const s=sql.trim().replace(/\s+/g," ");
    if(s.includes("FROM tpay_admin_sessions s"))return options?.session===false?{rows:[],rowCount:0}:{rows:[{
     principal_id:"admin-1",session_id:"session-1",credential_id:"credential-1",
-    assurance:"webauthn_uv",expires_at:options?.expired?new Date(now.getTime()-1000):new Date(now.getTime()+60000),
+    assurance:options?.assurance??"webauthn_uv",hardware_attested:options?.attested??false,attestation_root_fingerprint:options?.attested?"b".repeat(64):null,root_status:options?.rootActive===false?null:(options?.attested?"active":null),expires_at:options?.expired?new Date(now.getTime()-1000):new Date(now.getTime()+60000),
     principal_status:options?.principal??"active",credential_status:options?.revoked?"revoked":"active",
     credential_revoked_at:options?.revoked?now:null,session_revoked_at:null,origin:"https://admin.example.test"
    }],rowCount:1};
@@ -39,7 +40,7 @@ function fixture(options?:{floor?:string;principal?:string;credential?:boolean;s
   async verifyAuthentication(){
    return options?.assertionFailure
     ? {verified:false as const,reason:"SIGNATURE_INVALID" as const}
-    : {verified:true as const,principalId:"admin-1",credentialRef:"credential-1",assurance:"webauthn_uv" as const,signCount:1};
+    : {verified:true as const,principalId:"admin-1",credentialRef:"credential-1",assurance:(options?.assurance??"webauthn_uv") as "webauthn_uv"|"hardware_key",signCount:1};
   }
  } as unknown as AdminWebAuthnAssertionVerifier;
  const service=new AdminSessionLifecycle(pool,verifier,{adminOrigin:"https://admin.example.test",clock:()=>now});
@@ -93,4 +94,19 @@ test("P062 rejects invalid Admin origins and excessive session TTL",()=>{
  const verifier={} as AdminWebAuthnAssertionVerifier;
  assert.throws(()=>new AdminSessionLifecycle({} as Pool,verifier,{adminOrigin:"http://admin.example.test"}),/HTTPS_ORIGIN/);
  assert.throws(()=>new AdminSessionLifecycle({} as Pool,verifier,{adminOrigin:"https://admin.example.test",ttlSeconds:3600}),/TTL/);
+});
+
+test("P064 issues hardware-key sessions only after rechecking active attestation root",async()=>{
+ const trusted=fixture({floor:"hardware_key",assurance:"hardware_key",attested:true});
+ const issued=await trusted.service.issueFromAssertion(assertionInput);
+ assert.equal(issued.issued,true);
+ if(issued.issued)assert.equal(issued.assurance,"hardware_key");
+ const revoked=fixture({floor:"hardware_key",assurance:"hardware_key",attested:true,rootActive:false});
+ assert.deepEqual(await revoked.service.issueFromAssertion(assertionInput),
+  {issued:false,reason:"HARDWARE_ATTESTATION_REVOKED"});
+});
+test("P064 invalidates an existing hardware-key session after root revocation",async()=>{
+ const f=fixture({assurance:"hardware_key",attested:true,rootActive:false});
+ assert.deepEqual(await f.service.validate("a".repeat(43)),
+  {authenticated:false,reason:"CREDENTIAL_REVOKED"});
 });
