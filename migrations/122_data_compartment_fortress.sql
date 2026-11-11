@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS tpay_data_compartments (
     'employment','customer_profile','transactions','credentials',
     'ai_memory','voice','social_graph','marketplace','audit_evidence'
   )),
-  vault_id text NOT NULL,
+  vault_id uuid NOT NULL,
   isolation_domain text NOT NULL,
   status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','sealed','suspended','destroyed')),
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -54,6 +54,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_tpay_compartment_active_key
 CREATE TABLE IF NOT EXISTS tpay_data_records (
   id text PRIMARY KEY,
   tenant_id text NOT NULL,
+  UNIQUE (tenant_id,id),
   organization_id text,
   compartment_id text NOT NULL,
   record_type text NOT NULL,
