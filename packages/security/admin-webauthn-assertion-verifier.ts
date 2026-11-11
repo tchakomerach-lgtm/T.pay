@@ -1,6 +1,7 @@
 import {
   createHash,
   createPublicKey,
+  randomUUID,
   verify as cryptoVerify,
   type JsonWebKey,
 } from "node:crypto";
@@ -153,9 +154,17 @@ export class AdminWebAuthnAssertionVerifier {
         await client.query("ROLLBACK");
         return deny("CLIENT_DATA_INVALID");
       }
+      let challengeBytes: Buffer;
+      try {
+        if (!clientData.challenge) throw new Error("WEBAUTHN_CHALLENGE_MISSING");
+        challengeBytes = decode(clientData.challenge);
+      } catch {
+        await client.query("ROLLBACK");
+        return deny("CLIENT_DATA_INVALID");
+      }
       if (clientData.type !== "webauthn.get" || clientData.crossOrigin === true ||
           clientData.origin !== ch.expected_origin ||
-          !clientData.challenge || !sha256(decode(clientData.challenge)).equals(ch.challenge_hash)) {
+          !sha256(challengeBytes).equals(ch.challenge_hash)) {
         await client.query("ROLLBACK");
         return deny("ORIGIN_OR_RP_ID_MISMATCH");
       }
@@ -193,11 +202,6 @@ export class AdminWebAuthnAssertionVerifier {
         return deny("CREDENTIAL_NOT_FOUND_OR_REVOKED");
       }
       const oldCounter = Number(cred.sign_count);
-      if (oldCounter > 0 && newCounter > 0 && newCounter <= oldCounter) {
-        await client.query("UPDATE tpay_admin_webauthn_credentials SET status='suspect' WHERE id=$1", [cred.id]);
-        await client.query("ROLLBACK");
-        return deny("SIGN_COUNTER_REPLAY");
-      }
       let publicKey: ReturnType<typeof createPublicKey>;
       let algorithm: "ES256" | "RS256" | "EdDSA";
       try {
@@ -213,6 +217,23 @@ export class AdminWebAuthnAssertionVerifier {
       if (!verified) {
         await client.query("ROLLBACK");
         return deny("SIGNATURE_INVALID");
+      }
+      // A counter anomaly is actionable only after the assertion's signature is valid;
+      // otherwise an unauthenticated caller could disable another Admin's credential.
+      if (oldCounter > 0 && newCounter > 0 && newCounter <= oldCounter) {
+        await client.query(
+          "UPDATE tpay_admin_webauthn_credentials SET status='suspect' WHERE id=$1 AND status='active'",
+          [cred.id]
+        );
+        const evidence = sha256(Buffer.concat([authData, sha256(clientDataBytes), signature]));
+        await client.query(
+          `INSERT INTO tpay_admin_security_audit
+            (id,actor_principal_id,session_id,action,target_ref,outcome,reason_code,correlation_id,evidence_sha256)
+           VALUES($1,$2,NULL,'webauthn.sign_counter_replay',$3,'denied','VALID_SIGNATURE_COUNTER_NOT_MONOTONIC',$4,$5)`,
+          [randomUUID(),input.principalId,cred.id,randomUUID(),evidence]
+        );
+        await client.query("COMMIT");
+        return deny("SIGN_COUNTER_REPLAY");
       }
       const consumed = await client.query(
         `UPDATE tpay_admin_webauthn_challenges SET consumed_at=now()
