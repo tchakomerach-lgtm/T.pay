@@ -7,6 +7,7 @@ P063 adds a fail-closed registration path for packed X.509 attestation. It rejec
 - A certificate chain must be supplied in the packed x5c statement.
 - Every certificate must be time-valid; each child signature and issuer relation is verified.
 - The leaf cannot be a CA; issuers and the terminal pinned root must be CAs.
+- The leaf certificate must contain the FIDO AAGUID extension, and its 16-byte value must exactly match the AAGUID signed inside authenticator data.
 - The terminal root must be self-signed and match a SHA-256 fingerprint in the active trust-root registry.
 - The AAGUID must be explicitly allowed by that trusted root's reviewed metadata record.
 - The attestation signature is verified over authenticatorData || SHA-256(clientDataJSON).
@@ -22,6 +23,7 @@ P063 adds a fail-closed registration path for packed X.509 attestation. It rejec
 This P063 registrar stores hardware-attestation evidence but does not itself upgrade P061 assertion results or P062 session assurance. P064 must bind a verified assertion to a credential whose attestation evidence is active and propagate hardware assurance to the PAM gate. This avoids a partial or premature elevation.
 
 ## Remaining
+- Full RFC 5280 PKIX path validation (including path-length, name-constraints, policy and certificate key-usage enforcement) must be integrated before production; the current verifier checks certificate time validity, issuer signatures, CA flags and an explicit pinned terminal root but is not a general-purpose PKIX engine.
 - Root metadata ingestion and independent dual-control approval ceremony.
 - Additional attestation formats and FIDO Metadata Service validation.
 - Hardware vendor interoperability fixtures and negative cryptographic test vectors.
