@@ -21,10 +21,7 @@ const opaqueToken=()=>randomBytes(32).toString("base64url");
 const evidence=(value:unknown)=>digest(JSON.stringify(value));
 
 /**
- * P062 creates ordinary Admin Control Plane sessions only from a successful
- * P061 assertion. It deliberately never upgrades WebAuthn UV to hardware-key
- * assurance: break-glass/PAM remains unavailable until attestation enrollment
- * establishes that stronger credential class.
+ * P062 creates Admin Control Plane sessions only from a successful P061 assertion. Hardware-key assurance requires P063 evidence and an active pinned trust root, rechecked in the session transaction and on every validation.
  */
 export class AdminSessionLifecycle {
   private readonly ttlSeconds:number;
@@ -127,7 +124,7 @@ export class AdminSessionLifecycle {
     if(!sessionToken || sessionToken.length<32) return {authenticated:false,reason:"SESSION_INVALID"};
     const result=await this.pool.query<{
       principal_id:string;session_id:string;credential_id:string;assurance:string;
-      expires_at:Date;principal_status:string;credential_status:string;credential_revoked_at:Date|null;
+      expires_at:Date;principal_status:string;credential_status:string;credential_revoked_at:Date|null;hardware_attested:boolean;attestation_root_fingerprint:string|null;root_status:string|null;
       session_revoked_at:Date|null;origin:string;
     }>(
       `SELECT s.principal_id,s.id AS session_id,s.credential_id,s.assurance,s.expires_at,
