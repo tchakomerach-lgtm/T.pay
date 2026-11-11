@@ -21,6 +21,6 @@ test("requester cannot approve; expired and revoked requests fail closed",()=>{
  assert.deepEqual(authorizeBreakglassAccess(session,{...request,expiresAt:"2026-11-11T04:59:00.000Z"},target,now),{allowed:false,reason:"BREAKGLASS_EXPIRED"});
  assert.deepEqual(authorizeBreakglassAccess(session,{...request,revokedAt:now},target,now),{allowed:false,reason:"BREAKGLASS_REVOKED"});
 });
-test("pending request does not grant standing access",()=>{
+test("only the requesting Admin may execute the approved scope",()=>{\n assert.deepEqual(authorizeBreakglassAccess({...session,principalId:"other-admin"},request,target,now),{allowed:false,reason:"BREAKGLASS_EXECUTOR_MISMATCH"});\n});\ntest("pending request does not grant standing access",()=>{
  assert.deepEqual(authorizeBreakglassAccess(session,{...request,status:"pending"},target,now),{allowed:false,reason:"BREAKGLASS_NOT_APPROVED"});
 });
