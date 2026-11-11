@@ -244,21 +244,30 @@ export class VaultAccessBroker {
       // never leave an "allowed" audit event behind.
       const aadForAudit = aad;
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), this.cryptoTimeoutMs);
+      let timeout: ReturnType<typeof setTimeout> | undefined;
       let plaintext: Buffer | null = null;
       let cryptoFailure: "CRYPTOGRAPHIC_DECRYPTION_FAILED" | "CRYPTOGRAPHIC_TIMEOUT" | "PAYLOAD_HASH_MISMATCH" | null = null;
       try {
-        plaintext = await this.crypto.decryptRecord({
-          kmsKeyRef: encrypted.kmsKeyRef,
-          wrappedDataKey: encrypted.wrappedDataKey,
-          keyVersion: encrypted.keyVersion,
-          algorithm: encrypted.algorithm,
-          nonce: encrypted.nonce,
-          ciphertext: encrypted.ciphertext,
-          authTag: encrypted.authTag,
-          aad: aadForAudit,
-          signal: controller.signal
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => {
+            controller.abort();
+            reject(new Error("CRYPTOGRAPHIC_TIMEOUT"));
+          }, this.cryptoTimeoutMs);
         });
+        plaintext = await Promise.race([
+          this.crypto.decryptRecord({
+            kmsKeyRef: encrypted.kmsKeyRef,
+            wrappedDataKey: encrypted.wrappedDataKey,
+            keyVersion: encrypted.keyVersion,
+            algorithm: encrypted.algorithm,
+            nonce: encrypted.nonce,
+            ciphertext: encrypted.ciphertext,
+            authTag: encrypted.authTag,
+            aad: aadForAudit,
+            signal: controller.signal
+          }),
+          timeoutPromise
+        ]);
         if (!sha256(plaintext).equals(encrypted.payloadSha256)) {
           plaintext.fill(0);
           plaintext = null;
@@ -269,7 +278,7 @@ export class VaultAccessBroker {
           ? "CRYPTOGRAPHIC_TIMEOUT"
           : "CRYPTOGRAPHIC_DECRYPTION_FAILED";
       } finally {
-        clearTimeout(timeout);
+        if (timeout) clearTimeout(timeout);
       }
 
       const decisionEvidence = sha256(JSON.stringify({
