@@ -11,7 +11,7 @@
     "test": "npm run build && node --test dist/tests/*.test.js",
     "check": "npm run typecheck && npm test",
     "db:migrate": "node dist/scripts/migrate.js",
-    "test:postgres": "npm run build && npm run db:migrate && TPAY_RUN_COMPARTMENT_INTEGRATION=1 TPAY_RUN_ADMIN_PAM_INTEGRATION=1 TPAY_RUN_ADMIN_WEBAUTHN_INTEGRATION=1 node --test dist/tests/postgres-live.integration.test.js dist/tests/admin-pam-capability.postgres.integration.test.js dist/tests/admin-webauthn.postgres.integration.test.js",
+    "test:postgres": "npm run build && npm run db:migrate && TPAY_RUN_COMPARTMENT_INTEGRATION=1 TPAY_RUN_ADMIN_PAM_INTEGRATION=1 TPAY_RUN_ADMIN_WEBAUTHN_INTEGRATION=1 TPAY_RUN_ADMIN_SESSION_INTEGRATION=1 node --test dist/tests/postgres-live.integration.test.js dist/tests/admin-pam-capability.postgres.integration.test.js dist/tests/admin-webauthn.postgres.integration.test.js dist/tests/admin-session-lifecycle.postgres.integration.test.js",
     "web:dev": "vite --config apps/education-web/vite.config.ts",
     "web:build": "vite build --config apps/education-web/vite.config.ts",
     "api:start": "npm run build && node dist/apps/api-server/src/main.js",
