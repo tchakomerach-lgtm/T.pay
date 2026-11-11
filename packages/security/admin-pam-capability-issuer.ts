@@ -44,6 +44,7 @@ export class AdminPamCapabilityIssuer {
         "SELECT set_config('tpay.admin_principal_id',$1,true), set_config('tpay.admin_session_id',$2,true)",
         [input.principalId, input.sessionId]
       );
+      await client.query("SELECT set_config('tpay.admin_request_id',$1,true)", [input.requestId]);
       const session = await client.query<{
         principal_status: string; session_id: string; session_expires_at: Date;
         assurance: string; credential_status: string; credential_id: string;
