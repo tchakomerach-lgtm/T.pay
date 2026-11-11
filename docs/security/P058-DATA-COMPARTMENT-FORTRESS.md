@@ -57,3 +57,9 @@ P058 creates compartment, key-version, encrypted-record, exact record-grant and 
 
 ## Assurance statement
 This is a concrete schema and policy foundation. It is not a deployed KMS/HSM service, a completed end-to-end encryption rollout, a security certification or a claim of a defined 2030 standard. The architecture is crypto-agile and must be reviewed against standards current at implementation time.
+
+
+## PostgreSQL integrity corrections
+- The compartment vault reference uses the UUID type of tpay_vaults.id, preserving the composite tenant/vault foreign key.
+- Encrypted record storage exposes a unique (tenant_id, id) key so exact tenant-scoped grant foreign keys are valid in PostgreSQL.
+- The USER plane cannot enter an organization-owned compartment by omitting or changing its organization context; organization scope must match the persisted compartment on every plane.
