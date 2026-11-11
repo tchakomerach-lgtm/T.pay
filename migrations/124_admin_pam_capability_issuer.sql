@@ -62,6 +62,17 @@ GRANT INSERT ON tpay_admin_security_audit TO tpay_admin_pam_runtime;
 
 DO $p060$
 BEGIN
+ DROP POLICY IF EXISTS p060_admin_pam_principal_select ON tpay_admin_principals;
+ DROP POLICY IF EXISTS p060_admin_pam_credential_select ON tpay_admin_webauthn_credentials;
+ DROP POLICY IF EXISTS p060_admin_pam_session_select ON tpay_admin_sessions;
+ DROP POLICY IF EXISTS p060_admin_pam_request_select ON tpay_admin_breakglass_requests;
+ DROP POLICY IF EXISTS p060_admin_pam_request_update ON tpay_admin_breakglass_requests;
+ DROP POLICY IF EXISTS p060_admin_pam_approval_select ON tpay_admin_breakglass_approvals;
+ DROP POLICY IF EXISTS p060_admin_pam_audit_insert ON tpay_admin_security_audit;
+ DROP POLICY IF EXISTS p060_admin_pam_capability_scope ON tpay_admin_pam_capabilities;
+END $p060$;
+DO $p060_create$
+BEGIN
  CREATE POLICY p060_admin_pam_principal_select ON tpay_admin_principals
   FOR SELECT TO tpay_admin_pam_runtime
   USING (id=current_setting('tpay.admin_principal_id',true)
@@ -102,7 +113,7 @@ BEGIN
    AND session_id=current_setting('tpay.admin_session_id',true))
   WITH CHECK (principal_id=current_setting('tpay.admin_principal_id',true)
    AND session_id=current_setting('tpay.admin_session_id',true));
-END $p060$;
+END $p060_create$;
 
 -- This broker only issues an opaque, exact-scope, one-use capability.
 -- It cannot SELECT tenant records, ciphertext, plaintext, vault keys, or KMS material.
