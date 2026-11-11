@@ -103,3 +103,42 @@ BEGIN
 END $$;
 REVOKE ALL ON tpay_admin_principals,tpay_admin_webauthn_credentials,tpay_admin_webauthn_challenges,
  tpay_admin_sessions,tpay_admin_breakglass_requests,tpay_admin_breakglass_approvals,tpay_admin_security_audit FROM PUBLIC;
+
+-- Approval quorum is checked atomically when a request transitions to approved.
+CREATE OR REPLACE FUNCTION tpay_guard_admin_breakglass_approval_transition()
+RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
+DECLARE approved_count integer;
+BEGIN
+ IF NEW.status='approved' AND OLD.status IS DISTINCT FROM 'approved' THEN
+   IF NEW.valid_from IS NULL OR NEW.expires_at IS NULL OR NEW.expires_at<=now()
+      OR NEW.expires_at<=NEW.valid_from
+      OR NEW.expires_at>NEW.valid_from+interval '60 minutes' THEN
+     RAISE EXCEPTION 'TPAY_BREAKGLASS_VALIDITY_WINDOW_INVALID';
+   END IF;
+   SELECT count(DISTINCT approver_principal_id) INTO approved_count
+   FROM public.tpay_admin_breakglass_approvals
+   WHERE request_id=NEW.id AND decision='approve';
+   IF approved_count<NEW.required_approvals THEN
+     RAISE EXCEPTION 'TPAY_BREAKGLASS_APPROVAL_QUORUM_NOT_MET';
+   END IF;
+ END IF;
+ IF OLD.status IN ('denied','expired','revoked','consumed')
+    AND NEW.status IS DISTINCT FROM OLD.status THEN
+   RAISE EXCEPTION 'TPAY_BREAKGLASS_TERMINAL_STATE_IMMUTABLE';
+ END IF;
+ RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS tpay_admin_breakglass_transition_guard ON tpay_admin_breakglass_requests;
+CREATE TRIGGER tpay_admin_breakglass_transition_guard
+BEFORE UPDATE OF status,valid_from,expires_at ON tpay_admin_breakglass_requests
+FOR EACH ROW EXECUTE FUNCTION tpay_guard_admin_breakglass_approval_transition();
+
+CREATE OR REPLACE FUNCTION tpay_reject_admin_approval_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN RAISE EXCEPTION 'TPAY_ADMIN_APPROVALS_APPEND_ONLY'; END $$;
+DROP TRIGGER IF EXISTS tpay_admin_approval_no_update ON tpay_admin_breakglass_approvals;
+CREATE TRIGGER tpay_admin_approval_no_update BEFORE UPDATE OR DELETE ON tpay_admin_breakglass_approvals
+FOR EACH ROW EXECUTE FUNCTION tpay_reject_admin_approval_mutation();
+DROP TRIGGER IF EXISTS tpay_admin_approval_no_truncate ON tpay_admin_breakglass_approvals;
+CREATE TRIGGER tpay_admin_approval_no_truncate BEFORE TRUNCATE ON tpay_admin_breakglass_approvals
+FOR EACH STATEMENT EXECUTE FUNCTION tpay_reject_admin_approval_mutation();
