@@ -40,8 +40,12 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: TypeScript and unit/invariant checks
-        run: npm run check
+      - name: TypeScript strict typecheck
+        run: npm run typecheck
+      - name: Compile production TypeScript output
+        run: npm run build
+      - name: Unit and invariant tests
+        run: node --test dist/tests/*.test.js
       - name: Apply full migration chain and run live PostgreSQL integration
         run: npm run test:postgres
       - name: Security fortress checks
