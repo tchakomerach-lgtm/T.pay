@@ -67,7 +67,7 @@ export function authorizeDataCompartment(input: DataCompartmentRequest): DataAcc
  if (input.compartment.id !== input.compartmentId || input.compartment.vaultId !== input.vaultId ||
      input.compartment.subjectRef !== input.subjectRef || input.compartment.moduleCode !== input.moduleCode ||
      input.compartment.dataClass !== input.dataClass) return deny("COMPARTMENT_MISMATCH");
- if (input.plane === "ORGANIZATION" && input.organizationId !== input.compartment.organizationId) return deny("ORGANIZATION_MISMATCH");
+ if (input.organizationId !== input.compartment.organizationId) return deny("ORGANIZATION_MISMATCH");
  if (input.grant.recordId !== input.recordId || input.grant.compartmentId !== input.compartmentId ||
      input.grant.actorId !== input.actor.id || input.grant.actorKind !== input.actor.kind) return deny("GRANT_SCOPE_MISMATCH");
  if (input.grant.revokedAt !== null) return deny("GRANT_REVOKED");
