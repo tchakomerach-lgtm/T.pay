@@ -200,3 +200,38 @@ test("broker rolls back consumed grant and withholds plaintext when audit persis
   assert.ok(fixture.events.includes("rollback"));
   assert.ok(!fixture.events.includes("commit"));
 });
+
+
+test("broker bounds a stalled KMS/HSM request and audits timeout as denied", async () => {
+  const fixture = brokerFixture();
+  const crypto: CompartmentCryptoProvider = {
+    async decryptRecord() {
+      fixture.events.push("crypto-started");
+      return new Promise<Buffer>(() => undefined);
+    }
+  };
+  const broker = new VaultAccessBroker(fixture.pool, crypto, 10);
+  const result = await broker.readRecord({
+    authorization: base, purposeCode: "grade-review", correlationId: "corr-timeout"
+  });
+  assert.deepEqual(result, { allowed: false, reason: "CRYPTOGRAPHIC_TIMEOUT" });
+  assert.equal(fixture.audit[0]?.decision, "denied");
+  assert.equal(fixture.audit[0]?.reason, "CRYPTOGRAPHIC_TIMEOUT");
+  assert.ok(fixture.events.includes("commit"));
+});
+
+test("broker rejects plaintext whose authenticated payload hash does not match", async () => {
+  const fixture = brokerFixture();
+  const crypto: CompartmentCryptoProvider = {
+    async decryptRecord() {
+      return Buffer.from("tampered-payload");
+    }
+  };
+  const broker = new VaultAccessBroker(fixture.pool, crypto);
+  const result = await broker.readRecord({
+    authorization: base, purposeCode: "grade-review", correlationId: "corr-hash-mismatch"
+  });
+  assert.deepEqual(result, { allowed: false, reason: "PAYLOAD_HASH_MISMATCH" });
+  assert.equal(fixture.audit[0]?.decision, "denied");
+  assert.equal(fixture.audit[0]?.reason, "PAYLOAD_HASH_MISMATCH");
+});
