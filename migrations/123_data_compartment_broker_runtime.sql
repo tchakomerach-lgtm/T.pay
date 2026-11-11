@@ -7,6 +7,46 @@ BEGIN
   END IF;
 END $$;
 ALTER ROLE tpay_data_broker_runtime WITH NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+
+-- P058 grants were record-scoped but did not persist the compartment identifier.
+-- P059 makes that scope explicit and enforces record/compartment consistency
+-- with a composite FK. Existing grants are backfilled from their exact record.
+ALTER TABLE tpay_data_records
+  ADD CONSTRAINT IF NOT EXISTS uq_tpay_data_records_tenant_record_compartment
+  UNIQUE (tenant_id,id,compartment_id);
+ALTER TABLE tpay_data_record_grants
+  ADD COLUMN IF NOT EXISTS compartment_id text;
+
+UPDATE tpay_data_record_grants g
+   SET compartment_id=r.compartment_id
+  FROM tpay_data_records r
+ WHERE r.tenant_id=g.tenant_id AND r.id=g.record_id
+   AND g.compartment_id IS NULL;
+
+DO $p059_grant_scope$
+BEGIN
+  IF EXISTS (SELECT 1 FROM tpay_data_record_grants WHERE compartment_id IS NULL) THEN
+    RAISE EXCEPTION 'P059_GRANT_COMPARTMENT_BACKFILL_FAILED';
+  END IF;
+  ALTER TABLE tpay_data_record_grants ALTER COLUMN compartment_id SET NOT NULL;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_tpay_grant_exact_record_compartment') THEN
+    ALTER TABLE tpay_data_record_grants
+      ADD CONSTRAINT fk_tpay_grant_exact_record_compartment
+      FOREIGN KEY (tenant_id,record_id,compartment_id)
+      REFERENCES tpay_data_records(tenant_id,id,compartment_id) ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_tpay_grant_compartment') THEN
+    ALTER TABLE tpay_data_record_grants
+      ADD CONSTRAINT fk_tpay_grant_compartment
+      FOREIGN KEY (tenant_id,compartment_id)
+      REFERENCES tpay_data_compartments(tenant_id,id) ON DELETE RESTRICT;
+  END IF;
+END $p059_grant_scope$;
+
+CREATE INDEX IF NOT EXISTS idx_tpay_data_grants_exact_compartment
+  ON tpay_data_record_grants(tenant_id,compartment_id,record_id,actor_id,permission)
+  WHERE revoked_at IS NULL;
+
 REVOKE ALL ON tpay_data_compartments,tpay_data_compartment_key_versions,
   tpay_data_records,tpay_data_record_grants,tpay_data_access_audit FROM tpay_data_broker_runtime;
 GRANT SELECT ON tpay_data_compartments,tpay_data_compartment_key_versions,
