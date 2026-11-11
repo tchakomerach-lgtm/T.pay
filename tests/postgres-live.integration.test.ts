@@ -864,6 +864,15 @@ test("P059 live PostgreSQL provisions a non-login compartment broker with exact-
       "SELECT data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='tpay_data_compartments' AND column_name='vault_id'"
     );
     assert.equal(vaultType.rows[0]?.data_type, "uuid");
+
+    const grantCompartment = await client.query(
+      "SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='tpay_data_record_grants' AND column_name='compartment_id'"
+    );
+    assert.equal(grantCompartment.rows[0]?.is_nullable, "NO");
+    const exactScopeForeignKey = await client.query(
+      "SELECT count(*)::int AS count FROM pg_constraint WHERE conname='fk_tpay_grant_exact_record_compartment' AND contype='f'"
+    );
+    assert.equal(exactScopeForeignKey.rows[0]?.count, 1);
   } finally {
     await client.end();
   }
