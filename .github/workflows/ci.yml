@@ -8,6 +8,12 @@ on:
       - security/p058-data-compartment-fortress-003
       - security/p059-vault-access-broker-004
       - security/p060-admin-pam-executor-005
+      - security/p061-webauthn-verifier-006
+      - security/p062-admin-session-lifecycle-007
+      - security/p059-vault-access-broker-004
+      - security/p060-admin-pam-executor-005
+      - security/p061-webauthn-verifier-006
+      - security/p062-admin-session-lifecycle-007
   pull_request:
     branches:
       - main
