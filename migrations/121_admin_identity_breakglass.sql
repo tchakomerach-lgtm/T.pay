@@ -72,7 +72,7 @@ RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
 DECLARE requester text; principal_status text; session_principal text;
  session_assurance text; session_expiry timestamptz; session_revoked timestamptz;
 BEGIN
- SELECT requester_principal_id INTO requester FROM public.tpay_admin_breakglass_requests WHERE id=NEW.request_id FOR UPDATE;
+ SELECT requester_principal_id INTO requester FROM public.tpay_admin_breakglass_requests WHERE id=NEW.request_id AND status='pending' FOR UPDATE;
  IF requester IS NULL OR requester=NEW.approver_principal_id THEN RAISE EXCEPTION 'TPAY_BREAKGLASS_SELF_APPROVAL_FORBIDDEN'; END IF;
  SELECT status INTO principal_status FROM public.tpay_admin_principals WHERE id=NEW.approver_principal_id;
  SELECT principal_id,assurance,expires_at,revoked_at INTO session_principal,session_assurance,session_expiry,session_revoked
