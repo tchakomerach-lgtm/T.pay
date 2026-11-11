@@ -6,11 +6,12 @@ import { AdminPamCapabilityIssuer } from "../packages/security/admin-pam-capabil
 
 const hash=(v:string|Buffer)=>createHash("sha256").update(v).digest();
 function fixture(opts?:{missingQuorum?:boolean;auditFails?:boolean;wrongAssurance?:boolean;rootRevoked?:boolean}) {
- const calls:string[]=[];\n const sqlLog:string[]=[];
+ const calls:string[]=[];
+ const sqlLog:string[]=[];
  const inserted:{capabilityHash?:Buffer;requestStatus?:string;audit?:boolean}={};
  const client={
   async query(sql:string,params:unknown[]=[]):Promise<any>{
-   calls.push(sql.trim().split(/\s+/).slice(0,3).join(" "));
+   calls.push(sql.trim().split(/\\s+/).slice(0,3).join(" "));sqlLog.push(sql);
    if(sql==="BEGIN"||sql==="COMMIT"||sql==="ROLLBACK"||sql==="SET LOCAL ROLE tpay_admin_pam_runtime")return {rows:[],rowCount:0};
    if(sql.includes("set_config"))return {rows:[],rowCount:1};
    if(sql.includes("FROM tpay_admin_sessions s")&&sql.includes("FOR UPDATE OF s"))return opts?.rootRevoked?{rows:[],rowCount:0}:{
