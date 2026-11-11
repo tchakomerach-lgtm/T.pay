@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
@@ -8,8 +8,10 @@ import { applyMigrations } from "../packages/finance/src/postgres-migrations.js"
 import { PostgresDurableTontineSettlementRepository } from "../packages/finance/src/postgres-settlement-uow.js";
 import { executeDurableTontineSettlement } from "../packages/microfinance/src/tontine-settlement-uow.js";
 import { PostgresCommunityTontineMfSettlementRepository } from "../packages/microfinance/src/community-tontine-mf-settlement-repository.js";
+import { VaultAccessBroker } from "../packages/security/vault-access-broker.js";
 
 const databaseUrl = process.env.TPAY_DATABASE_URL;
+const runP059BrokerIntegration = process.env.TPAY_RUN_COMPARTMENT_INTEGRATION === "1";
 
 test("S-02.5 live PostgreSQL migration is idempotent and enforces financial invariants", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
   const client = new pg.Client({ connectionString: databaseUrl });
@@ -828,5 +830,182 @@ test("Community Tontine partner settlement is payout-bound, maker-checker protec
     await client.query("DELETE FROM tontine_groups WHERE id IN ($1,$2)",[groupId,otherGroupId]).catch(()=>undefined);
     await client.query("DELETE FROM organizations WHERE id IN ($1,$2)",[organizationId,otherOrganizationId]).catch(()=>undefined);
     await client.end();
+  }
+});
+
+
+test("P059 live PostgreSQL provisions a non-login compartment broker with exact-scope RLS", { skip: (!databaseUrl || !runP059BrokerIntegration) && "Run through npm run test:postgres" }, async () => {
+  const client = new pg.Client({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    const role = await client.query(
+      "SELECT rolcanlogin, rolsuper, rolbypassrls, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname='tpay_data_broker_runtime'"
+    );
+    assert.equal(role.rowCount, 1);
+    assert.deepEqual(role.rows[0], {
+      rolcanlogin: false, rolsuper: false, rolbypassrls: false,
+      rolcreatedb: false, rolcreaterole: false
+    });
+
+    const policies = await client.query(
+      "SELECT tablename, policyname, cmd FROM pg_policies WHERE schemaname='public' AND policyname LIKE 'p059_broker_%' ORDER BY tablename,policyname"
+    );
+    const names = policies.rows.map(row => row.policyname);
+    assert.ok(names.includes("p059_broker_compartment_select"));
+    assert.ok(names.includes("p059_broker_grant_select"));
+    assert.ok(names.includes("p059_broker_grant_consume"));
+    assert.ok(names.includes("p059_broker_record_select"));
+    assert.ok(names.includes("p059_broker_key_version_select"));
+    assert.ok(names.includes("p059_broker_audit_insert"));
+    assert.equal(names.some(name => String(name).toLowerCase().includes("admin")), false);
+
+    const vaultType = await client.query(
+      "SELECT data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='tpay_data_compartments' AND column_name='vault_id'"
+    );
+    assert.equal(vaultType.rows[0]?.data_type, "uuid");
+
+    const grantCompartment = await client.query(
+      "SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='tpay_data_record_grants' AND column_name='compartment_id'"
+    );
+    assert.equal(grantCompartment.rows[0]?.is_nullable, "NO");
+    const exactScopeForeignKey = await client.query(
+      "SELECT count(*)::int AS count FROM pg_constraint WHERE conname='fk_tpay_grant_exact_record_compartment' AND contype='f'"
+    );
+    assert.equal(exactScopeForeignKey.rows[0]?.count, 1);
+  } finally {
+    await client.end();
+  }
+});
+
+
+test("P059 live PostgreSQL consumes one exact decrypt grant once and denies replay", { skip: (!databaseUrl || !runP059BrokerIntegration) && "Run through npm run test:postgres" }, async () => {
+  const setup = new pg.Client({ connectionString: databaseUrl });
+  await setup.connect();
+  const tenantId = "tenant-" + randomUUID();
+  const organizationId = "org-" + randomUUID();
+  const vaultId = randomUUID();
+  const compartmentId = "compartment-" + randomUUID();
+  const keyVersionId = "key-version-" + randomUUID();
+  const recordId = "record-" + randomUUID();
+  const grantId = "grant-" + randomUUID();
+  const actorId = "teacher-" + randomUUID();
+  const subjectRef = "subject-" + randomUUID();
+  const purposeCode = "school-record-review";
+  const plaintext = Buffer.from("P059 test plaintext");
+  const nonce = Buffer.alloc(12, 7);
+  const authTag = Buffer.alloc(16, 9);
+  const ciphertext = Buffer.from("test-ciphertext");
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const expiresAt = new Date(now.getTime() + 5 * 60_000).toISOString();
+  const aad = Buffer.from(JSON.stringify({
+    tenantId, organizationId, moduleCode: "school", subjectRef,
+    compartmentId, recordId, recordType: "student-grade",
+    schemaVersion: 1, keyVersion: 1
+  }), "utf8");
+  const digest = (value: Buffer) => createHash("sha256").update(value).digest();
+  const pool = new pg.Pool({ connectionString: databaseUrl, max: 2 });
+  try {
+    await applyMigrations(setup, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await setup.query("GRANT tpay_data_broker_runtime TO CURRENT_USER");
+    await setup.query(
+      "INSERT INTO tpay_vaults (id,tenant_id,organization_id,vault_class,module_code,status) VALUES ($1,$2,$3,'organization','school','active')",
+      [vaultId, tenantId, organizationId]
+    );
+    await setup.query(
+      "INSERT INTO tpay_data_compartments (id,tenant_id,organization_id,subject_ref,module_code,data_class,vault_id,isolation_domain,status) VALUES ($1,$2,$3,$4,'school','academic',$5,'school-academic','active')",
+      [compartmentId, tenantId, organizationId, subjectRef, vaultId]
+    );
+    await setup.query(
+      "INSERT INTO tpay_data_compartment_key_versions (id,tenant_id,compartment_id,key_version,kms_key_ref,wrapped_data_key,algorithm,wrapping_algorithm,status) VALUES ($1,$2,$3,1,'kms://test-key',$4,'AES-256-GCM','KMS-ENVELOPE-TEST','active')",
+      [keyVersionId, tenantId, compartmentId, Buffer.from("wrapped-test-dek")]
+    );
+    await setup.query(
+      "INSERT INTO tpay_data_records (id,tenant_id,organization_id,compartment_id,record_type,schema_version,key_version,ciphertext,nonce,auth_tag,aad_sha256,payload_sha256,record_state) VALUES ($1,$2,$3,$4,'student-grade',1,1,$5,$6,$7,$8,$9,'active')",
+      [recordId, tenantId, organizationId, compartmentId, ciphertext, nonce, authTag, digest(aad), digest(plaintext)]
+    );
+    await setup.query(
+      "INSERT INTO tpay_data_record_grants (id,tenant_id,organization_id,record_id,compartment_id,actor_id,actor_kind,permission,purpose_code,valid_from,valid_until,max_uses,uses_count) VALUES ($1,$2,$3,$4,$5,$6,'user','decrypt',$7,$8,$9,1,0)",
+      [grantId, tenantId, organizationId, recordId, compartmentId, actorId, purposeCode, nowIso, expiresAt]
+    );
+
+    const broker = new VaultAccessBroker(pool, {
+      decryptRecord: async input => {
+        assert.equal(input.kmsKeyRef, "kms://test-key");
+        assert.deepEqual(input.wrappedDataKey, Buffer.from("wrapped-test-dek"));
+        // Keep the first transaction open long enough for the competing
+        // one-use request to contend on the same PostgreSQL grant row.
+        await new Promise(resolve => setTimeout(resolve, 25));
+        return Buffer.from(plaintext);
+      }
+    });
+    const authorization = {
+      plane: "ORGANIZATION" as const,
+      now: nowIso,
+      tenantId,
+      organizationId,
+      subjectRef,
+      moduleCode: "school",
+      requestedPermission: "decrypt" as const,
+      compartment: {
+        id: compartmentId, tenantId, organizationId, subjectRef,
+        moduleCode: "school", vaultId, dataClass: "academic" as const
+      },
+      compartmentId, vaultId, dataClass: "academic" as const,
+      recordId, recordState: "active" as const,
+      actor: { id: actorId, kind: "user" as const, active: true },
+      session: {
+        id: "session-" + randomUUID(), kind: "user" as const,
+        expiresAt, revokedAt: null, userSessionId: "session-placeholder",
+        privilegedSessionId: null, assurance: "standard" as const
+      },
+      grant: {
+        tenantId, recordId, compartmentId, actorId, actorKind: "user" as const,
+        permission: "decrypt" as const, purposeCode, validFrom: nowIso,
+        validUntil: expiresAt, revokedAt: null, maxUses: 1, usesCount: 0
+      }
+    };
+    authorization.session.userSessionId = authorization.session.id;
+
+    const [attemptA, attemptB] = await Promise.all([
+      broker.readRecord({ authorization, purposeCode, correlationId: randomUUID() }),
+      broker.readRecord({ authorization, purposeCode, correlationId: randomUUID() })
+    ]);
+    const attempts = [attemptA, attemptB];
+    const successes = attempts.filter(result => result.allowed);
+    const denials = attempts.filter(result => !result.allowed);
+    assert.equal(successes.length, 1, "exactly one concurrent request may consume the one-use grant");
+    assert.equal(denials.length, 1);
+    assert.deepEqual(denials[0], { allowed: false, reason: "PERSISTED_GRANT_NOT_CONSUMED" });
+    const successful = successes[0];
+    assert.ok(successful?.allowed);
+    assert.equal(successful.recordId, recordId);
+    assert.deepEqual(successful.plaintext, plaintext);
+    successful.plaintext.fill(0);
+
+    const replay = await broker.readRecord({ authorization, purposeCode, correlationId: randomUUID() });
+    assert.deepEqual(replay, { allowed: false, reason: "PERSISTED_GRANT_NOT_CONSUMED" });
+
+    const persisted = await setup.query(
+      "SELECT uses_count FROM tpay_data_record_grants WHERE id=$1",
+      [grantId]
+    );
+    assert.equal(persisted.rows[0]?.uses_count, 1);
+    const audit = await setup.query(
+      "SELECT decision,reason_code FROM tpay_data_access_audit WHERE tenant_id=$1 AND record_id=$2 ORDER BY CASE decision WHEN 'allowed' THEN 0 ELSE 1 END",
+      [tenantId, recordId]
+    );
+    assert.deepEqual(audit.rows.map(row => row.decision), ["allowed", "denied", "denied"]);
+  } finally {
+    await pool.end();
+    await setup.query("DELETE FROM tpay_data_access_audit WHERE tenant_id=$1", [tenantId]);
+    await setup.query("DELETE FROM tpay_data_record_grants WHERE tenant_id=$1", [tenantId]);
+    await setup.query("DELETE FROM tpay_data_records WHERE tenant_id=$1", [tenantId]);
+    await setup.query("DELETE FROM tpay_data_compartment_key_versions WHERE tenant_id=$1", [tenantId]);
+    await setup.query("DELETE FROM tpay_data_compartments WHERE tenant_id=$1", [tenantId]);
+    await setup.query("DELETE FROM tpay_vaults WHERE tenant_id=$1", [tenantId]);
+    await setup.query("REVOKE tpay_data_broker_runtime FROM CURRENT_USER");
+    await setup.end();
   }
 });
