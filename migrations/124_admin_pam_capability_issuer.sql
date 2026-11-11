@@ -61,39 +61,42 @@ GRANT SELECT ON tpay_admin_principals,tpay_admin_webauthn_credentials,tpay_admin
 GRANT INSERT ON tpay_admin_security_audit TO tpay_admin_pam_runtime;
 
 DO $p060$
-DECLARE t text;
 BEGIN
- FOREACH t IN ARRAY ARRAY['tpay_admin_principals','tpay_admin_webauthn_credentials',
- 'tpay_admin_sessions','tpay_admin_breakglass_requests','tpay_admin_breakglass_approvals',
- 'tpay_admin_security_audit','tpay_admin_pam_capabilities']
- LOOP
-  EXECUTE format('DROP POLICY IF EXISTS p060_admin_pam_scope ON %I',t);
- END LOOP;
- CREATE POLICY p060_admin_pam_scope ON tpay_admin_principals AS RESTRICTIVE
+ CREATE POLICY p060_admin_pam_principal_select ON tpay_admin_principals
   FOR SELECT TO tpay_admin_pam_runtime
-  USING (id=current_setting('tpay.admin_principal_id',true) AND status='active');
- CREATE POLICY p060_admin_pam_scope ON tpay_admin_webauthn_credentials AS RESTRICTIVE
-  FOR SELECT TO tpay_admin_pam_runtime
-  USING (principal_id=current_setting('tpay.admin_principal_id',true) AND status='active');
- CREATE POLICY p060_admin_pam_scope ON tpay_admin_sessions AS RESTRICTIVE
+  USING (id=current_setting('tpay.admin_principal_id',true)
+    OR id IN (SELECT a.approver_principal_id FROM tpay_admin_breakglass_approvals a
+      WHERE a.request_id=current_setting('tpay.admin_request_id',true) AND a.decision='approve'));
+ CREATE POLICY p060_admin_pam_credential_select ON tpay_admin_webauthn_credentials
   FOR SELECT TO tpay_admin_pam_runtime
   USING (principal_id=current_setting('tpay.admin_principal_id',true)
-    AND id=current_setting('tpay.admin_session_id',true) AND revoked_at IS NULL);
- CREATE POLICY p060_admin_pam_scope ON tpay_admin_breakglass_requests AS RESTRICTIVE
+    OR id IN (SELECT s.credential_id FROM tpay_admin_sessions s
+      WHERE s.id IN (SELECT a.session_id FROM tpay_admin_breakglass_approvals a
+       WHERE a.request_id=current_setting('tpay.admin_request_id',true) AND a.decision='approve')));
+ CREATE POLICY p060_admin_pam_session_select ON tpay_admin_sessions
   FOR SELECT TO tpay_admin_pam_runtime
-  USING (requester_principal_id=current_setting('tpay.admin_principal_id',true));
- CREATE POLICY p060_admin_pam_scope ON tpay_admin_breakglass_requests AS RESTRICTIVE
+  USING ((principal_id=current_setting('tpay.admin_principal_id',true)
+      AND id=current_setting('tpay.admin_session_id',true))
+    OR id IN (SELECT a.session_id FROM tpay_admin_breakglass_approvals a
+      WHERE a.request_id=current_setting('tpay.admin_request_id',true) AND a.decision='approve'));
+ CREATE POLICY p060_admin_pam_request_select ON tpay_admin_breakglass_requests
+  FOR SELECT TO tpay_admin_pam_runtime
+  USING (requester_principal_id=current_setting('tpay.admin_principal_id',true)
+    AND id=current_setting('tpay.admin_request_id',true));
+ CREATE POLICY p060_admin_pam_request_update ON tpay_admin_breakglass_requests
   FOR UPDATE TO tpay_admin_pam_runtime
-  USING (requester_principal_id=current_setting('tpay.admin_principal_id',true) AND status='approved')
-  WITH CHECK (requester_principal_id=current_setting('tpay.admin_principal_id',true) AND status='consumed');
- CREATE POLICY p060_admin_pam_scope ON tpay_admin_breakglass_approvals AS RESTRICTIVE
+  USING (requester_principal_id=current_setting('tpay.admin_principal_id',true)
+    AND id=current_setting('tpay.admin_request_id',true) AND status='approved')
+  WITH CHECK (requester_principal_id=current_setting('tpay.admin_principal_id',true)
+    AND id=current_setting('tpay.admin_request_id',true) AND status='consumed');
+ CREATE POLICY p060_admin_pam_approval_select ON tpay_admin_breakglass_approvals
   FOR SELECT TO tpay_admin_pam_runtime
-  USING (approver_principal_id<>current_setting('tpay.admin_principal_id',true));
- CREATE POLICY p060_admin_pam_scope ON tpay_admin_security_audit AS RESTRICTIVE
+  USING (request_id=current_setting('tpay.admin_request_id',true));
+ CREATE POLICY p060_admin_pam_audit_insert ON tpay_admin_security_audit
   FOR INSERT TO tpay_admin_pam_runtime
   WITH CHECK (actor_principal_id=current_setting('tpay.admin_principal_id',true)
    AND session_id=current_setting('tpay.admin_session_id',true));
- CREATE POLICY p060_admin_pam_scope ON tpay_admin_pam_capabilities AS RESTRICTIVE
+ CREATE POLICY p060_admin_pam_capability_scope ON tpay_admin_pam_capabilities
   FOR ALL TO tpay_admin_pam_runtime
   USING (principal_id=current_setting('tpay.admin_principal_id',true)
    AND session_id=current_setting('tpay.admin_session_id',true))
