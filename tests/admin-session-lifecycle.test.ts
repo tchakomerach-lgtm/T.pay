@@ -55,16 +55,16 @@ test("P062 issues a short-lived session only from a verified assertion",async()=
 });
 
 test("P062 rejects hardware-key assurance floors without verified attestation",async()=>{
- const f=fixture({floor:"hardware_key"});const result=await f.service.issueFromAssertion(verified);
+ const f=fixture({floor:"hardware_key"});const result=await f.service.issueFromAssertion(assertionInput);
  assert.deepEqual(result,{issued:false,reason:"HARDWARE_ATTESTATION_REQUIRED"});
  assert.equal(f.state.inserted,false);
 });
 
 test("P062 rejects inactive principals and revoked credentials",async()=>{
  const p=fixture({principal:"suspended"});
- assert.deepEqual(await p.service.issueFromAssertion(verified),{issued:false,reason:"ADMIN_PRINCIPAL_INACTIVE"});
+ assert.deepEqual(await p.service.issueFromAssertion(assertionInput),{issued:false,reason:"ADMIN_PRINCIPAL_INACTIVE"});
  const c=fixture({credential:false});
- assert.deepEqual(await c.service.issueFromAssertion(verified),{issued:false,reason:"WEBAUTHN_CREDENTIAL_REVOKED"});
+ assert.deepEqual(await c.service.issueFromAssertion(assertionInput),{issued:false,reason:"WEBAUTHN_CREDENTIAL_REVOKED"});
 });
 
 test("P062 refuses to issue a session when the cryptographic verifier rejects the assertion",async()=>{
@@ -90,6 +90,7 @@ test("P062 revokes a session and persists an audit record",async()=>{
 });
 
 test("P062 rejects invalid Admin origins and excessive session TTL",()=>{
- assert.throws(()=>new AdminSessionLifecycle({} as Pool,{adminOrigin:"http://admin.example.test"}),/HTTPS_ORIGIN/);
- assert.throws(()=>new AdminSessionLifecycle({} as Pool,{adminOrigin:"https://admin.example.test",ttlSeconds:3600}),/TTL/);
+ const verifier={} as AdminWebAuthnAssertionVerifier;
+ assert.throws(()=>new AdminSessionLifecycle({} as Pool,verifier,{adminOrigin:"http://admin.example.test"}),/HTTPS_ORIGIN/);
+ assert.throws(()=>new AdminSessionLifecycle({} as Pool,verifier,{adminOrigin:"https://admin.example.test",ttlSeconds:3600}),/TTL/);
 });
