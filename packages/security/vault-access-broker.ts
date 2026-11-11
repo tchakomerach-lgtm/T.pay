@@ -254,20 +254,26 @@ export class VaultAccessBroker {
             reject(new Error("CRYPTOGRAPHIC_TIMEOUT"));
           }, this.cryptoTimeoutMs);
         });
-        plaintext = await Promise.race([
-          this.crypto.decryptRecord({
-            kmsKeyRef: encrypted.kmsKeyRef,
-            wrappedDataKey: encrypted.wrappedDataKey,
-            keyVersion: encrypted.keyVersion,
-            algorithm: encrypted.algorithm,
-            nonce: encrypted.nonce,
-            ciphertext: encrypted.ciphertext,
-            authTag: encrypted.authTag,
-            aad: aadForAudit,
-            signal: controller.signal
-          }),
-          timeoutPromise
-        ]);
+        const decryptPromise = this.crypto.decryptRecord({
+          kmsKeyRef: encrypted.kmsKeyRef,
+          wrappedDataKey: encrypted.wrappedDataKey,
+          keyVersion: encrypted.keyVersion,
+          algorithm: encrypted.algorithm,
+          nonce: encrypted.nonce,
+          ciphertext: encrypted.ciphertext,
+          authTag: encrypted.authTag,
+          aad: aadForAudit,
+          signal: controller.signal
+        }).then((latePlaintext) => {
+          // A provider may ignore AbortSignal. Zeroize a result that arrives
+          // after the broker has timed out instead of leaving it in memory.
+          if (controller.signal.aborted) {
+            latePlaintext.fill(0);
+            throw new Error("CRYPTOGRAPHIC_RESULT_AFTER_TIMEOUT");
+          }
+          return latePlaintext;
+        });
+        plaintext = await Promise.race([decryptPromise, timeoutPromise]);
         if (!sha256(plaintext).equals(encrypted.payloadSha256)) {
           plaintext.fill(0);
           plaintext = null;
