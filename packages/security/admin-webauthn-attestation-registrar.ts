@@ -66,6 +66,70 @@ function keyForCert(cert:X509Certificate,alg:number){
  if(alg===-8&&type==="ed25519")return "EdDSA";
  throw new Error("ATTESTATION_ALGORITHM_KEY_MISMATCH");
 }
+type DerNode={tag:number;contentStart:number;contentEnd:number;next:number};
+function derNode(bytes:Buffer,offset:number):DerNode{
+ if(offset+2>bytes.length)throw new Error("DER_TRUNCATED");
+ const tag=bytes[offset]!,first=bytes[offset+1]!;
+ let length:number,contentStart=offset+2;
+ if((first&0x80)===0)length=first;
+ else{
+  const count=first&0x7f;
+  if(count===0||count>4||contentStart+count>bytes.length)throw new Error("DER_LENGTH_INVALID");
+  length=0;for(let i=0;i<count;i++)length=length*256+bytes[contentStart+i]!;
+  if(length<128)throw new Error("DER_NON_CANONICAL_LENGTH");
+  contentStart+=count;
+ }
+ const contentEnd=contentStart+length;
+ if(contentEnd>bytes.length)throw new Error("DER_TRUNCATED");
+ return {tag,contentStart,contentEnd,next:contentEnd};
+}
+function oid(bytes:Buffer):string{
+ if(bytes.length===0)throw new Error("DER_OID_EMPTY");
+ const values:number[]=[];let n=0;
+ for(const byte of bytes){n=n*128+(byte&0x7f);if((byte&0x80)===0){values.push(n);n=0;}}
+ if(n!==0)throw new Error("DER_OID_TRUNCATED");
+ const first=values.shift()??0;
+ const firstArc=first<40?0:first<80?1:2;
+ const secondArc=first-firstArc*40;
+ return [firstArc,secondArc,...values].join(".");
+}
+function certificateAaguid(cert:X509Certificate):string{
+ const raw=cert.raw;
+ const certificate=derNode(raw,0);
+ if(certificate.tag!==0x30)throw new Error("CERTIFICATE_DER_INVALID");
+ const tbs=derNode(raw,certificate.contentStart);
+ if(tbs.tag!==0x30)throw new Error("CERTIFICATE_TBS_INVALID");
+ let offset=tbs.contentStart;
+ while(offset<tbs.contentEnd){
+  const field=derNode(raw,offset);
+  if(field.tag===0xa3){
+   const sequence=derNode(raw,field.contentStart);
+   if(sequence.tag!==0x30)throw new Error("CERTIFICATE_EXTENSIONS_INVALID");
+   let extOffset=sequence.contentStart;
+   while(extOffset<sequence.contentEnd){
+    const extension=derNode(raw,extOffset);
+    if(extension.tag!==0x30)throw new Error("CERTIFICATE_EXTENSION_INVALID");
+    let item=extension.contentStart;
+    const oidNode=derNode(raw,item);item=oidNode.next;
+    if(oidNode.tag!==0x06)throw new Error("CERTIFICATE_EXTENSION_OID_INVALID");
+    const extensionOid=oid(raw.subarray(oidNode.contentStart,oidNode.contentEnd));
+    if(extensionOid==="1.3.6.1.4.1.45724.1.1.4"){
+     let valueNode=derNode(raw,item);
+     if(valueNode.tag===0x01){item=valueNode.next;valueNode=derNode(raw,item);}
+     if(valueNode.tag!==0x04)throw new Error("CERTIFICATE_AAGUID_EXTENSION_INVALID");
+     const inner=derNode(raw, valueNode.contentStart);
+     if(inner.tag!==0x04||inner.contentEnd!==valueNode.contentEnd||inner.contentEnd-inner.contentStart!==16)
+      throw new Error("CERTIFICATE_AAGUID_EXTENSION_INVALID");
+     return raw.subarray(inner.contentStart,inner.contentEnd).toString("hex");
+    }
+    extOffset=extension.next;
+   }
+  }
+  offset=field.next;
+ }
+ throw new Error("CERTIFICATE_AAGUID_EXTENSION_MISSING");
+}
+
 function verifyChain(chain:Buffer[],fingerprint:string){
  if(chain.length<2||chain.length>6)throw new Error("ATTESTATION_CHAIN_LENGTH");
  const certs=chain.map(v=>new X509Certificate(v));
@@ -156,6 +220,7 @@ export class AdminWebAuthnAttestationRegistrar{
     try{
      const chainLeaf=verifyChain(chain,root.fingerprint_sha256);
      chainTrusted=true;
+     if(certificateAaguid(chainLeaf)!==aaguid)continue;
      if(!root.allowed_aaguids.includes(aaguid))continue;
      leaf=chainLeaf;rootFingerprint=root.fingerprint_sha256;break;
     }catch{/* Try another explicitly trusted root; never fall back to self-attestation. */}
