@@ -95,7 +95,9 @@ export class AdminWebAuthnAttestationRegistrar{
   try{
    credentialId=decode(input.credentialId);clientDataBytes=decode(input.clientDataJSON);
    clientData=JSON.parse(clientDataBytes.toString("utf8"));attestationBytes=decode(input.attestationObject);
-   attestation=asMap(new Reader(attestationBytes).read());
+   const outerReader=new Reader(attestationBytes);
+   attestation=asMap(outerReader.read());
+   if(outerReader.offset!==attestationBytes.length)throw new Error("ATTESTATION_OBJECT_TRAILING_BYTES");
   }catch{return fail("ATTESTATION_OBJECT_INVALID");}
   if(clientData?.type!=="webauthn.create"||clientData?.origin!==this.adminOrigin||clientData?.crossOrigin===true||typeof clientData?.challenge!=="string")
    return fail("CLIENT_DATA_INVALID");
@@ -134,6 +136,7 @@ export class AdminWebAuthnAttestationRegistrar{
   const now=input.now??new Date();
   try{
    await db.query("BEGIN");
+   await db.query("SELECT set_config('tpay.admin_principal_id',$1,true)",[input.principalId]);
    const challengeRow=await db.query<{challenge_hash:Buffer;expected_origin:string;expected_rp_id:string;expires_at:Date;consumed_at:Date|null}>(
     `SELECT challenge_hash,expected_origin,expected_rp_id,expires_at,consumed_at FROM tpay_admin_webauthn_challenges
       WHERE id=$1 AND principal_id=$2 AND purpose='registration' FOR UPDATE`,[input.challengeId,input.principalId]);
@@ -148,15 +151,16 @@ export class AdminWebAuthnAttestationRegistrar{
    if(principal.rowCount!==1){await db.query("ROLLBACK");return fail("PRINCIPAL_INACTIVE");}
    const roots=await db.query<{fingerprint_sha256:string;allowed_aaguids:string[]}>(
     "SELECT fingerprint_sha256,allowed_aaguids FROM tpay_admin_webauthn_attestation_roots WHERE status='active'");
-   let leaf:X509Certificate|undefined,rootFingerprint:string|undefined;
+   let leaf:X509Certificate|undefined,rootFingerprint:string|undefined,chainTrusted=false;
    for(const root of roots.rows){
     try{
      const chainLeaf=verifyChain(chain,root.fingerprint_sha256);
+     chainTrusted=true;
      if(!root.allowed_aaguids.includes(aaguid))continue;
      leaf=chainLeaf;rootFingerprint=root.fingerprint_sha256;break;
     }catch{/* Try another explicitly trusted root; never fall back to self-attestation. */}
    }
-   if(!leaf||!rootFingerprint){await db.query("ROLLBACK");return fail(roots.rowCount===0?"ATTESTATION_ROOT_UNTRUSTED":"AAGUID_NOT_ALLOWED");}
+   if(!leaf||!rootFingerprint){await db.query("ROLLBACK");return fail(chainTrusted?"AAGUID_NOT_ALLOWED":"ATTESTATION_ROOT_UNTRUSTED");}
    let algorithm:string;
    try{algorithm=keyForCert(leaf,alg);}catch{await db.query("ROLLBACK");return fail("ATTESTATION_CHAIN_INVALID");}
    const signed=Buffer.concat([auth,sha(clientDataBytes)]);
