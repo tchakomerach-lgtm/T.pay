@@ -22,3 +22,7 @@ Super Admin remains a governance identity, not a standing data identity. No glob
 - KMS/HSM provider contract tests, key recovery/rotation drills, red-team and independent review.
 
 This is an implementation slice, not production certification. No WebAuthn cryptographic verification or production HSM integration is claimed.
+
+
+## CI trigger correction
+The P059 base workflow now includes pull-request validation for PRs targeting the P059 branch. This PR must be validated against its current head after the base update; no CI result is inferred from the Android or preview checks.
