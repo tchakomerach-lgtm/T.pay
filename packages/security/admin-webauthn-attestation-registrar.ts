@@ -163,7 +163,9 @@ export class AdminWebAuthnAttestationRegistrar{
    attestation=asMap(outerReader.read());
    if(outerReader.offset!==attestationBytes.length)throw new Error("ATTESTATION_OBJECT_TRAILING_BYTES");
   }catch{return fail("ATTESTATION_OBJECT_INVALID");}
-  if(clientData?.type!=="webauthn.create"||clientData?.origin!==this.adminOrigin||clientData?.crossOrigin===true||typeof clientData?.challenge!=="string")
+  if(clientData?.type!=="webauthn.create"||clientData?.origin!==this.adminOrigin||
+     (clientData?.crossOrigin!==undefined&&typeof clientData.crossOrigin!=="boolean")||
+     clientData?.crossOrigin===true||typeof clientData?.challenge!=="string")
    return fail("CLIENT_DATA_INVALID");
   let challenge:Buffer;try{challenge=decode(clientData.challenge);}catch{return fail("CLIENT_DATA_INVALID");}
   const fmt=getText(attestation,"fmt"),authData=getText(attestation,"authData"),stmt=getText(attestation,"attStmt");
@@ -172,11 +174,12 @@ export class AdminWebAuthnAttestationRegistrar{
   try{auth=getBytes(authData);statement=asMap(stmt);}catch{return fail("ATTESTATION_OBJECT_INVALID");}
   if(auth.length<55)return fail("AUTHENTICATOR_DATA_INVALID");
   const flags=auth[32]!;
-  if((flags&0x01)===0||(flags&0x04)===0||(flags&0x40)===0)return fail("AUTHENTICATOR_DATA_INVALID");
+  if((flags&0x01)===0||(flags&0x04)===0||(flags&0x40)===0||(flags&0x22)!==0)return fail("AUTHENTICATOR_DATA_INVALID");
   const rootHash=auth.subarray(0,32);
   const aaguid=auth.subarray(37,53).toString("hex");
   const credentialLength=auth.readUInt16BE(53);
-  if(credentialLength<16||auth.length<55+credentialLength+1)return fail("AUTHENTICATOR_DATA_INVALID");
+  if(credentialLength<16||credentialLength>1023||auth.length<55+credentialLength+1||
+     aaguid==="00000000000000000000000000000000")return fail("AUTHENTICATOR_DATA_INVALID");
   const embeddedCredential=auth.subarray(55,55+credentialLength);
   if(!embeddedCredential.equals(credentialId))return fail("CREDENTIAL_ID_MISMATCH");
   const coseStart=55+credentialLength;
