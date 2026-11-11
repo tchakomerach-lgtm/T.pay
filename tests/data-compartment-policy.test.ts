@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import {authorizeDataCompartment,type DataCompartmentRequest} from "../packages/security/data-compartment-policy.js";
 const base:DataCompartmentRequest={
  plane:"ORGANIZATION",now:"2026-11-11T10:00:00.000Z",tenantId:"tenant-1",organizationId:"school-1",
- subjectRef:"opaque-student-subject",moduleCode:"school",compartmentId:"student-academic",vaultId:"vault-academic",
- dataClass:"academic",recordId:"grade-record-1",recordState:"active",
+ subjectRef:"opaque-student-subject",moduleCode:"school",requestedPermission:"read",
+ compartment:{id:"student-academic",tenantId:"tenant-1",organizationId:"school-1",subjectRef:"opaque-student-subject",moduleCode:"school",vaultId:"vault-academic",dataClass:"academic"},
+ compartmentId:"student-academic",vaultId:"vault-academic",dataClass:"academic",recordId:"grade-record-1",recordState:"active",
  actor:{id:"teacher-1",kind:"user",active:true},
  session:{id:"session-1",kind:"user",expiresAt:"2026-11-11T10:10:00.000Z",revokedAt:null,userSessionId:"session-1",privilegedSessionId:null,assurance:"standard"},
  grant:{tenantId:"tenant-1",recordId:"grade-record-1",compartmentId:"student-academic",actorId:"teacher-1",actorKind:"user",permission:"read",purposeCode:"grade-entry-review",validFrom:"2026-11-11T09:00:00.000Z",validUntil:"2026-11-11T10:05:00.000Z",revokedAt:null,maxUses:5,usesCount:1}
@@ -13,7 +14,7 @@ test("exact scoped record grant allows the matching actor",()=>{assert.equal(aut
 test("a compromised session alone has no access without exact grant",()=>{
  assert.deepEqual(authorizeDataCompartment({...base,grant:{...base.grant,actorId:"another-user"}}),{allowed:false,reason:"GRANT_SCOPE_MISMATCH"});
 });
-test("a grant for one student record cannot open another record or compartment",()=>{
+test("permission and compartment metadata must match exactly",()=>{\n assert.deepEqual(authorizeDataCompartment({...base,requestedPermission:"decrypt"}),{allowed:false,reason:"GRANT_PERMISSION_MISMATCH"});\n assert.deepEqual(authorizeDataCompartment({...base,compartment:{...base.compartment,tenantId:"tenant-other"}}),{allowed:false,reason:"TENANT_MISMATCH"});\n assert.deepEqual(authorizeDataCompartment({...base,compartment:{...base.compartment,organizationId:"other-school"}}),{allowed:false,reason:"ORGANIZATION_MISMATCH"});\n});\ntest("a grant for one student record cannot open another record or compartment",()=>{
  assert.deepEqual(authorizeDataCompartment({...base,recordId:"different-student-record"}),{allowed:false,reason:"GRANT_SCOPE_MISMATCH"});
  assert.deepEqual(authorizeDataCompartment({...base,compartmentId:"student-health"}),{allowed:false,reason:"GRANT_SCOPE_MISMATCH"});
 });
