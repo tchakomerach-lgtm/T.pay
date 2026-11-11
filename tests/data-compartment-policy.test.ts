@@ -16,7 +16,7 @@ test("a compromised session alone has no access without exact grant",()=>{
 });
 test("permission and compartment metadata must match exactly",()=>{\n assert.deepEqual(authorizeDataCompartment({...base,requestedPermission:"decrypt"}),{allowed:false,reason:"GRANT_PERMISSION_MISMATCH"});\n assert.deepEqual(authorizeDataCompartment({...base,compartment:{...base.compartment,tenantId:"tenant-other"}}),{allowed:false,reason:"TENANT_MISMATCH"});\n assert.deepEqual(authorizeDataCompartment({...base,compartment:{...base.compartment,organizationId:"other-school"}}),{allowed:false,reason:"ORGANIZATION_MISMATCH"});\n});\ntest("a grant for one student record cannot open another record or compartment",()=>{
  assert.deepEqual(authorizeDataCompartment({...base,recordId:"different-student-record"}),{allowed:false,reason:"GRANT_SCOPE_MISMATCH"});
- assert.deepEqual(authorizeDataCompartment({...base,compartmentId:"student-health"}),{allowed:false,reason:"GRANT_SCOPE_MISMATCH"});
+ assert.deepEqual(authorizeDataCompartment({...base,compartmentId:"student-health",compartment:{...base.compartment,id:"student-health"}}),{allowed:false,reason:"GRANT_SCOPE_MISMATCH"});
 });
 test("expired, revoked, exhausted and sealed data fail closed",()=>{
  assert.deepEqual(authorizeDataCompartment({...base,grant:{...base.grant,validUntil:"2026-11-11T09:59:59.000Z"}}),{allowed:false,reason:"GRANT_EXPIRED"});
