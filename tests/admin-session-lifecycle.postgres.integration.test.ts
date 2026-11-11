@@ -71,7 +71,7 @@ test("P062 live PostgreSQL: verified WebAuthn assertion issues hashed Admin sess
   sessionToken=issued.sessionToken;sessionId=issued.sessionId;
   const stored=await admin.query("SELECT token_hash,assurance,security_plane FROM tpay_admin_sessions WHERE id=$1",[sessionId]);
   assert.equal(stored.rowCount,1);
-  assert.notEqual(stored.rows[0]?.token_hash.toString("hex"),sha(sessionToken).toString("hex"));
+  assert.notEqual(stored.rows[0]?.token_hash.toString("hex"),sessionToken);
   assert.equal(stored.rows[0]?.token_hash.toString("hex"),sha(sessionToken).toString("hex"));
   assert.equal(stored.rows[0]?.assurance,"webauthn_uv");
   assert.equal(stored.rows[0]?.security_plane,"ADMIN_CONTROL");
