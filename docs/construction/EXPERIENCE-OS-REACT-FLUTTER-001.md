@@ -7,7 +7,7 @@ Shared navigation/token contract: `apps/experience-web/design-contract.json`; Fl
 ## Delivered
 - New React/Vite responsive T.Pay Experience OS application, isolated from existing School OS and investor prototype.
 - Eighteen module workspaces, global module navigation/search, responsive drawer, light/dark theme and visible preview/connection states.
-- Flutter mobile application with adaptive navigation, module cards and Material 3 theme.
+- Flutter mobile application with adaptive navigation, module cards, Material 3 theme and generated Android Gradle host project.
 - Shared versioned navigation and design-token contract mirrored in Flutter assets.
 - API clients reject non-HTTPS endpoints, expired sessions, cross-origin path escape and redirects; credentials are memory-only.
 - Main CI includes React production build and publishes the compiled Web artifact; dedicated Flutter workflow performs analysis, tests and debug APK artifact build.
