@@ -24,7 +24,7 @@ test("P060 live PostgreSQL enforces organization-scoped class and enrollment RLS
  try{
   await applyMigrations(client,pathToFileURL(join(process.cwd(),"migrations")+"/"));
   await client.query("BEGIN");
-  await client.query("DO $ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='tpay_school_rls_test') THEN CREATE ROLE tpay_school_rls_test NOLOGIN; END IF; END $;");
+  await client.query("DO 'BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ''tpay_school_rls_test'') THEN CREATE ROLE tpay_school_rls_test NOLOGIN; END IF; END';");
   await client.query("GRANT SELECT,INSERT ON education_classes,education_enrollments TO tpay_school_rls_test");
   await client.query("INSERT INTO education_students(student_id,tenant_id,organization_id,lifecycle) VALUES($1,$2,$3,'ACTIVE'),($4,$5,$6,'ACTIVE')",
    [studentA,tenantA,organizationA,studentB,tenantB,organizationB]);
