@@ -34,6 +34,9 @@ jobs:
       - name: Test
         working-directory: mobile/tpay_flutter
         run: flutter test --reporter expanded
+      - name: Generate official Android Gradle host project
+        working-directory: mobile/tpay_flutter
+        run: flutter create --platforms=android --org com.tpay --project-name tpay_mobile .
       - name: Build Android debug APK
         working-directory: mobile/tpay_flutter
         run: flutter build apk --debug
