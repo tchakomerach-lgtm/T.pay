@@ -41,3 +41,15 @@ void main() {
     expect(find.text('Aucune donnée métier n’est inventée.'), findsOneWidget);
   });
 }
+
+testWidgets('shows School OS without inventing records when no secure session is injected', (tester) async {
+  await tester.pumpWidget(const TPayMobileApp(contract: contract));
+  await tester.pumpAndSettle();
+
+  await tester.tap(find.text('School OS').first);
+  await tester.pumpAndSettle();
+
+  expect(find.text('SCHOOL OS · ESPACE SCOLAIRE'), findsOneWidget);
+  expect(find.text('Connexion sécurisée requise pour charger les classes réelles.'), findsOneWidget);
+  expect(find.text('Aucune donnée de démonstration n’est affichée.'), findsOneWidget);
+});
