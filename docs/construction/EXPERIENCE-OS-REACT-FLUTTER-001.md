@@ -2,7 +2,7 @@
 
 Status: renderer foundation implemented; domain API integration remains incremental.
 Design source: `docs/bibles/TPAY-DESIGN-BIBLE-IMPLEMENTATION.md`, DB-071 and DB-072.
-Shared navigation/token contract: `apps/experience-web/design-contract.json`; Flutter consumes its synchronized asset copy.
+Shared navigation/token contract: `apps/experience-web/design-contract.json`; Flutter consumes its synchronized asset copy. CI compares both files byte-for-byte.
 
 ## Delivered
 - New React/Vite responsive T.Pay Experience OS application, isolated from existing School OS and investor prototype.
