@@ -10,7 +10,7 @@ Shared navigation/token contract: `apps/experience-web/design-contract.json`; Fl
 - Flutter mobile application with adaptive navigation, module cards and Material 3 theme.
 - Shared versioned navigation and design-token contract mirrored in Flutter assets.
 - API clients reject non-HTTPS endpoints, expired sessions, cross-origin path escape and redirects; credentials are memory-only.
-- Main CI includes React production build; dedicated Flutter workflow performs analysis, tests and debug APK artifact build.
+- Main CI includes React production build and publishes the compiled Web artifact; dedicated Flutter workflow performs analysis, tests and debug APK artifact build.
 
 ## Explicit limits
 This is the renderer foundation, not full production implementation of all 18 business domains. The current API server is primarily the authenticated Education API. Other module endpoints must be registered and integrated individually. No fabricated balances, customer records, ledger rows or payment confirmations are displayed. Flutter session persistence, login/refresh/revocation, biometrics, offline reconciliation, deep links and push notifications remain separate AUTH/security/platform bricks. Existing Android WebView shell is preserved until native terrain acceptance.
