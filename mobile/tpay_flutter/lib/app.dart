@@ -309,7 +309,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
               width: 70,
               height: 70,
               alignment: Alignment.center,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: const RadialGradient(
                   center: Alignment(-0.35, -0.4),
@@ -555,7 +555,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
             alignment: Alignment.center,
             transform: Matrix4.identity()
               ..setEntry(3, 2, 0.001)
-              ..translate(0.0, (1 - value) * 12)
+              ..translateByDouble(0.0, (1 - value) * 12, 0.0)
               ..rotateX((1 - value) * 0.035),
             child: child,
           ),
