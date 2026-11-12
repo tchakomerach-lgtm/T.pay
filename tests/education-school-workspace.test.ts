@@ -57,6 +57,7 @@ test("School classes endpoint returns tenant-scoped class summaries through tran
   const body=await response.json() as any;
   assert.equal(response.status,200);
   assert.deepEqual(body.data.items,rows);
+  assert.ok(db.calls.some(call=>call.sql.includes("INSERT INTO api_request_audit")));
   assert.deepEqual(client.calls[1]?.values,["tenant-1","org-1"]);
   assert.match(client.calls[2]!.sql,/c\.tenant_id=\$1 AND c\.organization_id=\$2/);
   assert.deepEqual(client.calls[2]?.values,["tenant-1","org-1","2026-2027"]);
