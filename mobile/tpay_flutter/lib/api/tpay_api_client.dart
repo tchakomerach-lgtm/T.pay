@@ -1,0 +1,9 @@
+import 'dart:convert';import 'dart:io';
+class TPayApiClient{
+ TPayApiClient({required String baseUrl,required this.accessToken,required this.expiresAt}):_base=Uri.parse(baseUrl){if(_base.scheme!='https')throw ArgumentError('TPAY_HTTPS_REQUIRED');if(accessToken.isEmpty||!expiresAt.isAfter(DateTime.now()))throw ArgumentError('TPAY_SESSION_INVALID');}
+ final Uri _base;final String accessToken;final DateTime expiresAt;final HttpClient _client=HttpClient()..connectionTimeout=const Duration(seconds:15);
+ Uri _uri(String path){final target=_base.resolve(path.startsWith('/')?path.substring(1):path);if(target.scheme!='https'||target.origin!=_base.origin)throw ArgumentError('TPAY_API_ORIGIN_INVALID');return target;}
+ Future<HttpClientResponse> get(String path) async{_valid();final request=await _client.getUrl(_uri(path));request.followRedirects=false;request.headers..set(HttpHeaders.authorizationHeader,'Bearer $accessToken')..set(HttpHeaders.acceptHeader,'application/json');return request.close();}
+ Future<HttpClientResponse> post(String path,Object body,String idempotencyKey) async{_valid();if(idempotencyKey.trim().isEmpty)throw ArgumentError('TPAY_IDEMPOTENCY_KEY_REQUIRED');final request=await _client.postUrl(_uri(path));request.followRedirects=false;request.headers..set(HttpHeaders.authorizationHeader,'Bearer $accessToken')..set(HttpHeaders.acceptHeader,'application/json')..contentType=ContentType.json..set('x-idempotency-key',idempotencyKey);request.write(jsonEncode(body));return request.close();}
+ void _valid(){if(!expiresAt.isAfter(DateTime.now()))throw StateError('TPAY_SESSION_EXPIRED');}void close()=>_client.close(force:true);
+}
