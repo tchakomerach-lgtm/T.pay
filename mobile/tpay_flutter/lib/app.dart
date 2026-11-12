@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'api/tpay_api_client.dart';
 
 const _brand = Color(0xff0f8f68);
-const _ink = Color(0xff17212b);
 const _muted = Color(0xff718078);
 const _line = Color(0xffdde3e8);
 
@@ -74,7 +73,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
     for (final response in responses) {
       final body = jsonDecode(await response.transform(utf8.decoder).join());
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw StateError('SCHOOL_API_HTTP_\${response.statusCode}');
+        throw StateError('SCHOOL_API_HTTP_${response.statusCode}');
       }
       decoded.add(body as Map<String, dynamic>);
     }
