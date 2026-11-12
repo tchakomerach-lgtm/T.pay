@@ -188,9 +188,11 @@ class _TPayHomePageState extends State<TPayHomePage> {
               border: Border.all(color: const Color(0xfff0e1bb)),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Text(
-              'APERÇU — données métier non chargées, aucune opération réelle exécutée.',
-              style: TextStyle(fontSize: 10, color: Color(0xff795f26)),
+            child: Text(
+              school && widget.apiClient != null
+                  ? 'DONNÉES SERVEUR — consultation en lecture seule, aucune mutation exécutée.'
+                  : 'APERÇU — données métier non chargées, aucune opération réelle exécutée.',
+              style: const TextStyle(fontSize: 10, color: Color(0xff795f26)),
             ),
           ),
           const SizedBox(height: 22),
