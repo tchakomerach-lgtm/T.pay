@@ -282,7 +282,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(18),
-          boxShadow: [
+          boxShadow: const [
             BoxShadow(color: Color(0x330b674d), blurRadius: 24, offset: Offset(0, 12)),
           ],
         ),
@@ -315,7 +315,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
                   center: Alignment(-0.35, -0.4),
                   colors: [Color(0xffd7ffec), Color(0xff57d6a4), Color(0xff08714f)],
                 ),
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(color: Color(0x55002f20), blurRadius: 18, offset: Offset(0, 10)),
                 ],
               ),
