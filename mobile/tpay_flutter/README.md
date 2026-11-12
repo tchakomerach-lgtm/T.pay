@@ -10,6 +10,7 @@
 flutter pub get
 flutter analyze --fatal-infos
 flutter test
+flutter create --platforms=android --org com.tpay --project-name tpay_mobile .
 flutter run
 ```
 
