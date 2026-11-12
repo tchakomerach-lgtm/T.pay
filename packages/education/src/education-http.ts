@@ -220,7 +220,9 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       "e.class_id,e.academic_year,e.state AS enrollment_state "+
       "FROM education_students s LEFT JOIN education_actors a "+
       "ON a.tenant_id=s.tenant_id AND a.organization_id=s.organization_id AND a.actor_id=s.student_id AND a.kind='STUDENT' AND a.active=true "+
-      "LEFT JOIN education_enrollments e ON e.tenant_id=s.tenant_id AND e.organization_id=s.organization_id AND e.student_id=s.student_id AND e.state='ENROLLED' "+
+      "LEFT JOIN LATERAL (SELECT e0.class_id,e0.academic_year,e0.state FROM education_enrollments e0 "+
+      "WHERE e0.tenant_id=s.tenant_id AND e0.organization_id=s.organization_id AND e0.student_id=s.student_id AND e0.state='ENROLLED' "+
+      "ORDER BY e0.academic_year DESC,e0.created_at DESC LIMIT 1) e ON true "+
       "WHERE s.tenant_id=$1 AND s.organization_id=$2 "+(filters.length?"AND "+filters.join(" AND ")+" ":"")+
       "ORDER BY s.updated_at DESC,s.student_id LIMIT $"+values.length,values);
     data={items:result.rows};
