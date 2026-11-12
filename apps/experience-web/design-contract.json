@@ -1,0 +1,134 @@
+{
+  "version": "1.0.0",
+  "product": "T.Pay OS",
+  "language": "fr",
+  "tokens": {
+    "brand": "#0F8F68",
+    "mint": "#35C99A",
+    "ink": "#17212B",
+    "canvas": "#F6F8FA",
+    "surface": "#FFFFFF",
+    "line": "#DDE3E8",
+    "muted": "#718078"
+  },
+  "navigation": [
+    {
+      "id": "home",
+      "label": "Vue d'ensemble",
+      "group": "Espace de travail",
+      "description": "Vue consolidée des espaces et activités."
+    },
+    {
+      "id": "organizations",
+      "label": "Organisations",
+      "group": "Espace de travail",
+      "description": "Identités, membres et espaces de travail."
+    },
+    {
+      "id": "social",
+      "label": "Réseau social",
+      "group": "Communauté",
+      "description": "Publications et communautés."
+    },
+    {
+      "id": "opportunity",
+      "label": "Opportunités & Work",
+      "group": "Communauté",
+      "description": "Compétences, missions et contrats."
+    },
+    {
+      "id": "tontine",
+      "label": "Tontine communautaire",
+      "group": "Communauté",
+      "description": "Groupes, cycles et gouvernance."
+    },
+    {
+      "id": "education",
+      "label": "School OS",
+      "group": "Verticales",
+      "description": "Classes, élèves, familles et évaluations."
+    },
+    {
+      "id": "microfinance",
+      "label": "Microfinance",
+      "group": "Verticales",
+      "description": "Clients, agents, agences et dossiers."
+    },
+    {
+      "id": "subsidy",
+      "label": "School Subsidy",
+      "group": "Verticales",
+      "description": "Garanties, fournitures et recouvrement."
+    },
+    {
+      "id": "finance",
+      "label": "Financial Core",
+      "group": "Finance",
+      "description": "Ledger, paiements et rapprochements."
+    },
+    {
+      "id": "wallet",
+      "label": "Wallet",
+      "group": "Finance",
+      "description": "Comptes et reçus autorisés."
+    },
+    {
+      "id": "marketplace",
+      "label": "Marketplace",
+      "group": "Économie",
+      "description": "Catalogue, commandes et fournisseurs."
+    },
+    {
+      "id": "investment",
+      "label": "Investment Core",
+      "group": "Finance",
+      "description": "Scénarios et risques."
+    },
+    {
+      "id": "ai",
+      "label": "AI Core",
+      "group": "Intelligence",
+      "description": "Agents, permissions et approbations."
+    },
+    {
+      "id": "documents",
+      "label": "Documents",
+      "group": "Pilotage",
+      "description": "Documents et modèles versionnés."
+    },
+    {
+      "id": "workflows",
+      "label": "Workflows & projets",
+      "group": "Pilotage",
+      "description": "Tâches et validations."
+    },
+    {
+      "id": "calendar",
+      "label": "Temps & réservations",
+      "group": "Pilotage",
+      "description": "Calendriers et ressources."
+    },
+    {
+      "id": "superadmin",
+      "label": "Super Admin",
+      "group": "Gouvernance",
+      "description": "Politiques, accès et audit."
+    },
+    {
+      "id": "ecosystem",
+      "label": "Autres verticales",
+      "group": "Écosystème",
+      "description": "Agriculture, transport, santé et services."
+    }
+  ],
+  "states": [
+    "loading",
+    "success",
+    "warning",
+    "error",
+    "offline",
+    "syncing",
+    "conflict",
+    "permission-denied"
+  ]
+}
