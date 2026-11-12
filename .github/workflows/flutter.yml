@@ -18,11 +18,11 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: subosito/flutter-action@395322a6cded4e9ed503aebd4cc1965625f8e59a # v2.20.0
-        with:
-          flutter-version: "3.35.7"
-          channel: stable
-          cache: true
+      - name: Install pinned Flutter SDK without unpinned nested actions
+        run: |
+          git clone --depth 1 --branch 3.35.7 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          flutter --version
       - name: Resolve dependencies
         working-directory: mobile/tpay_flutter
         run: flutter pub get
