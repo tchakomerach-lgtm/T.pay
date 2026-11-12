@@ -54,6 +54,8 @@ jobs:
         run: npm run web:build
       - name: Investor prototype production build
         run: npm run investor:build
+      - name: Verify shared Web/Flutter design contract
+        run: npm run design:contract:check
       - name: T.Pay Experience OS React renderer build
         run: npm run experience:build
       - name: Production dependency audit
