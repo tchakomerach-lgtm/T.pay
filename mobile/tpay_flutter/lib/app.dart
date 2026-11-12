@@ -306,7 +306,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
         duration: Duration(milliseconds: 260 + (index % 5) * 45),
         curve: Curves.easeOutCubic,
         builder: (context, value, child) => Opacity(
-          opacity: value.clamp(0, 1),
+          opacity: value.clamp(0.0, 1.0).toDouble(),
           child: Transform(
             alignment: Alignment.center,
             transform: Matrix4.identity()
