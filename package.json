@@ -21,7 +21,9 @@
     "security:fortress": "node scripts/security-fortress-check.mjs",
     "test:vault": "npm run build && node --test dist/tests/fortress-vault.test.js",
     "investor:dev": "vite --config apps/investor-demo/vite.config.ts",
-    "investor:build": "vite build --config apps/investor-demo/vite.config.ts"
+    "investor:build": "vite build --config apps/investor-demo/vite.config.ts",
+    "experience:dev": "vite --config apps/experience-web/vite.config.ts",
+    "experience:build": "vite build --config apps/experience-web/vite.config.ts"
   },
   "engines": {
     "node": ">=22"
