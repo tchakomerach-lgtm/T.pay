@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "product": "T.Pay OS",
   "language": "fr",
   "tokens": {
@@ -130,5 +130,35 @@
     "syncing",
     "conflict",
     "permission-denied"
-  ]
+  ],
+  "motion3d": {
+    "principles": [
+      "progressive-depth",
+      "short-transitions",
+      "no-motion-for-critical-feedback",
+      "reduced-motion-respected"
+    ],
+    "web": {
+      "perspectivePx": 1400,
+      "fastMs": 160,
+      "baseMs": 280,
+      "slowMs": 520,
+      "easing": "cubic-bezier(.2,.75,.25,1)"
+    },
+    "mobile": {
+      "entryMs": 320,
+      "cardStaggerMs": 45,
+      "perspective": 0.001,
+      "curve": "easeOutCubic"
+    },
+    "accessibility": {
+      "respectPrefersReducedMotion": true,
+      "disableDecorativeMotionOnLowPower": true
+    },
+    "performance": {
+      "noContinuousGpuAnimationOnLists": true,
+      "no3dForFinancialConfirmation": true,
+      "avoidHeavyWebGLForNavigation": true
+    }
+  }
 }
