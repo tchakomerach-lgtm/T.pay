@@ -23,7 +23,8 @@
     "investor:dev": "vite --config apps/investor-demo/vite.config.ts",
     "investor:build": "vite build --config apps/investor-demo/vite.config.ts",
     "experience:dev": "vite --config apps/experience-web/vite.config.ts",
-    "experience:build": "vite build --config apps/experience-web/vite.config.ts"
+    "experience:build": "vite build --config apps/experience-web/vite.config.ts",
+    "design:contract:check": "node scripts/check-design-contract.mjs"
   },
   "engines": {
     "node": ">=22"
