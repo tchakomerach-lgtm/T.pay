@@ -201,6 +201,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       "WHERE c.tenant_id=$1 AND c.organization_id=$2"+yearFilter+
       " GROUP BY c.tenant_id,c.organization_id,c.class_id ORDER BY c.academic_year DESC,c.grade_level,c.name LIMIT 200",values);
     data={items:result.rows};
+    await new ApiGatewayRepository(deps.db).audit({organizationId,requestId:correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path,resource:"education_classes"})});
     json(res,200,buildApiSuccess("v1",correlationId,data),correlationId);return;
    }
    if(r[0]==="student-list"){
@@ -226,6 +227,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       "WHERE s.tenant_id=$1 AND s.organization_id=$2 "+(filters.length?"AND "+filters.join(" AND ")+" ":"")+
       "ORDER BY s.updated_at DESC,s.student_id LIMIT $"+values.length,values);
     data={items:result.rows};
+    await new ApiGatewayRepository(deps.db).audit({organizationId,requestId:correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path,resource:"education_students",limit:limitRaw})});
     json(res,200,buildApiSuccess("v1",correlationId,data),correlationId);return;
    }
    
