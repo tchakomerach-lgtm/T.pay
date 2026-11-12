@@ -77,6 +77,20 @@ CREATE POLICY education_enrollments_tenant_read
     AND organization_id = NULLIF(current_setting('tpay.organization_id', true), '')
   );
 
+CREATE POLICY education_classes_tenant_insert
+  ON education_classes FOR INSERT
+  WITH CHECK (
+    tenant_id = NULLIF(current_setting('tpay.tenant_id', true), '')
+    AND organization_id = NULLIF(current_setting('tpay.organization_id', true), '')
+  );
+
+CREATE POLICY education_enrollments_tenant_insert
+  ON education_enrollments FOR INSERT
+  WITH CHECK (
+    tenant_id = NULLIF(current_setting('tpay.tenant_id', true), '')
+    AND organization_id = NULLIF(current_setting('tpay.organization_id', true), '')
+  );
+
 COMMENT ON TABLE education_classes IS
   'Organization-scoped School OS class catalog. Class writes are intentionally not exposed by this read-only API brick.';
 COMMENT ON TABLE education_enrollments IS
