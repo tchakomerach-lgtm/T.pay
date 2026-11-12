@@ -58,6 +58,13 @@ jobs:
         run: npm run design:contract:check
       - name: T.Pay Experience OS React renderer build
         run: npm run experience:build
+      - name: Upload compiled React Web renderer
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: TPay-Experience-Web
+          path: dist/experience-web/
+          if-no-files-found: error
+          retention-days: 14
       - name: Production dependency audit
         run: npm audit --omit=dev --audit-level=high
 
