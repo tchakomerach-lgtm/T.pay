@@ -24,6 +24,7 @@ jobs:
           export PATH="$RUNNER_TEMP/flutter/bin:$PATH"
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
           flutter --version
+          flutter doctor -v
       - name: Resolve dependencies
         working-directory: mobile/tpay_flutter
         run: flutter pub get
