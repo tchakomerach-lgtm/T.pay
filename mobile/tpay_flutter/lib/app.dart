@@ -282,7 +282,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(18),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(color: Color(0x330b674d), blurRadius: 24, offset: Offset(0, 12)),
           ],
         ),
@@ -311,7 +311,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
               alignment: Alignment.center,
               decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: const RadialGradient(
+                gradient: RadialGradient(
                   center: Alignment(-0.35, -0.4),
                   colors: [Color(0xffd7ffec), Color(0xff57d6a4), Color(0xff08714f)],
                 ),
@@ -555,7 +555,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
             alignment: Alignment.center,
             transform: Matrix4.identity()
               ..setEntry(3, 2, 0.001)
-              ..translateByDouble(0.0, (1 - value) * 12, 0.0)
+              ..translateByDouble(0.0, (1 - value) * 12, 0.0, 1.0)
               ..rotateX((1 - value) * 0.035),
             child: child,
           ),
