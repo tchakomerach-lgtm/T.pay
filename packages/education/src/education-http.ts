@@ -78,6 +78,8 @@ function route(path:string){
  const parts=path.split("/").filter(Boolean);
  if(parts[0]!=="v1"||parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
+ if(parts[2]==="classes"&&parts.length===3)return ["class-list"] as const;
+ if(parts[2]==="students"&&parts.length===3)return ["student-list"] as const;
  if(parts[2]==="sync"&&parts[3]==="events"&&parts.length===4)return ["sync"] as const;
  if(parts[2]==="attendance"&&parts.length===3)return ["attendance"] as const;
  if(parts[2]==="work-items"&&parts.length===3)return ["work-create"] as const;
@@ -87,7 +89,21 @@ function route(path:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="actor"?"org.read":"member.manage";}
+function permissionFor(kind:string):Permission{return kind==="actor"||kind==="class-list"||kind==="student-list"?"org.read":"member.manage";}
+
+async function tenantScopedRead(deps:SchoolApiDependencies,tenantId:string,organizationId:string,sql:string,values:unknown[]=[]):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>{
+ const client=await deps.syncClient();
+ try{
+  await client.query("BEGIN READ ONLY");
+  await client.query("SELECT set_config('tpay.tenant_id',$1,true),set_config('tpay.organization_id',$2,true)",[tenantId,organizationId]);
+  const result=await client.query(sql,values);
+  await client.query("COMMIT");
+  return result;
+ }catch(error){
+  try{await client.query("ROLLBACK");}catch{}
+  throw error;
+ }finally{client.release?.();}
+}
 export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
 
 export function createSchoolApiServer(deps:SchoolApiDependencies, options:SchoolApiServerOptions={}){
@@ -169,6 +185,48 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     }
     req.on("close",()=>unsubscribe());return;
    }
+   if(r[0]==="class-list"){
+    if(method!=="GET")throw new Error("EDUCATION_READ_METHOD_REQUIRED");
+    const query=new URL(rawUrl,"https://tpay.invalid").searchParams;
+    const academicYear=query.get("academicYear");
+    if(academicYear && !/^\d{4}[-/]\d{4}$/.test(academicYear))throw new Error("ACADEMIC_YEAR_INVALID");
+    const values:unknown[]=[auth.tenantId,organizationId];
+    let yearFilter="";
+    if(academicYear){values.push(academicYear);yearFilter=" AND c.academic_year=$3";}
+    const result=await tenantScopedRead(deps,auth.tenantId,organizationId,
+      "SELECT c.class_id,c.name,c.grade_level,c.academic_year,c.capacity,c.status,c.version,c.updated_at,"+
+      "COUNT(e.enrollment_id) FILTER (WHERE e.state='ENROLLED')::integer AS enrolled_count "+
+      "FROM education_classes c LEFT JOIN education_enrollments e "+
+      "ON e.tenant_id=c.tenant_id AND e.organization_id=c.organization_id AND e.class_id=c.class_id AND e.state='ENROLLED' "+
+      "WHERE c.tenant_id=$1 AND c.organization_id=$2"+yearFilter+
+      " GROUP BY c.tenant_id,c.organization_id,c.class_id ORDER BY c.academic_year DESC,c.grade_level,c.name LIMIT 200",values);
+    data={items:result.rows};
+    json(res,200,buildApiSuccess("v1",correlationId,data),correlationId);return;
+   }
+   if(r[0]==="student-list"){
+    if(method!=="GET")throw new Error("EDUCATION_READ_METHOD_REQUIRED");
+    const query=new URL(rawUrl,"https://tpay.invalid").searchParams;
+    const classId=query.get("classId");
+    const search=query.get("search")?.trim();
+    const limitRaw=Number(query.get("limit")??"50");
+    if(!Number.isInteger(limitRaw)||limitRaw<1||limitRaw>100)throw new Error("STUDENT_PAGE_LIMIT_INVALID");
+    const values:unknown[]=[auth.tenantId,organizationId];
+    const filters:string[]=[];
+    if(classId){values.push(classId);filters.push("e.class_id=$"+values.length);}
+    if(search){values.push("%"+search.slice(0,80)+"%");filters.push("(s.student_id ILIKE $"+values.length+" OR COALESCE(a.data->>'display_name','') ILIKE $"+values.length+")");}
+    values.push(limitRaw);
+    const result=await tenantScopedRead(deps,auth.tenantId,organizationId,
+      "SELECT s.student_id,s.lifecycle,s.version,s.updated_at,COALESCE(a.data->>'display_name',s.student_id) AS display_name,"+
+      "e.class_id,e.academic_year,e.state AS enrollment_state "+
+      "FROM education_students s LEFT JOIN education_actors a "+
+      "ON a.tenant_id=s.tenant_id AND a.organization_id=s.organization_id AND a.actor_id=s.student_id AND a.kind='STUDENT' AND a.active=true "+
+      "LEFT JOIN education_enrollments e ON e.tenant_id=s.tenant_id AND e.organization_id=s.organization_id AND e.student_id=s.student_id AND e.state='ENROLLED' "+
+      "WHERE s.tenant_id=$1 AND s.organization_id=$2 "+(filters.length?"AND "+filters.join(" AND ")+" ":"")+
+      "ORDER BY s.updated_at DESC,s.student_id LIMIT $"+values.length,values);
+    data={items:result.rows};
+    json(res,200,buildApiSuccess("v1",correlationId,data),correlationId);return;
+   }
+   
    const bodyText=await readBody(req);
    if(method!=="GET"){
      const contentType=String(req.headers["content-type"]??"").split(";")[0]?.trim().toLowerCase()??"";
