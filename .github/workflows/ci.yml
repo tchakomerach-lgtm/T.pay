@@ -54,6 +54,8 @@ jobs:
         run: npm run web:build
       - name: Investor prototype production build
         run: npm run investor:build
+      - name: T.Pay Experience OS React renderer build
+        run: npm run experience:build
       - name: Production dependency audit
         run: npm audit --omit=dev --audit-level=high
 
