@@ -1,0 +1,43 @@
+name: T.Pay Flutter Mobile
+on:
+  push:
+    branches: [main]
+    paths: ["mobile/tpay_flutter/**", ".github/workflows/flutter.yml"]
+  pull_request:
+    branches: [main]
+    paths: ["mobile/tpay_flutter/**", ".github/workflows/flutter.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tpay-flutter-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: subosito/flutter-action@395322a6cded4e9ed503aebd4cc1965625f8e59a # v2.20.0
+        with:
+          flutter-version: "3.35.7"
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        working-directory: mobile/tpay_flutter
+        run: flutter pub get
+      - name: Analyze
+        working-directory: mobile/tpay_flutter
+        run: flutter analyze --fatal-infos
+      - name: Test
+        working-directory: mobile/tpay_flutter
+        run: flutter test --reporter expanded
+      - name: Build Android debug APK
+        working-directory: mobile/tpay_flutter
+        run: flutter build apk --debug
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: TPay-Flutter-debug
+          path: mobile/tpay_flutter/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
