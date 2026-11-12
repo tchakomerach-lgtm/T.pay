@@ -12,6 +12,12 @@ void main() {
         'description': 'Vue consolidée.',
       },
       {
+        'id': 'education',
+        'label': 'School OS',
+        'group': 'Verticales',
+        'description': 'Classes et inscriptions.',
+      },
+      {
         'id': 'organizations',
         'label': 'Organisations',
         'group': 'Espace de travail',
