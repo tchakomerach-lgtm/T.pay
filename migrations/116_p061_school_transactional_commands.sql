@@ -52,3 +52,23 @@ CREATE INDEX IF NOT EXISTS idx_school_command_audit_resource
 
 COMMENT ON TABLE education_school_command_audit IS
   'Append-only audit evidence for School OS mutations. Inserted in the same PostgreSQL transaction as domain changes and outbox event.';
+
+-- The command service must read student eligibility under the same tenant context.
+ALTER TABLE education_students FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS education_students_tenant_read ON education_students;
+CREATE POLICY education_students_tenant_read ON education_students
+  FOR SELECT
+  USING (
+    tenant_id = NULLIF(current_setting('tpay.tenant_id', true), '')
+    AND organization_id = NULLIF(current_setting('tpay.organization_id', true), '')
+  );
+
+-- Runtime grants are applied only when the dedicated least-privilege role exists.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='tpay_school_runtime') THEN
+    GRANT SELECT,INSERT,UPDATE ON education_classes,education_enrollments,education_students TO tpay_school_runtime;
+    GRANT INSERT ON education_school_command_audit,education_sync_outbox TO tpay_school_runtime;
+    GRANT SELECT,INSERT,UPDATE ON api_request_deduplication TO tpay_school_runtime;
+  END IF;
+END $$;
