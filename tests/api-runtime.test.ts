@@ -11,11 +11,11 @@ test("production runtime config fails closed without TLS and database settings",
     TPAY_TLS_CERT_FILE:"/tmp/cert.pem",
     TPAY_API_HOST:"127.0.0.1",
     TPAY_API_PORT:"9443",
-    TPAY_WEB_ORIGINS:"http://127.0.0.1:5173"
+    TPAY_WEB_ORIGINS:"https://127.0.0.1:5173"
   } as NodeJS.ProcessEnv);
   assert.equal(config.port,9443);
   assert.equal(config.host,"127.0.0.1");
-  assert.deepEqual(config.webOrigins,["http://127.0.0.1:5173"]);
+  assert.deepEqual(config.webOrigins,["https://127.0.0.1:5173"]);
 });
 
 test("school API exposes liveness and database readiness without authentication",async()=>{
