@@ -188,8 +188,12 @@ export async function enrollStudent(client:PostgresTransactionClient,ctx:SchoolC
   return runSchoolCommand(client,ctx,"enrollment.create",key,requestHash,async(db)=>{
     const klass=await lockClass(db,ctx,classId);
     if(klass.academic_year!==year)throw new Error("SCHOOL_ENROLLMENT_ACADEMIC_YEAR_MISMATCH");
+    await db.query(
+      "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+      [ctx.tenantId+"|"+ctx.organizationId+"|"+studentId]
+    );
     const student=await db.query<{student_id:string;lifecycle:string}>(
-      "SELECT student_id,lifecycle FROM education_students WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3 FOR UPDATE",
+      "SELECT student_id,lifecycle FROM education_students WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3",
       [ctx.tenantId,ctx.organizationId,studentId]
     );
     if(!student.rows[0])throw new Error("SCHOOL_STUDENT_NOT_FOUND");
