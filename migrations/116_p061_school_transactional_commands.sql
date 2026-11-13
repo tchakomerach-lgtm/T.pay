@@ -54,7 +54,6 @@ COMMENT ON TABLE education_school_command_audit IS
   'Append-only audit evidence for School OS mutations. Inserted in the same PostgreSQL transaction as domain changes and outbox event.';
 
 -- The command service must read student eligibility under the same tenant context.
-ALTER TABLE education_students FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS education_students_tenant_read ON education_students;
 CREATE POLICY education_students_tenant_read ON education_students
   FOR SELECT
