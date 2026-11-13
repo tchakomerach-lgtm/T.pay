@@ -88,3 +88,35 @@ test("P049 fortress request envelope rejects oversized URL/header and emits hard
   sse.body?.cancel();
  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
+
+test("Community Tontine portfolio read is authenticated, organization-scoped and audited",async()=>{
+ const auditDb=db();
+ let scopedSql="",scopedValues:unknown[]=[];
+ const server=createSchoolApiServer({
+  db:auditDb as any,
+  authenticate:async()=>auth(),
+  syncClient:()=>({
+   query:async(sql:string,values?:unknown[])=>{
+    if(sql.includes("SELECT g.id,g.name")){scopedSql=sql;scopedValues=values??[];return {rows:[{
+     id:"group-1",name:"Solidarité",country_code:"TG",currency:"XOF",frequency:"daily",contribution_mode:"fixed",
+     minimum_amount_minor:"1000",fixed_amount_minor:"2000",cycle_number:1,max_members:20,governance:"founder_managed",
+     status:"active",active_member_count:8,pending_member_count:1,latest_cycle:null,
+     confirmed_contribution_count:6,confirmed_contribution_minor:"12000"
+    }],rowCount:1};}
+    return {rows:[],rowCount:0};
+   },
+   release:()=>{}
+  }) as any
+ });
+ await new Promise<void>(resolve=>server.listen(0,resolve)); const port=(server.address() as any).port;
+ try{
+  const response=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups?status=active&limit=25`);
+  const body=await response.json() as any;
+  assert.equal(response.status,200,JSON.stringify(body));
+  assert.equal(body.ok,true);
+  assert.equal(body.data.items.length,1);
+  assert.equal(body.data.items[0].active_member_count,8);
+  assert.match(scopedSql,/g\.organization_id=\$1/);
+  assert.deepEqual(scopedValues.slice(0,2),["org-1","active"]);
+ }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});
