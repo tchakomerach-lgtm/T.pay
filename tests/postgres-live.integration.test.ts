@@ -220,7 +220,9 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
     await client.query("DELETE FROM ledger_lines WHERE organization_id=$1", [organizationId]);
     await client.query("DELETE FROM ledger_transactions WHERE organization_id=$1", [organizationId]);
     await client.query("DELETE FROM tontine_payment_intents WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM tontine_contributions WHERE organization_id=$1", [organizationId]);\n    await client.query("DELETE FROM tontine_memberships WHERE id=$1", [membershipId]);\n    await client.query("DELETE FROM tontine_groups WHERE id=$1", [groupId]);
+    await client.query("DELETE FROM tontine_contributions WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM tontine_memberships WHERE id=$1", [membershipId]);
+    await client.query("DELETE FROM tontine_groups WHERE id=$1", [groupId]);
     await client.query("DELETE FROM financial_accounts WHERE organization_id=$1", [organizationId]);
     await client.query("DELETE FROM organizations WHERE id=$1", [organizationId]);
     await client.end();
