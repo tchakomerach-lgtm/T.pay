@@ -91,6 +91,7 @@ function route(path:string,method:string){
  const parts=path.split("/").filter(Boolean);
  if(parts[0]!=="v1")return null;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===3&&method==="GET")return ["tontine-group-list"] as const;
+ if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===5&&parts[3]&&method==="GET"&&["members","cycles","contributions","governance","cases"].includes(parts[4]??""))return ["tontine-group-"+parts[4],parts[3]] as const;
  if(parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
  if(parts[2]==="classes"&&parts.length===3&&method==="GET")return ["class-list"] as const;
@@ -110,7 +111,7 @@ function route(path:string,method:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="actor"||kind==="class-list"||kind==="student-list"||kind==="tontine-group-list"?"org.read":kind.startsWith("class-")?"org.manage":"member.manage";}
+function permissionFor(kind:string):Permission{return kind==="actor"||kind==="class-list"||kind==="student-list"||kind==="tontine-group-list"||kind.startsWith("tontine-group-")?"org.read":kind.startsWith("class-")?"org.manage":"member.manage";}
 
 async function tenantScopedRead(deps:SchoolApiDependencies,tenantId:string,organizationId:string,sql:string,values:unknown[]=[]):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>{
  const client=await deps.syncClient();
@@ -235,6 +236,28 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      "ORDER BY g.created_at DESC,g.id LIMIT $"+values.length,values);
     data={items:result.rows,limit:limitRaw};
     await new ApiGatewayRepository(deps.db).audit({organizationId,requestId:correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path,resource:"tontine_groups",limit:limitRaw,status:status??"all"})});
+    json(res,200,buildApiSuccess("v1",correlationId,data),correlationId);return;
+   }
+   if(typeof r[0]==="string"&&r[0].startsWith("tontine-group-")&&r[1]){
+    if(method!=="GET")throw new Error("TONTINE_READ_METHOD_REQUIRED");
+    const groupId=r[1];
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(groupId))throw new Error("TONTINE_GROUP_ID_INVALID");
+    const query=new URL(rawUrl,"https://tpay.invalid").searchParams;
+    const limitRaw=Number(query.get("limit")??"50");
+    if(!Number.isInteger(limitRaw)||limitRaw<1||limitRaw>100)throw new Error("TONTINE_PAGE_LIMIT_INVALID");
+    const kind=r[0].slice("tontine-group-".length);
+    const statements:Record<string,string>={
+     members:"SELECT id,client_id,role,status,joined_at,exited_at,selected_microfinance_id FROM tontine_memberships WHERE organization_id=$1 AND group_id=$2 ORDER BY joined_at DESC,id LIMIT $3",
+     cycles:"SELECT c.id,c.cycle_number,c.starts_on,c.ends_on,c.status,c.rules_version,c.minimum_amount_minor::text AS minimum_amount_minor,c.currency,c.created_at,c.closed_at,(SELECT count(*)::integer FROM tontine_member_schedules s WHERE s.organization_id=c.organization_id AND s.cycle_id=c.id) AS schedule_count,(SELECT count(*)::integer FROM tontine_beneficiary_slots b WHERE b.organization_id=c.organization_id AND b.cycle_id=c.id) AS beneficiary_count FROM tontine_cycles c WHERE c.organization_id=$1 AND c.group_id=$2 ORDER BY c.cycle_number DESC,c.id LIMIT $3",
+     contributions:"SELECT id,membership_id,amount_minor::text AS amount_minor,currency,status,scheduled_for,collected_at,provider_reference,updated_at FROM tontine_contributions WHERE organization_id=$1 AND group_id=$2 ORDER BY scheduled_for DESC,id LIMIT $3",
+     governance:"SELECT p.id,p.proposer_id,p.type,p.payload_version,p.status,p.opened_at,p.closes_at,(SELECT count(*)::integer FROM tontine_governance_votes v WHERE v.organization_id=p.organization_id AND v.proposal_id=p.id) AS vote_count FROM tontine_governance_proposals p WHERE p.organization_id=$1 AND p.group_id=$2 ORDER BY p.opened_at DESC,p.id LIMIT $3",
+     cases:"SELECT id,type,state,opened_by,payout_id,contribution_id,severity,summary,created_at,updated_at FROM tontine_cases WHERE organization_id=$1 AND group_id=$2 ORDER BY updated_at DESC,id LIMIT $3"
+    };
+    const sql=statements[kind];
+    if(!sql)throw new Error("TONTINE_READ_RESOURCE_NOT_FOUND");
+    const result=await tenantScopedRead(deps,auth.tenantId,organizationId,sql,[organizationId,groupId,limitRaw]);
+    data={items:result.rows,limit:limitRaw,groupId};
+    await new ApiGatewayRepository(deps.db).audit({organizationId,requestId:correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path,resource:kind,groupId,limit:limitRaw})});
     json(res,200,buildApiSuccess("v1",correlationId,data),correlationId);return;
    }
    if(r[0]==="class-list"){
