@@ -16,6 +16,8 @@ test("community tontine group portfolio is an authenticated read-only route",()=
  assert.equal(resolveRoutePolicy("GET",route)?.financial,false);
  assert.equal(authorizeRoute({method:"GET",route,authClass:"member"}).allowed,true);
  assert.equal(authorizeRoute({method:"POST",route,authClass:"member"}).allowed,false);
+ assert.equal(resolveRoutePolicy("POST",route)?.financial,false);
+ assert.equal(authorizeRoute({method:"POST",route,authClass:"member"}).allowed,true);
 });
 
 
