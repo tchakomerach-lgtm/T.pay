@@ -94,6 +94,7 @@ function route(path:string,method:string){
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===3&&method==="POST")return ["tontine-group-create"] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===5&&parts[3]&&method==="GET"&&["members","cycles","contributions","governance","cases"].includes(parts[4]??""))return ["tontine-group-"+parts[4],parts[3]] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===5&&parts[3]&&parts[4]==="members"&&method==="POST")return ["tontine-member-invite",parts[3]] as const;
+ if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===7&&parts[3]&&parts[4]==="members"&&parts[5]&&parts[6]==="decision"&&method==="POST")return ["tontine-member-decision",parts[3],parts[5]] as const;
  if(parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
  if(parts[2]==="classes"&&parts.length===3&&method==="GET")return ["class-list"] as const;
@@ -113,7 +114,7 @@ function route(path:string,method:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="actor"||kind==="class-list"||kind==="student-list"||kind==="tontine-group-list"||kind.startsWith("tontine-group-")&&kind!=="tontine-group-create"?"org.read":kind==="tontine-group-create"||kind==="tontine-member-invite"||kind.startsWith("class-")?"org.manage":"member.manage";}
+function permissionFor(kind:string):Permission{return kind==="actor"||kind==="class-list"||kind==="student-list"||kind==="tontine-group-list"||kind.startsWith("tontine-group-")&&kind!=="tontine-group-create"||kind==="tontine-member-decision"?"org.read":kind==="tontine-group-create"||kind==="tontine-member-invite"||kind.startsWith("class-")?"org.manage":"member.manage";}
 
 async function tenantScopedRead(deps:SchoolApiDependencies,tenantId:string,organizationId:string,sql:string,values:unknown[]=[]):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>{
  const client=await deps.syncClient();
@@ -459,6 +460,55 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      throw error;
     }finally{client.release?.();}
     json(res,replayed?200:201,buildApiSuccess("v1",correlationId,{membership,replayed}),correlationId);return;
+   }
+   if(r[0]==="tontine-member-decision"){
+    const groupId=r[1]!,membershipId=r[2]!;
+    const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if(!uuid.test(groupId)||!uuid.test(membershipId))throw new Error("TONTINE_MEMBER_ID_INVALID");
+    const input=body as Record<string,unknown>;
+    const decision=input?.decision;
+    if(decision!=="accept"&&decision!=="decline")throw new Error("TONTINE_MEMBER_DECISION_INVALID");
+    const idem=String(req.headers["x-idempotency-key"]??"");
+    if(!IDEMPOTENCY_KEY.test(idem))throw new Error("API_IDEMPOTENCY_KEY_INVALID");
+    const requestHash=canonicalRequestHash(method,path,JSON.stringify({decision}));
+    const eventId=randomUUID(),requestId=randomUUID();
+    const client=await deps.syncClient();
+    let result:Record<string,unknown>|undefined,replayed=false;
+    try{
+     await client.query("BEGIN");
+     await client.query("SELECT set_config('tpay.tenant_id',$1,true),set_config('tpay.organization_id',$2,true)",[auth.tenantId,organizationId]);
+     const reserved=await client.query(
+      "INSERT INTO api_request_deduplication(id,organization_id,idempotency_key,request_hash,route,state,created_at,expires_at) VALUES($1,$2,$3,$4,$5,'succeeded',now(),now()+interval '24 hours') ON CONFLICT(organization_id,idempotency_key) DO NOTHING RETURNING id",
+      [requestId,organizationId,idem,requestHash,path]
+     );
+     if(reserved.rows.length===0){
+      const existing=await client.query("SELECT id,request_hash,route,state FROM api_request_deduplication WHERE organization_id=$1 AND idempotency_key=$2 FOR UPDATE",[organizationId,idem]);
+      const prior=existing.rows[0];
+      if(!prior||prior.request_hash!==requestHash||prior.route!==path)throw new Error("API_IDEMPOTENCY_CONFLICT");
+      if(prior.state!=="succeeded")throw new Error("API_IDEMPOTENCY_IN_PROGRESS");
+      const previous=await client.query("SELECT id,group_id,client_id,role,status,joined_at,exited_at FROM tontine_memberships WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND client_id=$4",[organizationId,groupId,membershipId,auth.principal.userId]);
+      if(!previous.rows[0])throw new Error("TONTINE_MEMBER_INVITATION_NOT_FOUND");
+      result=previous.rows[0];replayed=true;
+     }else{
+      const pending=await client.query("SELECT id,group_id,client_id,role,status,joined_at,exited_at FROM tontine_memberships WHERE organization_id=$1 AND group_id=$2 AND id=$3 FOR UPDATE",[organizationId,groupId,membershipId]);
+      const row=pending.rows[0];
+      if(!row||row.client_id!==auth.principal.userId)throw new Error("TONTINE_MEMBER_INVITATION_NOT_FOUND");
+      if(row.status!=="pending")throw new Error("TONTINE_MEMBER_INVITATION_NOT_PENDING");
+      const nextStatus=decision==="accept"?"active":"exited";
+      const updated=await client.query("UPDATE tontine_memberships SET status=$1,joined_at=CASE WHEN $1='active' THEN now() ELSE joined_at END,exited_at=CASE WHEN $1='exited' THEN now() ELSE NULL END WHERE organization_id=$2 AND group_id=$3 AND id=$4 AND client_id=$5 AND status='pending' RETURNING id,group_id,client_id,role,status,joined_at,exited_at",[nextStatus,organizationId,groupId,membershipId,auth.principal.userId]);
+      if(!updated.rows[0])throw new Error("TONTINE_MEMBER_INVITATION_CONCURRENT_CHANGE");
+      result=updated.rows[0];
+      await client.query("INSERT INTO outbox_events(id,organization_id,event_type,aggregate_id,occurred_at,payload) VALUES($1,$2,$3,$4,now(),$5::jsonb)",[eventId,organizationId,decision==="accept"?"tontine.member.accepted":"tontine.member.declined",membershipId,JSON.stringify({groupId,membershipId,clientId:auth.principal.userId,decision})]);
+      const metadata=JSON.stringify({method,path,resource:"tontine_memberships",groupId,membershipId,decision});
+      const metadataHash=createHash("sha256").update(metadata).digest("hex");
+      await client.query("INSERT INTO api_request_audit(id,organization_id,request_id,route,actor_id,auth_class,outcome,correlation_id,occurred_at,metadata_hash) VALUES($1,$2,$3,$4,$5,'member','accepted',$6,$7,now(),$8)",[randomUUID(),organizationId,requestId,path,auth.principal.userId,correlationId,metadataHash]);
+      const responseHash=createHash("sha256").update(JSON.stringify(result)).digest("hex");
+      await client.query("UPDATE api_request_deduplication SET response_hash=$2,status_code=200 WHERE id=$1",[requestId,responseHash]);
+     }
+     await client.query("COMMIT");
+    }catch(error){try{await client.query("ROLLBACK");}catch{}throw error;}
+    finally{client.release?.();}
+    json(res,200,buildApiSuccess("v1",correlationId,{membership:result,replayed}),correlationId);return;
    }
    if(r[0].startsWith("class-")||r[0].startsWith("enrollment-")){
     const key=String(req.headers["x-idempotency-key"]??"");
