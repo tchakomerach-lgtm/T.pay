@@ -1,4 +1,4 @@
-import {useCallback,useEffect,useMemo,useState} from "react";
+import {useCallback,useEffect,useMemo,useState,type FormEvent} from "react";
 import type {TPayApi} from "./api.js";
 
 type Panel="overview"|"groups"|"members"|"cycles"|"contributions"|"governance"|"incidents";
@@ -55,7 +55,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   }catch(error){setLoadError(error instanceof Error?error.message:"TONTINE_DATA_UNAVAILABLE");}
   finally{setLoading(false);}
  },[api,statusFilter]);
- const createGroup=useCallback(async(event:React.FormEvent<HTMLFormElement>)=>{
+ const createGroup=useCallback(async(event:FormEvent<HTMLFormElement>)=>{
   event.preventDefault();if(!api||createBusy)return;
   setCreateBusy(true);setCreateError(null);
   try{
