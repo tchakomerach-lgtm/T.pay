@@ -13,6 +13,7 @@ import { PostgresSchoolRealtimeStore } from "./postgres-realtime-store.js";
 import type { SchoolRealtimeMessage } from "./school-realtime.js";
 import { reconcileAttendance, claimWorkItem, resolveWorkItem, type AttendanceRecord, type WorkItem } from "./school-operations.js";
 import { assignService, transitionService, type ActorRef, type ServiceRequest } from "./actor-services.js";
+import { createSchoolClass, updateSchoolClass, archiveSchoolClass, enrollStudent, transferStudent, withdrawStudent } from "./school-commands.js";
 
 export interface SchoolAuthContext { principal: Principal; session: OrganizationSession; tenantId: string; }
 export interface SchoolApiDependencies {
@@ -74,11 +75,17 @@ async function readBody(req:IncomingMessage):Promise<string>{
   return out;
 }
 const parse=(s:string)=>s?JSON.parse(s):{};
-function route(path:string){
+function route(path:string,method:string){
  const parts=path.split("/").filter(Boolean);
  if(parts[0]!=="v1"||parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
- if(parts[2]==="classes"&&parts.length===3)return ["class-list"] as const;
+ if(parts[2]==="classes"&&parts.length===3&&method==="GET")return ["class-list"] as const;
+ if(parts[2]==="classes"&&parts.length===3&&method==="POST")return ["class-create"] as const;
+ if(parts[2]==="classes"&&parts.length===4&&parts[3]&&method==="PATCH")return ["class-update",parts[3]] as const;
+ if(parts[2]==="classes"&&parts.length===5&&parts[3]&&parts[4]==="archive"&&method==="POST")return ["class-archive",parts[3]] as const;
+ if(parts[2]==="enrollments"&&parts.length===3&&method==="POST")return ["enrollment-create"] as const;
+ if(parts[2]==="enrollments"&&parts.length===5&&parts[3]&&parts[4]==="transfer"&&method==="POST")return ["enrollment-transfer",parts[3]] as const;
+ if(parts[2]==="enrollments"&&parts.length===5&&parts[3]&&parts[4]==="withdraw"&&method==="POST")return ["enrollment-withdraw",parts[3]] as const;
  if(parts[2]==="students"&&parts.length===3)return ["student-list"] as const;
  if(parts[2]==="sync"&&parts[3]==="events"&&parts.length===4)return ["sync"] as const;
  if(parts[2]==="attendance"&&parts.length===3)return ["attendance"] as const;
@@ -89,7 +96,7 @@ function route(path:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="actor"||kind==="class-list"||kind==="student-list"?"org.read":"member.manage";}
+function permissionFor(kind:string):Permission{return kind==="actor"||kind==="class-list"||kind==="student-list"?"org.read":kind.startsWith("class-")?"org.manage":"member.manage";}
 
 async function tenantScopedRead(deps:SchoolApiDependencies,tenantId:string,organizationId:string,sql:string,values:unknown[]=[]):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>{
  const client=await deps.syncClient();
@@ -119,7 +126,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      const values=Array.isArray(value)?value:value===undefined?[]:[value];
      for(const item of values)if(String(item).length>MAX_HEADER_VALUE_LENGTH)throw new Error("API_HEADER_TOO_LARGE:"+name);
    }
-   const method=(req.method??"GET").toUpperCase(), path=(rawUrl.split("?")[0]??"/"), r=route(path);
+   const method=(req.method??"GET").toUpperCase(), path=(rawUrl.split("?")[0]??"/"), r=route(path,method);
    const origin=String(req.headers.origin??"").trim();
    if(origin){
      if(!(deps.corsOrigins??[]).includes(origin)){
@@ -238,6 +245,22 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      if(contentType!=="application/json")throw new Error("API_JSON_CONTENT_TYPE_REQUIRED");
    }
    const body=parse(bodyText);
+   if(r[0].startsWith("class-")||r[0].startsWith("enrollment-")){
+    const key=String(req.headers["x-idempotency-key"]??"");
+    const commandClient=await deps.syncClient();
+    try{
+     const commandContext={tenantId:auth.tenantId,organizationId,actorId:auth.principal.userId};
+     let result;
+     if(r[0]==="class-create")result=await createSchoolClass(commandClient,commandContext,key,body as Record<string,unknown>);
+     else if(r[0]==="class-update")result=await updateSchoolClass(commandClient,commandContext,key,r[1]!,body as Record<string,unknown>);
+     else if(r[0]==="class-archive")result=await archiveSchoolClass(commandClient,commandContext,key,r[1]!,body.expectedVersion);
+     else if(r[0]==="enrollment-create")result=await enrollStudent(commandClient,commandContext,key,body as Record<string,unknown>);
+     else if(r[0]==="enrollment-transfer")result=await transferStudent(commandClient,commandContext,key,r[1]!,body as Record<string,unknown>);
+     else result=await withdrawStudent(commandClient,commandContext,key,r[1]!,body.reason);
+     json(res,200,buildApiSuccess("v1",correlationId,{commandId:result.commandId,replayed:result.replayed,data:result.data}),correlationId);
+    }finally{commandClient.release?.();}
+    return;
+   }
    const requestHash=canonicalRequestHash(method,path,JSON.stringify(body));
    const idem=String(req.headers["x-idempotency-key"]??"");
    if(method!=="GET" && !IDEMPOTENCY_KEY.test(idem))throw new Error("API_IDEMPOTENCY_KEY_INVALID");
