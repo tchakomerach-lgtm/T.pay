@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
 import { applyMigrations } from "../packages/finance/src/postgres-migrations.js";
+import type { PostgresTransactionClient } from "../packages/education/src/postgres-sync-fabric.js";
+import { createSchoolClass, enrollStudent, transferStudent, withdrawStudent } from "../packages/education/src/school-commands.js";
 
 const databaseUrl=process.env.TPAY_DATABASE_URL;
 
