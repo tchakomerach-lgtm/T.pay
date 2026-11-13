@@ -24,7 +24,7 @@ const academicYear=(value:unknown):string=>{
   return year;
 };
 const capacity=(value:unknown):number=>{
-  if(!Number.isInteger(value)||Number(value)<1||Number(value)>5000)throw new Error("CLASS_CAPACITY_INVALID");
+  if(typeof value!=="number"||!Number.isInteger(value)||value<1||value>5000)throw new Error("CLASS_CAPACITY_INVALID");
   return Number(value);
 };
 
@@ -147,6 +147,7 @@ export async function archiveSchoolClass(client:PostgresTransactionClient,ctx:Sc
     const current=locked.rows[0];
     if(!current)throw new Error("SCHOOL_CLASS_NOT_FOUND");
     if(Number(current.version)!==expectedVersion)throw new Error("SCHOOL_CLASS_VERSION_CONFLICT");
+    if(current.status!=="ACTIVE")throw new Error("SCHOOL_CLASS_NOT_ACTIVE");
     const active=await db.query<{count:string}>(
       "SELECT count(*)::text AS count FROM education_enrollments WHERE tenant_id=$1 AND organization_id=$2 AND class_id=$3 AND state='ENROLLED'",
       [ctx.tenantId,ctx.organizationId,classId]
