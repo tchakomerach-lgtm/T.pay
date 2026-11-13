@@ -36,6 +36,8 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
  const [inviteClientId,setInviteClientId]=useState("");
  const [inviteBusy,setInviteBusy]=useState(false);
  const [inviteError,setInviteError]=useState<string|null>(null);
+ const [decisionBusy,setDecisionBusy]=useState<string|null>(null);
+ const [decisionError,setDecisionError]=useState<string|null>(null);
  const [panelRefresh,setPanelRefresh]=useState(0);
  const [groupName,setGroupName]=useState("");
  const [groupFrequency,setGroupFrequency]=useState("weekly");
@@ -86,6 +88,17 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   }catch(error){setInviteError(error instanceof Error?error.message:"TONTINE_MEMBER_INVITE_FAILED");}
   finally{setInviteBusy(false);}
  },[api,selectedGroupId,inviteBusy,inviteClientId]);
+ const decideInvitation=useCallback(async(membershipId:string,decision:"accept"|"decline")=>{
+  if(!api||!selectedGroupId||decisionBusy)return;
+  setDecisionBusy(membershipId);setDecisionError(null);
+  try{
+   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/members/"+encodeURIComponent(membershipId)+"/decision",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({decision})});
+   const body=await response.json() as {data?:{membership?:{id:string;status:string}};error?:{message?:string}};
+   if(!response.ok||!body.data?.membership?.id)throw new Error(body.error?.message??"TONTINE_MEMBER_DECISION_HTTP_"+response.status);
+   setPanelRefresh(value=>value+1);
+  }catch(error){setDecisionError(error instanceof Error?error.message:"TONTINE_MEMBER_DECISION_FAILED");}
+  finally{setDecisionBusy(null);}
+ },[api,selectedGroupId,decisionBusy]);
  useEffect(()=>{void loadGroups();},[loadGroups]);
  useEffect(()=>{
   const firstGroupId=groups[0]?.id;if(firstGroupId&&!groups.some(group=>group.id===selectedGroupId))setSelectedGroupId(firstGroupId);
@@ -159,7 +172,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
    <button type="submit" disabled={inviteBusy||!inviteClientId.trim()}>{inviteBusy?"Invitation sécurisée…":"Envoyer l'invitation"}</button>
   </form>}
   {active!=="overview"&&active!=="groups"&&<div className="tontine-detail-grid"><article className="tontine-feature-card"><small>CAPACITÉS DU SOUS-MODULE</small><h3>Fonctions prévues et règles métier</h3><ul>{current.items.map(item=><li key={item}>{item}</li>)}</ul></article><article className="tontine-feature-card tontine-record-panel"><small>REGISTRE AUTHENTIFIÉ · {selectedGroupId?"GROUPE SÉLECTIONNÉ":"AUCUN GROUPE"}</small><h3>{active==="members"?"Membres":active==="cycles"?"Cycles & échéances":active==="contributions"?"Cotisations":active==="governance"?"Propositions & votes":"Incidents & litiges"}</h3>
-   {panelLoading?<p>Chargement des données PostgreSQL…</p>:panelError?<p role="alert">{panelError}</p>:panelRows.length===0?<p>{api&&selectedGroupId?"Aucun enregistrement pour ce groupe.":"Une session API authentifiée et un groupe actif sont nécessaires."}</p>:<div className="tontine-record-table"><table><thead><tr>{panelColumns.map(key=><th key={key}>{key.replaceAll("_"," ")}</th>)}</tr></thead><tbody>{panelRows.map((record,index)=><tr key={String(record.id??index)}>{panelColumns.map(key=><td key={key}>{record[key]===null||record[key]===undefined?"—":String(record[key])}</td>)}</tr>)}</tbody></table></div>}
+   {decisionError&&<p role="alert">{decisionError}</p>}{panelLoading?<p>Chargement des données PostgreSQL…</p>:panelError?<p role="alert">{panelError}</p>:panelRows.length===0?<p>{api&&selectedGroupId?"Aucun enregistrement pour ce groupe.":"Une session API authentifiée et un groupe actif sont nécessaires."}</p>:<div className="tontine-record-table"><table><thead><tr>{panelColumns.map(key=><th key={key}>{key.replaceAll("_"," ")}</th>)}{active==="members"&&<th>Décision</th>}</tr></thead><tbody>{panelRows.map((record,index)=><tr key={String(record.id??index)}>{panelColumns.map(key=><td key={key}>{record[key]===null||record[key]===undefined?"—":String(record[key])}</td>)}{active==="members"&&<td>{record.status==="pending"&&record.is_current_user===true?<div className="tontine-member-decisions"><button type="button" disabled={decisionBusy!==null} onClick={()=>void decideInvitation(String(record.id),"accept")}>{decisionBusy===record.id?"Traitement…":"Accepter"}</button><button type="button" disabled={decisionBusy!==null} onClick={()=>void decideInvitation(String(record.id),"decline")}>Refuser</button></div>:record.status==="pending"?"En attente du membre":"—"}</td>}</tr>)}</tbody></table></div>}
    <span className="tontine-record-foot">{panelRows.length} enregistrement(s) affiché(s) · limite 100 · lecture seule</span>
   </article></div>}
   <section className="tontine-integrity"><div><small>GARDE-FOUS NON NÉGOCIABLES</small><b>Tenant isolation · PostgreSQL · idempotence · audit · outbox</b></div><p>Le renderer ne crée pas de groupe, ne collecte pas de cotisation et ne déclenche aucun payout. Les mutations seront activées uniquement après implémentation des routes authentifiées, des permissions, des transactions et des tests PostgreSQL live.</p></section>
