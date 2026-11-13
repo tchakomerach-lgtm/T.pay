@@ -66,8 +66,8 @@ class PooledTransactionClient implements PostgresTransactionClient{
       if(command==="COMMIT"||command==="ROLLBACK"){this.client.release();this.client=undefined;}
       return {rows:result.rows,rowCount:result.rowCount};
     }catch(error){
-      this.client?.release();
-      this.client=undefined;
+      // Keep the same connection checked out so the transaction owner can issue
+      // ROLLBACK on the transaction that actually failed.
       throw error;
     }
   }
