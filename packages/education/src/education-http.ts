@@ -93,6 +93,7 @@ function route(path:string,method:string){
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===3&&method==="GET")return ["tontine-group-list"] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===3&&method==="POST")return ["tontine-group-create"] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===5&&parts[3]&&method==="GET"&&["members","cycles","contributions","governance","cases"].includes(parts[4]??""))return ["tontine-group-"+parts[4],parts[3]] as const;
+ if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===5&&parts[3]&&parts[4]==="cycles"&&method==="POST")return ["tontine-cycle-create",parts[3]] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===5&&parts[3]&&parts[4]==="members"&&method==="POST")return ["tontine-member-invite",parts[3]] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===7&&parts[3]&&parts[4]==="members"&&parts[5]&&parts[6]==="decision"&&method==="POST")return ["tontine-member-decision",parts[3],parts[5]] as const;
  if(parts[1]!=="education")return null;
@@ -114,7 +115,7 @@ function route(path:string,method:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="actor"||kind==="class-list"||kind==="student-list"||kind==="tontine-group-list"||kind.startsWith("tontine-group-")&&kind!=="tontine-group-create"||kind==="tontine-member-decision"?"org.read":kind==="tontine-group-create"||kind==="tontine-member-invite"||kind.startsWith("class-")?"org.manage":"member.manage";}
+function permissionFor(kind:string):Permission{return kind==="actor"||kind==="class-list"||kind==="student-list"||kind==="tontine-group-list"||kind.startsWith("tontine-group-")&&kind!=="tontine-group-create"||kind==="tontine-member-decision"?"org.read":kind==="tontine-group-create"||kind==="tontine-member-invite"||kind==="tontine-cycle-create"||kind.startsWith("class-")?"org.manage":"member.manage";}
 
 async function tenantScopedRead(deps:SchoolApiDependencies,tenantId:string,organizationId:string,sql:string,values:unknown[]=[]):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>{
  const client=await deps.syncClient();
@@ -460,6 +461,69 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      throw error;
     }finally{client.release?.();}
     json(res,replayed?200:201,buildApiSuccess("v1",correlationId,{membership,replayed}),correlationId);return;
+   }
+   if(r[0]==="tontine-cycle-create"){
+    const groupId=r[1]!;
+    const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if(!uuid.test(groupId))throw new Error("TONTINE_GROUP_ID_INVALID");
+    const input=body as Record<string,unknown>;
+    const startsOn=typeof input?.startsOn==="string"?input.startsOn:"";
+    const endsOn=typeof input?.endsOn==="string"?input.endsOn:"";
+    const rulesVersion=typeof input?.rulesVersion==="string"?input.rulesVersion.trim():"";
+    const validDate=(value:string)=>/^\d{4}-\d{2}-\d{2}$/.test(value)&&!Number.isNaN(Date.parse(value+"T00:00:00Z"))&&new Date(value+"T00:00:00Z").toISOString().slice(0,10)===value;
+    if(!validDate(startsOn)||!validDate(endsOn)||endsOn<startsOn)throw new Error("TONTINE_CYCLE_DATE_RANGE_INVALID");
+    if(!rulesVersion||rulesVersion.length>64)throw new Error("TONTINE_CYCLE_RULES_VERSION_INVALID");
+    const idem=String(req.headers["x-idempotency-key"]??"");
+    if(!IDEMPOTENCY_KEY.test(idem))throw new Error("API_IDEMPOTENCY_KEY_INVALID");
+    const requestHash=canonicalRequestHash(method,path,JSON.stringify({startsOn,endsOn,rulesVersion}));
+    const cycleId=randomUUID(),eventId=randomUUID();
+    const client=await deps.syncClient();
+    let cycle:Record<string,unknown>|undefined,replayed=false;
+    try{
+     await client.query("BEGIN");
+     await client.query("SELECT set_config('tpay.tenant_id',$1,true),set_config('tpay.organization_id',$2,true)",[auth.tenantId,organizationId]);
+     const reserved=await client.query("INSERT INTO api_request_deduplication(id,organization_id,idempotency_key,request_hash,route,state,created_at,expires_at) VALUES($1,$2,$3,$4,$5,'succeeded',now(),now()+interval '24 hours') ON CONFLICT(organization_id,idempotency_key) DO NOTHING RETURNING id",[cycleId,organizationId,idem,requestHash,path]);
+     if(reserved.rows.length===0){
+      const existing=await client.query("SELECT id,request_hash,route,state FROM api_request_deduplication WHERE organization_id=$1 AND idempotency_key=$2 FOR UPDATE",[organizationId,idem]);
+      const prior=existing.rows[0];
+      if(!prior||prior.request_hash!==requestHash||prior.route!==path)throw new Error("API_IDEMPOTENCY_CONFLICT");
+      if(prior.state!=="succeeded")throw new Error("API_IDEMPOTENCY_IN_PROGRESS");
+      const previous=await client.query("SELECT id,group_id,cycle_number,starts_on,ends_on,status,rules_version,minimum_amount_minor::text AS minimum_amount_minor,currency,created_at FROM tontine_cycles WHERE organization_id=$1 AND group_id=$2 AND id=$3",[organizationId,groupId,prior.id]);
+      if(!previous.rows[0])throw new Error("TONTINE_CYCLE_IDEMPOTENCY_TARGET_MISSING");
+      cycle=previous.rows[0];replayed=true;
+     }else{
+      const group=await client.query("SELECT id,status,cycle_number,frequency,contribution_mode,fixed_amount_minor::text AS fixed_amount_minor,minimum_amount_minor::text AS minimum_amount_minor,currency FROM tontine_groups WHERE organization_id=$1 AND id=$2 FOR UPDATE",[organizationId,groupId]);
+      const groupRow=group.rows[0];
+      if(!groupRow)throw new Error("TONTINE_GROUP_NOT_FOUND");
+      if(groupRow.status!=="active")throw new Error("TONTINE_GROUP_NOT_ACTIVE");
+      const members=await client.query("SELECT id,client_id FROM tontine_memberships WHERE organization_id=$1 AND group_id=$2 AND status='active' ORDER BY joined_at,id",[organizationId,groupId]);
+      const activeMembers=members.rows;
+      if(activeMembers.length<2)throw new Error("TONTINE_CYCLE_CAPACITY_TOO_LOW");
+      const expectedAmount=groupRow.contribution_mode==="fixed"?String(groupRow.fixed_amount_minor??""):String(groupRow.minimum_amount_minor??"");
+      if(!/^[0-9]{1,38}$/.test(expectedAmount)||BigInt(expectedAmount)<=0n)throw new Error("TONTINE_CYCLE_CONTRIBUTION_RULE_INVALID");
+      const cycleNumber=Number(groupRow.cycle_number);
+      if(!Number.isSafeInteger(cycleNumber)||cycleNumber<1)throw new Error("TONTINE_CYCLE_NUMBER_INVALID");
+      const totalTarget=(BigInt(expectedAmount)*BigInt(activeMembers.length)).toString();
+      const inserted=await client.query("INSERT INTO tontine_cycles(id,organization_id,group_id,cycle_number,starts_on,ends_on,status,rules_version,minimum_amount_minor,currency,created_at) VALUES($1,$2,$3,$4,$5,$6,'scheduled',$7,$8,$9,now()) RETURNING id,group_id,cycle_number,starts_on,ends_on,status,rules_version,minimum_amount_minor::text AS minimum_amount_minor,currency,created_at",[cycleId,organizationId,groupId,cycleNumber,startsOn,endsOn,rulesVersion,groupRow.minimum_amount_minor,groupRow.currency]);
+      if(!inserted.rows[0])throw new Error("TONTINE_CYCLE_CREATE_FAILED");
+      for(let index=0;index<activeMembers.length;index++){
+       const member=activeMembers[index]!;
+       await client.query("INSERT INTO tontine_member_schedules(id,organization_id,cycle_id,membership_id,sequence,scheduled_for,expected_amount_minor,due_status) VALUES($1,$2,$3,$4,$5,$6,$7,'scheduled')",[randomUUID(),organizationId,cycleId,member.id,index+1,startsOn,expectedAmount]);
+       await client.query("INSERT INTO tontine_beneficiary_slots(id,organization_id,group_id,cycle_id,cycle_number,sequence,beneficiary_membership_id,amount_target_minor,status,scheduled_for) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'scheduled',$9)",[randomUUID(),organizationId,groupId,cycleId,cycleNumber,index+1,member.id,totalTarget,endsOn]);
+      }
+      await client.query("UPDATE tontine_groups SET cycle_number=$1 WHERE organization_id=$2 AND id=$3 AND cycle_number=$4",[cycleNumber+1,organizationId,groupId,cycleNumber]);
+      await client.query("INSERT INTO outbox_events(id,organization_id,event_type,aggregate_id,occurred_at,payload) VALUES($1,$2,'tontine.cycle.generated',$3,now(),$4::jsonb)",[eventId,organizationId,cycleId,JSON.stringify({groupId,cycleId,cycleNumber,activeMemberCount:activeMembers.length,startsOn,endsOn,rulesVersion})]);
+      const metadata=JSON.stringify({method,path,resource:"tontine_cycles",groupId,cycleId,cycleNumber,activeMemberCount:activeMembers.length});
+      const metadataHash=createHash("sha256").update(metadata).digest("hex");
+      await client.query("INSERT INTO api_request_audit(id,organization_id,request_id,route,actor_id,auth_class,outcome,correlation_id,occurred_at,metadata_hash) VALUES($1,$2,$3,$4,$5,'member','accepted',$6,now(),$7)",[randomUUID(),organizationId,cycleId,path,auth.principal.userId,correlationId,metadataHash]);
+      const responseHash=createHash("sha256").update(JSON.stringify(inserted.rows[0])).digest("hex");
+      await client.query("UPDATE api_request_deduplication SET response_hash=$2,status_code=201 WHERE id=$1",[cycleId,responseHash]);
+      cycle=inserted.rows[0];
+     }
+     await client.query("COMMIT");
+    }catch(error){try{await client.query("ROLLBACK");}catch{}throw error;}
+    finally{client.release?.();}
+    json(res,replayed?200:201,buildApiSuccess("v1",correlationId,{cycle,replayed}),correlationId);return;
    }
    if(r[0]==="tontine-member-decision"){
     const groupId=r[1]!,membershipId=r[2]!;
