@@ -39,7 +39,7 @@ function errorHttpStatus(error:unknown):number{
  if(["23505","23503","23514","40001","40P01"].includes(pgCode))return 409;
  if(pgCode==="42501")return 403;
  if(message.includes("CONFLICT")||message.includes("CAPACITY")||message.includes("ALREADY")||message.includes("NOT_ACTIVE")||message.includes("HAS_ACTIVE")||message.includes("SOURCE_CHANGED"))return 409;
- if(message.includes("INVALID")||message.includes("REQUIRED")||message.includes("TOO_LARGE")||message.includes("METHOD_NOT_ALLOWED")||message.includes("MISMATCH")||message.includes("REPLAY"))return 400;
+ if(message.includes("INVALID")||message.includes("REQUIRED")||message.includes("TOO_LARGE")||message.includes("TOO_LONG")||message.includes("METHOD_NOT_ALLOWED")||message.includes("MISMATCH")||message.includes("REPLAY"))return 400;
  return 500;
 }
 const setSecurityHeaders=(res:ServerResponse)=>{
