@@ -38,7 +38,8 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Si
       final error=decoded['error'];
       throw StateError(error is Map?'${error['code']??'TONTINE_HTTP_${response.statusCode}'}':'TONTINE_HTTP_${response.statusCode}');
     }
-    return decoded['data'] as Map<String,dynamic>???<String,dynamic>{};
+    final data=decoded['data'];
+    return data is Map<String,dynamic>?data:<String,dynamic>{};
   }
 
   Future<void> _command(String path,Map<String,dynamic> payload) async {
