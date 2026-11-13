@@ -11,11 +11,10 @@ test("unlisted sibling routes remain deny-by-default",()=>{
  assert.equal(authorizeRoute({method:"GET",route:"/v1/education/actors/teacher-1/secrets",authClass:"member"}).allowed,false);
 });
 
-test("community tontine group portfolio is an authenticated read-only route",()=>{
+test("community tontine group portfolio is readable and creation is authenticated non-financial",()=>{
  const route="/v1/tontine/groups";
  assert.equal(resolveRoutePolicy("GET",route)?.financial,false);
  assert.equal(authorizeRoute({method:"GET",route,authClass:"member"}).allowed,true);
- assert.equal(authorizeRoute({method:"POST",route,authClass:"member"}).allowed,false);
  assert.equal(resolveRoutePolicy("POST",route)?.financial,false);
  assert.equal(authorizeRoute({method:"POST",route,authClass:"member"}).allowed,true);
 });
