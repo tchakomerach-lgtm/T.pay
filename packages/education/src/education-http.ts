@@ -250,7 +250,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     if(!Number.isInteger(limitRaw)||limitRaw<1||limitRaw>100)throw new Error("TONTINE_PAGE_LIMIT_INVALID");
     const kind=r[0].slice("tontine-group-".length);
     const statements:Record<string,string>={
-     members:"SELECT id,client_id,role,status,joined_at,exited_at,selected_microfinance_id FROM tontine_memberships WHERE organization_id=$1 AND group_id=$2 ORDER BY joined_at DESC,id LIMIT $3",
+     members:"SELECT id,client_id,role,status,joined_at,exited_at,selected_microfinance_id,(client_id=$4) AS is_current_user FROM tontine_memberships WHERE organization_id=$1 AND group_id=$2 ORDER BY joined_at DESC,id LIMIT $3",
      cycles:"SELECT c.id,c.cycle_number,c.starts_on,c.ends_on,c.status,c.rules_version,c.minimum_amount_minor::text AS minimum_amount_minor,c.currency,c.created_at,c.closed_at,(SELECT count(*)::integer FROM tontine_member_schedules s WHERE s.organization_id=c.organization_id AND s.cycle_id=c.id) AS schedule_count,(SELECT count(*)::integer FROM tontine_beneficiary_slots b WHERE b.organization_id=c.organization_id AND b.cycle_id=c.id) AS beneficiary_count FROM tontine_cycles c WHERE c.organization_id=$1 AND c.group_id=$2 ORDER BY c.cycle_number DESC,c.id LIMIT $3",
      contributions:"SELECT id,membership_id,amount_minor::text AS amount_minor,currency,status,scheduled_for,collected_at,provider_reference,updated_at FROM tontine_contributions WHERE organization_id=$1 AND group_id=$2 ORDER BY scheduled_for DESC,id LIMIT $3",
      governance:"SELECT p.id,p.proposer_id,p.type,p.payload_version,p.status,p.opened_at,p.closes_at,(SELECT count(*)::integer FROM tontine_governance_votes v WHERE v.organization_id=p.organization_id AND v.proposal_id=p.id) AS vote_count FROM tontine_governance_proposals p WHERE p.organization_id=$1 AND p.group_id=$2 ORDER BY p.opened_at DESC,p.id LIMIT $3",
@@ -258,7 +258,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     };
     const sql=statements[kind];
     if(!sql)throw new Error("TONTINE_READ_RESOURCE_NOT_FOUND");
-    const result=await tenantScopedRead(deps,auth.tenantId,organizationId,sql,[organizationId,groupId,limitRaw]);
+    const result=await tenantScopedRead(deps,auth.tenantId,organizationId,sql,kind==="members"?[organizationId,groupId,limitRaw,auth.principal.userId]:[organizationId,groupId,limitRaw]);
     data={items:result.rows,limit:limitRaw,groupId};
     await new ApiGatewayRepository(deps.db).audit({organizationId,requestId:correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path,resource:kind,groupId,limit:limitRaw})});
     json(res,200,buildApiSuccess("v1",correlationId,data),correlationId);return;
