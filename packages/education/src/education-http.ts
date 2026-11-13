@@ -142,6 +142,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    const organizationId=auth.principal.organizationId; if(!auth.tenantId)throw new Error("TENANT_CONTEXT_REQUIRED");
    if(!organizationId)throw new Error("ORGANIZATION_CONTEXT_REQUIRED");
    assertAuthorized(auth.principal,{organizationId,requestedPermission:permissionFor(r[0])});
+   let data:unknown;
    if(r[0]==="stream"){
     if(method!=="GET")throw new Error("REALTIME_METHOD_NOT_ALLOWED");
     if(!deps.realtime)throw new Error("REALTIME_NOT_CONFIGURED");
@@ -244,7 +245,6 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    const dedupe=method==="GET"?null:await gateway.reserveOrReplay({organizationId,key:idem,requestHash,route:path,expiresAt:new Date(Date.now()+86400000).toISOString()});
    if(dedupe?.status==="conflict")throw new Error("API_IDEMPOTENCY_CONFLICT");
    if(dedupe?.status==="replay"){res.statusCode=dedupe.statusCode??200;json(res,res.statusCode,{ok:true,replayed:true,requestId:dedupe.requestId},correlationId);return;}
-   let data:unknown;
    if(r[0]==="actor"){
     const q=await deps.db.query("SELECT actor_id,organization_id,kind,active,data,version,updated_at FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,r[1]]);
     if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("ACTOR_NOT_FOUND"),correlationId),correlationId);return;}
