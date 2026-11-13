@@ -21,7 +21,7 @@ function serverFor(options:{members?:number}={}){
     statements.push(sql);
     if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:values?.[0]}],rowCount:1};
     if(sql.includes("SELECT id,status,cycle_number,frequency"))return {rows:[{id:groupId,status:"active",cycle_number:1,frequency:"weekly",contribution_mode:"fixed",fixed_amount_minor:"500",minimum_amount_minor:"200",currency:"XOF"}],rowCount:1};
-    if(sql.includes("SELECT id,client_id FROM tontine_memberships"))return {rows:(options.members??2)>=2?[{id:memberOne,client_id:memberOne},{id:memberTwo,client_id:memberTwo}]:[{id:memberOne,client_id:memberOne}],rowCount:options.members??2};
+    if(sql.includes("SELECT m.id,m.client_id"))return {rows:(options.members??2)>=2?[{id:memberOne,client_id:memberOne},{id:memberTwo,client_id:memberTwo}]:[{id:memberOne,client_id:memberOne}],rowCount:options.members??2};
     if(sql.includes("INSERT INTO tontine_cycles"))return {rows:[{id:values?.[0],group_id:groupId,cycle_number:1,starts_on:"2026-11-16",ends_on:"2026-11-22",status:"scheduled",rules_version:"v1",minimum_amount_minor:"200",currency:"XOF"}],rowCount:1};
     return {rows:[],rowCount:1};
    },
