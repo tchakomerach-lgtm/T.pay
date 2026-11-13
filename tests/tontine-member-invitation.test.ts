@@ -13,7 +13,7 @@ function makeServer(options:{occupied?:number;maxMembers?:number;actorId?:string
   authenticate:async()=>({
    principal:{userId:options.actorId??actorId,organizationId:"org-1",permissions:["member.manage","org.read","org.manage"] as const,sessionId:"s1"},
    tenantId:"tenant-1",
-   session:{sessionId:"s1",userId:actorId,organizationId:"org-1",createdAt:0,expiresAt:Date.now()+60000,assurance:"standard" as const}
+   session:{sessionId:"s1",userId:options.actorId??actorId,organizationId:"org-1",createdAt:0,expiresAt:Date.now()+60000,assurance:"standard" as const}
   }),
   syncClient:()=>({
    query:async(sql:string,values?:unknown[])=>{
