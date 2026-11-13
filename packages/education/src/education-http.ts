@@ -496,7 +496,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       const groupRow=group.rows[0];
       if(!groupRow)throw new Error("TONTINE_GROUP_NOT_FOUND");
       if(groupRow.status!=="active")throw new Error("TONTINE_GROUP_NOT_ACTIVE");
-      const members=await client.query("SELECT id,client_id FROM tontine_memberships WHERE organization_id=$1 AND group_id=$2 AND status='active' ORDER BY joined_at,id",[organizationId,groupId]);
+      const members=await client.query("SELECT m.id,m.client_id,COALESCE(MAX(b.cycle_number) FILTER (WHERE b.status='paid'),0) AS last_paid_cycle FROM tontine_memberships m LEFT JOIN tontine_beneficiary_slots b ON b.organization_id=m.organization_id AND b.group_id=m.group_id AND b.beneficiary_membership_id=m.id WHERE m.organization_id=$1 AND m.group_id=$2 AND m.status='active' GROUP BY m.id,m.client_id,m.joined_at ORDER BY last_paid_cycle ASC,m.joined_at ASC,m.id ASC",[organizationId,groupId]);
       const activeMembers=members.rows;
       if(activeMembers.length<2)throw new Error("TONTINE_CYCLE_CAPACITY_TOO_LOW");
       const expectedAmount=groupRow.contribution_mode==="fixed"?String(groupRow.fixed_amount_minor??""):String(groupRow.minimum_amount_minor??"");
