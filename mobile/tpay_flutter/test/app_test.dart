@@ -18,6 +18,12 @@ void main() {
         'description': 'Classes et inscriptions.',
       },
       {
+        'id': 'tontine',
+        'label': 'Tontine communautaire',
+        'group': 'Communauté',
+        'description': 'Groupes, cycles et gouvernance.',
+      },
+      {
         'id': 'organizations',
         'label': 'Organisations',
         'group': 'Espace de travail',
@@ -46,6 +52,18 @@ void main() {
     expect(find.text('Gestion des membres.'), findsOneWidget);
     expect(find.text('Aucune donnée métier n’est inventée.'), findsOneWidget);
   });
+  testWidgets('opens the Community Tontine mobile workspace without inventing records', (tester) async {
+    await tester.pumpWidget(const TPayMobileApp(contract: contract));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Tontine communautaire').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('T.PAY · COMMUNITY TONTINE'), findsOneWidget);
+    expect(find.text('Session sécurisée requise'), findsOneWidget);
+    expect(find.text('Aucune donnée fictive n’est créée.'), findsOneWidget);
+  });
+
   testWidgets('shows School OS without inventing records when no secure session is injected', (tester) async {
     await tester.pumpWidget(const TPayMobileApp(contract: contract));
     await tester.pumpAndSettle();
