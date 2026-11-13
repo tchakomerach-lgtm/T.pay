@@ -226,7 +226,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     values.push(limitRaw);
     const result=await tenantScopedRead(deps,auth.tenantId,organizationId,
       "SELECT s.student_id,s.lifecycle,s.version,s.updated_at,COALESCE(a.data->>'display_name',s.student_id) AS display_name,"+
-      "e.class_id,e.academic_year,e.state AS enrollment_state "+
+      "e.enrollment_id,e.class_id,e.academic_year,e.state AS enrollment_state "+
       "FROM education_students s LEFT JOIN education_actors a "+
       "ON a.tenant_id=s.tenant_id AND a.organization_id=s.organization_id AND a.actor_id=s.student_id AND a.kind='STUDENT' AND a.active=true "+
       "LEFT JOIN LATERAL (SELECT e0.class_id,e0.academic_year,e0.state FROM education_enrollments e0 "+
