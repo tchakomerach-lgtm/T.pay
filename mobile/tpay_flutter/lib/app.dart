@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'api/tpay_api_client.dart';
+import 'community_tontine_screen.dart';
 
 const _brand = Color(0xff0f8f68);
 const _muted = Color(0xff718078);
@@ -270,6 +271,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
   Widget _page(Map<String, dynamic> module, {required Key key}) {
     final home = module['id'] == 'home';
     final school = module['id'] == 'education';
+    final tontine = module['id'] == 'tontine';
     return SafeArea(
       key: key,
       child: ListView(
@@ -283,14 +285,14 @@ class _TPayHomePageState extends State<TPayHomePage> {
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
-              school && widget.apiClient != null
-                  ? 'DONNÉES SERVEUR — consultation en lecture seule, aucune mutation exécutée.'
+              (school || tontine) && widget.apiClient != null
+                  ? 'DONNÉES SERVEUR — session authentifiée, actions autorisées par les API.'
                   : 'APERÇU — données métier non chargées, aucune opération réelle exécutée.',
               style: const TextStyle(fontSize: 10, color: Color(0xff795f26)),
             ),
           ),
           const SizedBox(height: 22),
-          if (home) _hero3d() else if (school) _schoolHero() else ...[
+          if (home) _hero3d() else if (school) _schoolHero() else if (tontine) const SizedBox.shrink() else ...[
             Text(module['label'] as String,
                 style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w800, height: 1.15)),
             const SizedBox(height: 8),
@@ -323,6 +325,8 @@ class _TPayHomePageState extends State<TPayHomePage> {
             ),
           ] else if (school) ...[
             _schoolBody(),
+          ] else if (tontine) ...[
+            CommunityTontineScreen(apiClient: widget.apiClient),
           ] else ...[
             Card(
               child: Padding(
