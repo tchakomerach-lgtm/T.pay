@@ -33,6 +33,10 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
  const [createOpen,setCreateOpen]=useState(false);
  const [createBusy,setCreateBusy]=useState(false);
  const [createError,setCreateError]=useState<string|null>(null);
+ const [inviteClientId,setInviteClientId]=useState("");
+ const [inviteBusy,setInviteBusy]=useState(false);
+ const [inviteError,setInviteError]=useState<string|null>(null);
+ const [panelRefresh,setPanelRefresh]=useState(0);
  const [groupName,setGroupName]=useState("");
  const [groupFrequency,setGroupFrequency]=useState("weekly");
  const [groupMode,setGroupMode]=useState("fixed");
@@ -71,6 +75,17 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   }catch(error){setCreateError(error instanceof Error?error.message:"TONTINE_GROUP_CREATE_FAILED");}
   finally{setCreateBusy(false);}
  },[api,createBusy,groupName,groupFrequency,groupMode,groupMinimum,groupFixed,groupTarget,groupMaxMembers,groupGovernance,loadGroups]);
+ const inviteMember=useCallback(async(event:FormEvent<HTMLFormElement>)=>{
+  event.preventDefault();if(!api||!selectedGroupId||inviteBusy)return;
+  setInviteBusy(true);setInviteError(null);
+  try{
+   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/members",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({clientId:inviteClientId.trim()})});
+   const body=await response.json() as {data?:{membership?:{id:string;status:string}};error?:{message?:string}};
+   if(!response.ok||!body.data?.membership?.id)throw new Error(body.error?.message??"TONTINE_MEMBER_INVITE_HTTP_"+response.status);
+   setInviteClientId("");setPanelRefresh(value=>value+1);
+  }catch(error){setInviteError(error instanceof Error?error.message:"TONTINE_MEMBER_INVITE_FAILED");}
+  finally{setInviteBusy(false);}
+ },[api,selectedGroupId,inviteBusy,inviteClientId]);
  useEffect(()=>{void loadGroups();},[loadGroups]);
  useEffect(()=>{
   const firstGroupId=groups[0]?.id;if(firstGroupId&&!groups.some(group=>group.id===selectedGroupId))setSelectedGroupId(firstGroupId);
@@ -90,7 +105,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
    .catch(error=>{if(!cancelled)setPanelError(error instanceof Error?error.message:"TONTINE_DATA_UNAVAILABLE");})
    .finally(()=>{if(!cancelled)setPanelLoading(false);});
   return()=>{cancelled=true;};
- },[api,panelResource,selectedGroupId]);
+ },[api,panelResource,selectedGroupId,panelRefresh]);
  const panelColumns=panelRows.length>0?Object.keys(panelRows[0]??{}):[];
  const current=details[active];
  const progress=useMemo(()=>stages.map((label,index)=>({label,index})),[]);
@@ -137,6 +152,12 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
    <article className="tontine-feature-card"><small>PRINCIPES FINANCIERS</small><h3>Pas de raccourci sur les fonds</h3><ul><li>Le ledger reste l'autorité comptable.</li><li>La collecte est idempotente et rapprochée.</li><li>Les décaissements sont réservés et validés.</li><li>Une panne ne déclenche jamais un second transfert aveugle.</li></ul><div className="tontine-lock">◈ &nbsp; Financial Core · transaction atomique</div></article>
    <article className="tontine-feature-card"><small>GOUVERNANCE</small><h3>Une responsabilité par action</h3><ul><li>Identité et organisation vérifiées.</li><li>Permissions limitées et temporaires.</li><li>Préparateur ≠ approbateur.</li><li>Audit conservé avec l'événement.</li></ul><div className="tontine-lock">⬡ &nbsp; Séparation des rôles</div></article>
   </div>}
+  {active==="members"&&api&&selectedGroupId&&<form className="tontine-member-invite" onSubmit={inviteMember}>
+   <div><small>ADHÉSION SÉCURISÉE</small><h3>Inviter un membre</h3><p>L'invitation est enregistrée en attente. Le membre devra accepter avant de devenir actif. La capacité inclut les invitations en attente.</p></div>
+   <label>Identifiant client (UUID)<input required value={inviteClientId} onChange={event=>setInviteClientId(event.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autoComplete="off"/></label>
+   {inviteError&&<p role="alert" className="tontine-create-error">{inviteError}</p>}
+   <button type="submit" disabled={inviteBusy||!inviteClientId.trim()}>{inviteBusy?"Invitation sécurisée…":"Envoyer l'invitation"}</button>
+  </form>}
   {active!=="overview"&&active!=="groups"&&<div className="tontine-detail-grid"><article className="tontine-feature-card"><small>CAPACITÉS DU SOUS-MODULE</small><h3>Fonctions prévues et règles métier</h3><ul>{current.items.map(item=><li key={item}>{item}</li>)}</ul></article><article className="tontine-feature-card tontine-record-panel"><small>REGISTRE AUTHENTIFIÉ · {selectedGroupId?"GROUPE SÉLECTIONNÉ":"AUCUN GROUPE"}</small><h3>{active==="members"?"Membres":active==="cycles"?"Cycles & échéances":active==="contributions"?"Cotisations":active==="governance"?"Propositions & votes":"Incidents & litiges"}</h3>
    {panelLoading?<p>Chargement des données PostgreSQL…</p>:panelError?<p role="alert">{panelError}</p>:panelRows.length===0?<p>{api&&selectedGroupId?"Aucun enregistrement pour ce groupe.":"Une session API authentifiée et un groupe actif sont nécessaires."}</p>:<div className="tontine-record-table"><table><thead><tr>{panelColumns.map(key=><th key={key}>{key.replaceAll("_"," ")}</th>)}</tr></thead><tbody>{panelRows.map((record,index)=><tr key={String(record.id??index)}>{panelColumns.map(key=><td key={key}>{record[key]===null||record[key]===undefined?"—":String(record[key])}</td>)}</tr>)}</tbody></table></div>}
    <span className="tontine-record-foot">{panelRows.length} enregistrement(s) affiché(s) · limite 100 · lecture seule</span>
