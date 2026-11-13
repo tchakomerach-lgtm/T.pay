@@ -132,6 +132,6 @@ test("Community Tontine member registry is organization-scoped, bounded and audi
   const response=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/123e4567-e89b-42d3-a456-426614174000/members?limit=25`);
   const body=await response.json() as any;
   assert.equal(response.status,200,JSON.stringify(body));assert.equal(body.ok,true);assert.equal(body.data.items.length,1);
-  assert.match(sqlSeen,/organization_id=\\$1 AND group_id=\\$2/);assert.deepEqual(valuesSeen,["org-1","123e4567-e89b-42d3-a456-426614174000",25]);
+  assert.ok(sqlSeen.includes("organization_id=$1 AND group_id=$2"));assert.deepEqual(valuesSeen,["org-1","123e4567-e89b-42d3-a456-426614174000",25]);
  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
