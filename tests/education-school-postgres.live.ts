@@ -139,8 +139,8 @@ test("P061 live PostgreSQL commits class, enrollment, transfer, withdrawal, audi
    "SELECT (SELECT count(*)::int FROM education_school_command_audit WHERE tenant_id=$1 AND organization_id=$2) AS audits,(SELECT count(*)::int FROM education_sync_outbox WHERE tenant_id=$1 AND organization_id=$2 AND event_type LIKE 'school.%') AS events",
    [tenantA,organizationA]
   );
-  assert.equal(Number(evidence.rows[0].audits),7);
-  assert.equal(Number(evidence.rows[0].events),7);
+  // Six committed commands: class create x2, enrollment x2, transfer and withdrawal.\n  // Replay and the rejected capacity race must not emit audit rows.\n  assert.equal(Number(evidence.rows[0].audits),6);
+  assert.equal(Number(evidence.rows[0].events),6);
  }finally{
   await pool.end();
  }
