@@ -471,7 +471,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     const idem=String(req.headers["x-idempotency-key"]??"");
     if(!IDEMPOTENCY_KEY.test(idem))throw new Error("API_IDEMPOTENCY_KEY_INVALID");
     const requestHash=canonicalRequestHash(method,path,JSON.stringify({decision}));
-    const eventId=randomUUID(),requestId=membershipId;
+    const eventId=randomUUID(),requestId=randomUUID();
     const client=await deps.syncClient();
     let result:Record<string,unknown>|undefined,replayed=false;
     try{
