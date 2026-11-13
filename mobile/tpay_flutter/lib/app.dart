@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'api/tpay_api_client.dart';
 
@@ -53,6 +54,102 @@ class TPayHomePage extends StatefulWidget {
 class _TPayHomePageState extends State<TPayHomePage> {
   int selected = 0;
   Future<Map<String, dynamic>>? _schoolData;
+  String _newIdempotencyKey() => '${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(1 << 32)}';
+
+  Future<void> _schoolCommand(String path, Map<String,dynamic> body,{bool patch=false}) async {
+    final client=widget.apiClient;
+    if(client==null)throw StateError('SCHOOL_API_SESSION_REQUIRED');
+    final key=_newIdempotencyKey();
+    final response=patch
+      ? await client.patch(path,body,key)
+      : await client.post(path,body,key);
+    final raw=await response.transform(utf8.decoder).join();
+    if(response.statusCode<200||response.statusCode>=300){
+      var code='SCHOOL_COMMAND_HTTP_${response.statusCode}';
+      try{
+        final decoded=jsonDecode(raw) as Map<String,dynamic>;
+        final error=decoded['error'];
+        if(error is Map&&error['code'] is String)code=error['code'] as String;
+      }catch{}
+      throw StateError(code);
+    }
+    if(mounted)setState(()=>_schoolData=_loadSchoolData());
+  }
+
+  Future<void> _createSchoolClass() async {
+    final name=TextEditingController(),grade=TextEditingController(),year=TextEditingController(text:'2026-2027'),capacity=TextEditingController(text:'45');
+    final accepted=await showDialog<bool>(context:context,builder:(dialogContext)=>AlertDialog(
+      title:const Text('Créer une classe'),
+      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+        TextField(controller:name,decoration:const InputDecoration(labelText:'Nom de la classe')),
+        TextField(controller:grade,decoration:const InputDecoration(labelText:'Niveau')),
+        TextField(controller:year,decoration:const InputDecoration(labelText:'Année scolaire')),
+        TextField(controller:capacity,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Capacité')),
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('Annuler')),FilledButton(onPressed:()=>Navigator.pop(dialogContext,true),child:const Text('Créer'))],
+    ));
+    if(accepted==true){
+      try{await _schoolCommand('/v1/education/classes',{'name':name.text,'gradeLevel':grade.text,'academicYear':year.text,'capacity':int.tryParse(capacity.text)??0});}
+      catch(error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(error.toString())));}
+    }
+    name.dispose();grade.dispose();year.dispose();capacity.dispose();
+  }
+
+  Future<void> _enrollSchoolStudent(List<Map<String,dynamic>> classes) async {
+    final student=TextEditingController(),year=TextEditingController(text:'2026-2027');
+    String? classId;
+    final accepted=await showDialog<bool>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(context,setDialogState)=>AlertDialog(
+      title:const Text('Inscrire un élève'),
+      content:Column(mainAxisSize:MainAxisSize.min,children:[
+        TextField(controller:student,decoration:const InputDecoration(labelText:'Identifiant élève existant')),
+        DropdownButtonFormField<String>(value:classId,decoration:const InputDecoration(labelText:'Classe'),items:classes.where((item)=>item['status']=='ACTIVE').map((item)=>DropdownMenuItem(value:item['class_id'].toString(),child:Text(item['name'].toString()))).toList(),onChanged:(value)=>setDialogState(()=>classId=value)),
+        TextField(controller:year,decoration:const InputDecoration(labelText:'Année scolaire')),
+      ]),
+      actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('Annuler')),FilledButton(onPressed:()=>Navigator.pop(dialogContext,true),child:const Text('Inscrire'))],
+    )));
+    if(accepted==true){
+      try{await _schoolCommand('/v1/education/enrollments',{'studentId':student.text,'classId':classId??'','academicYear':year.text});}
+      catch(error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(error.toString())));}
+    }
+    student.dispose();year.dispose();
+  }
+
+  Future<void> _transferSchoolStudent(Map<String,dynamic> student,List<Map<String,dynamic>> classes) async {
+    final enrollmentId=student['enrollment_id']?.toString();
+    if(enrollmentId==null||enrollmentId.isEmpty)return;
+    String? target;
+    final accepted=await showDialog<bool>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(context,setDialogState)=>AlertDialog(
+      title:const Text('Transférer l’élève'),
+      content:DropdownButtonFormField<String>(value:target,decoration:const InputDecoration(labelText:'Nouvelle classe'),items:classes.where((item)=>item['status']=='ACTIVE'&&item['class_id']!=student['class_id']).map((item)=>DropdownMenuItem(value:item['class_id'].toString(),child:Text(item['name'].toString()))).toList(),onChanged:(value)=>setDialogState(()=>target=value)),
+      actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('Annuler')),FilledButton(onPressed:()=>Navigator.pop(dialogContext,true),child:const Text('Transférer'))],
+    )));
+    if(accepted==true&&target!=null){
+      try{await _schoolCommand('/v1/education/enrollments/$enrollmentId/transfer',{'targetClassId':target});}
+      catch(error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(error.toString())));}
+    }
+  }
+
+  Future<void> _archiveSchoolClass(Map<String,dynamic> item) async {
+    try{await _schoolCommand('/v1/education/classes/${item['class_id']}/archive',{'expectedVersion':item['version']});}
+    catch(error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(error.toString())));}
+  }
+
+  Future<void> _withdrawSchoolStudent(Map<String,dynamic> student) async {
+    final enrollmentId=student['enrollment_id']?.toString();
+    if(enrollmentId==null||enrollmentId.isEmpty)return;
+    final reason=TextEditingController();
+    final accepted=await showDialog<bool>(context:context,builder:(dialogContext)=>AlertDialog(
+      title:const Text('Retirer l’élève'),
+      content:TextField(controller:reason,maxLines:3,decoration:const InputDecoration(labelText:'Motif obligatoire')),
+      actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('Annuler')),FilledButton(onPressed:()=>Navigator.pop(dialogContext,true),child:const Text('Confirmer le retrait'))],
+    ));
+    if(accepted==true){
+      try{await _schoolCommand('/v1/education/enrollments/$enrollmentId/withdraw',{'reason':reason.text});}
+      catch(error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(error.toString())));}
+    }
+    reason.dispose();
+  }
+
 
   void _openModule(int index) {
     setState(() {
@@ -393,6 +490,11 @@ class _TPayHomePageState extends State<TPayHomePage> {
           children: [
             _schoolMetrics(classes.length, enrolled),
             const SizedBox(height: 14),
+            Wrap(spacing:8,runSpacing:8,children:[
+              FilledButton.icon(onPressed:_createSchoolClass,icon:const Icon(Icons.add),label:const Text('Créer une classe')),
+              OutlinedButton.icon(onPressed:()=>_enrollSchoolStudent(classes),icon:const Icon(Icons.person_add_alt_1),label:const Text('Inscrire un élève')),
+            ]),
+            const SizedBox(height:12),
             _schoolPanel(
               title: 'Classes et niveaux',
               child: classes.isEmpty
@@ -406,8 +508,10 @@ class _TPayHomePageState extends State<TPayHomePage> {
                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                         subtitle: Text('${item['grade_level']} · ${item['academic_year']}',
                             style: const TextStyle(fontSize: 10, color: _muted)),
-                        trailing: Text('${item['enrolled_count']}/${item['capacity']}',
-                            style: const TextStyle(fontSize: 10, color: _brand)),
+                        trailing: Row(mainAxisSize:MainAxisSize.min,children:[
+                          Text('${item['enrolled_count']}/${item['capacity']}',style:const TextStyle(fontSize:10,color:_brand)),
+                          if((item['enrolled_count'] as num? ?? 0)==0)IconButton(tooltip:'Archiver la classe',icon:const Icon(Icons.archive_outlined,size:18),onPressed:()=>_archiveSchoolClass(item)),
+                        ]),
                       )).toList(),
                     ),
             ),
@@ -429,8 +533,16 @@ class _TPayHomePageState extends State<TPayHomePage> {
                             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
                         subtitle: Text(item['class_id']?.toString() ?? 'Non affecté',
                             style: const TextStyle(fontSize: 9, color: _muted)),
-                        trailing: Text(item['lifecycle']?.toString() ?? '—',
-                            style: const TextStyle(fontSize: 9, color: _brand)),
+                        trailing: item['enrollment_id']==null
+                          ? Text(item['lifecycle']?.toString()??'—',style:const TextStyle(fontSize:9,color:_brand))
+                          : PopupMenuButton<String>(
+                              tooltip:'Actions sur l’inscription',
+                              onSelected:(value)=>value=='transfer'?_transferSchoolStudent(item,classes):_withdrawSchoolStudent(item),
+                              itemBuilder:(context)=>const [
+                                PopupMenuItem(value:'transfer',child:Text('Transférer')),
+                                PopupMenuItem(value:'withdraw',child:Text('Retirer')),
+                              ],
+                            ),
                       )).toList(),
                     ),
             ),
