@@ -94,3 +94,22 @@ header{box-shadow:0 5px 22px #102b2008;backdrop-filter:blur(18px)}
 @media(max-width:800px){.school-class-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.school-hero3d{padding:23px 19px}.school-orb3d{width:88px;height:88px;flex-basis:88px}.school-orb3d span{font-size:38px}}
 @media(max-width:560px){.school-hero3d{min-height:170px}.school-hero3d h1{font-size:25px}.school-orb3d{width:68px;height:68px;flex-basis:68px}.school-orb3d span{font-size:30px}.school-metrics{grid-template-columns:1fr 1fr}.school-metric3d:last-child{grid-column:span 2}.school-class-grid{grid-template-columns:1fr 1fr}.school-toolbar{align-items:flex-start;flex-direction:column}.school-toolbar-actions{width:100%;justify-content:space-between}.school-student-controls{flex-direction:column}.school-section3d{padding:12px}}
 @media(prefers-reduced-motion:reduce){.school-workspace,.school-hero3d,.school-orb3d,.school-section3d,.school-alert{animation:none!important}.school-metric3d,.school-class-card,.school-orb3d{transition:none!important;transform:none!important}}
+
+/* P061 School OS command surfaces */
+.school-command-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin:20px 0 24px}
+.school-command-card{display:grid;gap:12px;padding:22px;border:1px solid rgba(89,190,151,.2);border-radius:22px;background:linear-gradient(145deg,rgba(19,45,42,.88),rgba(11,24,30,.94));box-shadow:0 18px 44px rgba(0,0,0,.18),inset 0 1px rgba(255,255,255,.06);transform:perspective(1000px) rotateX(.5deg);transition:transform .25s ease,box-shadow .25s ease}
+.school-command-card:hover{transform:perspective(1000px) rotateX(0) translateY(-3px);box-shadow:0 24px 54px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.08)}
+.school-command-card h3{margin:4px 0 0;font-size:1.05rem}
+.school-command-card small{letter-spacing:.13em;color:#8bd9b5;font-weight:700}
+.school-command-card label{display:grid;gap:6px;font-size:.78rem;color:var(--muted,#a6b6b1)}
+.school-command-card input,.school-command-card select,.school-actions select{width:100%;min-width:0;padding:11px 12px;border-radius:11px;border:1px solid rgba(148,180,169,.22);background:rgba(5,17,20,.75);color:inherit}
+.school-command-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.school-command-card button,.school-actions button{border:0;border-radius:11px;padding:11px 14px;background:linear-gradient(115deg,#65d6a2,#20a879);color:#09251b;font-weight:750;cursor:pointer}
+.school-command-card button:disabled,.school-actions button:disabled{opacity:.45;cursor:not-allowed}
+.school-archive-link{display:inline-flex;margin-top:8px;color:#f0bc87;font-size:.72rem;cursor:pointer}
+.school-actions{min-width:210px;display:grid;gap:6px}
+.school-actions select{font-size:.72rem;padding:8px}
+.school-actions button{padding:8px 10px;font-size:.72rem}
+.school-actions .school-danger-action{background:rgba(192,72,72,.15);border:1px solid rgba(231,119,119,.35);color:#ffb1b1}
+@media(max-width:760px){.school-command-grid{grid-template-columns:1fr}.school-command-card{padding:17px}.school-actions{min-width:160px}}
+@media(prefers-reduced-motion:reduce){.school-command-card,.school-command-card:hover{transition:none;transform:none}}
