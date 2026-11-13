@@ -216,3 +216,18 @@ header{box-shadow:0 5px 22px #102b2008;backdrop-filter:blur(18px)}
 .dark .tontine-live-error{background:#402b26;border-color:#68463c;color:#ffc5ad}
 @media(max-width:620px){.tontine-live-toolbar{align-items:flex-start;flex-direction:column}.tontine-live-toolbar>div:last-child{width:100%}.tontine-live-toolbar select{flex:1;min-width:0}.tontine-live-kpis{grid-template-columns:1fr}.tontine-live-groups{grid-template-columns:1fr}.tontine-live-foot{flex-direction:column}}
 @media(prefers-reduced-motion:reduce){.tontine-live-kpis article,.tontine-live-group{transition:none!important}.tontine-live-kpis article:hover,.tontine-live-group:hover{transform:none}}
+
+
+/* Community Tontine live operational registers */
+.tontine-record-panel{min-width:0;overflow:hidden}
+.tontine-record-table{max-width:100%;overflow:auto;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.tontine-record-table table{width:100%;border-collapse:separate;border-spacing:0;font-size:.78rem}
+.tontine-record-table th{position:sticky;top:0;text-align:left;color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;background:var(--surface);white-space:nowrap}
+.tontine-record-table th,.tontine-record-table td{padding:11px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+.tontine-record-table td{color:var(--text);max-width:240px;overflow-wrap:anywhere}
+.tontine-record-table tbody tr:last-child td{border-bottom:0}
+.tontine-record-table tbody tr:hover{background:color-mix(in srgb,var(--brand) 5%,transparent)}
+.tontine-record-foot{display:block;margin-top:12px;color:var(--muted);font-size:.72rem}
+.tontine-live-toolbar select[aria-label="Groupe sélectionné"]{max-width:220px}
+@media(max-width:760px){.tontine-record-table{margin-inline:-4px}.tontine-record-table th,.tontine-record-table td{padding:9px;font-size:.72rem}}
+@media(prefers-reduced-motion:reduce){.tontine-record-table tbody tr{transition:none}}
