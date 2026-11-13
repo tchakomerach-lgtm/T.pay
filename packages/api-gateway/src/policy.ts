@@ -15,6 +15,7 @@ export const API_ROUTE_POLICIES:readonly ApiRoutePolicy[]=[
  {route:"/v1/tontine/groups",methods:["POST"],auth:"member",financial:false},
  {route:"/v1/tontine/groups/:groupId/members",methods:["GET"],auth:"member",financial:false},
  {route:"/v1/tontine/groups/:groupId/members",methods:["POST"],auth:"member",financial:false},
+ {route:"/v1/tontine/groups/:groupId/members/:membershipId/decision",methods:["POST"],auth:"member",financial:false},
  {route:"/v1/tontine/groups/:groupId/cycles",methods:["GET"],auth:"member",financial:false},
  {route:"/v1/tontine/groups/:groupId/contributions",methods:["GET"],auth:"member",financial:false},
  {route:"/v1/tontine/groups/:groupId/governance",methods:["GET"],auth:"member",financial:false},
