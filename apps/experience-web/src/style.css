@@ -273,3 +273,14 @@ header{box-shadow:0 5px 22px #102b2008;backdrop-filter:blur(18px)}
 .dark .tontine-member-invite input{background:#17251e;color:#e8f0eb;border-color:#405c4c}
 @media(max-width:760px){.tontine-member-invite{grid-template-columns:1fr;padding:15px}.tontine-member-invite button{width:100%}}
 @media(prefers-reduced-motion:reduce){.tontine-member-invite{animation:none;transform:none}.tontine-member-invite button{transition:none}}
+
+
+/* Community Tontine — invitee decision controls */
+.tontine-member-decisions{display:flex;gap:6px;min-width:150px}
+.tontine-member-decisions button{padding:7px 10px;border:1px solid #65cda0;border-radius:9px;background:linear-gradient(145deg,#eafff3,#d5f5e4);color:#145c3c;font-size:10px;font-weight:750;cursor:pointer;box-shadow:0 5px 12px #0b70421a;transition:transform .2s ease,box-shadow .2s ease}
+.tontine-member-decisions button:last-child{border-color:#d7a0a0;background:linear-gradient(145deg,#fff5f5,#f9e4e4);color:#8b3030}
+.tontine-member-decisions button:hover:not(:disabled){transform:translateY(-2px) perspective(500px) rotateX(4deg);box-shadow:0 9px 18px #0b704226}
+.tontine-member-decisions button:disabled{opacity:.55;cursor:wait}
+.dark .tontine-member-decisions button{background:linear-gradient(145deg,#234735,#1c3629);color:#c6f2d8}
+.dark .tontine-member-decisions button:last-child{background:linear-gradient(145deg,#4a2929,#392222);color:#ffd5d5}
+@media(prefers-reduced-motion:reduce){.tontine-member-decisions button{transition:none}.tontine-member-decisions button:hover:not(:disabled){transform:none}}
