@@ -30,6 +30,18 @@ const IDEMPOTENCY_KEY=/^[A-Za-z0-9._:-]{12,128}$/;
 const MAX_URL_LENGTH=2048;
 const MAX_HEADER_VALUE_LENGTH=4096;
 const MAX_BODY_BYTES=1024*1024;
+function errorHttpStatus(error:unknown):number{
+ const message=error instanceof Error?error.message:String(error??"");
+ const pgCode=typeof error==="object"&&error!==null&&"code" in error?String((error as {code?:unknown}).code??""):"";
+ if(message.startsWith("FORBIDDEN")||message==="CORS_ORIGIN_NOT_ALLOWED"||message==="AUTH_PERMISSIONS_EMPTY")return 403;
+ if(message.startsWith("AUTH_"))return 401;
+ if(message==="API_ROUTE_NOT_ALLOWLISTED"||message.endsWith("_NOT_FOUND"))return 404;
+ if(["23505","23503","23514","40001","40P01"].includes(pgCode))return 409;
+ if(pgCode==="42501")return 403;
+ if(message.includes("CONFLICT")||message.includes("CAPACITY")||message.includes("ALREADY")||message.includes("NOT_ACTIVE")||message.includes("HAS_ACTIVE")||message.includes("SOURCE_CHANGED"))return 409;
+ if(message.includes("INVALID")||message.includes("REQUIRED")||message.includes("TOO_LARGE")||message.includes("METHOD_NOT_ALLOWED")||message.includes("MISMATCH")||message.includes("REPLAY"))return 400;
+ return 500;
+}
 const setSecurityHeaders=(res:ServerResponse)=>{
   res.setHeader("x-content-type-options","nosniff");
   res.setHeader("referrer-policy","no-referrer");
@@ -327,6 +339,6 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(dedupe?.status==="reserved")await gateway.completeIdempotency({requestId:dedupe.requestId,state:"succeeded",responseHash:canonicalRequestHash("RESPONSE",path,JSON.stringify(response)),statusCode:200});
    await gateway.audit({organizationId,requestId:dedupe?.requestId??correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path})});
    json(res,200,response,correlationId);
-  }catch(error){const status=String(error).startsWith("Error: FORBIDDEN")?403:400;json(res,status,buildApiError(error,correlationId),correlationId);}
+  }catch(error){const status=errorHttpStatus(error);json(res,status,buildApiError(error,correlationId),correlationId);}
  });
 }
