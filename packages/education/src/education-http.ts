@@ -502,8 +502,9 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       const expectedAmount=groupRow.contribution_mode==="fixed"?String(groupRow.fixed_amount_minor??""):String(groupRow.minimum_amount_minor??"");
       if(!/^[0-9]{1,38}$/.test(expectedAmount)||BigInt(expectedAmount)<=0n)throw new Error("TONTINE_CYCLE_CONTRIBUTION_RULE_INVALID");
       const cycleNumber=Number(groupRow.cycle_number);
-      if(!Number.isSafeInteger(cycleNumber)||cycleNumber<1)throw new Error("TONTINE_CYCLE_NUMBER_INVALID");
+      if(!Number.isSafeInteger(cycleNumber)||cycleNumber<1||cycleNumber>=2147483647)throw new Error("TONTINE_CYCLE_NUMBER_INVALID");
       const totalTarget=(BigInt(expectedAmount)*BigInt(activeMembers.length)).toString();
+      if(totalTarget.length>38)throw new Error("TONTINE_CYCLE_TARGET_AMOUNT_INVALID");
       const inserted=await client.query("INSERT INTO tontine_cycles(id,organization_id,group_id,cycle_number,starts_on,ends_on,status,rules_version,minimum_amount_minor,currency,created_at) VALUES($1,$2,$3,$4,$5,$6,'scheduled',$7,$8,$9,now()) RETURNING id,group_id,cycle_number,starts_on,ends_on,status,rules_version,minimum_amount_minor::text AS minimum_amount_minor,currency,created_at",[cycleId,organizationId,groupId,cycleNumber,startsOn,endsOn,rulesVersion,groupRow.minimum_amount_minor,groupRow.currency]);
       if(!inserted.rows[0])throw new Error("TONTINE_CYCLE_CREATE_FAILED");
       for(let index=0;index<activeMembers.length;index++){
