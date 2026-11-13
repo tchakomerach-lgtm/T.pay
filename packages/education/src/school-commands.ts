@@ -186,12 +186,12 @@ export async function enrollStudent(client:PostgresTransactionClient,ctx:SchoolC
   const startedAt=typeof body.startedAt==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(body.startedAt)?body.startedAt:new Date().toISOString().slice(0,10);
   const requestHash=hash({studentId,classId,year,startedAt});
   return runSchoolCommand(client,ctx,"enrollment.create",key,requestHash,async(db)=>{
-    const klass=await lockClass(db,ctx,classId);
-    if(klass.academic_year!==year)throw new Error("SCHOOL_ENROLLMENT_ACADEMIC_YEAR_MISMATCH");
     await db.query(
       "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
       [ctx.tenantId+"|"+ctx.organizationId+"|"+studentId]
     );
+    const klass=await lockClass(db,ctx,classId);
+    if(klass.academic_year!==year)throw new Error("SCHOOL_ENROLLMENT_ACADEMIC_YEAR_MISMATCH");
     const student=await db.query<{student_id:string;lifecycle:string}>(
       "SELECT student_id,lifecycle FROM education_students WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3",
       [ctx.tenantId,ctx.organizationId,studentId]
@@ -218,6 +218,13 @@ export async function transferStudent(client:PostgresTransactionClient,ctx:Schoo
   const targetClassId=required(body.targetClassId,"TARGET_CLASS_ID_REQUIRED",80);
   const requestHash=hash({enrollmentId,targetClassId});
   return runSchoolCommand(client,ctx,"enrollment.transfer",key,requestHash,async(db)=>{
+    const identity=await db.query<{student_id:string}>(
+      "SELECT student_id FROM education_enrollments WHERE tenant_id=$1 AND organization_id=$2 AND enrollment_id=$3 AND state='ENROLLED'",
+      [ctx.tenantId,ctx.organizationId,enrollmentId]
+    );
+    const studentId=identity.rows[0]?.student_id;
+    if(!studentId)throw new Error("SCHOOL_ACTIVE_ENROLLMENT_NOT_FOUND");
+    await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[ctx.tenantId+"|"+ctx.organizationId+"|"+studentId]);
     const active=await db.query<{enrollment_id:string;student_id:string;class_id:string;academic_year:string;version:string}>(
       "SELECT enrollment_id,student_id,class_id,academic_year,version::text FROM education_enrollments WHERE tenant_id=$1 AND organization_id=$2 AND enrollment_id=$3 AND state='ENROLLED' FOR UPDATE",
       [ctx.tenantId,ctx.organizationId,enrollmentId]
@@ -255,6 +262,13 @@ export async function withdrawStudent(client:PostgresTransactionClient,ctx:Schoo
   const reason=required(reasonInput,"WITHDRAWAL_REASON_REQUIRED",500);
   const requestHash=hash({enrollmentId,reason});
   return runSchoolCommand(client,ctx,"enrollment.withdraw",key,requestHash,async(db)=>{
+    const identity=await db.query<{student_id:string}>(
+      "SELECT student_id FROM education_enrollments WHERE tenant_id=$1 AND organization_id=$2 AND enrollment_id=$3 AND state='ENROLLED'",
+      [ctx.tenantId,ctx.organizationId,enrollmentId]
+    );
+    const studentId=identity.rows[0]?.student_id;
+    if(!studentId)throw new Error("SCHOOL_ACTIVE_ENROLLMENT_NOT_FOUND");
+    await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[ctx.tenantId+"|"+ctx.organizationId+"|"+studentId]);
     const active=await db.query<{enrollment_id:string;student_id:string}>(
       "SELECT enrollment_id,student_id FROM education_enrollments WHERE tenant_id=$1 AND organization_id=$2 AND enrollment_id=$3 AND state='ENROLLED' FOR UPDATE",
       [ctx.tenantId,ctx.organizationId,enrollmentId]
