@@ -33,3 +33,11 @@ test("community tontine operational read resources are authenticated and read-on
   }
  }
 });
+
+
+test("community tontine invitation decision is authenticated, scoped and non-financial",()=>{
+ const route="/v1/tontine/groups/123e4567-e89b-42d3-a456-426614174000/members/123e4567-e89b-42d3-a456-426614174001/decision";
+ assert.equal(resolveRoutePolicy("POST",route)?.financial,false);
+ assert.equal(authorizeRoute({method:"POST",route,authClass:"member"}).allowed,true);
+ assert.equal(authorizeRoute({method:"GET",route,authClass:"member"}).allowed,false);
+});
