@@ -89,7 +89,9 @@ async function readBody(req:IncomingMessage):Promise<string>{
 const parse=(s:string)=>s?JSON.parse(s):{};
 function route(path:string,method:string){
  const parts=path.split("/").filter(Boolean);
- if(parts[0]!=="v1"||parts[1]!=="education")return null;
+ if(parts[0]!=="v1")return null;
+ if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===3&&method==="GET")return ["tontine-group-list"] as const;
+ if(parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
  if(parts[2]==="classes"&&parts.length===3&&method==="GET")return ["class-list"] as const;
  if(parts[2]==="classes"&&parts.length===3&&method==="POST")return ["class-create"] as const;
@@ -204,6 +206,36 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       replaying=false;unsubscribe();res.end();return;
     }
     req.on("close",()=>unsubscribe());return;
+   }
+   if(r[0]==="tontine-group-list"){
+    if(method!=="GET")throw new Error("TONTINE_READ_METHOD_REQUIRED");
+    const query=new URL(rawUrl,"https://tpay.invalid").searchParams;
+    const status=query.get("status");
+    const allowedStatuses=new Set(["draft","pending_review","active","paused","completed","cancelled"]);
+    if(status&&!allowedStatuses.has(status))throw new Error("TONTINE_GROUP_STATUS_INVALID");
+    const search=query.get("search")?.trim().slice(0,80);
+    const limitRaw=Number(query.get("limit")??"50");
+    if(!Number.isInteger(limitRaw)||limitRaw<1||limitRaw>100)throw new Error("TONTINE_PAGE_LIMIT_INVALID");
+    const values:unknown[]=[organizationId];
+    const filters:string[]=[];
+    if(status){values.push(status);filters.push("g.status=$"+values.length);}
+    if(search){values.push("%"+search.replace(/[\\%_]/g,"\\   if(r[0]==="class-list"){")+"%");filters.push("g.name ILIKE $"+values.length+" ESCAPE '\\\\'");}
+    values.push(limitRaw);
+    const result=await tenantScopedRead(deps,auth.tenantId,organizationId,
+     "SELECT g.id,g.name,g.country_code,g.currency,g.frequency,g.contribution_mode,g.target_minor::text AS target_minor,"+
+     "g.fixed_amount_minor::text AS fixed_amount_minor,g.minimum_amount_minor::text AS minimum_amount_minor,g.cycle_number,"+
+     "g.max_members,g.governance,g.status,g.created_at,"+
+     "(SELECT count(*)::integer FROM tontine_memberships m WHERE m.organization_id=g.organization_id AND m.group_id=g.id AND m.status='active') AS active_member_count,"+
+     "(SELECT count(*)::integer FROM tontine_memberships m WHERE m.organization_id=g.organization_id AND m.group_id=g.id AND m.status='pending') AS pending_member_count,"+
+     "(SELECT jsonb_build_object('id',c.id,'cycleNumber',c.cycle_number,'startsOn',c.starts_on,'endsOn',c.ends_on,'status',c.status) "+
+     "FROM tontine_cycles c WHERE c.organization_id=g.organization_id AND c.group_id=g.id ORDER BY c.cycle_number DESC LIMIT 1) AS latest_cycle,"+
+     "(SELECT count(*)::integer FROM tontine_contributions tc WHERE tc.organization_id=g.organization_id AND tc.group_id=g.id AND tc.status='confirmed') AS confirmed_contribution_count,"+
+     "(SELECT COALESCE(sum(tc.amount_minor),0)::text FROM tontine_contributions tc WHERE tc.organization_id=g.organization_id AND tc.group_id=g.id AND tc.status='confirmed') AS confirmed_contribution_minor "+
+     "FROM tontine_groups g WHERE g.organization_id=$1 "+(filters.length?"AND "+filters.join(" AND ")+" ":"")+
+     "ORDER BY g.created_at DESC,g.id LIMIT $"+values.length,values);
+    data={items:result.rows,limit:limitRaw};
+    await new ApiGatewayRepository(deps.db).audit({organizationId,requestId:correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path,resource:"tontine_groups",limit:limitRaw,status:status??"all"})});
+    json(res,200,buildApiSuccess("v1",correlationId,data),correlationId);return;
    }
    if(r[0]==="class-list"){
     if(method!=="GET")throw new Error("EDUCATION_READ_METHOD_REQUIRED");
