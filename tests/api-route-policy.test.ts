@@ -17,3 +17,13 @@ test("community tontine group portfolio is an authenticated read-only route",()=
  assert.equal(authorizeRoute({method:"GET",route,authClass:"member"}).allowed,true);
  assert.equal(authorizeRoute({method:"POST",route,authClass:"member"}).allowed,false);
 });
+
+
+test("community tontine operational read resources are authenticated and read-only",()=>{
+ for(const resource of ["members","cycles","contributions","governance","cases"]){
+  const route=`/v1/tontine/groups/123e4567-e89b-42d3-a456-426614174000/${resource}`;
+  assert.equal(resolveRoutePolicy("GET",route)?.financial,false,resource);
+  assert.equal(authorizeRoute({method:"GET",route,authClass:"member"}).allowed,true,resource);
+  assert.equal(authorizeRoute({method:"POST",route,authClass:"member"}).allowed,false,resource);
+ }
+});
