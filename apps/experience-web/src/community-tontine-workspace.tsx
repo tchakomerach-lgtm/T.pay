@@ -44,6 +44,13 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
  const [cycleBusy,setCycleBusy]=useState(false);
  const [cycleError,setCycleError]=useState<string|null>(null);
  const [panelRefresh,setPanelRefresh]=useState(0);
+ const [caseType,setCaseType]=useState("incident");
+ const [caseSeverity,setCaseSeverity]=useState("medium");
+ const [caseSummary,setCaseSummary]=useState("");
+ const [caseReferenceKind,setCaseReferenceKind]=useState("contribution");
+ const [caseReferenceId,setCaseReferenceId]=useState("");
+ const [caseBusy,setCaseBusy]=useState(false);
+ const [caseError,setCaseError]=useState<string|null>(null);
  const [groupName,setGroupName]=useState("");
  const [groupFrequency,setGroupFrequency]=useState("weekly");
  const [groupMode,setGroupMode]=useState("fixed");
@@ -104,6 +111,19 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   }catch(error){setDecisionError(error instanceof Error?error.message:"TONTINE_MEMBER_DECISION_FAILED");}
   finally{setDecisionBusy(null);}
  },[api,selectedGroupId,decisionBusy]);
+ const createCase=useCallback(async(event:FormEvent<HTMLFormElement>)=>{
+  event.preventDefault();if(!api||!selectedGroupId||caseBusy)return;
+  setCaseBusy(true);setCaseError(null);
+  try{
+   const payload:Record<string,string>={type:caseType,severity:caseSeverity,summary:caseSummary.trim()};
+   if(caseReferenceId.trim())payload[caseReferenceKind==="payout"?"payoutId":"contributionId"]=caseReferenceId.trim();
+   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/cases",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify(payload)});
+   const body=await response.json() as {data?:{case?:{id:string;state:string}};error?:{message?:string}};
+   if(!response.ok||!body.data?.case?.id)throw new Error(body.error?.message??"TONTINE_CASE_CREATE_HTTP_"+response.status);
+   setCaseSummary("");setCaseReferenceId("");setPanelRefresh(value=>value+1);
+  }catch(error){setCaseError(error instanceof Error?error.message:"TONTINE_CASE_CREATE_FAILED");}
+  finally{setCaseBusy(false);}
+ },[api,selectedGroupId,caseBusy,caseType,caseSeverity,caseSummary,caseReferenceKind,caseReferenceId]);
  const generateCycle=useCallback(async(event:FormEvent<HTMLFormElement>)=>{
   event.preventDefault();if(!api||!selectedGroupId||cycleBusy)return;
   setCycleBusy(true);setCycleError(null);
@@ -195,6 +215,16 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
     <label>Version des règles<input required maxLength={64} value={cycleRulesVersion} onChange={event=>setCycleRulesVersion(event.target.value)}/></label>
     <button type="submit" disabled={cycleBusy||!cycleStartsOn||!cycleEndsOn||!cycleRulesVersion.trim()}>{cycleBusy?"Génération atomique…":"Générer le cycle"}</button>
     {cycleError&&<p role="alert" className="tontine-create-error">{cycleError}</p>}
+   </form>}
+   {active==="incidents"&&api&&selectedGroupId&&<form className="tontine-case-command" onSubmit={createCase}>
+    <div><small>OUVERTURE D'UN DOSSIER TRAÇABLE</small><h4>Signaler un incident ou un litige</h4><p>La création ouvre un dossier d'investigation. Elle ne modifie aucun solde et ne déclenche aucun remboursement.</p></div>
+    <label>Type de dossier<select value={caseType} onChange={event=>setCaseType(event.target.value)}><option value="incident">Incident opérationnel</option><option value="dispute">Contestation / litige</option><option value="risk_investigation">Investigation risque</option><option value="recovery">Recouvrement</option><option value="refund">Demande de remboursement</option></select></label>
+    <label>Gravité<select value={caseSeverity} onChange={event=>setCaseSeverity(event.target.value)}><option value="low">Faible</option><option value="medium">Moyenne</option><option value="high">Élevée</option><option value="critical">Critique</option></select></label>
+    <label>Référence financière<select value={caseReferenceKind} onChange={event=>setCaseReferenceKind(event.target.value)}><option value="contribution">Cotisation</option><option value="payout">Décaissement</option></select></label>
+    <label>UUID de la référence<input value={caseReferenceId} onChange={event=>setCaseReferenceId(event.target.value)} placeholder="Obligatoire pour un remboursement"/></label>
+    <label className="tontine-case-summary">Résumé du dossier<textarea required maxLength={1000} rows={3} value={caseSummary} onChange={event=>setCaseSummary(event.target.value)} placeholder="Décrire les faits observés sans données sensibles…"/></label>
+    {caseError&&<p role="alert" className="tontine-create-error">{caseError}</p>}
+    <button type="submit" disabled={caseBusy||!caseSummary.trim()||(caseType==="refund"&&!caseReferenceId.trim())}>{caseBusy?"Ouverture sécurisée…":"Ouvrir le dossier"}</button>
    </form>}
    {decisionError&&<p role="alert">{decisionError}</p>}{panelLoading?<p>Chargement des données PostgreSQL…</p>:panelError?<p role="alert">{panelError}</p>:panelRows.length===0?<p>{api&&selectedGroupId?"Aucun enregistrement pour ce groupe.":"Une session API authentifiée et un groupe actif sont nécessaires."}</p>:<div className="tontine-record-table"><table><thead><tr>{panelColumns.map(key=><th key={key}>{key.replaceAll("_"," ")}</th>)}{active==="members"&&<th>Décision</th>}</tr></thead><tbody>{panelRows.map((record,index)=><tr key={String(record.id??index)}>{panelColumns.map(key=><td key={key}>{record[key]===null||record[key]===undefined?"—":String(record[key])}</td>)}{active==="members"&&<td>{record.status==="pending"&&record.is_current_user===true?<div className="tontine-member-decisions"><button type="button" disabled={decisionBusy!==null} onClick={()=>void decideInvitation(String(record.id),"accept")}>{decisionBusy===record.id?"Traitement…":"Accepter"}</button><button type="button" disabled={decisionBusy!==null} onClick={()=>void decideInvitation(String(record.id),"decline")}>Refuser</button></div>:record.status==="pending"?"En attente du membre":"—"}</td>}</tr>)}</tbody></table></div>}
    <span className="tontine-record-foot">{panelRows.length} enregistrement(s) affiché(s) · limite 100 · lecture seule</span>
