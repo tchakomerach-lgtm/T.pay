@@ -12,6 +12,7 @@ export const API_ROUTE_POLICIES:readonly ApiRoutePolicy[]=[
  {route:"/v1/loans/applications",methods:["POST"],auth:"member",financial:true},
  {route:"/v1/tontines/contributions",methods:["POST"],auth:"member",financial:true},
  {route:"/v1/tontine/groups",methods:["GET"],auth:"member",financial:false},
+ {route:"/v1/tontine/groups",methods:["POST"],auth:"member",financial:false},
  {route:"/v1/tontine/groups/:groupId/members",methods:["GET"],auth:"member",financial:false},
  {route:"/v1/tontine/groups/:groupId/cycles",methods:["GET"],auth:"member",financial:false},
  {route:"/v1/tontine/groups/:groupId/contributions",methods:["GET"],auth:"member",financial:false},
