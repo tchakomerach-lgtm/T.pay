@@ -4,6 +4,7 @@ import type {TPayApi} from "./api.js";
 type Panel="overview"|"groups"|"members"|"cycles"|"contributions"|"governance"|"incidents";
 type TontineGroup={id:string;name:string;country_code:string;currency:string;frequency:string;contribution_mode:string;minimum_amount_minor:string;fixed_amount_minor:string|null;cycle_number:number;max_members:number|null;governance:string;status:string;active_member_count:number;pending_member_count:number;latest_cycle:{id:string;cycleNumber:number;startsOn:string;endsOn:string;status:string}|null;confirmed_contribution_count:number;confirmed_contribution_minor:string;};
 type GroupResponse={data?:{items?:TontineGroup[]}};
+type TontineRecord=Record<string,unknown>;
 const panels:{id:Panel;label:string;symbol:string}[]=[
  {id:"overview",label:"Vue générale",symbol:"◈"},{id:"groups",label:"Groupes",symbol:"◎"},{id:"members",label:"Membres",symbol:"♙"},
  {id:"cycles",label:"Cycles & rotations",symbol:"↻"},{id:"contributions",label:"Cotisations",symbol:"₣"},{id:"governance",label:"Gouvernance",symbol:"⬡"},{id:"incidents",label:"Incidents",symbol:"⚑"}
@@ -25,6 +26,10 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
  const [loadError,setLoadError]=useState<string|null>(null);
  const [updatedAt,setUpdatedAt]=useState<string|null>(null);
  const [statusFilter,setStatusFilter]=useState("all");
+ const [selectedGroupId,setSelectedGroupId]=useState("");
+ const [panelRows,setPanelRows]=useState<TontineRecord[]>([]);
+ const [panelLoading,setPanelLoading]=useState(false);
+ const [panelError,setPanelError]=useState<string|null>(null);
  const loadGroups=useCallback(async()=>{
   if(!api){setGroups([]);return;}
   setLoading(true);setLoadError(null);
@@ -40,6 +45,25 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   finally{setLoading(false);}
  },[api,statusFilter]);
  useEffect(()=>{void loadGroups();},[loadGroups]);
+ useEffect(()=>{
+  if(groups.length>0&&!groups.some(group=>group.id===selectedGroupId))setSelectedGroupId(groups[0].id);
+  if(groups.length===0)setSelectedGroupId("");
+ },[groups,selectedGroupId]);
+ const panelResource=active==="members"||active==="cycles"||active==="contributions"||active==="governance"||active==="incidents"
+  ?active==="incidents"?"cases":active:null;
+ useEffect(()=>{
+  if(!api||!panelResource||!selectedGroupId){setPanelRows([]);setPanelError(null);return;}
+  let cancelled=false;setPanelLoading(true);setPanelError(null);
+  api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/"+panelResource+"?limit=100")
+   .then(async response=>{
+    if(!response.ok)throw new Error("TONTINE_"+panelResource.toUpperCase()+"_HTTP_"+response.status);
+    const body=await response.json() as GroupResponse;
+    if(!cancelled)setPanelRows(Array.isArray(body.data?.items)?body.data.items as TontineRecord[]:[]);
+   })
+   .catch(error=>{if(!cancelled)setPanelError(error instanceof Error?error.message:"TONTINE_DATA_UNAVAILABLE");})
+   .finally(()=>{if(!cancelled)setPanelLoading(false);});
+  return()=>{cancelled=true;};
+ },[api,panelResource,selectedGroupId]);
  const current=details[active];
  const progress=useMemo(()=>stages.map((label,index)=>({label,index})),[]);
  return <div className="content tontine-workspace">
@@ -47,10 +71,10 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
    <div className="tontine-hero-copy"><small>T.PAY · COMMUNITY TONTINE</small><h1>La solidarité,<br/><em>structurée et transparente.</em></h1><p>Groupes · cycles · contributions · rotation · gouvernance</p><div className="tontine-hero-tags"><span>Multi-organisation</span><span>Audit traçable</span><span>Financial Core protégé</span></div></div>
    <div className="tontine-orbit" aria-hidden="true"><div className="tontine-orbit-ring ring-a"/><div className="tontine-orbit-ring ring-b"/><div className="tontine-coin">T</div><span className="orbit-dot dot-a"/><span className="orbit-dot dot-b"/><span className="orbit-dot dot-c"/></div>
   </section>
-  <div className="tontine-statusbar"><span className="tontine-status-dot"/><b>{api?"SESSION API DISPONIBLE":"API TONTINE NON RACCORDEE"}</b><span>{api?"Lecture authentifiée disponible pour le portefeuille des groupes ; les commandes métier restent à raccorder.":"Interface de travail uniquement · aucune donnée ni opération financière simulée."}</span></div>
+  <div className="tontine-statusbar"><span className="tontine-status-dot"/><b>{api?"SESSION API DISPONIBLE":"API TONTINE NON RACCORDEE"}</b><span>{api?"Lectures authentifiées disponibles : groupes, membres, cycles, cotisations, gouvernance et incidents.":"Interface de travail uniquement · aucune donnée ni opération financière simulée."}</span></div>
   <div className="tontine-nav" role="tablist" aria-label="Espaces de la tontine">{panels.map(p=><button type="button" role="tab" aria-selected={active===p.id} className={active===p.id?"active":""} key={p.id} onClick={()=>setActive(p.id)}><i>{p.symbol}</i>{p.label}</button>)}</div>
   <section className="tontine-section-heading"><div><small>{current.eyebrow}</small><h2>{current.title}</h2><p>{current.description}</p></div><span className="tontine-readonly">LECTURE / CONCEPTION</span></section>
-  {api&&<div className="tontine-live-toolbar"><div><b>Portefeuille réel</b><small>{updatedAt?"Actualisé à "+new Date(updatedAt).toLocaleTimeString("fr-FR"):"Chargement des données de l'organisation"}</small></div><div><select aria-label="Filtrer les groupes" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">Tous les statuts</option><option value="active">Actifs</option><option value="draft">Brouillons</option><option value="pending_review">En revue</option><option value="paused">Suspendus</option><option value="completed">Terminés</option><option value="cancelled">Annulés</option></select><button type="button" onClick={()=>void loadGroups()} disabled={loading}>↻ Actualiser</button></div></div>}
+  {api&&<div className="tontine-live-toolbar"><div><b>Portefeuille réel</b><small>{updatedAt?"Actualisé à "+new Date(updatedAt).toLocaleTimeString("fr-FR"):"Chargement des données de l'organisation"}</small></div><div>{groups.length>0&&<select aria-label="Groupe sélectionné" value={selectedGroupId} onChange={e=>setSelectedGroupId(e.target.value)}>{groups.map(group=><option key={group.id} value={group.id}>{group.name}</option>)}</select>}<select aria-label="Filtrer les groupes" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">Tous les statuts</option><option value="active">Actifs</option><option value="draft">Brouillons</option><option value="pending_review">En revue</option><option value="paused">Suspendus</option><option value="completed">Terminés</option><option value="cancelled">Annulés</option></select><button type="button" onClick={()=>void loadGroups()} disabled={loading}>↻ Actualiser</button></div></div>}
   {loadError&&<div className="tontine-live-error" role="alert"><b>Chargement des groupes impossible</b><span>{loadError}</span><button type="button" onClick={()=>void loadGroups()}>Réessayer</button></div>}
   {active==="groups"&&<section className="tontine-live-groups" aria-busy={loading}>
    {loading&&groups.length===0?<div className="tontine-live-empty">Chargement des groupes…</div>:groups.length===0?<div className="tontine-live-empty">{api?"Aucun groupe de tontine enregistré pour cette organisation.":"Une session API authentifiée est nécessaire pour afficher les groupes réels."}</div>:groups.map(group=><article className="tontine-live-group" key={group.id}>
@@ -70,7 +94,10 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
    <article className="tontine-feature-card"><small>PRINCIPES FINANCIERS</small><h3>Pas de raccourci sur les fonds</h3><ul><li>Le ledger reste l'autorité comptable.</li><li>La collecte est idempotente et rapprochée.</li><li>Les décaissements sont réservés et validés.</li><li>Une panne ne déclenche jamais un second transfert aveugle.</li></ul><div className="tontine-lock">◈ &nbsp; Financial Core · transaction atomique</div></article>
    <article className="tontine-feature-card"><small>GOUVERNANCE</small><h3>Une responsabilité par action</h3><ul><li>Identité et organisation vérifiées.</li><li>Permissions limitées et temporaires.</li><li>Préparateur ≠ approbateur.</li><li>Audit conservé avec l'événement.</li></ul><div className="tontine-lock">⬡ &nbsp; Séparation des rôles</div></article>
   </div>}
-  {active!=="overview"&&active!=="groups"&&<div className="tontine-detail-grid"><article className="tontine-feature-card"><small>CAPACITÉS DU SOUS-MODULE</small><h3>Fonctions prévues et règles métier</h3><ul>{current.items.map(item=><li key={item}>{item}</li>)}</ul></article><article className="tontine-empty-card"><div className="tontine-empty-icon">{panels.find(p=>p.id===active)?.symbol}</div><b>Aucun enregistrement chargé</b><p>Le point d'accès API de ce sous-module n'est pas encore disponible dans le serveur courant. Aucun groupe, membre, montant ou statut fictif n'est affiché.</p><span>En attente du service métier authentifié</span></article></div>}
+  {active!=="overview"&&active!=="groups"&&<div className="tontine-detail-grid"><article className="tontine-feature-card"><small>CAPACITÉS DU SOUS-MODULE</small><h3>Fonctions prévues et règles métier</h3><ul>{current.items.map(item=><li key={item}>{item}</li>)}</ul></article><article className="tontine-feature-card tontine-record-panel"><small>REGISTRE AUTHENTIFIÉ · {selectedGroupId?"GROUPE SÉLECTIONNÉ":"AUCUN GROUPE"}</small><h3>{active==="members"?"Membres":active==="cycles"?"Cycles & échéances":active==="contributions"?"Cotisations":active==="governance"?"Propositions & votes":"Incidents & litiges"}</h3>
+   {panelLoading?<p>Chargement des données PostgreSQL…</p>:panelError?<p role="alert">{panelError}</p>:panelRows.length===0?<p>{api&&selectedGroupId?"Aucun enregistrement pour ce groupe.":"Une session API authentifiée et un groupe actif sont nécessaires."}</p>:<div className="tontine-record-table"><table><thead><tr>{Object.keys(panelRows[0]).map(key=><th key={key}>{key.replaceAll("_"," ")}</th>)}</tr></thead><tbody>{panelRows.map((record,index)=><tr key={String(record.id??index)}>{Object.keys(panelRows[0]).map(key=><td key={key}>{record[key]===null||record[key]===undefined?"—":String(record[key])}</td>)}</tr>)}</tbody></table></div>}
+   <span className="tontine-record-foot">{panelRows.length} enregistrement(s) affiché(s) · limite 100 · lecture seule</span>
+  </article></div>}
   <section className="tontine-integrity"><div><small>GARDE-FOUS NON NÉGOCIABLES</small><b>Tenant isolation · PostgreSQL · idempotence · audit · outbox</b></div><p>Le renderer ne crée pas de groupe, ne collecte pas de cotisation et ne déclenche aucun payout. Les mutations seront activées uniquement après implémentation des routes authentifiées, des permissions, des transactions et des tests PostgreSQL live.</p></section>
  </div>;
 }
