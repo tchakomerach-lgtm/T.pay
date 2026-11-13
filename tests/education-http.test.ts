@@ -120,3 +120,18 @@ test("Community Tontine portfolio read is authenticated, organization-scoped and
   assert.deepEqual(scopedValues.slice(0,2),["org-1","active"]);
  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
+
+
+test("Community Tontine member registry is organization-scoped, bounded and audited",async()=>{
+ const auditDb=db();let sqlSeen="",valuesSeen:unknown[]=[];
+ const server=createSchoolApiServer({db:auditDb as any,authenticate:async()=>auth(),syncClient:()=>({
+  query:async(sql:string,values?:unknown[])=>{if(sql.includes("FROM tontine_memberships WHERE organization_id")){sqlSeen=sql;valuesSeen=values??[];return {rows:[{id:"member-1",client_id:"client-1",role:"member",status:"active"}],rowCount:1};}return {rows:[],rowCount:0};},release:()=>{}
+ }) as any});
+ await new Promise<void>(resolve=>server.listen(0,resolve));const port=(server.address() as any).port;
+ try{
+  const response=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/123e4567-e89b-42d3-a456-426614174000/members?limit=25`);
+  const body=await response.json() as any;
+  assert.equal(response.status,200,JSON.stringify(body));assert.equal(body.ok,true);assert.equal(body.data.items.length,1);
+  assert.match(sqlSeen,/organization_id=\\$1 AND group_id=\\$2/);assert.deepEqual(valuesSeen,["org-1","123e4567-e89b-42d3-a456-426614174000",25]);
+ }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});
