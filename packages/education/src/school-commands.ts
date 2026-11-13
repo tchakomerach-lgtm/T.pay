@@ -68,7 +68,7 @@ export async function runSchoolCommand<T>(
       "INSERT INTO education_school_command_audit(command_id,tenant_id,organization_id,actor_id,command_type,resource_id,request_hash,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,now())",
       [commandId,context.tenantId,context.organizationId,context.actorId,commandType,result.resourceId,requestHash]
     );
-    const eventPayload={commandId,tenantId:context.tenantId,organizationId:context.organizationId,actorId:context.actorId,...metadata,data:result.data};
+    const eventPayload={commandId,tenantId:context.tenantId,organizationId:context.organizationId,actorId:context.actorId,...metadata};
     const payload=JSON.stringify(eventPayload);
     await client.query(
       "INSERT INTO education_sync_outbox(id,tenant_id,organization_id,event_id,event_type,payload,payload_hash,occurred_at) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,now())",
