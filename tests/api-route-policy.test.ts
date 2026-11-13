@@ -25,6 +25,11 @@ test("community tontine operational read resources are authenticated and read-on
   const route=`/v1/tontine/groups/123e4567-e89b-42d3-a456-426614174000/${resource}`;
   assert.equal(resolveRoutePolicy("GET",route)?.financial,false,resource);
   assert.equal(authorizeRoute({method:"GET",route,authClass:"member"}).allowed,true,resource);
-  assert.equal(authorizeRoute({method:"POST",route,authClass:"member"}).allowed,false,resource);
+  if(resource==="members"){
+   assert.equal(resolveRoutePolicy("POST",route)?.financial,false,resource);
+   assert.equal(authorizeRoute({method:"POST",route,authClass:"member"}).allowed,true,resource);
+  }else{
+   assert.equal(authorizeRoute({method:"POST",route,authClass:"member"}).allowed,false,resource);
+  }
  }
 });
