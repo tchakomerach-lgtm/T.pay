@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { request as httpRequest } from "node:http";
 import { createSchoolApiServer } from "../packages/education/src/education-http.js";
 
 function auth(){
@@ -70,8 +71,14 @@ test("P049 fortress request envelope rejects oversized URL/header and emits hard
   const longHeader=await fetch(`http://127.0.0.1:${port}/v1/education/actors/teacher-1`,{headers:{"x-correlation-id":"a".repeat(4097)}});
   assert.equal(longHeader.status,400);
 
-  const oversizedLength=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"application/json","content-length":String(1024*1024+1),"x-idempotency-key":"p049-length"},body:"{}"});
-  assert.equal(oversizedLength.status,400);
+  const oversizedLength=await new Promise<number>((resolve,reject)=>{
+   const request=httpRequest({hostname:"127.0.0.1",port,path:"/v1/education/attendance",method:"POST",headers:{"content-type":"application/json","content-length":String(1024*1024+1),"x-idempotency-key":"p049-length"}},response=>{
+    response.resume();resolve(response.statusCode??0);
+   });
+   request.on("error",reject);
+   request.end();
+  });
+  assert.equal(oversizedLength,400);
 
   const sse=await fetch(`http://127.0.0.1:${port}/v1/education/events/stream`,{headers:{accept:"text/event-stream"}});
   assert.equal(sse.status,200);
