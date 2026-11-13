@@ -3,7 +3,7 @@ import type {TPayApi} from "./api.js";
 
 type Panel="overview"|"groups"|"members"|"cycles"|"contributions"|"governance"|"incidents";
 type TontineGroup={id:string;name:string;country_code:string;currency:string;frequency:string;contribution_mode:string;minimum_amount_minor:string;fixed_amount_minor:string|null;cycle_number:number;max_members:number|null;governance:string;status:string;active_member_count:number;pending_member_count:number;latest_cycle:{id:string;cycleNumber:number;startsOn:string;endsOn:string;status:string}|null;confirmed_contribution_count:number;confirmed_contribution_minor:string;};
-type GroupResponse={data?:{items?:TontineGroup[]}};
+type GroupResponse={data?:{items?:TontineGroup[];group?:TontineGroup;replayed?:boolean}};
 type TontineRecord=Record<string,unknown>;
 const panels:{id:Panel;label:string;symbol:string}[]=[
  {id:"overview",label:"Vue générale",symbol:"◈"},{id:"groups",label:"Groupes",symbol:"◎"},{id:"members",label:"Membres",symbol:"♙"},
@@ -30,12 +30,23 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
  const [panelRows,setPanelRows]=useState<TontineRecord[]>([]);
  const [panelLoading,setPanelLoading]=useState(false);
  const [panelError,setPanelError]=useState<string|null>(null);
- const loadGroups=useCallback(async()=>{
+ const [createOpen,setCreateOpen]=useState(false);
+ const [createBusy,setCreateBusy]=useState(false);
+ const [createError,setCreateError]=useState<string|null>(null);
+ const [groupName,setGroupName]=useState("");
+ const [groupFrequency,setGroupFrequency]=useState("weekly");
+ const [groupMode,setGroupMode]=useState("fixed");
+ const [groupMinimum,setGroupMinimum]=useState("500");
+ const [groupFixed,setGroupFixed]=useState("500");
+ const [groupTarget,setGroupTarget]=useState("");
+ const [groupMaxMembers,setGroupMaxMembers]=useState("30");
+ const [groupGovernance,setGroupGovernance]=useState("member_vote");
+ const loadGroups=useCallback(async(filter=statusFilter)=>{
   if(!api){setGroups([]);return;}
   setLoading(true);setLoadError(null);
   try{
    const query=new URLSearchParams({limit:"100"});
-   if(statusFilter!=="all")query.set("status",statusFilter);
+   if(filter!=="all")query.set("status",filter);
    const response=await api.request("/v1/tontine/groups?"+query.toString());
    if(!response.ok)throw new Error("TONTINE_API_HTTP_"+response.status);
    const body=await response.json() as GroupResponse;
@@ -44,6 +55,22 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   }catch(error){setLoadError(error instanceof Error?error.message:"TONTINE_DATA_UNAVAILABLE");}
   finally{setLoading(false);}
  },[api,statusFilter]);
+ const createGroup=useCallback(async(event:React.FormEvent<HTMLFormElement>)=>{
+  event.preventDefault();if(!api||createBusy)return;
+  setCreateBusy(true);setCreateError(null);
+  try{
+   const payload:Record<string,unknown>={name:groupName.trim(),countryCode:"TG",currency:"XOF",frequency:groupFrequency,contributionMode:groupMode,minimumAmountMinor:groupMinimum,governance:groupGovernance};
+   if(groupMode==="fixed")payload.fixedAmountMinor=groupFixed;
+   if(groupMode==="goal")payload.targetMinor=groupTarget;
+   if(groupMaxMembers.trim())payload.maxMembers=Number(groupMaxMembers);
+   const response=await api.request("/v1/tontine/groups",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify(payload)});
+   const body=await response.json() as {data?:{group?:TontineGroup};error?:{message?:string}};
+   if(!response.ok||!body.data?.group?.id)throw new Error(body.error?.message??"TONTINE_GROUP_CREATE_HTTP_"+response.status);
+   setCreateOpen(false);setGroupName("");setStatusFilter("all");setActive("groups");setSelectedGroupId(body.data.group.id);
+   await loadGroups("all");
+  }catch(error){setCreateError(error instanceof Error?error.message:"TONTINE_GROUP_CREATE_FAILED");}
+  finally{setCreateBusy(false);}
+ },[api,createBusy,groupName,groupFrequency,groupMode,groupMinimum,groupFixed,groupTarget,groupMaxMembers,groupGovernance,loadGroups]);
  useEffect(()=>{void loadGroups();},[loadGroups]);
  useEffect(()=>{
   const firstGroupId=groups[0]?.id;if(firstGroupId&&!groups.some(group=>group.id===selectedGroupId))setSelectedGroupId(firstGroupId);
@@ -75,7 +102,22 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   <div className="tontine-statusbar"><span className="tontine-status-dot"/><b>{api?"SESSION API DISPONIBLE":"API TONTINE NON RACCORDEE"}</b><span>{api?"Lectures authentifiées disponibles : groupes, membres, cycles, cotisations, gouvernance et incidents.":"Interface de travail uniquement · aucune donnée ni opération financière simulée."}</span></div>
   <div className="tontine-nav" role="tablist" aria-label="Espaces de la tontine">{panels.map(p=><button type="button" role="tab" aria-selected={active===p.id} className={active===p.id?"active":""} key={p.id} onClick={()=>setActive(p.id)}><i>{p.symbol}</i>{p.label}</button>)}</div>
   <section className="tontine-section-heading"><div><small>{current.eyebrow}</small><h2>{current.title}</h2><p>{current.description}</p></div><span className="tontine-readonly">LECTURE / CONCEPTION</span></section>
-  {api&&<div className="tontine-live-toolbar"><div><b>Portefeuille réel</b><small>{updatedAt?"Actualisé à "+new Date(updatedAt).toLocaleTimeString("fr-FR"):"Chargement des données de l'organisation"}</small></div><div>{groups.length>0&&<select aria-label="Groupe sélectionné" value={selectedGroupId} onChange={e=>setSelectedGroupId(e.target.value)}>{groups.map(group=><option key={group.id} value={group.id}>{group.name}</option>)}</select>}<select aria-label="Filtrer les groupes" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">Tous les statuts</option><option value="active">Actifs</option><option value="draft">Brouillons</option><option value="pending_review">En revue</option><option value="paused">Suspendus</option><option value="completed">Terminés</option><option value="cancelled">Annulés</option></select><button type="button" onClick={()=>void loadGroups()} disabled={loading}>↻ Actualiser</button></div></div>}
+  {api&&<div className="tontine-live-toolbar"><div><b>Portefeuille réel</b><small>{updatedAt?"Actualisé à "+new Date(updatedAt).toLocaleTimeString("fr-FR"):"Chargement des données de l'organisation"}</small></div><div>{groups.length>0&&<select aria-label="Groupe sélectionné" value={selectedGroupId} onChange={e=>setSelectedGroupId(e.target.value)}>{groups.map(group=><option key={group.id} value={group.id}>{group.name}</option>)}</select>}<select aria-label="Filtrer les groupes" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">Tous les statuts</option><option value="active">Actifs</option><option value="draft">Brouillons</option><option value="pending_review">En revue</option><option value="paused">Suspendus</option><option value="completed">Terminés</option><option value="cancelled">Annulés</option></select><button type="button" onClick={()=>void loadGroups()} disabled={loading}>↻ Actualiser</button>{active==="groups"&&<button type="button" className="tontine-create-trigger" onClick={()=>{setCreateError(null);setCreateOpen(value=>!value);}}>＋ Nouveau groupe</button>}</div></div>}
+  {active==="groups"&&createOpen&&<form className="tontine-create-form" onSubmit={createGroup}>
+   <div className="tontine-create-heading"><div><small>NOUVELLE COMMUNAUTÉ · TOGO / XOF</small><h3>Configurer un groupe</h3><p>Le groupe sera créé en brouillon avec le fondateur comme premier membre. Aucun paiement ne sera déclenché.</p></div><button type="button" onClick={()=>setCreateOpen(false)} aria-label="Fermer le formulaire">×</button></div>
+   <div className="tontine-create-fields">
+    <label>Nom du groupe<input required maxLength={160} value={groupName} onChange={event=>setGroupName(event.target.value)} placeholder="Ex. Solidarité du quartier"/></label>
+    <label>Fréquence<select value={groupFrequency} onChange={event=>setGroupFrequency(event.target.value)}><option value="daily">Quotidienne</option><option value="weekly">Hebdomadaire</option><option value="monthly">Mensuelle</option></select></label>
+    <label>Mode de cotisation<select value={groupMode} onChange={event=>setGroupMode(event.target.value)}><option value="fixed">Montant fixe</option><option value="variable">Montant variable</option><option value="goal">Objectif collectif</option></select></label>
+    <label>Minimum par cotisation (XOF)<input required inputMode="numeric" pattern="[0-9]{1,38}" value={groupMinimum} onChange={event=>setGroupMinimum(event.target.value)}/></label>
+    {groupMode==="fixed"&&<label>Montant fixe (XOF)<input required inputMode="numeric" pattern="[0-9]{1,38}" value={groupFixed} onChange={event=>setGroupFixed(event.target.value)}/></label>}
+    {groupMode==="goal"&&<label>Objectif (XOF)<input required inputMode="numeric" pattern="[0-9]{1,38}" value={groupTarget} onChange={event=>setGroupTarget(event.target.value)}/></label>}
+    <label>Nombre maximum de membres<input inputMode="numeric" type="number" min="2" max="100000" value={groupMaxMembers} onChange={event=>setGroupMaxMembers(event.target.value)}/></label>
+    <label>Gouvernance<select value={groupGovernance} onChange={event=>setGroupGovernance(event.target.value)}><option value="member_vote">Vote des membres</option><option value="founder_managed">Gestion par fondateur</option></select></label>
+   </div>
+   {createError&&<p className="tontine-create-error" role="alert">{createError}</p>}
+   <div className="tontine-create-actions"><button type="button" onClick={()=>setCreateOpen(false)} disabled={createBusy}>Annuler</button><button type="submit" disabled={createBusy||!groupName.trim()}>{createBusy?"Création sécurisée…":"Créer le groupe en brouillon"}</button></div>
+  </form>}
   {loadError&&<div className="tontine-live-error" role="alert"><b>Chargement des groupes impossible</b><span>{loadError}</span><button type="button" onClick={()=>void loadGroups()}>Réessayer</button></div>}
   {active==="groups"&&<section className="tontine-live-groups" aria-busy={loading}>
    {loading&&groups.length===0?<div className="tontine-live-empty">Chargement des groupes…</div>:groups.length===0?<div className="tontine-live-empty">{api?"Aucun groupe de tontine enregistré pour cette organisation.":"Une session API authentifiée est nécessaire pour afficher les groupes réels."}</div>:groups.map(group=><article className="tontine-live-group" key={group.id}>
