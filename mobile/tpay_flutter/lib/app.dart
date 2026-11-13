@@ -102,7 +102,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
       title:const Text('Inscrire un élève'),
       content:Column(mainAxisSize:MainAxisSize.min,children:[
         TextField(controller:student,decoration:const InputDecoration(labelText:'Identifiant élève existant')),
-        DropdownButtonFormField<String>(value:classId,decoration:const InputDecoration(labelText:'Classe'),items:classes.where((item)=>item['status']=='ACTIVE').map((item)=>DropdownMenuItem(value:item['class_id'].toString(),child:Text(item['name'].toString()))).toList(),onChanged:(value)=>setDialogState(()=>classId=value)),
+        DropdownButtonFormField<String>(initialValue:classId,decoration:const InputDecoration(labelText:'Classe'),items:classes.where((item)=>item['status']=='ACTIVE').map((item)=>DropdownMenuItem(value:item['class_id'].toString(),child:Text(item['name'].toString()))).toList(),onChanged:(value)=>setDialogState(()=>classId=value)),
         TextField(controller:year,decoration:const InputDecoration(labelText:'Année scolaire')),
       ]),
       actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('Annuler')),FilledButton(onPressed:()=>Navigator.pop(dialogContext,true),child:const Text('Inscrire'))],
@@ -120,7 +120,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
     String? target;
     final accepted=await showDialog<bool>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(context,setDialogState)=>AlertDialog(
       title:const Text('Transférer l’élève'),
-      content:DropdownButtonFormField<String>(value:target,decoration:const InputDecoration(labelText:'Nouvelle classe'),items:classes.where((item)=>item['status']=='ACTIVE'&&item['class_id']!=student['class_id']).map((item)=>DropdownMenuItem(value:item['class_id'].toString(),child:Text(item['name'].toString()))).toList(),onChanged:(value)=>setDialogState(()=>target=value)),
+      content:DropdownButtonFormField<String>(initialValue:target,decoration:const InputDecoration(labelText:'Nouvelle classe'),items:classes.where((item)=>item['status']=='ACTIVE'&&item['class_id']!=student['class_id']).map((item)=>DropdownMenuItem(value:item['class_id'].toString(),child:Text(item['name'].toString()))).toList(),onChanged:(value)=>setDialogState(()=>target=value)),
       actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('Annuler')),FilledButton(onPressed:()=>Navigator.pop(dialogContext,true),child:const Text('Transférer'))],
     )));
     if(accepted==true&&target!=null){
@@ -510,7 +510,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
                             style: const TextStyle(fontSize: 10, color: _muted)),
                         trailing: Row(mainAxisSize:MainAxisSize.min,children:[
                           Text('${item['enrolled_count']}/${item['capacity']}',style:const TextStyle(fontSize:10,color:_brand)),
-                          if((item['enrolled_count'] as num? ?? 0)==0)IconButton(tooltip:'Archiver la classe',icon:const Icon(Icons.archive_outlined,size:18),onPressed:()=>_archiveSchoolClass(item)),
+                          if(((item['enrolled_count'] as num?) ?? 0)==0)IconButton(tooltip:'Archiver la classe',icon:const Icon(Icons.archive_outlined,size:18),onPressed:()=>_archiveSchoolClass(item)),
                         ]),
                       )).toList(),
                     ),
