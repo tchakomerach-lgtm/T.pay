@@ -93,6 +93,7 @@ function route(path:string,method:string){
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===3&&method==="GET")return ["tontine-group-list"] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===3&&method==="POST")return ["tontine-group-create"] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===5&&parts[3]&&method==="GET"&&["members","cycles","contributions","governance","cases"].includes(parts[4]??""))return ["tontine-group-"+parts[4],parts[3]] as const;
+ if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===5&&parts[3]&&parts[4]==="members"&&method==="POST")return ["tontine-member-invite",parts[3]] as const;
  if(parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
  if(parts[2]==="classes"&&parts.length===3&&method==="GET")return ["class-list"] as const;
@@ -112,7 +113,7 @@ function route(path:string,method:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="actor"||kind==="class-list"||kind==="student-list"||kind==="tontine-group-list"||kind.startsWith("tontine-group-")&&kind!=="tontine-group-create"?"org.read":kind==="tontine-group-create"||kind.startsWith("class-")?"org.manage":"member.manage";}
+function permissionFor(kind:string):Permission{return kind==="actor"||kind==="class-list"||kind==="student-list"||kind==="tontine-group-list"||kind.startsWith("tontine-group-")&&kind!=="tontine-group-create"?"org.read":kind==="tontine-group-create"||kind==="tontine-member-invite"||kind.startsWith("class-")?"org.manage":"member.manage";}
 
 async function tenantScopedRead(deps:SchoolApiDependencies,tenantId:string,organizationId:string,sql:string,values:unknown[]=[]):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>{
  const client=await deps.syncClient();
@@ -393,6 +394,71 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      throw error;
     }finally{client.release?.();}
     json(res,replayed?200:201,buildApiSuccess("v1",correlationId,{group:resultGroup,replayed}),correlationId);return;
+   }
+   if(r[0]==="tontine-member-invite"){
+    const groupId=r[1]!;
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(groupId))throw new Error("TONTINE_GROUP_ID_INVALID");
+    const input=body as Record<string,unknown>;
+    if(!input||typeof input!=="object"||Array.isArray(input))throw new Error("TONTINE_MEMBER_BODY_INVALID");
+    const clientId=typeof input.clientId==="string"?input.clientId.trim():"";
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clientId))throw new Error("TONTINE_MEMBER_CLIENT_ID_INVALID");
+    const selectedMicrofinanceId=input.selectedMicrofinanceId===undefined||input.selectedMicrofinanceId===null||input.selectedMicrofinanceId===""?null:String(input.selectedMicrofinanceId);
+    if(selectedMicrofinanceId!==null&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(selectedMicrofinanceId))throw new Error("TONTINE_MEMBER_MICROFINANCE_ID_INVALID");
+    const idem=String(req.headers["x-idempotency-key"]??"");
+    if(!IDEMPOTENCY_KEY.test(idem))throw new Error("API_IDEMPOTENCY_KEY_INVALID");
+    const requestHash=canonicalRequestHash(method,path,JSON.stringify({clientId,selectedMicrofinanceId}));
+    const membershipId=randomUUID(),eventId=randomUUID();
+    const client=await deps.syncClient();
+    let membership:Record<string,unknown>|undefined;
+    let replayed=false;
+    try{
+     await client.query("BEGIN");
+     await client.query("SELECT set_config('tpay.tenant_id',$1,true),set_config('tpay.organization_id',$2,true)",[auth.tenantId,organizationId]);
+     const reserved=await client.query(
+      "INSERT INTO api_request_deduplication(id,organization_id,idempotency_key,request_hash,route,state,created_at,expires_at) VALUES($1,$2,$3,$4,$5,'succeeded',now(),now()+interval '24 hours') ON CONFLICT(organization_id,idempotency_key) DO NOTHING RETURNING id",
+      [membershipId,organizationId,idem,requestHash,path]
+     );
+     if(reserved.rows.length===0){
+      const existing=await client.query("SELECT id,request_hash,route,state FROM api_request_deduplication WHERE organization_id=$1 AND idempotency_key=$2 FOR UPDATE",[organizationId,idem]);
+      const prior=existing.rows[0];
+      if(!prior||prior.request_hash!==requestHash||prior.route!==path)throw new Error("API_IDEMPOTENCY_CONFLICT");
+      if(prior.state!=="succeeded")throw new Error("API_IDEMPOTENCY_IN_PROGRESS");
+      const priorMembership=await client.query("SELECT id,group_id,client_id,role,status,joined_at,selected_microfinance_id FROM tontine_memberships WHERE organization_id=$1 AND id=$2",[organizationId,prior.id]);
+      if(!priorMembership.rows[0])throw new Error("TONTINE_IDEMPOTENCY_TARGET_MISSING");
+      membership=priorMembership.rows[0];replayed=true;
+     }else{
+      const group=await client.query("SELECT id,status,max_members FROM tontine_groups WHERE organization_id=$1 AND id=$2 FOR UPDATE",[organizationId,groupId]);
+      const groupRow=group.rows[0];
+      if(!groupRow)throw new Error("TONTINE_GROUP_NOT_FOUND");
+      if(groupRow.status!=="draft"&&groupRow.status!=="active")throw new Error("TONTINE_GROUP_NOT_ACTIVE");
+      const count=await client.query("SELECT count(*)::integer AS occupied FROM tontine_memberships WHERE organization_id=$1 AND group_id=$2 AND status IN ('pending','active')",[organizationId,groupId]);
+      const occupied=Number(count.rows[0]?.occupied??0);
+      if(groupRow.max_members!==null&&groupRow.max_members!==undefined&&occupied>=Number(groupRow.max_members))throw new Error("TONTINE_MEMBER_CAPACITY_REACHED");
+      const inserted=await client.query(
+       "INSERT INTO tontine_memberships(id,organization_id,group_id,client_id,role,status,joined_at,selected_microfinance_id) VALUES($1,$2,$3,$4,'member','pending',now(),$5) RETURNING id,group_id,client_id,role,status,joined_at,selected_microfinance_id",
+       [membershipId,organizationId,groupId,clientId,selectedMicrofinanceId]
+      );
+      if(!inserted.rows[0])throw new Error("TONTINE_MEMBER_INVITE_FAILED");
+      membership=inserted.rows[0];
+      await client.query(
+       "INSERT INTO outbox_events(id,organization_id,event_type,aggregate_id,occurred_at,payload) VALUES($1,$2,'tontine.member.invited',$3,now(),$4::jsonb)",
+       [eventId,organizationId,membershipId,JSON.stringify({groupId,membershipId,clientId,invitedBy:auth.principal.userId})]
+      );
+      const metadata=JSON.stringify({method,path,resource:"tontine_memberships",groupId,membershipId,clientId});
+      const metadataHash=createHash("sha256").update(metadata).digest("hex");
+      await client.query(
+       "INSERT INTO api_request_audit(id,organization_id,request_id,route,actor_id,auth_class,outcome,correlation_id,occurred_at,metadata_hash) VALUES($1,$2,$3,$4,$5,'member','accepted',$6,now(),$7)",
+       [randomUUID(),organizationId,membershipId,path,auth.principal.userId,correlationId,metadataHash]
+      );
+      const responseHash=createHash("sha256").update(JSON.stringify(membership)).digest("hex");
+      await client.query("UPDATE api_request_deduplication SET response_hash=$2,status_code=201 WHERE id=$1",[membershipId,responseHash]);
+     }
+     await client.query("COMMIT");
+    }catch(error){
+     try{await client.query("ROLLBACK");}catch{}
+     throw error;
+    }finally{client.release?.();}
+    json(res,replayed?200:201,buildApiSuccess("v1",correlationId,{membership,replayed}),correlationId);return;
    }
    if(r[0].startsWith("class-")||r[0].startsWith("enrollment-")){
     const key=String(req.headers["x-idempotency-key"]??"");
