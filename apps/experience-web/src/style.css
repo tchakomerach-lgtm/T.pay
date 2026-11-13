@@ -284,3 +284,24 @@ header{box-shadow:0 5px 22px #102b2008;backdrop-filter:blur(18px)}
 .dark .tontine-member-decisions button{background:linear-gradient(145deg,#234735,#1c3629);color:#c6f2d8}
 .dark .tontine-member-decisions button:last-child{background:linear-gradient(145deg,#4a2929,#392222);color:#ffd5d5}
 @media(prefers-reduced-motion:reduce){.tontine-member-decisions button{transition:none}.tontine-member-decisions button:hover:not(:disabled){transform:none}}
+
+
+/* Community Tontine — cycle orchestration command */
+.tontine-cycle-command{display:grid;grid-template-columns:minmax(210px,1.5fr) repeat(3,minmax(120px,.8fr)) auto;align-items:end;gap:12px;margin:15px 0;padding:19px;border:1px solid #6acda34d;border-radius:19px;background:linear-gradient(135deg,#f3fff8,#e6f5ee 62%,#f8fffb);box-shadow:0 22px 44px #0b503018, inset 0 1px #ffffff;transform:perspective(1400px) rotateX(.45deg);animation:surface-enter .42s var(--ease-out) both}
+.tontine-cycle-command-copy{transform:translateZ(14px)}
+.tontine-cycle-command-copy small{font-size:9px;letter-spacing:.14em;font-weight:850;color:#087c58}
+.tontine-cycle-command-copy h4{margin:6px 0;font-size:15px;color:#193c2b}
+.tontine-cycle-command-copy p{margin:0;font-size:10px;line-height:1.5;color:#60786a}
+.tontine-cycle-command label{display:grid;gap:6px;font-size:10px;color:#52685b}
+.tontine-cycle-command input{min-width:0;padding:10px;border:1px solid #c8e2d2;border-radius:10px;background:#fff;color:#18372a;font:inherit}
+.tontine-cycle-command>button{padding:11px 14px;border:0;border-radius:10px;background:linear-gradient(120deg,#75dfad,#24a879);color:#082c1d;font-size:10px;font-weight:850;white-space:nowrap;cursor:pointer;box-shadow:0 9px 20px #0b805426;transition:transform .2s ease,box-shadow .2s ease}
+.tontine-cycle-command>button:hover:not(:disabled){transform:translateY(-3px) perspective(600px) rotateX(4deg);box-shadow:0 14px 26px #0b805436}
+.tontine-cycle-command>button:disabled{opacity:.5;cursor:not-allowed}
+.tontine-cycle-command .tontine-create-error{grid-column:1/-1;color:#a52828}
+.dark .tontine-cycle-command{background:linear-gradient(135deg,#20372d,#182a22 65%,#21382c);border-color:#416c56}
+.dark .tontine-cycle-command-copy h4{color:#e5f4ea}
+.dark .tontine-cycle-command-copy p,.dark .tontine-cycle-command label{color:#aabbb1}
+.dark .tontine-cycle-command input{background:#17251e;color:#e8f0eb;border-color:#405c4c}
+@media(max-width:1000px){.tontine-cycle-command{grid-template-columns:repeat(2,minmax(0,1fr))}.tontine-cycle-command-copy{grid-column:1/-1}.tontine-cycle-command>button{width:100%}}
+@media(max-width:560px){.tontine-cycle-command{grid-template-columns:1fr;padding:15px}}
+@media(prefers-reduced-motion:reduce){.tontine-cycle-command{animation:none;transform:none}.tontine-cycle-command>button{transition:none}.tontine-cycle-command>button:hover:not(:disabled){transform:none}}
