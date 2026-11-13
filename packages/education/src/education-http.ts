@@ -471,7 +471,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     const idem=String(req.headers["x-idempotency-key"]??"");
     if(!IDEMPOTENCY_KEY.test(idem))throw new Error("API_IDEMPOTENCY_KEY_INVALID");
     const requestHash=canonicalRequestHash(method,path,JSON.stringify({decision}));
-    const eventId=randomUUID(),requestId=randomUUID();
+    const eventId=randomUUID(),requestId=membershipId;
     const client=await deps.syncClient();
     let result:Record<string,unknown>|undefined,replayed=false;
     try{
@@ -501,7 +501,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       await client.query("INSERT INTO outbox_events(id,organization_id,event_type,aggregate_id,occurred_at,payload) VALUES($1,$2,$3,$4,now(),$5::jsonb)",[eventId,organizationId,decision==="accept"?"tontine.member.accepted":"tontine.member.declined",membershipId,JSON.stringify({groupId,membershipId,clientId:auth.principal.userId,decision})]);
       const metadata=JSON.stringify({method,path,resource:"tontine_memberships",groupId,membershipId,decision});
       const metadataHash=createHash("sha256").update(metadata).digest("hex");
-      await client.query("INSERT INTO api_request_audit(id,organization_id,request_id,route,actor_id,auth_class,outcome,correlation_id,occurred_at,metadata_hash) VALUES($1,$2,$3,$4,$5,'member','accepted',$6,$7,now(),$8)",[randomUUID(),organizationId,requestId,path,auth.principal.userId,correlationId,metadataHash]);
+      await client.query("INSERT INTO api_request_audit(id,organization_id,request_id,route,actor_id,auth_class,outcome,correlation_id,occurred_at,metadata_hash) VALUES($1,$2,$3,$4,$5,'member','accepted',$6,now(),$7)",[randomUUID(),organizationId,requestId,path,auth.principal.userId,correlationId,metadataHash]);
       const responseHash=createHash("sha256").update(JSON.stringify(result)).digest("hex");
       await client.query("UPDATE api_request_deduplication SET response_hash=$2,status_code=200 WHERE id=$1",[requestId,responseHash]);
      }
