@@ -1,8 +1,5 @@
 -- P061 School OS transactional class and enrollment commands.
 -- No hard delete: classes are archived and enrollments retain their full history.
-ALTER TABLE education_classes
-  ADD CONSTRAINT education_class_capacity_check CHECK (capacity BETWEEN 1 AND 5000);
-
 DROP POLICY IF EXISTS education_classes_tenant_update ON education_classes;
 CREATE POLICY education_classes_tenant_update ON education_classes
   FOR UPDATE
