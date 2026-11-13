@@ -107,6 +107,7 @@ test("only the invited client can accept or decline a pending membership",async(
    syncClient:()=>({
     query:async(sql:string,values?:unknown[])=>{
      statements.push(sql);
+     if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:values?.[0]}],rowCount:1};
      if(sql.includes("SELECT id,group_id,client_id,role,status,joined_at,exited_at FROM tontine_memberships")&&sql.includes("FOR UPDATE"))return {rows:[{id:actorId,group_id:groupId,client_id:clientId,role:"member",status:"pending"}],rowCount:1};
      if(sql.includes("UPDATE tontine_memberships SET status"))return {rows:[{id:actorId,group_id:groupId,client_id:clientId,role:"member",status:decision==="accept"?"active":"exited"}],rowCount:1};
      return {rows:[],rowCount:1};
@@ -124,7 +125,8 @@ test("only the invited client can accept or decline a pending membership",async(
    const body=await response.json() as any;
    assert.equal(response.status,200,JSON.stringify(body));
    assert.equal(body.data.membership.status,decision==="accept"?"active":"exited");
-   assert.ok(statements.some(sql=>sql.includes("client_id=$4")&&sql.includes("FOR UPDATE")));
+   assert.ok(statements.some(sql=>sql.includes("WHERE organization_id=$1 AND group_id=$2 AND id=$3 FOR UPDATE")));
+   assert.ok(statements.some(sql=>sql.includes("client_id=$5 AND status='pending'")));
    assert.ok(statements.some(sql=>sql.includes("tontine.member.accepted")||sql.includes("tontine.member.declined")));
    assert.ok(statements.some(sql=>sql.includes("INSERT INTO api_request_audit")));
    assert.equal(statements.at(-1),"COMMIT");
