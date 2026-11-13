@@ -162,7 +162,7 @@ test("Community Tontine group creation commits founder, audit and outbox atomica
  });
  await new Promise<void>(resolve=>server.listen(0,resolve));const port=(server.address() as any).port;
  try{
-  const response=await fetch(\`http://127.0.0.1:\${port}/v1/tontine/groups\`,{
+  const response=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups`,{
    method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"tontine-create-0001"},
    body:JSON.stringify({name:"Solidarité Lomé",countryCode:"TG",currency:"XOF",frequency:"weekly",contributionMode:"fixed",minimumAmountMinor:"1000",fixedAmountMinor:"2500",maxMembers:30,governance:"member_vote"})
   });
@@ -187,7 +187,7 @@ test("Community Tontine group creation rejects invalid fixed amounts before open
  });
  await new Promise<void>(resolve=>server.listen(0,resolve));const port=(server.address() as any).port;
  try{
-  const response=await fetch(\`http://127.0.0.1:\${port}/v1/tontine/groups\`,{
+  const response=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups`,{
    method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"tontine-create-0002"},
    body:JSON.stringify({name:"Groupe invalide",countryCode:"TG",currency:"XOF",frequency:"daily",contributionMode:"fixed",minimumAmountMinor:"2000",fixedAmountMinor:"1000"})
   });
