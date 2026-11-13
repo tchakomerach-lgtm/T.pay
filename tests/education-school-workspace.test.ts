@@ -15,7 +15,7 @@ function createDb(){
  const calls:Array<{sql:string;values?:unknown[]}>=[];
  const db={
   calls,
-  async query(sql:string,values?:unknown[]){calls.push({sql,values});return {rows:[],rowCount:0};}
+  async query(sql:string,values?:unknown[]){calls.push(values===undefined?{sql}:{sql,values});return {rows:[],rowCount:0};}
  };
  return db;
 }
@@ -25,7 +25,7 @@ function createReadClient(rows:Record<string,unknown>[]){
  return {
   calls,get released(){return released;},
   async query(sql:string,values?:unknown[]){
-   calls.push({sql,values});
+   calls.push(values===undefined?{sql}:{sql,values});
    if(sql.startsWith("SELECT c.class_id"))return {rows,rowCount:rows.length};
    if(sql.startsWith("SELECT s.student_id"))return {rows,rowCount:rows.length};
    return {rows:[],rowCount:0};
