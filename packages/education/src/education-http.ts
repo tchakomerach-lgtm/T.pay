@@ -110,7 +110,7 @@ function route(path:string,method:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="actor"||kind==="class-list"||kind==="student-list"?"org.read":kind.startsWith("class-")?"org.manage":"member.manage";}
+function permissionFor(kind:string):Permission{return kind==="actor"||kind==="class-list"||kind==="student-list"||kind==="tontine-group-list"?"org.read":kind.startsWith("class-")?"org.manage":"member.manage";}
 
 async function tenantScopedRead(deps:SchoolApiDependencies,tenantId:string,organizationId:string,sql:string,values:unknown[]=[]):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>{
  const client=await deps.syncClient();
