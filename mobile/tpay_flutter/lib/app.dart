@@ -72,8 +72,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
         if(error is Map&&error['code'] is String)code=error['code'] as String;
       }catch (_) {}
       throw StateError(code);
-    }
-    if(mounted)setState(()=>_schoolData=_loadSchoolData());
+    }    if(mounted)setState(()=>_schoolData=_loadSchoolData());
   }
 
   Future<void> _createSchoolClass() async {
@@ -117,7 +116,8 @@ class _TPayHomePageState extends State<TPayHomePage> {
   Future<void> _transferSchoolStudent(Map<String,dynamic> student,List<Map<String,dynamic>> classes) async {
     final enrollmentId=student['enrollment_id']?.toString();
     if(enrollmentId==null||enrollmentId.isEmpty)return;
-    String? target;    final accepted=await showDialog<bool>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(context,setDialogState)=>AlertDialog(
+    String? target;
+    final accepted=await showDialog<bool>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(context,setDialogState)=>AlertDialog(
       title:const Text('Transférer l’élève'),
       content:DropdownButtonFormField<String>(initialValue:target,decoration:const InputDecoration(labelText:'Nouvelle classe'),items:classes.where((item)=>item['status']=='ACTIVE'&&item['class_id']!=student['class_id']).map((item)=>DropdownMenuItem(value:item['class_id'].toString(),child:Text(item['name'].toString()))).toList(),onChanged:(value)=>setDialogState(()=>target=value)),
       actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('Annuler')),FilledButton(onPressed:()=>Navigator.pop(dialogContext,true),child:const Text('Transférer'))],
@@ -146,8 +146,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
       try{await _schoolCommand('/v1/education/enrollments/$enrollmentId/withdraw',{'reason':reason.text});}
       catch(error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(error.toString())));}
     }
-    reason.dispose();
-  }
+    reason.dispose();  }
 
 
   void _openModule(int index) {
@@ -221,8 +220,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
           ? null
           : NavigationBar(
               selectedIndex: selected < 4 ? selected : 0,
-              onDestinationSelected: _openModule,
-              destinations: const [
+              onDestinationSelected: _openModule,              destinations: const [
                 NavigationDestination(icon: Icon(Icons.home_outlined), label: 'Accueil'),
                 NavigationDestination(icon: Icon(Icons.apartment_outlined), label: 'Organisations'),
                 NavigationDestination(icon: Icon(Icons.people_outline), label: 'Social'),
@@ -236,7 +234,8 @@ class _TPayHomePageState extends State<TPayHomePage> {
         child: ListView(
           padding: const EdgeInsets.all(10),
           children: [
-            const Padding(              padding: EdgeInsets.all(12),
+            const Padding(
+              padding: EdgeInsets.all(12),
               child: Text('OPERATING SYSTEM',
                   style: TextStyle(fontSize: 10, letterSpacing: 1.5, color: _muted)),
             ),
@@ -295,8 +294,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
             Text(module['label'] as String,
                 style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w800, height: 1.15)),
             const SizedBox(height: 8),
-            Text(module['description'] as String,
-                style: const TextStyle(fontSize: 12, color: _muted)),
+            Text(module['description'] as String,                style: const TextStyle(fontSize: 12, color: _muted)),
           ],
           const SizedBox(height: 20),
           if (home) ...[
@@ -355,7 +353,8 @@ class _TPayHomePageState extends State<TPayHomePage> {
                 'Identité, permissions, règles métier, idempotence, audit et transactions restent sous l’autorité des services T.Pay.',
                 style: TextStyle(fontSize: 11, color: _muted),
               ),
-            ),          ),
+            ),
+          ),
           const SizedBox(height: 20),
           const Center(
             child: Text('T.Pay OS · Flutter renderer · Motion system 3D',
@@ -369,8 +368,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
 
   Widget _schoolHero() => Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
+        decoration: BoxDecoration(          gradient: const LinearGradient(
             colors: [Color(0xff084d3a), _brand, Color(0xff35a982)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -444,8 +442,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
       );
     }
     if (future == null) {
-      return Center(
-        child: OutlinedButton.icon(
+      return Center(        child: OutlinedButton.icon(
           onPressed: () => setState(() => _schoolData = _loadSchoolData()),
           icon: const Icon(Icons.refresh),
           label: const Text('Charger les données scolaires'),
@@ -474,7 +471,8 @@ class _TPayHomePageState extends State<TPayHomePage> {
                   child: const Text('Réessayer'),
                 ),
               ],
-            ),          );
+            ),
+          );
         }
         final data = snapshot.data!;
         final classes = (data['classes'] as List).cast<Map<String, dynamic>>();
@@ -518,8 +516,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
                   ? const Text('Aucun élève correspondant.',
                       style: TextStyle(fontSize: 11, color: _muted))
                   : Column(
-                      children: students.take(30).map((item) => ListTile(
-                        contentPadding: EdgeInsets.zero,
+                      children: students.take(30).map((item) => ListTile(                        contentPadding: EdgeInsets.zero,
                         leading: const CircleAvatar(
                           radius: 16,
                           backgroundColor: Color(0xffe8f5ee),
@@ -667,8 +664,7 @@ class _TPayHomePageState extends State<TPayHomePage> {
             child: child,
           ),
         ),
-        child: Material(
-          color: Colors.white,
+        child: Material(          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
@@ -713,3 +709,11 @@ class _TPayHomePageState extends State<TPayHomePage> {
         'wallet' => Icons.wallet_outlined,
         'marketplace' => Icons.storefront_outlined,
         'investment' => Icons.query_stats_outlined,
+        'ai' => Icons.auto_awesome_outlined,
+        'documents' => Icons.description_outlined,
+        'workflows' => Icons.account_tree_outlined,
+        'calendar' => Icons.calendar_month_outlined,
+        'superadmin' => Icons.admin_panel_settings_outlined,
+        _ => Icons.layers_outlined,
+      };
+}
