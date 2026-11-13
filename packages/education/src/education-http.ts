@@ -219,7 +219,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     const values:unknown[]=[organizationId];
     const filters:string[]=[];
     if(status){values.push(status);filters.push("g.status=$"+values.length);}
-    if(search){values.push("%"+search.replace(/[\\%_]/g,"\\   if(r[0]==="class-list"){")+"%");filters.push("g.name ILIKE $"+values.length+" ESCAPE '\\\\'");}
+    if(search){values.push("%"+search+"%");filters.push("g.name ILIKE $"+values.length);}
     values.push(limitRaw);
     const result=await tenantScopedRead(deps,auth.tenantId,organizationId,
      "SELECT g.id,g.name,g.country_code,g.currency,g.frequency,g.contribution_mode,g.target_minor::text AS target_minor,"+
