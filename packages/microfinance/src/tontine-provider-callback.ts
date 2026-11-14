@@ -97,7 +97,7 @@ export async function processVerifiedTontinePayoutCallback(
     if (existing.rows[0]) {
       if (existing.rows[0].payload_sha256 !== payloadSha256 || existing.rows[0].payout_id !== callback.payoutId) {
         await tx.query("UPDATE tontine_provider_callback_receipts SET state='rejected', failure_code='CALLBACK_PAYLOAD_MISMATCH' WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3", [callback.organizationId, callback.provider, callback.providerEventId]);
-        throw new Error("TONTINE_CALLBACK_REPLAY_PAYLOAD_MISMATCH");
+        return { state: "rejected", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
       }
       await tx.query(
         `UPDATE tontine_provider_callback_receipts
@@ -164,6 +164,8 @@ export async function processVerifiedTontinePayoutCallback(
       );
       return { state: "processed", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
     }
+
+    if (row.state !== "initiated") throw new Error("TONTINE_PAYOUT_NOT_INITIATED");
 
     await settlementBridge.settle(
       tx,
