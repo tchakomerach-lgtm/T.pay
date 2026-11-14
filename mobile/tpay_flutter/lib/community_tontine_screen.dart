@@ -193,7 +193,6 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
   }
 
 
-
   Future<void> _showEvidence(String caseId) async {
     if(widget.apiClient==null||_selectedGroup==null)return;
     try{
@@ -206,8 +205,8 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
           ?const Text('Aucune preuve indexée.')
           :ListView(shrinkWrap:true,children:items.map((item)=>ListTile(
             dense:true,
-            title:Text('${item['type']??'Preuve'}'),
-            subtitle:Text('SHA-256 : ${item['content_hash']??'—'}\\nRéférence : ${item['object_reference']??'—'}'),
+            title:Text((item['type']??'Preuve').toString()),
+            subtitle:Text('SHA-256 : '+(item['content_hash']??'—').toString()+'\\nRéférence : '+(item['object_reference']??'—').toString()),
           )).toList())),
         actions:[
           TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Fermer')),
@@ -232,18 +231,6 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
         DropdownMenuItem(value:'system_event',child:Text('Événement système')),
       ],onChanged:(v)=>type=v??'receipt'),
       TextFormField(controller:hash,decoration:const InputDecoration(labelText:'Empreinte SHA-256'),validator:(v)=>RegExp(r'^[a-fA-F0-9]{64}
-    if(widget.apiClient==null||_selectedGroup==null||_busy)return;
-    setState(()=>_busy=true);_error=null;
-    try{
-      await _command('/v1/tontine/groups/$_selectedGroup/cases/$caseId/transition',{
-        'state':nextState,'note':'Transition initiée depuis le client Flutter'
-      });
-      await _loadPanel();
-    }catch(error){if(mounted)setState(()=>_error=error.toString());}
-    finally{if(mounted)setState(()=>_busy=false);}
-  }
-
-  Future<void> _openCase() async {
     final summary=TextEditingController();
     String type='incident',severity='medium';
     await _showCommand(title:'Ouvrir un dossier',fields:[
@@ -285,7 +272,7 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
         leading:const Icon(Icons.layers_outlined,color:_tontineGreen),
         trailing:_panel=='cases'?Wrap(spacing:2,children:[
           if(_caseNextStates.containsKey(record['state']?.toString()))IconButton(
-            tooltip:'Passer à ${_caseNextStates[record['state']]}',
+            tooltip:'Passer au statut suivant',
             onPressed:_busy?null:()=>_transitionCase(record['id'].toString(),_caseNextStates[record['state']]!),
             icon:const Icon(Icons.arrow_forward_rounded,color:_tontineGreen),
           ),
@@ -407,11 +394,7 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
         title:Text((record['name']??record['summary']??record['type']??record['id']??'Enregistrement').toString()),
         subtitle:Text(record.entries.where((e)=>e.value!=null).take(4).map((e)=>'${e.key}: ${e.value}').join(' · ')),
         leading:const Icon(Icons.layers_outlined,color:_tontineGreen),
-        trailing:_panel=='cases'&&_caseNextStates.containsKey(record['state']?.toString())?IconButton(
-          tooltip:'Passer à ${_caseNextStates[record['state']]}',
-          onPressed:_busy?null:()=>_transitionCase(record['id'].toString(),_caseNextStates[record['state']]!),
-          icon:const Icon(Icons.arrow_forward_rounded,color:_tontineGreen),
-        ):_panel=='governance'&&record['status']=='open'?Wrap(spacing:2,children:[
+        trailing:_panel=='governance'&&record['status']=='open'?Wrap(spacing:2,children:[
           IconButton(tooltip:'Approuver',onPressed:_busy?null:()=>_vote(record['id'].toString(),'approve'),icon:const Icon(Icons.check_circle_outline,color:_tontineGreen)),
           IconButton(tooltip:'Rejeter',onPressed:_busy?null:()=>_vote(record['id'].toString(),'reject'),icon:const Icon(Icons.cancel_outlined,color:Colors.redAccent)),
           if(record['allow_abstention_snapshot']==true)IconButton(tooltip:'Abstention',onPressed:_busy?null:()=>_vote(record['id'].toString(),'abstain'),icon:const Icon(Icons.horizontal_rule)),
