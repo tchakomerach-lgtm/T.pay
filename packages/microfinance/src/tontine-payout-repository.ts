@@ -61,7 +61,7 @@ export class PostgresTontinePayoutRepository {
 
   async createIfAbsent(plan: TontinePayoutPlan): Promise<{ payout: PersistedTontinePayout; replayed: boolean }> {
     const intent = plan.intent;
-    if (!intent.organizationId || intent.organizationId !== String(intent.organizationId)) throw new Error("TONTINE_PAYOUT_ORGANIZATION_INVALID");
+    if (!intent.organizationId.trim()) throw new Error("TONTINE_PAYOUT_ORGANIZATION_INVALID");
     if (intent.amountMinor <= 0n || !intent.destinationRef.trim() || !intent.idempotencyKey.trim()) throw new Error("TONTINE_PAYOUT_INTENT_INVALID");
     if (plan.gate === "blocked") throw new Error("TONTINE_PAYOUT_BLOCKED");
     return this.db.transaction(async tx => {
@@ -74,7 +74,7 @@ export class PostgresTontinePayoutRepository {
          JOIN tontine_cycles c ON c.organization_id=slot.organization_id AND c.id=slot.cycle_id
          JOIN tontine_memberships m ON m.organization_id=slot.organization_id
            AND m.group_id=slot.group_id AND m.id=slot.beneficiary_membership_id
-         WHERE slot.organization_id=$2 AND slot.id=$12 AND c.id::text=$13
+         WHERE slot.organization_id=$2 AND slot.beneficiary_membership_id=$12 AND c.id::text=$13
            AND slot.status='eligible' AND slot.amount_target_minor=$4::numeric
            AND m.client_id::text=$3 AND m.status='active'
          ON CONFLICT (organization_id,idempotency_key) DO NOTHING
@@ -91,7 +91,7 @@ export class PostgresTontinePayoutRepository {
           intent: { ...intent },
           beneficiaryMembershipId: plan.beneficiaryMembershipId,
           microfinanceId: plan.microfinanceId,
-          tontineSlotId: String(row.tontine_slot_id ?? plan.beneficiaryMembershipId) as UUID
+          tontineSlotId: String(row.tontine_slot_id) as UUID
         }, replayed: false };
       }
       const existing = await tx.query<PayoutRow>(
