@@ -99,6 +99,7 @@ function route(path:string,method:string){
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===5&&parts[3]&&parts[4]==="cycles"&&method==="POST")return ["tontine-cycle-create",parts[3]] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===5&&parts[3]&&parts[4]==="cases"&&method==="POST")return ["tontine-case-create",parts[3]] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===7&&parts[3]&&parts[4]==="cases"&&parts[5]&&parts[6]==="transition"&&method==="POST")return ["tontine-case-transition",parts[3],parts[5]] as const;
+ if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===7&&parts[3]&&parts[4]==="cases"&&parts[5]&&parts[6]==="evidence"&&(method==="GET"||method==="POST"))return [method==="GET"?"tontine-case-evidence-read":"tontine-case-evidence-create",parts[3],parts[5]] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===6&&parts[3]&&parts[4]==="governance"&&parts[5]==="policy"&&method==="GET")return ["tontine-governance-policy-read",parts[3]] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===6&&parts[3]&&parts[4]==="governance"&&parts[5]==="policy"&&method==="PUT")return ["tontine-governance-policy",parts[3]] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===6&&parts[3]&&parts[4]==="governance"&&parts[5]==="proposals"&&method==="POST")return ["tontine-governance-proposal",parts[3]] as const;
@@ -125,7 +126,7 @@ function route(path:string,method:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="tontine-governance-policy-read"?"org.read":kind==="tontine-governance-policy"||kind==="tontine-governance-finalize"?"org.manage":kind==="tontine-governance-proposal"||kind==="tontine-governance-vote"?"org.read":kind==="actor"||kind==="class-list"||kind==="student-list"||kind==="tontine-group-list"||kind.startsWith("tontine-group-")&&kind!=="tontine-group-create"||kind==="tontine-member-decision"?"org.read":kind==="tontine-group-create"||kind==="tontine-member-invite"||kind==="tontine-cycle-create"||kind==="tontine-case-create"||kind==="tontine-case-transition"||kind.startsWith("class-")?"org.manage":"member.manage";}
+function permissionFor(kind:string):Permission{return kind==="tontine-governance-policy-read"?"org.read":kind==="tontine-governance-policy"||kind==="tontine-governance-finalize"?"org.manage":kind==="tontine-governance-proposal"||kind==="tontine-governance-vote"?"org.read":kind==="actor"||kind==="class-list"||kind==="student-list"||kind==="tontine-group-list"||kind.startsWith("tontine-group-")&&kind!=="tontine-group-create"||kind==="tontine-member-decision"?"org.read":kind==="tontine-group-create"||kind==="tontine-member-invite"||kind==="tontine-cycle-create"||kind==="tontine-case-create"||kind==="tontine-case-transition"||kind==="tontine-case-evidence-create"||kind.startsWith("class-")?"org.manage":kind==="tontine-case-evidence-read"?"org.read":"member.manage";}
 
 async function tenantScopedRead(deps:SchoolApiDependencies,tenantId:string,organizationId:string,sql:string,values:unknown[]=[]):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>{
  const client=await deps.syncClient();
@@ -548,6 +549,78 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      throw error;
     }finally{client.release?.();}
     json(res,replayed?200:201,buildApiSuccess("v1",correlationId,{case:resultCase,replayed}),correlationId);return;
+   }
+
+   if(r[0]==="tontine-case-evidence-read"){
+    const groupId=r[1]!,caseId=r[2]!;
+    const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if(!uuid.test(groupId)||!uuid.test(caseId))throw new Error("TONTINE_CASE_ID_INVALID");
+    const query=new URL(rawUrl,"https://tpay.invalid").searchParams;
+    const limit=Number(query.get("limit")??"50");
+    if(!Number.isInteger(limit)||limit<1||limit>100)throw new Error("TONTINE_PAGE_LIMIT_INVALID");
+    const result=await tenantScopedRead(deps,auth.tenantId,organizationId,
+     "SELECT e.id,e.case_id,e.type,e.content_hash,e.object_reference,e.captured_by,e.captured_at FROM tontine_case_evidence e JOIN tontine_cases c ON c.organization_id=e.organization_id AND c.id=e.case_id WHERE e.organization_id=$1 AND c.group_id=$2 AND e.case_id=$3 ORDER BY e.captured_at DESC,e.id LIMIT $4",
+     [organizationId,groupId,caseId,limit]);
+    data={items:result.rows,limit,groupId,caseId};
+    await new ApiGatewayRepository(deps.db).audit({organizationId,requestId:correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path,resource:"tontine_case_evidence",groupId,caseId,limit})});
+    json(res,200,buildApiSuccess("v1",correlationId,data),correlationId);return;
+   }
+   if(r[0]==="tontine-case-evidence-create"){
+    const groupId=r[1]!,caseId=r[2]!;
+    const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if(!uuid.test(groupId)||!uuid.test(caseId))throw new Error("TONTINE_CASE_ID_INVALID");
+    const input=body as Record<string,unknown>;
+    if(!input||typeof input!=="object"||Array.isArray(input))throw new Error("TONTINE_CASE_EVIDENCE_BODY_INVALID");
+    const type=String(input.type??"");
+    const contentHash=typeof input.contentHash==="string"?input.contentHash.trim().toLowerCase():"";
+    const objectReference=input.objectReference===undefined||input.objectReference===null||input.objectReference===""?null:String(input.objectReference).trim();
+    if(!["receipt","provider_callback","statement","photo","document","participant_declaration","system_event"].includes(type))throw new Error("TONTINE_CASE_EVIDENCE_TYPE_INVALID");
+    if(!/^[a-f0-9]{64}$/.test(contentHash))throw new Error("TONTINE_CASE_EVIDENCE_HASH_INVALID");
+    if(objectReference!==null&&(!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$/.test(objectReference)||objectReference.split("/").some(part=>part==="."||part==="..")))throw new Error("TONTINE_CASE_EVIDENCE_REFERENCE_INVALID");
+    const idem=String(req.headers["x-idempotency-key"]??"");
+    if(!IDEMPOTENCY_KEY.test(idem))throw new Error("API_IDEMPOTENCY_KEY_INVALID");
+    const requestHash=canonicalRequestHash(method,path,JSON.stringify({type,contentHash,objectReference}));
+    const evidenceId=randomUUID(),eventId=randomUUID();
+    const client=await deps.syncClient();
+    let evidence:Record<string,unknown>|undefined,replayed=false,deduplicatedContent=false;
+    try{
+     await client.query("BEGIN");
+     await client.query("SELECT set_config('tpay.tenant_id',$1,true),set_config('tpay.organization_id',$2,true)",[auth.tenantId,organizationId]);
+     const reserved=await client.query(
+      "INSERT INTO api_request_deduplication(id,organization_id,idempotency_key,request_hash,route,state,created_at,expires_at) VALUES($1,$2,$3,$4,$5,'succeeded',now(),now()+interval '24 hours') ON CONFLICT(organization_id,idempotency_key) DO NOTHING RETURNING id",
+      [evidenceId,organizationId,idem,requestHash,path]
+     );
+     if(reserved.rows.length===0){
+      const prior=await client.query("SELECT id,request_hash,route,state FROM api_request_deduplication WHERE organization_id=$1 AND idempotency_key=$2 FOR UPDATE",[organizationId,idem]);
+      const row=prior.rows[0];
+      if(!row||row.request_hash!==requestHash||row.route!==path)throw new Error("API_IDEMPOTENCY_CONFLICT");
+      if(row.state!=="succeeded")throw new Error("API_IDEMPOTENCY_IN_PROGRESS");
+      const existing=await client.query("SELECT e.id,e.case_id,e.type,e.content_hash,e.object_reference,e.captured_by,e.captured_at FROM tontine_case_evidence e JOIN tontine_cases c ON c.organization_id=e.organization_id AND c.id=e.case_id WHERE e.organization_id=$1 AND c.group_id=$2 AND e.case_id=$3 AND e.id=$4",[organizationId,groupId,caseId,row.id]);
+      if(!existing.rows[0])throw new Error("TONTINE_IDEMPOTENCY_TARGET_MISSING");
+      evidence=existing.rows[0];replayed=true;
+     }else{
+      const target=await client.query("SELECT id FROM tontine_cases WHERE organization_id=$1 AND group_id=$2 AND id=$3 FOR UPDATE",[organizationId,groupId,caseId]);
+      if(!target.rows[0])throw new Error("TONTINE_CASE_NOT_FOUND");
+      const inserted=await client.query(
+       "INSERT INTO tontine_case_evidence(id,organization_id,case_id,type,content_hash,object_reference,captured_by,captured_at) VALUES($1,$2,$3,$4,$5,$6,$7,now()) ON CONFLICT(organization_id,case_id,content_hash) DO NOTHING RETURNING id,case_id,type,content_hash,object_reference,captured_by,captured_at",
+       [evidenceId,organizationId,caseId,type,contentHash,objectReference,auth.principal.userId]);
+      if(inserted.rows[0]){
+       evidence=inserted.rows[0];
+       await client.query("INSERT INTO outbox_events(id,organization_id,event_type,aggregate_id,occurred_at,payload) VALUES($1,$2,'tontine.case.evidence.added',$3,now(),$4::jsonb)",[eventId,organizationId,caseId,JSON.stringify({caseId,groupId,evidenceId,type,contentHash,actorId:auth.principal.userId})]);
+      }else{
+       const existing=await client.query("SELECT id,case_id,type,content_hash,object_reference,captured_by,captured_at FROM tontine_case_evidence WHERE organization_id=$1 AND case_id=$2 AND content_hash=$3",[organizationId,caseId,contentHash]);
+       if(!existing.rows[0])throw new Error("TONTINE_CASE_EVIDENCE_DEDUPLICATION_FAILED");
+       evidence=existing.rows[0];deduplicatedContent=true;
+      }
+      const metadata=JSON.stringify({method,path,resource:"tontine_case_evidence",groupId,caseId,evidenceId:evidence.id,type,contentHash,deduplicatedContent});
+      const metadataHash=createHash("sha256").update(metadata).digest("hex");
+      await client.query("INSERT INTO api_request_audit(id,organization_id,request_id,route,actor_id,auth_class,outcome,correlation_id,occurred_at,metadata_hash) VALUES($1,$2,$3,$4,$5,'member','accepted',$6,now(),$7)",[randomUUID(),organizationId,evidenceId,path,auth.principal.userId,correlationId,metadataHash]);
+      const responseHash=createHash("sha256").update(JSON.stringify(evidence)).digest("hex");
+      await client.query("UPDATE api_request_deduplication SET response_hash=$2,status_code=201 WHERE id=$1",[evidenceId,responseHash]);
+     }
+     await client.query("COMMIT");
+    }catch(error){try{await client.query("ROLLBACK");}catch{}throw error;}finally{client.release?.();}
+    json(res,replayed||deduplicatedContent?200:201,buildApiSuccess("v1",correlationId,{evidence,replayed,deduplicatedContent}),correlationId);return;
    }
    if(r[0]==="tontine-case-transition"){
     const groupId=r[1]!,caseId=r[2]!;
