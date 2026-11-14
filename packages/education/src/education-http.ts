@@ -387,8 +387,8 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       if(!member.rows[0])throw new Error("TONTINE_GOVERNANCE_ACTIVE_MEMBER_REQUIRED");
       const policy=await client.query("SELECT policy_version,quorum_percent,approval_percent,allow_abstention FROM tontine_governance_group_policies WHERE organization_id=$1 AND group_id=$2 FOR SHARE",[organizationId,groupId]);
       if(!policy.rows[0])throw new Error("TONTINE_GOVERNANCE_POLICY_REQUIRED");
-      const eligible=await client.query("SELECT count(*)::integer AS count FROM tontine_memberships WHERE organization_id=$1 AND group_id=$2 AND status='active'",[organizationId,groupId]);
-      const eligibleCount=Number(eligible.rows[0]?.count??0);
+      const eligible=await client.query("SELECT id FROM tontine_memberships WHERE organization_id=$1 AND group_id=$2 AND status='active' ORDER BY id FOR SHARE",[organizationId,groupId]);
+      const eligibleCount=eligible.rows.length;
       if(eligibleCount<2)throw new Error("TONTINE_GOVERNANCE_MEMBERS_INVALID");
       const proposalId=randomUUID(),payloadHash=createHash("sha256").update(payloadText).digest("hex");
       const requestHash=canonicalRequestHash(method,path,JSON.stringify({type,payload,closesAt:closesAt.toISOString()}));
