@@ -53,3 +53,13 @@ Une CI verte valide le code exécuté dans ses jobs; elle ne remplace pas les ga
 - Aucun remboursement, blocage de solde ou mouvement Ledger n'est déclenché par cette fonctionnalité.
 
 Validation attendue : tests API négatifs/positifs, tests PostgreSQL live RLS/concurrence, et vérification du service de stockage avant activation de l'upload utilisateur.
+
+## P062 — Cloisonnement PostgreSQL des dossiers
+
+- Migration `120_tontine_case_evidence_scope.sql` ajoute les clés étrangères composites organisation/groupe/dossier pour les dossiers, preuves, holds et demandes de remboursement.
+- Les quatre tables activent et forcent RLS ; toute lecture/écriture exige le contexte transactionnel `tpay.organization_id`.
+- Les preuves disposent d'un index adapté à la lecture chronologique par dossier.
+- Les remboursements restent des demandes de workflow ; aucune écriture Ledger n'est ajoutée ici.
+- La migration est volontairement fail-closed si des données historiques violent le périmètre composite.
+
+La migration doit encore être exécutée dans le PostgreSQL d'intégration du pipeline actuel et validée avec des tests d'accès croisé entre deux organisations. La réussite d'un test unitaire simulé ne remplace pas cette preuve.
