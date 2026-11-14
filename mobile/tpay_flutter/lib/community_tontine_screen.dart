@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'api/tpay_api_client.dart';
 
-const _tontineInk=Color(0xff142a35);
 const _tontineGreen=Color(0xff0f8f68);
 const _tontineMuted=Color(0xff718078);
 
@@ -94,8 +93,8 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Si
     String frequency='weekly',mode='fixed';
     await _showCommand(title:'Nouveau groupe communautaire',fields:[
       TextFormField(controller:name,decoration:const InputDecoration(labelText:'Nom du groupe'),validator:(v)=>v==null||v.trim().isEmpty?'Nom obligatoire':null),
-      DropdownButtonFormField<String>(value:frequency,decoration:const InputDecoration(labelText:'Fréquence'),items:const [DropdownMenuItem(value:'daily',child:Text('Quotidienne')),DropdownMenuItem(value:'weekly',child:Text('Hebdomadaire')),DropdownMenuItem(value:'monthly',child:Text('Mensuelle'))],onChanged:(v)=>frequency=v??'weekly'),
-      DropdownButtonFormField<String>(value:mode,decoration:const InputDecoration(labelText:'Cotisation'),items:const [DropdownMenuItem(value:'fixed',child:Text('Fixe')),DropdownMenuItem(value:'variable',child:Text('Variable')),DropdownMenuItem(value:'goal',child:Text('Objectif'))],onChanged:(v)=>mode=v??'fixed'),
+      DropdownButtonFormField<String>(initialValue:frequency,decoration:const InputDecoration(labelText:'Fréquence'),items:const [DropdownMenuItem(value:'daily',child:Text('Quotidienne')),DropdownMenuItem(value:'weekly',child:Text('Hebdomadaire')),DropdownMenuItem(value:'monthly',child:Text('Mensuelle'))],onChanged:(v)=>frequency=v??'weekly'),
+      DropdownButtonFormField<String>(initialValue:mode,decoration:const InputDecoration(labelText:'Cotisation'),items:const [DropdownMenuItem(value:'fixed',child:Text('Fixe')),DropdownMenuItem(value:'variable',child:Text('Variable')),DropdownMenuItem(value:'goal',child:Text('Objectif'))],onChanged:(v)=>mode=v??'fixed'),
       TextFormField(controller:minimum,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Minimum XOF'),validator:(v)=>int.tryParse(v??'')==null||int.parse(v!)<=0?'Montant invalide':null),
       if(mode=='fixed')TextFormField(controller:fixed,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Montant fixe XOF'),validator:(v)=>int.tryParse(v??'')==null||int.parse(v!)<int.parse(minimum.text.isEmpty?'1':minimum.text)?'Montant invalide':null),
     ],payload:()async=>{'_path':'/v1/tontine/groups','name':name.text.trim(),'countryCode':'TG','currency':'XOF','frequency':frequency,'contributionMode':mode,'minimumAmountMinor':minimum.text,'governance':'member_vote',if(mode=='fixed')'fixedAmountMinor':fixed.text});
@@ -122,8 +121,8 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Si
     final summary=TextEditingController();
     String type='incident',severity='medium';
     await _showCommand(title:'Ouvrir un dossier',fields:[
-      DropdownButtonFormField<String>(value:type,decoration:const InputDecoration(labelText:'Type'),items:const [DropdownMenuItem(value:'incident',child:Text('Incident')),DropdownMenuItem(value:'dispute',child:Text('Litige')),DropdownMenuItem(value:'risk_investigation',child:Text('Risque')),DropdownMenuItem(value:'recovery',child:Text('Recouvrement'))],onChanged:(v)=>type=v??'incident'),
-      DropdownButtonFormField<String>(value:severity,decoration:const InputDecoration(labelText:'Gravité'),items:const [DropdownMenuItem(value:'low',child:Text('Faible')),DropdownMenuItem(value:'medium',child:Text('Moyenne')),DropdownMenuItem(value:'high',child:Text('Élevée')),DropdownMenuItem(value:'critical',child:Text('Critique'))],onChanged:(v)=>severity=v??'medium'),
+      DropdownButtonFormField<String>(initialValue:type,decoration:const InputDecoration(labelText:'Type'),items:const [DropdownMenuItem(value:'incident',child:Text('Incident')),DropdownMenuItem(value:'dispute',child:Text('Litige')),DropdownMenuItem(value:'risk_investigation',child:Text('Risque')),DropdownMenuItem(value:'recovery',child:Text('Recouvrement'))],onChanged:(v)=>type=v??'incident'),
+      DropdownButtonFormField<String>(initialValue:severity,decoration:const InputDecoration(labelText:'Gravité'),items:const [DropdownMenuItem(value:'low',child:Text('Faible')),DropdownMenuItem(value:'medium',child:Text('Moyenne')),DropdownMenuItem(value:'high',child:Text('Élevée')),DropdownMenuItem(value:'critical',child:Text('Critique'))],onChanged:(v)=>severity=v??'medium'),
       TextFormField(controller:summary,maxLines:3,decoration:const InputDecoration(labelText:'Résumé'),validator:(v)=>v==null||v.trim().isEmpty?'Résumé obligatoire':null),
     ],payload:()async=>{'_path':'/v1/tontine/groups/$_selectedGroup/cases','type':type,'severity':severity,'summary':summary.text.trim()});
     summary.dispose();
@@ -139,9 +138,10 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Si
       Row(children:[Expanded(child:Text('Groupes réels · PostgreSQL',style:Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight:FontWeight.w800))),IconButton(onPressed:_loading?null:_load,icon:const Icon(Icons.refresh))]),
       if(_loading&&_groups.isEmpty)const LinearProgressIndicator(),
       if(_groups.isEmpty&&!_loading)const Card(child:Padding(padding:EdgeInsets.all(16),child:Text('Aucun groupe enregistré pour cette organisation.'))),
-      if(_groups.isNotEmpty)DropdownButtonFormField<String>(value:_selectedGroup,decoration:const InputDecoration(labelText:'Groupe sélectionné'),items:_groups.map((g)=>DropdownMenuItem(value:g['id'].toString(),child:Text(g['name'].toString(),overflow:TextOverflow.ellipsis))).toList(),onChanged:(v)async{setState(()=>_selectedGroup=v);await _loadPanel();}),
+      if(_groups.isNotEmpty)DropdownButtonFormField<String>(initialValue:_selectedGroup,decoration:const InputDecoration(labelText:'Groupe sélectionné'),items:_groups.map((g)=>DropdownMenuItem(value:g['id'].toString(),child:Text(g['name'].toString(),overflow:TextOverflow.ellipsis))).toList(),onChanged:(v)async{setState(()=>_selectedGroup=v);await _loadPanel();}),
       const SizedBox(height:12),
       Wrap(spacing:8,runSpacing:8,children:[
+        _action('Créer un groupe',Icons.add_circle_outline,_createGroup),
         _action('Inviter',Icons.person_add_alt_1,_selectedGroup==null?_load:_invite),
         _action('Créer un cycle',Icons.autorenew,_selectedGroup==null?_load:_cycle),
         _action('Signaler',Icons.report_outlined,_selectedGroup==null?_load:_openCase),
@@ -176,7 +176,20 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Si
         SizedBox(height:8),Text('Groupes · cycles · membres · incidents',style:TextStyle(fontSize:10,color:Colors.white70)),
       ])),
       const SizedBox(width:12),
-      Transform(perspective:0.001,alignment:Alignment.center,transform:Matrix4.identity()..rotateY(-.16)..rotateX(.08),child:Container(width:72,height:72,decoration:const BoxDecoration(shape:BoxShape.circle,gradient:RadialGradient(colors:[Color(0xffe0fff0),Color(0xff55dca9),Color(0xff08714f)]),boxShadow:[BoxShadow(color:Color(0x66002118),blurRadius:20,offset:Offset(0,10))]),alignment:Alignment.center,child:const Text('T',style:TextStyle(fontSize:35,fontWeight:FontWeight.w900,color:Color(0xff07563e)))),
+      Transform(
+        alignment:Alignment.center,
+        transform:Matrix4.identity()..setEntry(3,2,0.001)..rotateY(-.16)..rotateX(.08),
+        child:Container(
+          width:72,height:72,
+          decoration:const BoxDecoration(
+            shape:BoxShape.circle,
+            gradient:RadialGradient(colors:[Color(0xffe0fff0),Color(0xff55dca9),Color(0xff08714f)]),
+            boxShadow:[BoxShadow(color:Color(0x66002118),blurRadius:20,offset:Offset(0,10))],
+          ),
+          alignment:Alignment.center,
+          child:const Text('T',style:TextStyle(fontSize:35,fontWeight:FontWeight.w900,color:Color(0xff07563e))),
+        ),
+      ),
     ]),
   );
 
