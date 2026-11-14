@@ -95,6 +95,10 @@ function route(path:string,method:string){
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===5&&parts[3]&&method==="GET"&&["members","cycles","contributions","governance","cases"].includes(parts[4]??""))return ["tontine-group-"+parts[4],parts[3]] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===5&&parts[3]&&parts[4]==="cycles"&&method==="POST")return ["tontine-cycle-create",parts[3]] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===5&&parts[3]&&parts[4]==="cases"&&method==="POST")return ["tontine-case-create",parts[3]] as const;
+ if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===6&&parts[3]&&parts[4]==="governance"&&parts[5]==="policy"&&method==="PUT")return ["tontine-governance-policy",parts[3]] as const;
+ if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===6&&parts[3]&&parts[4]==="governance"&&parts[5]==="proposals"&&method==="POST")return ["tontine-governance-proposal",parts[3]] as const;
+ if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===8&&parts[3]&&parts[4]==="governance"&&parts[5]==="proposals"&&parts[6]&&parts[7]==="votes"&&method==="POST")return ["tontine-governance-vote",parts[3],parts[6]] as const;
+ if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===7&&parts[3]&&parts[4]==="governance"&&parts[5]==="proposals"&&parts[6]&&method==="POST")return ["tontine-governance-finalize",parts[3],parts[6]] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===5&&parts[3]&&parts[4]==="members"&&method==="POST")return ["tontine-member-invite",parts[3]] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===7&&parts[3]&&parts[4]==="members"&&parts[5]&&parts[6]==="decision"&&method==="POST")return ["tontine-member-decision",parts[3],parts[5]] as const;
  if(parts[1]!=="education")return null;
@@ -116,7 +120,7 @@ function route(path:string,method:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="actor"||kind==="class-list"||kind==="student-list"||kind==="tontine-group-list"||kind.startsWith("tontine-group-")&&kind!=="tontine-group-create"||kind==="tontine-member-decision"?"org.read":kind==="tontine-group-create"||kind==="tontine-member-invite"||kind==="tontine-cycle-create"||kind==="tontine-case-create"||kind.startsWith("class-")?"org.manage":"member.manage";}
+function permissionFor(kind:string):Permission{return kind==="tontine-governance-policy"||kind==="tontine-governance-finalize"?"org.manage":kind==="tontine-governance-proposal"||kind==="tontine-governance-vote"?"org.read":kind==="actor"||kind==="class-list"||kind==="student-list"||kind==="tontine-group-list"||kind.startsWith("tontine-group-")&&kind!=="tontine-group-create"||kind==="tontine-member-decision"?"org.read":kind==="tontine-group-create"||kind==="tontine-member-invite"||kind==="tontine-cycle-create"||kind==="tontine-case-create"||kind.startsWith("class-")?"org.manage":"member.manage";}
 
 async function tenantScopedRead(deps:SchoolApiDependencies,tenantId:string,organizationId:string,sql:string,values:unknown[]=[]):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>{
  const client=await deps.syncClient();
@@ -317,6 +321,143 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      if(contentType!=="application/json")throw new Error("API_JSON_CONTENT_TYPE_REQUIRED");
    }
    const body=parse(bodyText);
+   if(typeof r[0]==="string"&&r[0].startsWith("tontine-governance-")){
+    const groupId=r[1]!;
+    const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if(!uuid.test(groupId))throw new Error("TONTINE_GROUP_ID_INVALID");
+    const input=body as Record<string,unknown>;
+    if(!input||typeof input!=="object"||Array.isArray(input))throw new Error("TONTINE_GOVERNANCE_BODY_INVALID");
+    const idem=String(req.headers["x-idempotency-key"]??"");
+    if(!IDEMPOTENCY_KEY.test(idem))throw new Error("API_IDEMPOTENCY_KEY_INVALID");
+    const client=await deps.syncClient();
+    let responseData:Record<string,unknown>={};
+    let replayed=false;
+    try{
+     await client.query("BEGIN");
+     await client.query("SELECT set_config('tpay.tenant_id',$1,true),set_config('tpay.organization_id',$2,true)",[auth.tenantId,organizationId]);
+     const group=await client.query("SELECT id,governance,status FROM tontine_groups WHERE organization_id=$1 AND id=$2 FOR UPDATE",[organizationId,groupId]);
+     if(!group.rows[0])throw new Error("TONTINE_GROUP_NOT_FOUND");
+     if(group.rows[0].governance!=="member_vote")throw new Error("TONTINE_MEMBER_GOVERNANCE_DISABLED");
+     if(r[0]==="tontine-governance-policy"){
+      const quorum=Number(input.quorumPercent),approval=Number(input.approvalPercent),abstention=input.allowAbstention;
+      if(!Number.isInteger(quorum)||quorum<1||quorum>100)throw new Error("TONTINE_QUORUM_INVALID");
+      if(!Number.isInteger(approval)||approval<51||approval>100)throw new Error("TONTINE_APPROVAL_THRESHOLD_INVALID");
+      if(typeof abstention!=="boolean")throw new Error("TONTINE_ABSTENTION_POLICY_INVALID");
+      const requestHash=canonicalRequestHash(method,path,JSON.stringify({quorum,approval,abstention}));
+      const reservationId=randomUUID();
+      const reserved=await client.query("INSERT INTO api_request_deduplication(id,organization_id,idempotency_key,request_hash,route,state,created_at,expires_at) VALUES($1,$2,$3,$4,$5,'succeeded',now(),now()+interval '24 hours') ON CONFLICT(organization_id,idempotency_key) DO NOTHING RETURNING id",[reservationId,organizationId,idem,requestHash,path]);
+      if(reserved.rows.length===0){
+       const prior=await client.query("SELECT id,request_hash,route,state FROM api_request_deduplication WHERE organization_id=$1 AND idempotency_key=$2 FOR UPDATE",[organizationId,idem]);
+       if(!prior.rows[0]||prior.rows[0].request_hash!==requestHash||prior.rows[0].route!==path||prior.rows[0].state!=="succeeded")throw new Error("API_IDEMPOTENCY_CONFLICT");
+       const policy=await client.query("SELECT organization_id,group_id,policy_version,quorum_percent,approval_percent,allow_abstention,effective_at FROM tontine_governance_group_policies WHERE organization_id=$1 AND group_id=$2",[organizationId,groupId]);
+       if(!policy.rows[0])throw new Error("TONTINE_GOVERNANCE_POLICY_NOT_FOUND");
+       responseData={policy:policy.rows[0],replayed:true};replayed=true;
+      }else{
+       const existing=await client.query("SELECT policy_version FROM tontine_governance_group_policies WHERE organization_id=$1 AND group_id=$2 FOR UPDATE",[organizationId,groupId]);
+       const policy=existing.rows[0]
+        ?await client.query("UPDATE tontine_governance_group_policies SET policy_version=policy_version+1,quorum_percent=$3,approval_percent=$4,allow_abstention=$5,updated_by=$6,effective_at=GREATEST(clock_timestamp(),effective_at+interval '1 microsecond') WHERE organization_id=$1 AND group_id=$2 RETURNING organization_id,group_id,policy_version,quorum_percent,approval_percent,allow_abstention,effective_at",[organizationId,groupId,quorum,approval,abstention,auth.principal.userId])
+        :await client.query("INSERT INTO tontine_governance_group_policies(organization_id,group_id,policy_version,quorum_percent,approval_percent,allow_abstention,updated_by,effective_at) VALUES($1,$2,1,$3,$4,$5,$6,clock_timestamp()) RETURNING organization_id,group_id,policy_version,quorum_percent,approval_percent,allow_abstention,effective_at",[organizationId,groupId,quorum,approval,abstention,auth.principal.userId]);
+       await client.query("INSERT INTO outbox_events(id,organization_id,event_type,aggregate_id,occurred_at,payload) VALUES($1,$2,'tontine.governance.policy.updated',$3,now(),$4::jsonb)",[randomUUID(),organizationId,groupId,JSON.stringify({groupId,organizationId,policy:policy.rows[0],actorId:auth.principal.userId})]);
+       const metadata=JSON.stringify({method,path,resource:"tontine_governance_policy",groupId,policyVersion:policy.rows[0]?.policy_version});
+       await client.query("INSERT INTO api_request_audit(id,organization_id,request_id,route,actor_id,auth_class,outcome,correlation_id,occurred_at,metadata_hash) VALUES($1,$2,$3,$4,$5,'member','accepted',$6,now(),$7)",[randomUUID(),organizationId,reservationId,path,auth.principal.userId,correlationId,createHash("sha256").update(metadata).digest("hex")]);
+       responseData={policy:policy.rows[0],replayed:false};
+      }
+     }else if(r[0]==="tontine-governance-proposal"){
+      const type=String(input.type??"");
+      const payload=input.payload;
+      const closesAt=typeof input.closesAt==="string"?new Date(input.closesAt):new Date(NaN);
+      const now=(deps.now??(()=>new Date()))();
+      if(!["rule_change","beneficiary_order","pause","resume","member_admission","member_removal","partner_change"].includes(type))throw new Error("TONTINE_PROPOSAL_TYPE_INVALID");
+      if(!payload||typeof payload!=="object"||Array.isArray(payload))throw new Error("TONTINE_PROPOSAL_PAYLOAD_INVALID");
+      const payloadText=JSON.stringify(payload);
+      if(Buffer.byteLength(payloadText)>65536)throw new Error("TONTINE_PROPOSAL_PAYLOAD_TOO_LARGE");
+      if(!Number.isFinite(closesAt.getTime())||closesAt.getTime()<now.getTime()+60*60*1000||closesAt.getTime()>now.getTime()+30*24*60*60*1000)throw new Error("TONTINE_PROPOSAL_CLOSE_WINDOW_INVALID");
+      const member=await client.query("SELECT id FROM tontine_memberships WHERE organization_id=$1 AND group_id=$2 AND client_id=$3 AND status='active' FOR SHARE",[organizationId,groupId,auth.principal.userId]);
+      if(!member.rows[0])throw new Error("TONTINE_GOVERNANCE_ACTIVE_MEMBER_REQUIRED");
+      const policy=await client.query("SELECT policy_version,quorum_percent,approval_percent,allow_abstention FROM tontine_governance_group_policies WHERE organization_id=$1 AND group_id=$2 FOR SHARE",[organizationId,groupId]);
+      if(!policy.rows[0])throw new Error("TONTINE_GOVERNANCE_POLICY_REQUIRED");
+      const eligible=await client.query("SELECT count(*)::integer AS count FROM tontine_memberships WHERE organization_id=$1 AND group_id=$2 AND status='active'",[organizationId,groupId]);
+      const eligibleCount=Number(eligible.rows[0]?.count??0);
+      if(eligibleCount<2)throw new Error("TONTINE_GOVERNANCE_MEMBERS_INVALID");
+      const proposalId=randomUUID(),payloadHash=createHash("sha256").update(payloadText).digest("hex");
+      const requestHash=canonicalRequestHash(method,path,JSON.stringify({type,payload,closesAt:closesAt.toISOString()}));
+      const reserved=await client.query("INSERT INTO api_request_deduplication(id,organization_id,idempotency_key,request_hash,route,state,created_at,expires_at) VALUES($1,$2,$3,$4,$5,'succeeded',now(),now()+interval '24 hours') ON CONFLICT(organization_id,idempotency_key) DO NOTHING RETURNING id",[proposalId,organizationId,idem,requestHash,path]);
+      if(reserved.rows.length===0){
+       const prior=await client.query("SELECT id,request_hash,route,state FROM api_request_deduplication WHERE organization_id=$1 AND idempotency_key=$2 FOR UPDATE",[organizationId,idem]);
+       if(!prior.rows[0]||prior.rows[0].request_hash!==requestHash||prior.rows[0].route!==path||prior.rows[0].state!=="succeeded")throw new Error("API_IDEMPOTENCY_CONFLICT");
+       const old=await client.query("SELECT id,type,status,opened_at,closes_at,quorum_percent_snapshot,approval_percent_snapshot,eligible_member_count_snapshot,policy_version_snapshot FROM tontine_governance_proposals WHERE organization_id=$1 AND group_id=$2 AND id=$3",[organizationId,groupId,prior.rows[0].id]);
+       if(!old.rows[0])throw new Error("TONTINE_IDEMPOTENCY_TARGET_MISSING");
+       responseData={proposal:old.rows[0],replayed:true};replayed=true;
+      }else{
+       const inserted=await client.query("INSERT INTO tontine_governance_proposals(id,organization_id,group_id,proposer_id,type,payload_version,payload_hash,payload,status,opened_at,closes_at,quorum_percent_snapshot,approval_percent_snapshot,allow_abstention_snapshot,eligible_member_count_snapshot,policy_version_snapshot) VALUES($1,$2,$3,$4,$5,1,$6,$7::jsonb,'open',$8,$9,$10,$11,$12,$13,$14) RETURNING id,type,status,opened_at,closes_at,quorum_percent_snapshot,approval_percent_snapshot,eligible_member_count_snapshot,policy_version_snapshot",[proposalId,organizationId,groupId,auth.principal.userId,type,payloadHash,payloadText,now.toISOString(),closesAt.toISOString(),policy.rows[0].quorum_percent,policy.rows[0].approval_percent,policy.rows[0].allow_abstention,eligibleCount,policy.rows[0].policy_version]);
+       await client.query("INSERT INTO outbox_events(id,organization_id,event_type,aggregate_id,occurred_at,payload) VALUES($1,$2,'tontine.governance.proposal.opened',$3,now(),$4::jsonb)",[randomUUID(),organizationId,proposalId,JSON.stringify({proposalId,groupId,organizationId,type,payloadHash,eligibleCount,actorId:auth.principal.userId})]);
+       const metadata=JSON.stringify({method,path,resource:"tontine_governance_proposal",groupId,proposalId,type,payloadHash});
+       await client.query("INSERT INTO api_request_audit(id,organization_id,request_id,route,actor_id,auth_class,outcome,correlation_id,occurred_at,metadata_hash) VALUES($1,$2,$3,$4,$5,'member','accepted',$6,now(),$7)",[randomUUID(),organizationId,proposalId,path,auth.principal.userId,correlationId,createHash("sha256").update(metadata).digest("hex")]);
+       responseData={proposal:inserted.rows[0],replayed:false};
+      }
+     }else if(r[0]==="tontine-governance-vote"){
+      const proposalId=r[2]!;
+      if(!uuid.test(proposalId))throw new Error("TONTINE_PROPOSAL_ID_INVALID");
+      const choice=String(input.choice??"");
+      if(!["approve","reject","abstain"].includes(choice))throw new Error("TONTINE_VOTE_CHOICE_INVALID");
+      const requestHash=canonicalRequestHash(method,path,JSON.stringify({choice}));
+      const voteId=randomUUID();
+      const reserved=await client.query("INSERT INTO api_request_deduplication(id,organization_id,idempotency_key,request_hash,route,state,created_at,expires_at) VALUES($1,$2,$3,$4,$5,'succeeded',now(),now()+interval '24 hours') ON CONFLICT(organization_id,idempotency_key) DO NOTHING RETURNING id",[voteId,organizationId,idem,requestHash,path]);
+      if(reserved.rows.length===0){
+       const prior=await client.query("SELECT id,request_hash,route,state FROM api_request_deduplication WHERE organization_id=$1 AND idempotency_key=$2 FOR UPDATE",[organizationId,idem]);
+       if(!prior.rows[0]||prior.rows[0].request_hash!==requestHash||prior.rows[0].route!==path||prior.rows[0].state!=="succeeded")throw new Error("API_IDEMPOTENCY_CONFLICT");
+       const old=await client.query("SELECT id,proposal_id,voter_id,choice,cast_at FROM tontine_governance_votes WHERE organization_id=$1 AND proposal_id=$2 AND voter_id=$3",[organizationId,proposalId,auth.principal.userId]);
+       if(!old.rows[0])throw new Error("TONTINE_IDEMPOTENCY_TARGET_MISSING");
+       responseData={vote:old.rows[0],replayed:true};replayed=true;
+      }else{
+       const proposal=await client.query("SELECT id,status,closes_at,allow_abstention_snapshot FROM tontine_governance_proposals WHERE organization_id=$1 AND group_id=$2 AND id=$3 FOR UPDATE",[organizationId,groupId,proposalId]);
+       if(!proposal.rows[0])throw new Error("TONTINE_PROPOSAL_NOT_FOUND");
+       if(proposal.rows[0].status!=="open")throw new Error("TONTINE_PROPOSAL_CLOSED");
+       const now=(deps.now??(()=>new Date()))();
+       if(now.getTime()>=new Date(String(proposal.rows[0].closes_at)).getTime())throw new Error("TONTINE_PROPOSAL_CLOSED");
+       if(choice==="abstain"&&proposal.rows[0].allow_abstention_snapshot!==true)throw new Error("TONTINE_ABSTENTION_NOT_ALLOWED");
+       const member=await client.query("SELECT id FROM tontine_memberships WHERE organization_id=$1 AND group_id=$2 AND client_id=$3 AND status='active' FOR SHARE",[organizationId,groupId,auth.principal.userId]);
+       if(!member.rows[0])throw new Error("TONTINE_GOVERNANCE_ACTIVE_MEMBER_REQUIRED");
+       const inserted=await client.query("INSERT INTO tontine_governance_votes(id,organization_id,proposal_id,voter_id,choice,cast_at) VALUES($1,$2,$3,$4,$5,now()) RETURNING id,proposal_id,voter_id,choice,cast_at",[voteId,organizationId,proposalId,auth.principal.userId,choice]);
+       await client.query("INSERT INTO outbox_events(id,organization_id,event_type,aggregate_id,occurred_at,payload) VALUES($1,$2,'tontine.governance.vote.cast',$3,now(),$4::jsonb)",[randomUUID(),organizationId,voteId,JSON.stringify({voteId,proposalId,groupId,organizationId,choice,actorId:auth.principal.userId})]);
+       const metadata=JSON.stringify({method,path,resource:"tontine_governance_vote",groupId,proposalId,voteId,choice});
+       await client.query("INSERT INTO api_request_audit(id,organization_id,request_id,route,actor_id,auth_class,outcome,correlation_id,occurred_at,metadata_hash) VALUES($1,$2,$3,$4,$5,'member','accepted',$6,now(),$7)",[randomUUID(),organizationId,voteId,path,auth.principal.userId,correlationId,createHash("sha256").update(metadata).digest("hex")]);
+       responseData={vote:inserted.rows[0],replayed:false};
+      }
+     }else if(r[0]==="tontine-governance-finalize"){
+      const proposalId=r[2]!;
+      if(!uuid.test(proposalId))throw new Error("TONTINE_PROPOSAL_ID_INVALID");
+      const requestHash=canonicalRequestHash(method,path,JSON.stringify({proposalId}));
+      const reservationId=randomUUID();
+      const reserved=await client.query("INSERT INTO api_request_deduplication(id,organization_id,idempotency_key,request_hash,route,state,created_at,expires_at) VALUES($1,$2,$3,$4,$5,'succeeded',now(),now()+interval '24 hours') ON CONFLICT(organization_id,idempotency_key) DO NOTHING RETURNING id",[reservationId,organizationId,idem,requestHash,path]);
+      if(reserved.rows.length===0){
+       const prior=await client.query("SELECT id,request_hash,route,state FROM api_request_deduplication WHERE organization_id=$1 AND idempotency_key=$2 FOR UPDATE",[organizationId,idem]);
+       if(!prior.rows[0]||prior.rows[0].request_hash!==requestHash||prior.rows[0].route!==path||prior.rows[0].state!=="succeeded")throw new Error("API_IDEMPOTENCY_CONFLICT");
+       const old=await client.query("SELECT id,status,finalized_at FROM tontine_governance_proposals WHERE organization_id=$1 AND group_id=$2 AND id=$3",[organizationId,groupId,proposalId]);
+       if(!old.rows[0])throw new Error("TONTINE_PROPOSAL_NOT_FOUND");
+       responseData={proposal:old.rows[0],replayed:true};replayed=true;
+      }else{
+       const proposal=await client.query("SELECT id,status,closes_at,quorum_percent_snapshot,approval_percent_snapshot,eligible_member_count_snapshot FROM tontine_governance_proposals WHERE organization_id=$1 AND group_id=$2 AND id=$3 FOR UPDATE",[organizationId,groupId,proposalId]);
+       if(!proposal.rows[0])throw new Error("TONTINE_PROPOSAL_NOT_FOUND");
+       if(proposal.rows[0].status!=="open")throw new Error("TONTINE_PROPOSAL_ALREADY_FINALIZED");
+       const now=(deps.now??(()=>new Date()))();
+       if(now.getTime()<new Date(String(proposal.rows[0].closes_at)).getTime())throw new Error("TONTINE_PROPOSAL_WINDOW_STILL_OPEN");
+       const tally=await client.query("SELECT count(*)::integer AS total,count(*) FILTER(WHERE choice='approve')::integer AS approvals,count(*) FILTER(WHERE choice='reject')::integer AS rejections FROM tontine_governance_votes WHERE organization_id=$1 AND proposal_id=$2",[organizationId,proposalId]);
+       const total=Number(tally.rows[0]?.total??0),approvals=Number(tally.rows[0]?.approvals??0),rejections=Number(tally.rows[0]?.rejections??0);
+       const required=Math.ceil(Number(proposal.rows[0].eligible_member_count_snapshot)*Number(proposal.rows[0].quorum_percent_snapshot)/100);
+       const decided=approvals+rejections;
+       const status=total<required?"expired":decided>0&&approvals*100>=decided*Number(proposal.rows[0].approval_percent_snapshot)?"approved":"rejected";
+       const updated=await client.query("UPDATE tontine_governance_proposals SET status=$4,finalized_at=$5 WHERE organization_id=$1 AND group_id=$2 AND id=$3 RETURNING id,status,finalized_at",[organizationId,groupId,proposalId,status,now.toISOString()]);
+       await client.query("INSERT INTO outbox_events(id,organization_id,event_type,aggregate_id,occurred_at,payload) VALUES($1,$2,'tontine.governance.proposal.finalized',$3,now(),$4::jsonb)",[randomUUID(),organizationId,proposalId,JSON.stringify({proposalId,groupId,organizationId,status,totalVotes:total,requiredQuorum:required,approvals,rejections,actorId:auth.principal.userId})]);
+       const metadata=JSON.stringify({method,path,resource:"tontine_governance_finalize",groupId,proposalId,status,totalVotes:total,requiredQuorum:required});
+       await client.query("INSERT INTO api_request_audit(id,organization_id,request_id,route,actor_id,auth_class,outcome,correlation_id,occurred_at,metadata_hash) VALUES($1,$2,$3,$4,$5,'member','accepted',$6,now(),$7)",[randomUUID(),organizationId,proposalId,path,auth.principal.userId,correlationId,createHash("sha256").update(metadata).digest("hex")]);
+       responseData={proposal:updated.rows[0],tally:{total,approvals,rejections,requiredQuorum:required},replayed:false};
+      }
+     }
+     await client.query("COMMIT");
+    }catch(error){try{await client.query("ROLLBACK");}catch{}throw error;}finally{client.release?.();}
+    json(res,replayed?200:r[0]==="tontine-governance-vote"?201:r[0]==="tontine-governance-policy"?200:201,buildApiSuccess("v1",correlationId,{...responseData,replayed}),correlationId);return;
+   }
    if(r[0]==="tontine-case-create"){
     const groupId=r[1]!;
     if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(groupId))throw new Error("TONTINE_GROUP_ID_INVALID");
