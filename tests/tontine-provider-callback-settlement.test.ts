@@ -77,10 +77,9 @@ test("same provider event with a different payload is durably rejected without L
     return {rows:[],rowCount:1};
   });
   let settled=false;
-  const result=await processVerifiedTontinePayoutCallback(db,{verifyAndNormalize:async()=>callback},input,payoutId,payout,accounts,"tx-id",{
+  await assert.rejects(()=>processVerifiedTontinePayoutCallback(db,{verifyAndNormalize:async()=>callback},input,payoutId,payout,accounts,"tx-id",{
     settle:async()=>{settled=true;}
-  });
-  assert.equal(result.state,"rejected");
+  }),/TONTINE_CALLBACK_REPLAY_PAYLOAD_MISMATCH/);
   assert.equal(settled,false);
   assert.ok(statements.some(sql=>sql.includes("failure_code='CALLBACK_PAYLOAD_MISMATCH'")));
 });
