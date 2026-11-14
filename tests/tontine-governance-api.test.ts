@@ -29,7 +29,7 @@ async function close(server:any){server.closeAllConnections();await new Promise<
 
 test("Community Tontine governance endpoints are explicitly allowlisted",()=>{
  assert.equal(resolveRoutePolicy("PUT",`/v1/tontine/groups/${groupId}/governance/policy`)?.financial,false);
- assert.equal(resolveRoutePolicy("POST",`/v1/tontine/groups/${groupId}/governance/proposals")?.financial,false);
+ assert.equal(resolveRoutePolicy("POST",`/v1/tontine/groups/${groupId}/governance/proposals`)?.financial,false);
  assert.equal(resolveRoutePolicy("POST",`/v1/tontine/groups/${groupId}/governance/proposals/${proposalId}/votes`)?.financial,false);
  assert.equal(resolveRoutePolicy("POST",`/v1/tontine/groups/${groupId}/governance/proposals/${proposalId}`)?.financial,false);
 });
@@ -79,7 +79,7 @@ test("proposal opening snapshots policy and active-member count atomically",asyn
 });
 
 test("governance votes require an active member and are persisted with audit and outbox",async()=>{
- const {server,statements}=serverFor(sql=>{
+ const {server,statements}=serverFor((sql,values)=>{
   if(sql.includes("SELECT id,governance,status FROM tontine_groups"))return {rows:[{id:groupId,governance:"member_vote",status:"active"}],rowCount:1};
   if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:"123e4567-e89b-42d3-a456-426614174006"}],rowCount:1};
   if(sql.includes("SELECT id,status,closes_at,allow_abstention_snapshot"))return {rows:[{id:proposalId,status:"open",closes_at:new Date(Date.now()+24*60*60*1000).toISOString(),allow_abstention_snapshot:false}],rowCount:1};
