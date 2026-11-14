@@ -58,9 +58,9 @@ test("governance policy writes are versioned, idempotent, audited and outboxed i
 test("proposal opening snapshots policy and active-member count atomically",async()=>{
  const {server,statements}=serverFor(sql=>{
   if(sql.includes("SELECT id,governance,status FROM tontine_groups"))return {rows:[{id:groupId,governance:"member_vote",status:"active"}],rowCount:1};
+  if(sql.includes("SELECT id FROM tontine_memberships")&&sql.includes("ORDER BY id FOR SHARE"))return {rows:[{id:"m1"},{id:"m2"},{id:"m3"},{id:"m4"}],rowCount:4};
   if(sql.includes("SELECT id FROM tontine_memberships"))return {rows:[{id:"membership-1"}],rowCount:1};
   if(sql.includes("SELECT policy_version,quorum_percent,approval_percent,allow_abstention"))return {rows:[policyRow],rowCount:1};
-  if(sql.includes("SELECT id FROM tontine_memberships")&&sql.includes("ORDER BY id FOR SHARE"))return {rows:[{id:"m1"},{id:"m2"},{id:"m3"},{id:"m4"}],rowCount:4};
   if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:proposalId}],rowCount:1};
   if(sql.includes("INSERT INTO tontine_governance_proposals"))return {rows:[{id:proposalId,type:"rule_change",status:"open",quorum_percent_snapshot:50,approval_percent_snapshot:66,eligible_member_count_snapshot:4,policy_version_snapshot:1}],rowCount:1};
   return {rows:[],rowCount:1};
