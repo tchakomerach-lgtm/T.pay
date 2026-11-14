@@ -1,0 +1,1 @@
+import {createRoot} from "react-dom/client";import {TpayApp} from "./app.js";import "./style.css";const root=document.getElementById("root");if(!root)throw new Error("TPAY_ROOT_REQUIRED");createRoot(root).render(<TpayApp/>);

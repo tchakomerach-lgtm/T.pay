@@ -13,7 +13,7 @@ permissions:
   contents: read
 concurrency:
   group: tpay-ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   quality:
     runs-on: ubuntu-latest
@@ -31,18 +31,22 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
-    env:
-      TPAY_DATABASE_URL: postgresql://postgres:tpay_ci@127.0.0.1:5432/tpay_ci
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: TypeScript and unit/invariant checks
-        run: npm run check
+      - name: TypeScript strict typecheck
+        run: npm run typecheck
+      - name: Compile production TypeScript output
+        run: npm run build
+      - name: Unit and invariant tests
+        run: node --test dist/tests/*.test.js
       - name: Apply full migration chain and run live PostgreSQL integration
+        env:
+          TPAY_DATABASE_URL: postgresql://postgres:tpay_ci@127.0.0.1:5432/tpay_ci
         run: npm run test:postgres
       - name: Security fortress checks
         run: npm run security:fortress
@@ -50,5 +54,32 @@ jobs:
         run: npm run web:build
       - name: Investor prototype production build
         run: npm run investor:build
+      - name: Verify shared Web/Flutter design contract
+        run: npm run design:contract:check
+      - name: T.Pay Experience OS React renderer build
+        run: npm run experience:build
+      - name: Upload compiled React Web renderer
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: TPay-Experience-Web
+          path: dist/experience-web/
+          if-no-files-found: error
+          retention-days: 14
       - name: Production dependency audit
         run: npm audit --omit=dev --audit-level=high
+
+  lovable-source-bundle:
+    name: Package T.Pay source for Lovable
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Create clean source archive
+        run: git archive --format=zip --output=TPay-Lovable-preview.zip HEAD
+      - name: Upload Lovable source archive
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: TPay-Lovable-preview
+          path: TPay-Lovable-preview.zip
+          if-no-files-found: error
+          retention-days: 14

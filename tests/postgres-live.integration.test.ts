@@ -70,6 +70,9 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
   const client = new pg.Client({ connectionString: databaseUrl });
   await client.connect();
   const organizationId = randomUUID();
+  const groupId = randomUUID();
+  const membershipId = randomUUID();
+  const clientId = randomUUID();
   const cashAccount = randomUUID();
   const tontineAccount = randomUUID();
   const microfinanceFeeAccount = randomUUID();
@@ -90,8 +93,21 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
       [cashAccount, organizationId, tontineAccount, microfinanceFeeAccount, now, tpayFeeAccount]
     );
     await client.query(
+      `INSERT INTO tontine_groups
+       (id,organization_id,name,country_code,currency,frequency,contribution_mode,fixed_amount_minor,minimum_amount_minor,
+        cycle_number,governance,status,created_by,created_at)
+       VALUES ($1,$2,'S-03.4 live','TG','XOF','daily','fixed',1000,1000,1,'founder_managed','active',$3,$4::timestamptz)`,
+      [groupId,organizationId,randomUUID(),now]
+    );
+    await client.query(
+      `INSERT INTO tontine_memberships
+       (id,organization_id,group_id,client_id,role,status,joined_at)
+       VALUES ($1,$2,$3,$4,'member','active',$5::timestamptz)`,
+      [membershipId,organizationId,groupId,clientId,now]
+    );
+    await client.query(
       "INSERT INTO tontine_contributions (id,organization_id,group_id,membership_id,amount_minor,currency,idempotency_key,status,channel,scheduled_for,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF',$5,'pending','mobile_money',$6,$6)",
-      [contributionId, organizationId, randomUUID(), randomUUID(), idempotencyKey, now]
+      [contributionId, organizationId, groupId, membershipId, idempotencyKey, now]
     );
     await client.query(
       "INSERT INTO tontine_payment_intents (id,organization_id,contribution_id,idempotency_key,amount_minor,currency,provider,provider_reference,status,created_at,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF','tmoney','TM-LIVE','provider_confirmed',$5,$5)",
@@ -107,7 +123,7 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
         status: "provider_confirmed" as const, createdAt: now, updatedAt: now
       },
       contribution: {
-        id: contributionId as never, groupId: randomUUID() as never, membershipId: randomUUID() as never,
+        id: contributionId as never, groupId: groupId as never, membershipId: membershipId as never,
         scheduledFor: now, amountMinor: 1000n, currency: "XOF", status: "pending" as const,
         channel: "mobile_money" as const, idempotencyKey
       },
@@ -165,7 +181,7 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
     const rollbackKey = "live-s03.4-rollback-" + randomUUID();
     await client.query(
       "INSERT INTO tontine_contributions (id,organization_id,group_id,membership_id,amount_minor,currency,idempotency_key,status,channel,scheduled_for,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF',$5,'pending','mobile_money',$6,$6)",
-      [rollbackContribution, organizationId, randomUUID(), randomUUID(), rollbackKey, now]
+      [rollbackContribution, organizationId, groupId, membershipId, rollbackKey, now]
     );
     await client.query(
       "INSERT INTO tontine_payment_intents (id,organization_id,contribution_id,idempotency_key,amount_minor,currency,provider,provider_reference,status,created_at,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF','tmoney','TM-ROLLBACK','provider_confirmed',$5,$5)",
@@ -205,6 +221,8 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
     await client.query("DELETE FROM ledger_transactions WHERE organization_id=$1", [organizationId]);
     await client.query("DELETE FROM tontine_payment_intents WHERE organization_id=$1", [organizationId]);
     await client.query("DELETE FROM tontine_contributions WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM tontine_memberships WHERE id=$1", [membershipId]);
+    await client.query("DELETE FROM tontine_groups WHERE id=$1", [groupId]);
     await client.query("DELETE FROM financial_accounts WHERE organization_id=$1", [organizationId]);
     await client.query("DELETE FROM organizations WHERE id=$1", [organizationId]);
     await client.end();
@@ -827,6 +845,76 @@ test("Community Tontine partner settlement is payout-bound, maker-checker protec
     await client.query("DELETE FROM tontine_memberships WHERE id=$1",[membershipId]).catch(()=>undefined);
     await client.query("DELETE FROM tontine_groups WHERE id IN ($1,$2)",[groupId,otherGroupId]).catch(()=>undefined);
     await client.query("DELETE FROM organizations WHERE id IN ($1,$2)",[organizationId,otherOrganizationId]).catch(()=>undefined);
+    await client.end();
+  }
+});
+
+
+test("Community Tontine governance snapshots are immutable and votes are unique per active member", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const client = new pg.Client({ connectionString: databaseUrl });
+  await client.connect();
+  const organizationId = randomUUID();
+  const groupId = randomUUID();
+  const memberA = randomUUID();
+  const memberB = randomUUID();
+  const proposalId = randomUUID();
+  const voteId = randomUUID();
+  const now = new Date();
+  const closesAt = new Date(now.getTime() + 60 * 60 * 1000);
+  try {
+    await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await client.query("INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',$3)", [organizationId, "Tontine governance live", now]);
+    await client.query(
+      "INSERT INTO tontine_groups (id,organization_id,name,country_code,currency,frequency,contribution_mode,minimum_amount_minor,cycle_number,governance,status,created_by,created_at) VALUES ($1,$2,'Governance live','TG','XOF','weekly','fixed',500,1,'member_vote','active',$3,$4)",
+      [groupId, organizationId, memberA, now]
+    );
+    await client.query(
+      "INSERT INTO tontine_memberships (id,organization_id,group_id,client_id,role,status,joined_at) VALUES ($1,$3,$4,$6,'member','active',$5),($2,$3,$4,$7,'member','active',$5)",
+      [randomUUID(), randomUUID(), organizationId, groupId, now, memberA, memberB]
+    );
+    await client.query(
+      "INSERT INTO tontine_governance_group_policies (organization_id,group_id,policy_version,quorum_percent,approval_percent,allow_abstention,updated_by,effective_at) VALUES ($1,$2,1,50,66,false,$3,$4)",
+      [organizationId, groupId, memberA, now]
+    );
+    await client.query(
+      "INSERT INTO tontine_governance_proposals (id,organization_id,group_id,proposer_id,type,payload_version,payload_hash,payload,status,opened_at,closes_at,quorum_percent_snapshot,approval_percent_snapshot,allow_abstention_snapshot,eligible_member_count_snapshot,policy_version_snapshot) VALUES ($1,$2,$3,$4,'rule_change',1,$5,$6::jsonb,'open',$7,$8,50,66,false,2,1)",
+      [proposalId, organizationId, groupId, memberA, "a".repeat(64), JSON.stringify({ change: "weekly_amount" }), now, closesAt]
+    );
+
+    await client.query(
+      "INSERT INTO tontine_governance_votes (id,organization_id,proposal_id,voter_id,choice,cast_at) VALUES ($1,$2,$3,$4,'approve',$5)",
+      [voteId, organizationId, proposalId, memberB, now]
+    );
+    await assert.rejects(
+      client.query(
+        "INSERT INTO tontine_governance_votes (id,organization_id,proposal_id,voter_id,choice,cast_at) VALUES ($1,$2,$3,$4,'reject',$5)",
+        [randomUUID(), organizationId, proposalId, memberB, now]
+      )
+    );
+    await assert.rejects(
+      client.query("UPDATE tontine_governance_proposals SET payload=$2::jsonb WHERE organization_id=$1 AND id=$3", [organizationId, JSON.stringify({ change: "rewritten" }), proposalId]),
+      /TONTINE_GOVERNANCE_PROPOSAL_SNAPSHOT_IMMUTABLE/
+    );
+    await assert.rejects(
+      client.query("UPDATE tontine_governance_group_policies SET policy_version=3 WHERE organization_id=$1 AND group_id=$2", [organizationId, groupId]),
+      /TONTINE_GOVERNANCE_POLICY_VERSION_NOT_MONOTONIC/
+    );
+
+    await client.query(
+      "UPDATE tontine_governance_proposals SET status='approved',finalized_at=now() WHERE organization_id=$1 AND id=$2",
+      [organizationId, proposalId]
+    );
+    await assert.rejects(
+      client.query("UPDATE tontine_governance_proposals SET status='open',finalized_at=NULL WHERE organization_id=$1 AND id=$2", [organizationId, proposalId]),
+      /TONTINE_GOVERNANCE_PROPOSAL_FINAL_STATE_IMMUTABLE/
+    );
+  } finally {
+    await client.query("DELETE FROM tontine_governance_votes WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM tontine_governance_proposals WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM tontine_governance_group_policies WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM tontine_memberships WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM tontine_groups WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM organizations WHERE id=$1", [organizationId]);
     await client.end();
   }
 });

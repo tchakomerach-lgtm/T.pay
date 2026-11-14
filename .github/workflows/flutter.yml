@@ -1,0 +1,52 @@
+name: T.Pay Flutter Mobile
+on:
+  push:
+    branches: [main]
+    paths: ["mobile/tpay_flutter/**", ".github/workflows/flutter.yml"]
+  pull_request:
+    branches: [main]
+    paths: ["mobile/tpay_flutter/**", ".github/workflows/flutter.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tpay-flutter-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install pinned Flutter SDK without unpinned nested actions
+        run: |
+          git clone --depth 1 --branch 3.35.7 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          export PATH="$RUNNER_TEMP/flutter/bin:$PATH"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          flutter --version
+          flutter doctor -v
+      - name: Resolve dependencies
+        working-directory: mobile/tpay_flutter
+        run: flutter pub get
+      - name: Analyze
+        working-directory: mobile/tpay_flutter
+        run: flutter analyze --fatal-infos
+      - name: Test
+        working-directory: mobile/tpay_flutter
+        run: flutter test --reporter expanded
+      - name: Generate official Android Gradle host project
+        working-directory: mobile/tpay_flutter
+        run: flutter create --platforms=android --org com.tpay --project-name tpay_mobile .
+      - name: Build Android debug APK
+        working-directory: mobile/tpay_flutter
+        run: flutter build apk --debug
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: TPay-Flutter-debug
+          path: mobile/tpay_flutter/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

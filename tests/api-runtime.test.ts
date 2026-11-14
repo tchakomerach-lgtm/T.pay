@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createSchoolApiServer } from "../packages/education/src/education-http.js";
-import { readRuntimeConfig } from "../apps/api-server/src/main.js";
+import { PooledTransactionClient, readRuntimeConfig } from "../apps/api-server/src/main.js";
 
 test("production runtime config fails closed without TLS and database settings",()=>{
   assert.throws(()=>readRuntimeConfig({} as NodeJS.ProcessEnv),/TPAY_ENV_REQUIRED/);
@@ -11,11 +11,11 @@ test("production runtime config fails closed without TLS and database settings",
     TPAY_TLS_CERT_FILE:"/tmp/cert.pem",
     TPAY_API_HOST:"127.0.0.1",
     TPAY_API_PORT:"9443",
-    TPAY_WEB_ORIGINS:"http://127.0.0.1:5173"
+    TPAY_WEB_ORIGINS:"https://127.0.0.1:5173"
   } as NodeJS.ProcessEnv);
   assert.equal(config.port,9443);
   assert.equal(config.host,"127.0.0.1");
-  assert.deepEqual(config.webOrigins,["http://127.0.0.1:5173"]);
+  assert.deepEqual(config.webOrigins,["https://127.0.0.1:5173"]);
 });
 
 test("school API exposes liveness and database readiness without authentication",async()=>{
@@ -41,4 +41,27 @@ test("school API exposes liveness and database readiness without authentication"
     server.closeAllConnections();
     await new Promise<void>(resolve=>server.close(()=>resolve()));
   }
+});
+
+
+test("pooled transaction client retains the same connection until rollback after query failure",async()=>{
+  const statements:string[]=[];
+  let released=false;
+  const fakePool={
+    connect:async()=>({
+      query:async(sql:string)=>{
+        statements.push(sql);
+        if(sql==="SELECT FAIL")throw new Error("SIMULATED_DATABASE_FAILURE");
+        return {rows:[],rowCount:0};
+      },
+      release:()=>{released=true;}
+    })
+  };
+  const client=new PooledTransactionClient(fakePool as any);
+  await client.query("BEGIN");
+  await assert.rejects(client.query("SELECT FAIL"),/SIMULATED_DATABASE_FAILURE/);
+  assert.equal(released,false);
+  await client.query("ROLLBACK");
+  assert.deepEqual(statements,["BEGIN","SELECT FAIL","ROLLBACK"]);
+  assert.equal(released,true);
 });

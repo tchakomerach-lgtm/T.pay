@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { request as httpRequest } from "node:http";
 import { createSchoolApiServer } from "../packages/education/src/education-http.js";
 
 function auth(){
@@ -70,8 +71,14 @@ test("P049 fortress request envelope rejects oversized URL/header and emits hard
   const longHeader=await fetch(`http://127.0.0.1:${port}/v1/education/actors/teacher-1`,{headers:{"x-correlation-id":"a".repeat(4097)}});
   assert.equal(longHeader.status,400);
 
-  const oversizedLength=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"application/json","content-length":String(1024*1024+1),"x-idempotency-key":"p049-length"},body:"{}"});
-  assert.equal(oversizedLength.status,400);
+  const oversizedLength=await new Promise<number>((resolve,reject)=>{
+   const request=httpRequest({hostname:"127.0.0.1",port,path:"/v1/education/attendance",method:"POST",headers:{"content-type":"application/json","content-length":String(1024*1024+1),"x-idempotency-key":"p049-length"}},response=>{
+    response.resume();resolve(response.statusCode??0);
+   });
+   request.on("error",reject);
+   request.end();
+  });
+  assert.equal(oversizedLength,400);
 
   const sse=await fetch(`http://127.0.0.1:${port}/v1/education/events/stream`,{headers:{accept:"text/event-stream"}});
   assert.equal(sse.status,200);
@@ -79,5 +86,111 @@ test("P049 fortress request envelope rejects oversized URL/header and emits hard
   assert.equal(sse.headers.get("x-frame-options"),"DENY");
   assert.equal(sse.headers.get("cross-origin-resource-policy"),"same-origin");
   sse.body?.cancel();
+ }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});
+
+test("Community Tontine portfolio read is authenticated, organization-scoped and audited",async()=>{
+ const auditDb=db();
+ let scopedSql="",scopedValues:unknown[]=[];
+ const server=createSchoolApiServer({
+  db:auditDb as any,
+  authenticate:async()=>auth(),
+  syncClient:()=>({
+   query:async(sql:string,values?:unknown[])=>{
+    if(sql.includes("SELECT g.id,g.name")){scopedSql=sql;scopedValues=values??[];return {rows:[{
+     id:"group-1",name:"Solidarité",country_code:"TG",currency:"XOF",frequency:"daily",contribution_mode:"fixed",
+     minimum_amount_minor:"1000",fixed_amount_minor:"2000",cycle_number:1,max_members:20,governance:"founder_managed",
+     status:"active",active_member_count:8,pending_member_count:1,latest_cycle:null,
+     confirmed_contribution_count:6,confirmed_contribution_minor:"12000"
+    }],rowCount:1};}
+    return {rows:[],rowCount:0};
+   },
+   release:()=>{}
+  }) as any
+ });
+ await new Promise<void>(resolve=>server.listen(0,resolve)); const port=(server.address() as any).port;
+ try{
+  const response=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups?status=active&limit=25`);
+  const body=await response.json() as any;
+  assert.equal(response.status,200,JSON.stringify(body));
+  assert.equal(body.ok,true);
+  assert.equal(body.data.items.length,1);
+  assert.equal(body.data.items[0].active_member_count,8);
+  assert.match(scopedSql,/g\.organization_id=\$1/);
+  assert.deepEqual(scopedValues.slice(0,2),["org-1","active"]);
+ }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});
+
+
+test("Community Tontine member registry is organization-scoped, bounded and audited",async()=>{
+ const auditDb=db();let sqlSeen="",valuesSeen:unknown[]=[];
+ const server=createSchoolApiServer({db:auditDb as any,authenticate:async()=>auth(),syncClient:()=>({
+  query:async(sql:string,values?:unknown[])=>{if(sql.includes("FROM tontine_memberships WHERE organization_id")){sqlSeen=sql;valuesSeen=values??[];return {rows:[{id:"member-1",client_id:"client-1",role:"member",status:"active"}],rowCount:1};}return {rows:[],rowCount:0};},release:()=>{}
+ }) as any});
+ await new Promise<void>(resolve=>server.listen(0,resolve));const port=(server.address() as any).port;
+ try{
+  const response=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/123e4567-e89b-42d3-a456-426614174000/members?limit=25`);
+  const body=await response.json() as any;
+  assert.equal(response.status,200,JSON.stringify(body));assert.equal(body.ok,true);assert.equal(body.data.items.length,1);
+  assert.ok(sqlSeen.includes("organization_id=$1 AND group_id=$2"));assert.ok(sqlSeen.includes("(client_id=$4) AS is_current_user"));assert.deepEqual(valuesSeen,["org-1","123e4567-e89b-42d3-a456-426614174000",25,"teacher-1"]);
+ }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});
+
+
+test("Community Tontine group creation commits founder, audit and outbox atomically",async()=>{
+ const statements:string[]=[];const insertedValues:unknown[][]=[];
+ const founderId="123e4567-e89b-42d3-a456-426614174000";
+ const server=createSchoolApiServer({
+  db:db() as any,
+  authenticate:async()=>{
+   const base=auth();
+   return {...base,principal:{...base.principal,userId:founderId,permissions:["member.manage","org.read","org.manage"] as const},session:{...base.session,userId:founderId}};
+  },
+  syncClient:()=>({
+   query:async(sql:string,values?:unknown[])=>{
+    statements.push(sql);insertedValues.push(values??[]);
+    if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:values?.[0]}],rowCount:1};
+    if(sql.includes("INSERT INTO tontine_groups"))return {rows:[{
+     id:values?.[0],name:values?.[2],country_code:values?.[3],currency:values?.[4],frequency:values?.[5],
+     contribution_mode:values?.[6],target_minor:values?.[7],fixed_amount_minor:values?.[8],
+     minimum_amount_minor:values?.[9],cycle_number:1,max_members:values?.[10],governance:values?.[11],
+     status:"draft",created_by:values?.[12],created_at:new Date().toISOString()
+    }],rowCount:1};
+    return {rows:[],rowCount:1};
+   },release:()=>{}
+  }) as any
+ });
+ await new Promise<void>(resolve=>server.listen(0,resolve));const port=(server.address() as any).port;
+ try{
+  const response=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups`,{
+   method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"tontine-create-0001"},
+   body:JSON.stringify({name:"Solidarité Lomé",countryCode:"TG",currency:"XOF",frequency:"weekly",contributionMode:"fixed",minimumAmountMinor:"1000",fixedAmountMinor:"2500",maxMembers:30,governance:"member_vote"})
+  });
+  const body=await response.json() as any;
+  assert.equal(response.status,201,JSON.stringify(body));assert.equal(body.ok,true);assert.equal(body.data.group.status,"draft");assert.equal(body.data.replayed,false);
+  assert.ok(statements.includes("BEGIN"));assert.ok(statements.some(sql=>sql.includes("INSERT INTO tontine_groups")));
+  assert.ok(statements.some(sql=>sql.includes("INSERT INTO tontine_memberships")));
+  assert.ok(statements.some(sql=>sql.includes("INSERT INTO outbox_events")));
+  assert.ok(statements.some(sql=>sql.includes("INSERT INTO api_request_audit")));
+  assert.equal(statements.at(-1),"COMMIT");
+  const founder=insertedValues.find((values,index)=>statements[index]?.includes("INSERT INTO tontine_memberships"));
+  assert.equal(founder?.[3],founderId);
+ }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});
+
+test("Community Tontine group creation rejects invalid fixed amounts before opening a database transaction",async()=>{
+ let opened=false;
+ const server=createSchoolApiServer({
+  db:db() as any,
+  authenticate:async()=>{const base=auth();const userId="123e4567-e89b-42d3-a456-426614174000";return {...base,principal:{...base.principal,userId,permissions:["member.manage","org.read","org.manage"] as const},session:{...base.session,userId}};},
+  syncClient:()=>{opened=true;return {query:async()=>({rows:[],rowCount:0}),release:()=>{}} as any;}
+ });
+ await new Promise<void>(resolve=>server.listen(0,resolve));const port=(server.address() as any).port;
+ try{
+  const response=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups`,{
+   method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"tontine-create-0002"},
+   body:JSON.stringify({name:"Groupe invalide",countryCode:"TG",currency:"XOF",frequency:"daily",contributionMode:"fixed",minimumAmountMinor:"2000",fixedAmountMinor:"1000"})
+  });
+  assert.equal(response.status,400);assert.equal(opened,false);
  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
