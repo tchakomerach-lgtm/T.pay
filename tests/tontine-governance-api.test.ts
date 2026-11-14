@@ -99,3 +99,44 @@ test("governance votes require an active member and are persisted with audit and
   assert.equal(statements.at(-1),"COMMIT");
  }finally{await close(server);}
 });
+
+
+test("governance finalization evaluates the immutable quorum snapshot after the close time",async()=>{
+ const {server,statements}=serverFor((sql,values)=>{
+  if(sql.includes("SELECT id,governance,status FROM tontine_groups"))return {rows:[{id:groupId,governance:"member_vote",status:"active"}],rowCount:1};
+  if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:"123e4567-e89b-42d3-a456-426614174007"}],rowCount:1};
+  if(sql.includes("SELECT id,status,closes_at,quorum_percent_snapshot,approval_percent_snapshot,eligible_member_count_snapshot"))return {rows:[{id:proposalId,status:"open",closes_at:new Date(Date.now()-1000).toISOString(),quorum_percent_snapshot:50,approval_percent_snapshot:66,eligible_member_count_snapshot:5}],rowCount:1};
+  if(sql.includes("SELECT count(*)::integer AS total"))return {rows:[{total:3,approvals:2,rejections:1}],rowCount:1};
+  if(sql.includes("UPDATE tontine_governance_proposals SET status"))return {rows:[{id:proposalId,status:"approved",finalized_at:new Date().toISOString()}],rowCount:1};
+  return {rows:[],rowCount:1};
+ });
+ const port=await listen(server);
+ try{
+  const response=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${groupId}/governance/proposals/${proposalId}`,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"governance-finalize-0001"},body:JSON.stringify({})});
+  const body=await response.json() as any;
+  assert.equal(response.status,200,JSON.stringify(body));
+  assert.equal(body.data.proposal.status,"approved");
+  assert.equal(body.data.tally.requiredQuorum,3);
+  assert.equal(body.data.tally.total,3);
+  assert.ok(statements.some(sql=>sql.includes("FROM tontine_governance_proposals")&&sql.includes("FOR UPDATE")));
+  assert.ok(statements.some(sql=>sql.includes("UPDATE tontine_governance_proposals SET status")));
+  assert.ok(statements.some(sql=>sql.includes("tontine.governance.proposal.finalized")));
+  assert.equal(statements.at(-1),"COMMIT");
+ }finally{await close(server);}
+});
+
+test("governance finalization cannot occur before the proposal close time",async()=>{
+ const {server,statements}=serverFor(sql=>{
+  if(sql.includes("SELECT id,governance,status FROM tontine_groups"))return {rows:[{id:groupId,governance:"member_vote",status:"active"}],rowCount:1};
+  if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:"123e4567-e89b-42d3-a456-426614174008"}],rowCount:1};
+  if(sql.includes("SELECT id,status,closes_at,quorum_percent_snapshot,approval_percent_snapshot,eligible_member_count_snapshot"))return {rows:[{id:proposalId,status:"open",closes_at:new Date(Date.now()+24*60*60*1000).toISOString(),quorum_percent_snapshot:50,approval_percent_snapshot:66,eligible_member_count_snapshot:5}],rowCount:1};
+  return {rows:[],rowCount:1};
+ });
+ const port=await listen(server);
+ try{
+  const response=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${groupId}/governance/proposals/${proposalId}`,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"governance-finalize-0002"},body:JSON.stringify({})});
+  assert.equal(response.status,409);
+  assert.ok(!statements.some(sql=>sql.includes("UPDATE tontine_governance_proposals SET status")));
+  assert.equal(statements.at(-1),"ROLLBACK");
+ }finally{await close(server);}
+});
