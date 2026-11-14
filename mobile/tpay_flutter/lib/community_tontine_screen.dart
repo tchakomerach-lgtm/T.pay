@@ -15,7 +15,7 @@ class CommunityTontineScreen extends StatefulWidget {
 
 class _CommunityTontineScreenState extends State<CommunityTontineScreen> with SingleTickerProviderStateMixin {
   late final AnimationController _entry=AnimationController(vsync:this,duration:const Duration(milliseconds:320))..forward();
-  late final AnimationController _motion=AnimationController(vsync:this,duration:const Duration(seconds:7));
+  late final AnimationController _motion=AnimationController(vsync:this,duration:const Duration(milliseconds:1400));
   List<Map<String,dynamic>> _groups=[];
   List<Map<String,dynamic>> _records=[];
   String? _selectedGroup;
@@ -28,7 +28,7 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Si
   @override
   void initState(){super.initState();if(widget.apiClient!=null)_load();}
   @override
-  void didChangeDependencies(){super.didChangeDependencies();if(MediaQuery.of(context).disableAnimations){_motion.stop();_motion.value=0.5;}else if(!_motion.isAnimating){_motion.repeat(reverse:true);}}
+  void didChangeDependencies(){super.didChangeDependencies();if(MediaQuery.of(context).disableAnimations){_motion.stop();_motion.value=0.5;}else if(_motion.status==AnimationStatus.dismissed){_motion.forward();}}
   @override
   void dispose(){_entry.dispose();_motion.dispose();super.dispose();}
 
