@@ -51,12 +51,13 @@ test("payout creation is bound to eligible slot, active beneficiary and selected
 
 test("approval is row-locked and committed with the payout state transition",async()=>{
   const statements:string[]=[];
+  let state="pending_approval";
   let executor:TontineSqlExecutor;
   executor={
     query:async(sql)=>{statements.push(sql);
-      if(sql.includes("SELECT pi.payout_id"))return {rows:[row(sql.includes("SET state='approved'")?"approved":"pending_approval")] as never[],rowCount:1};
+      if(sql.includes("SELECT pi.payout_id"))return {rows:[row(state)] as never[],rowCount:1};
       if(sql.includes("INSERT INTO payout_approvals"))return {rows:[{payout_id:payoutId}] as never[],rowCount:1};
-      if(sql.includes("UPDATE payout_intents SET state='approved'"))return {rows:[{payout_id:payoutId}] as never[],rowCount:1};
+      if(sql.includes("UPDATE payout_intents SET state='approved'")){state="approved";return {rows:[{payout_id:payoutId}] as never[],rowCount:1};}
       return {rows:[],rowCount:1};
     },
     transaction:async work=>work(executor)
