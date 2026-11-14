@@ -106,8 +106,8 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
     final accepted=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,setDialog)=>AlertDialog(
       title:const Text('Règles de gouvernance'),
       content:Form(key:formKey,child:Column(mainAxisSize:MainAxisSize.min,children:[
-        TextFormField(controller:quorum,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Quorum (%)'),validator:(v)=>int.tryParse(v??'')==null||int.parse(v!)<1||int.parse(v!)>100?'Valeur entre 1 et 100':null),
-        TextFormField(controller:approval,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Approbation (%)'),validator:(v)=>int.tryParse(v??'')==null||int.parse(v!)<51||int.parse(v!)>100?'Valeur entre 51 et 100':null),
+        TextFormField(controller:quorum,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Quorum (%)'),validator:(v)=>int.tryParse(v??'')==null||int.parse(v)<1||int.parse(v)>100?'Valeur entre 1 et 100':null),
+        TextFormField(controller:approval,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Approbation (%)'),validator:(v)=>int.tryParse(v??'')==null||int.parse(v)<51||int.parse(v)>100?'Valeur entre 51 et 100':null),
         CheckboxListTile(contentPadding:EdgeInsets.zero,title:const Text('Autoriser l’abstention'),value:abstention,onChanged:(v)=>setDialog(()=>abstention=v??false)),
       ])),
       actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Annuler')),FilledButton(onPressed:()=>Navigator.pop(ctx,formKey.currentState?.validate()??false),child:const Text('Enregistrer'))],
@@ -164,8 +164,8 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
       TextFormField(controller:name,decoration:const InputDecoration(labelText:'Nom du groupe'),validator:(v)=>v==null||v.trim().isEmpty?'Nom obligatoire':null),
       DropdownButtonFormField<String>(initialValue:frequency,decoration:const InputDecoration(labelText:'Fréquence'),items:const [DropdownMenuItem(value:'daily',child:Text('Quotidienne')),DropdownMenuItem(value:'weekly',child:Text('Hebdomadaire')),DropdownMenuItem(value:'monthly',child:Text('Mensuelle'))],onChanged:(v)=>frequency=v??'weekly'),
       DropdownButtonFormField<String>(initialValue:mode,decoration:const InputDecoration(labelText:'Cotisation'),items:const [DropdownMenuItem(value:'fixed',child:Text('Fixe')),DropdownMenuItem(value:'variable',child:Text('Variable')),DropdownMenuItem(value:'goal',child:Text('Objectif'))],onChanged:(v)=>mode=v??'fixed'),
-      TextFormField(controller:minimum,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Minimum XOF'),validator:(v)=>int.tryParse(v??'')==null||int.parse(v!)<=0?'Montant invalide':null),
-      if(mode=='fixed')TextFormField(controller:fixed,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Montant fixe XOF'),validator:(v)=>int.tryParse(v??'')==null||int.parse(v!)<int.parse(minimum.text.isEmpty?'1':minimum.text)?'Montant invalide':null),
+      TextFormField(controller:minimum,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Minimum XOF'),validator:(v)=>int.tryParse(v??'')==null||int.parse(v)<=0?'Montant invalide':null),
+      if(mode=='fixed')TextFormField(controller:fixed,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Montant fixe XOF'),validator:(v)=>int.tryParse(v??'')==null||int.parse(v)<int.parse(minimum.text.isEmpty?'1':minimum.text)?'Montant invalide':null),
     ],payload:()async=>{'_path':'/v1/tontine/groups','name':name.text.trim(),'countryCode':'TG','currency':'XOF','frequency':frequency,'contributionMode':mode,'minimumAmountMinor':minimum.text,'governance':'member_vote',if(mode=='fixed')'fixedAmountMinor':fixed.text});
     name.dispose();minimum.dispose();fixed.dispose();
   }
