@@ -1,26 +1,43 @@
 # Tontine communautaire — Gouvernance versionnée (003)
 
-## Livré dans cette tranche
+## Domaine et règles
 
 - Le modèle de vote reconnaît explicitement `approve`, `reject` et `abstain`.
 - Les règles valident des pourcentages entiers bornés et le booléen d'abstention.
-- Le calcul du quorum utilise le nombre de bulletins déposés; une abstention peut donc participer au quorum si la politique l'autorise.
-- Les votes multiples d'un même membre et les bulletins attachés à une autre proposition sont rejetés par le moteur de domaine.
+- Le quorum utilise le nombre de bulletins déposés; une abstention peut participer au quorum si la politique le permet.
+- Les votes multiples d'un même membre et les bulletins rattachés à une autre proposition sont rejetés.
 - Les fenêtres de proposition ont des contrôles de dates et d'état.
-- La migration 117 introduit une politique de groupe versionnée et des colonnes de photographie des règles et de l'effectif éligible au moment de l'ouverture.
+- Les propositions conservent une photographie immuable de la politique, du quorum, du seuil d'approbation et du nombre de membres éligibles.
 
-## Contrat de données
+## Livraison implémentée
 
-La politique doit être configurée explicitement pour chaque groupe en mode `member_vote`. Aucun quorum ni seuil d'approbation par défaut n'est inventé. Les propositions conservent les valeurs applicables à leur ouverture afin qu'une modification ultérieure de politique ne réécrive pas le résultat historique.
+- Politique de groupe versionnée avec lecture et mise à jour authentifiées.
+- Création de proposition réservée aux membres actifs et groupes configurés en `member_vote`.
+- Vote unique par membre, avec verrouillage transactionnel de la proposition.
+- Finalisation après l'heure de clôture, sur la base des seuils photographiés.
+- Mutations sous transaction PostgreSQL tenant-scoped avec idempotence, audit et Outbox.
+- Routes Web et Flutter raccordées aux commandes de gouvernance.
+- Tests API des règles de politique, de la création, du vote, de la clôture et de l'absence de finalisation anticipée.
+
+## Incidents et litiges
+
+Le dossier d'incident est un sous-domaine distinct de la gouvernance. L'API expose la création de dossiers et, depuis la tranche de cycle de vie, la transition authentifiée et idempotente d'un dossier. Chaque transition vérifie l'état précédent sous verrou PostgreSQL et écrit audit et Outbox dans la même transaction. Le renderer Web expose la prise en charge initiale d'un dossier ouvert.
 
 ## Garde-fous
 
-- Une seule voix par membre et proposition, garantie par la contrainte unique déjà présente et les contrôles du domaine.
-- Les opérations d'écriture doivent être exécutées sous contexte tenant/organisation, dans une transaction PostgreSQL.
-- L'ouverture, le vote et la clôture doivent écrire audit et Outbox dans la même transaction que la mutation.
-- Les décisions approuvées ne déplacent jamais directement de fonds. Toute contribution, compensation ou distribution passe par le Financial Core.
-- L'absence de politique explicite bloque l'ouverture d'un vote; il ne faut pas substituer une valeur arbitraire.
+- Une politique explicite est obligatoire pour ouvrir un vote; aucune valeur arbitraire n'est substituée.
+- Une seule voix par membre et proposition, garantie par contrainte unique et contrôles du domaine.
+- Les écritures sont exécutées sous contexte tenant/organisation.
+- L'ouverture, le vote, la clôture et les transitions de dossier écrivent audit et Outbox dans la même transaction que la mutation.
+- Une décision de gouvernance ne déplace jamais directement de fonds.
+- Les remboursements, contributions et décaissements restent des opérations financières distinctes, autorisées et exécutées par Financial Core.
 
-## Reste avant activation fonctionnelle
+## Gates encore ouverts
 
-La tranche ajoute les fondations du domaine et du schéma. Les routes HTTP de configuration de politique, création de proposition, vote et finalisation transactionnelle, ainsi que leur UI d'action Web/Flutter et leurs tests PostgreSQL concurrents, doivent encore être raccordées avant d'activer la gouvernance de bout en bout.
+- Tests PostgreSQL concurrents sur les courses vote/finalisation, idempotence et transition de dossier.
+- Matrice d'autorisations métier finale par rôle, notamment pour médiation, revue administrative et clôture.
+- Workflow de preuve et d'attachement documentaire, holds ciblés et remboursement Financial Core.
+- Finalisation planifiée des propositions par worker durable avec lease/retry.
+- E2E terrain Web/Flutter sur PostgreSQL réel, puis certification Android et réseau instable.
+
+Une CI verte valide le code exécuté dans ses jobs; elle ne remplace pas les gates terrain et de concurrence explicitement listés ci-dessus.
