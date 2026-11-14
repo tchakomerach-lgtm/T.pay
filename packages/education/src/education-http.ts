@@ -158,7 +158,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      }
      res.setHeader("access-control-allow-origin",origin);
      res.setHeader("vary","Origin");
-     res.setHeader("access-control-allow-methods","GET,POST,OPTIONS");
+     res.setHeader("access-control-allow-methods","GET,POST,PUT,OPTIONS");
      res.setHeader("access-control-allow-headers","Authorization,Content-Type,Last-Event-ID,X-Correlation-ID,X-Idempotency-Key");
      res.setHeader("access-control-expose-headers","X-Correlation-ID");
      res.setHeader("access-control-max-age","600");
