@@ -80,7 +80,7 @@ export async function processVerifiedTontinePayoutCallback(
 
   const payloadSha256 = createHash("sha256").update(callback.rawBody, "utf8").digest("hex");
 
-  return db.transaction(async tx => {
+  const result = await db.transaction(async tx => {
     const existing = await tx.query<{
       provider_event_id: string;
       payout_id: UUID;
@@ -215,6 +215,8 @@ export async function processVerifiedTontinePayoutCallback(
 
     return { state: "processed", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
   });
+  if (result.state === "rejected") throw new Error("TONTINE_CALLBACK_REPLAY_PAYLOAD_MISMATCH");
+  return result;
 }
 
 function deterministicReceiptId(callback: VerifiedTontineProviderCallback): UUID {
