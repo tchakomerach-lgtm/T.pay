@@ -76,14 +76,14 @@ export class PostgresTontinePayoutRepository {
            AND m.group_id=slot.group_id AND m.id=slot.beneficiary_membership_id
          WHERE slot.organization_id=$2 AND slot.beneficiary_membership_id=$12 AND c.id::text=$13
            AND slot.status='eligible' AND slot.amount_target_minor=$4::numeric
-           AND m.client_id::text=$3 AND m.status='active'
+           AND m.client_id::text=$3 AND m.status='active' AND m.selected_microfinance_id=$14
          ON CONFLICT (organization_id,idempotency_key) DO NOTHING
          RETURNING payout_id,organization_id,cycle_id,beneficiary_id,amount_minor::text AS amount_minor,
            currency,destination_ref,state,idempotency_key,requires_human_approval,kyc_verified,created_at,
            provider,provider_reference,settlement_transaction_id,tontine_slot_id`,
         [intent.payoutId,intent.organizationId,intent.beneficiaryId,intent.amountMinor.toString(),intent.currency,
           intent.destinationRef,intent.state,intent.idempotencyKey,intent.requiresHumanApproval,intent.kycVerified,
-          intent.createdAt,plan.beneficiaryMembershipId,intent.cycleId]
+          intent.createdAt,plan.beneficiaryMembershipId,intent.cycleId,plan.microfinanceId]
       );
       if (inserted.rows[0]) {
         const row = inserted.rows[0];
@@ -161,6 +161,14 @@ export class PostgresTontinePayoutRepository {
       [organizationId,payoutId,provider,providerReference]
     );
     if ((result.rowCount ?? 0) !== 1) throw new Error("TONTINE_PAYOUT_INITIATION_CONFLICT");
+  }
+
+  async markFailed(organizationId: UUID, payoutId: UUID): Promise<void> {
+    const result = await this.db.query(
+      "UPDATE payout_intents SET state='failed' WHERE organization_id=$1 AND payout_id=$2 AND state IN ('approved','initiated')",
+      [organizationId,payoutId]
+    );
+    if ((result.rowCount ?? 0) !== 1) throw new Error("TONTINE_PAYOUT_FAILURE_TRANSITION_CONFLICT");
   }
 
   async markSettled(organizationId: UUID, payoutId: UUID, ledgerTransactionId: UUID, providerEventId: string): Promise<void> {
