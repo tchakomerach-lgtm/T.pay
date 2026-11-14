@@ -195,7 +195,8 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
   Future<void> _showEvidence(String caseId) async {
     if(widget.apiClient==null||_selectedGroup==null)return;
     try{
-      final data=await _read('/v1/tontine/groups/'+_selectedGroup!+'/cases/'+caseId+'/evidence?limit=100');
+      final groupId=_selectedGroup!;
+      final data=await _read('/v1/tontine/groups/$groupId/cases/$caseId/evidence?limit=100');
       final items=(data['items'] as List? ??const []).whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList();
       if(!mounted)return;
       await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(
@@ -203,7 +204,7 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
         content:SizedBox(width:460,child:items.isEmpty?const Text('Aucune preuve indexée.'):ListView(shrinkWrap:true,children:items.map((item)=>ListTile(
           dense:true,
           title:Text((item['type']??'Preuve').toString()),
-          subtitle:Text('SHA-256 : '+(item['content_hash']??'—').toString()+'\\nRéférence : '+(item['object_reference']??'—').toString()),
+          subtitle:Text('SHA-256 : ${item['content_hash']??'—'}\nRéférence : ${item['object_reference']??'—'}'),
         )).toList())),
         actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Fermer'))],
       ));
@@ -214,7 +215,8 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
     if(widget.apiClient==null||_selectedGroup==null||_busy)return;
     setState(()=>_busy=true);_error=null;
     try{
-      await _command('/v1/tontine/groups/'+_selectedGroup!+'/cases/'+caseId+'/transition',{'state':nextState,'note':'Transition initiée depuis le client Flutter'});
+      final groupId=_selectedGroup!;
+      await _command('/v1/tontine/groups/$groupId/cases/$caseId/transition',{'state':nextState,'note':'Transition initiée depuis le client Flutter'});
       await _loadPanel();
     }catch(error){if(mounted)setState(()=>_error=error.toString());}
     finally{if(mounted)setState(()=>_busy=false);}
