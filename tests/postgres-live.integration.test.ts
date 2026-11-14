@@ -869,8 +869,8 @@ test("Community Tontine governance snapshots are immutable and votes are unique 
       [groupId, organizationId, memberA, now]
     );
     await client.query(
-      "INSERT INTO tontine_memberships (id,organization_id,group_id,client_id,role,status,joined_at) VALUES ($1,$3,$4,'member','active',$5),($2,$3,$6,'member','active',$5)",
-      [randomUUID(), randomUUID(), organizationId, groupId, now, memberB]
+      "INSERT INTO tontine_memberships (id,organization_id,group_id,client_id,role,status,joined_at) VALUES ($1,$3,$4,$6,'member','active',$5),($2,$3,$4,$7,'member','active',$5)",
+      [randomUUID(), randomUUID(), organizationId, groupId, now, memberA, memberB]
     );
     await client.query(
       "INSERT INTO tontine_governance_group_policies (organization_id,group_id,policy_version,quorum_percent,approval_percent,allow_abstention,updated_by,effective_at) VALUES ($1,$2,1,50,66,false,$3,$4)",
