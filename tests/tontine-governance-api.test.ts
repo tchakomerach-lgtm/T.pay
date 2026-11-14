@@ -6,6 +6,7 @@ import { resolveRoutePolicy } from "../packages/api-gateway/src/policy.js";
 const groupId="123e4567-e89b-42d3-a456-426614174000";
 const actorId="123e4567-e89b-42d3-a456-426614174002";
 const proposalId="123e4567-e89b-42d3-a456-426614174004";
+const caseId="123e4567-e89b-42d3-a456-426614174009";
 const policyRow={organization_id:"org-1",group_id:groupId,policy_version:1,quorum_percent:50,approval_percent:66,allow_abstention:false};
 
 function serverFor(handler:(sql:string,values:unknown[]|undefined)=>{rows:Record<string,unknown>[];rowCount:number|null}){
@@ -32,6 +33,7 @@ test("Community Tontine governance endpoints are explicitly allowlisted",()=>{
  assert.equal(resolveRoutePolicy("POST",`/v1/tontine/groups/${groupId}/governance/proposals`)?.financial,false);
  assert.equal(resolveRoutePolicy("POST",`/v1/tontine/groups/${groupId}/governance/proposals/${proposalId}/votes`)?.financial,false);
  assert.equal(resolveRoutePolicy("POST",`/v1/tontine/groups/${groupId}/governance/proposals/${proposalId}`)?.financial,false);
+ assert.equal(resolveRoutePolicy("POST",`/v1/tontine/groups/${groupId}/cases/${caseId}/transition`)?.financial,false);
 });
 
 test("governance policy writes are versioned, idempotent, audited and outboxed in one transaction",async()=>{
@@ -137,6 +139,43 @@ test("governance finalization cannot occur before the proposal close time",async
   const response=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${groupId}/governance/proposals/${proposalId}`,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"governance-finalize-0002"},body:JSON.stringify({})});
   assert.equal(response.status,409);
   assert.ok(!statements.some(sql=>sql.includes("UPDATE tontine_governance_proposals SET status")));
+  assert.equal(statements.at(-1),"ROLLBACK");
+ }finally{await close(server);}
+});
+
+
+test("case transition is locked, validated, idempotent, audited and outboxed atomically",async()=>{
+ const {server,statements}=serverFor(sql=>{
+  if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:"123e4567-e89b-42d3-a456-426614174010"}],rowCount:1};
+  if(sql.includes("SELECT id,type,state,severity,summary FROM tontine_cases"))return {rows:[{id:caseId,type:"incident",state:"opened",severity:"medium",summary:"Payment delay"}],rowCount:1};
+  if(sql.includes("UPDATE tontine_cases SET state"))return {rows:[{id:caseId,type:"incident",state:"triaged",severity:"medium",summary:"Payment delay",updated_at:new Date().toISOString()}],rowCount:1};
+  return {rows:[],rowCount:1};
+ });
+ const port=await listen(server);
+ try{
+  const response=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${groupId}/cases/${caseId}/transition`,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"case-transition-0001"},body:JSON.stringify({state:"triaged",note:"Dossier pris en charge"})});
+  const body=await response.json() as any;
+  assert.equal(response.status,200,JSON.stringify(body));
+  assert.equal(body.data.case.state,"triaged");
+  assert.ok(statements.some(sql=>sql.includes("FROM tontine_cases")&&sql.includes("FOR UPDATE")));
+  assert.ok(statements.some(sql=>sql.includes("UPDATE tontine_cases SET state")));
+  assert.ok(statements.some(sql=>sql.includes("tontine.case.transitioned")));
+  assert.ok(statements.some(sql=>sql.includes("INSERT INTO api_request_audit")));
+  assert.equal(statements.at(-1),"COMMIT");
+ }finally{await close(server);}
+});
+
+test("case transition rejects a direct unsafe closure and rolls back",async()=>{
+ const {server,statements}=serverFor(sql=>{
+  if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:"123e4567-e89b-42d3-a456-426614174011"}],rowCount:1};
+  if(sql.includes("SELECT id,type,state,severity,summary FROM tontine_cases"))return {rows:[{id:caseId,type:"incident",state:"opened",severity:"medium",summary:"Payment delay"}],rowCount:1};
+  return {rows:[],rowCount:1};
+ });
+ const port=await listen(server);
+ try{
+  const response=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${groupId}/cases/${caseId}/transition`,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"case-transition-0002"},body:JSON.stringify({state:"closed",note:"Close"})});
+  assert.equal(response.status,409);
+  assert.ok(!statements.some(sql=>sql.includes("UPDATE tontine_cases SET state")));
   assert.equal(statements.at(-1),"ROLLBACK");
  }finally{await close(server);}
 });
