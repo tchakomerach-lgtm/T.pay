@@ -66,6 +66,13 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
  const [caseError,setCaseError]=useState<string|null>(null);
  const [caseTransitionBusy,setCaseTransitionBusy]=useState<string|null>(null);
  const [caseTransitionError,setCaseTransitionError]=useState<string|null>(null);
+ const [selectedEvidenceCase,setSelectedEvidenceCase]=useState<string|null>(null);
+ const [caseEvidenceRows,setCaseEvidenceRows]=useState<TontineRecord[]>([]);
+ const [caseEvidenceType,setCaseEvidenceType]=useState("receipt");
+ const [caseEvidenceHash,setCaseEvidenceHash]=useState("");
+ const [caseEvidenceReference,setCaseEvidenceReference]=useState("");
+ const [caseEvidenceBusy,setCaseEvidenceBusy]=useState(false);
+ const [caseEvidenceError,setCaseEvidenceError]=useState<string|null>(null);
  const [groupName,setGroupName]=useState("");
  const [groupFrequency,setGroupFrequency]=useState("weekly");
  const [groupMode,setGroupMode]=useState("fixed");
@@ -150,6 +157,29 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   }catch(error){setCaseTransitionError(error instanceof Error?error.message:"TONTINE_CASE_TRANSITION_FAILED");}
   finally{setCaseTransitionBusy(null);}
  },[api,selectedGroupId,caseTransitionBusy]);
+
+ const loadCaseEvidence=useCallback(async(caseId:string)=>{
+  if(!api||!selectedGroupId)return;
+  setSelectedEvidenceCase(caseId);setCaseEvidenceError(null);
+  try{
+   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/cases/"+encodeURIComponent(caseId)+"/evidence?limit=100");
+   const body=await response.json() as {data?:{items?:TontineRecord[]};error?:{message?:string}};
+   if(!response.ok)throw new Error(body.error?.message??"TONTINE_CASE_EVIDENCE_READ_HTTP_"+response.status);
+   setCaseEvidenceRows(Array.isArray(body.data?.items)?body.data.items:[]);
+  }catch(error){setCaseEvidenceError(error instanceof Error?error.message:"TONTINE_CASE_EVIDENCE_READ_FAILED");setCaseEvidenceRows([]);}
+ },[api,selectedGroupId]);
+ const addCaseEvidence=useCallback(async(event:FormEvent<HTMLFormElement>)=>{
+  event.preventDefault();if(!api||!selectedGroupId||!selectedEvidenceCase||caseEvidenceBusy)return;
+  setCaseEvidenceBusy(true);setCaseEvidenceError(null);
+  try{
+   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/cases/"+encodeURIComponent(selectedEvidenceCase)+"/evidence",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({type:caseEvidenceType,contentHash:caseEvidenceHash.trim(),objectReference:caseEvidenceReference.trim()||null})});
+   const body=await response.json() as {data?:{evidence?:TontineRecord};error?:{message?:string}};
+   if(!response.ok||!body.data?.evidence)throw new Error(body.error?.message??"TONTINE_CASE_EVIDENCE_CREATE_HTTP_"+response.status);
+   setCaseEvidenceHash("");setCaseEvidenceReference("");
+   await loadCaseEvidence(selectedEvidenceCase);
+  }catch(error){setCaseEvidenceError(error instanceof Error?error.message:"TONTINE_CASE_EVIDENCE_CREATE_FAILED");}
+  finally{setCaseEvidenceBusy(false);}
+ },[api,selectedGroupId,selectedEvidenceCase,caseEvidenceBusy,caseEvidenceType,caseEvidenceHash,caseEvidenceReference,loadCaseEvidence]);
  const generateCycle=useCallback(async(event:FormEvent<HTMLFormElement>)=>{
   event.preventDefault();if(!api||!selectedGroupId||cycleBusy)return;
   setCycleBusy(true);setCycleError(null);
@@ -324,7 +354,19 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
     {caseError&&<p role="alert" className="tontine-create-error">{caseError}</p>}
     <button type="submit" disabled={caseBusy||!caseSummary.trim()||(caseType==="refund"&&!caseReferenceId.trim())}>{caseBusy?"Ouverture sécurisée…":"Ouvrir le dossier"}</button>
    </form>}
-   {caseTransitionError&&<p role="alert" className="tontine-create-error">{caseTransitionError}</p>}{decisionError&&<p role="alert">{decisionError}</p>}{voteError&&<p role="alert" className="tontine-create-error">{voteError}</p>}{panelLoading?<p>Chargement des données PostgreSQL…</p>:panelError?<p role="alert">{panelError}</p>:panelRows.length===0?<p>{api&&selectedGroupId?"Aucun enregistrement pour ce groupe.":"Une session API authentifiée et un groupe actif sont nécessaires."}</p>:<div className="tontine-record-table"><table><thead><tr>{panelColumns.map(key=><th key={key}>{key.replaceAll("_"," ")}</th>)}{active==="members"&&<th>Décision</th>}{(active==="governance"||active==="incidents")&&<th>Action</th>}</tr></thead><tbody>{panelRows.map((record,index)=><tr key={String(record.id??index)}>{panelColumns.map(key=><td key={key}>{record[key]===null||record[key]===undefined?"—":String(record[key])}</td>)}{active==="members"&&<td>{record.status==="pending"&&record.is_current_user===true?<div className="tontine-member-decisions"><button type="button" disabled={decisionBusy!==null} onClick={()=>void decideInvitation(String(record.id),"accept")}>{decisionBusy===record.id?"Traitement…":"Accepter"}</button><button type="button" disabled={decisionBusy!==null} onClick={()=>void decideInvitation(String(record.id),"decline")}>Refuser</button></div>:record.status==="pending"?"En attente du membre":"—"}</td>}{active==="incidents"&&<td>{record.state==="opened"?<button type="button" disabled={caseTransitionBusy!==null} onClick={()=>void transitionCase(String(record.id),"triaged","Dossier pris en charge pour triage")}>{caseTransitionBusy===record.id?"Traitement…":"Prendre en charge"}</button>:String(record.state)}</td>}{active==="governance"&&<td>{record.status==="open"?<div className="tontine-member-decisions"><button type="button" disabled={voteBusy!==null} onClick={()=>void castGovernanceVote(String(record.id),"approve")}>{voteBusy===record.id?"…":"Approuver"}</button><button type="button" disabled={voteBusy!==null} onClick={()=>void castGovernanceVote(String(record.id),"reject")}>Rejeter</button>{record.allow_abstention_snapshot===true&&<button type="button" disabled={voteBusy!==null} onClick={()=>void castGovernanceVote(String(record.id),"abstain")}>S'abstenir</button>}{typeof record.closes_at==="string"&&new Date(record.closes_at).getTime()<=Date.now()&&<button type="button" disabled={voteBusy!==null} onClick={()=>void finalizeGovernanceProposal(String(record.id))}>Finaliser</button>}</div>:String(record.status)}</td>}</tr>)}</tbody></table></div>}
+
+   {selectedEvidenceCase&&active==="incidents"&&<section className="tontine-case-command tontine-evidence-panel">
+    <div><small>PIÈCES JUSTIFICATIVES · DOSSIER {selectedEvidenceCase.slice(0,8)}</small><h4>Registre des preuves</h4><p>Enregistrer l'empreinte SHA-256 et la référence interne d'un fichier déjà stocké. Cette interface ne téléverse pas le fichier.</p></div>
+    <form onSubmit={addCaseEvidence}>
+     <label>Type<select value={caseEvidenceType} onChange={event=>setCaseEvidenceType(event.target.value)}><option value="receipt">Reçu</option><option value="provider_callback">Callback fournisseur</option><option value="statement">Relevé</option><option value="photo">Photo</option><option value="document">Document</option><option value="participant_declaration">Déclaration</option><option value="system_event">Événement système</option></select></label>
+     <label>Empreinte SHA-256<input required minLength={64} maxLength={64} pattern="[a-fA-F0-9]{64}" value={caseEvidenceHash} onChange={event=>setCaseEvidenceHash(event.target.value)} placeholder="64 caractères hexadécimaux"/></label>
+     <label>Référence de stockage interne<input value={caseEvidenceReference} onChange={event=>setCaseEvidenceReference(event.target.value)} placeholder="tpay-evidence/cases/…"/></label>
+     <button type="submit" disabled={caseEvidenceBusy||!/^[a-fA-F0-9]{64}$/.test(caseEvidenceHash.trim())}>{caseEvidenceBusy?"Enregistrement…":"Enregistrer la preuve"}</button>
+    </form>
+    {caseEvidenceError&&<p role="alert" className="tontine-create-error">{caseEvidenceError}</p>}
+    {caseEvidenceRows.length===0?<p>Aucune preuve indexée pour ce dossier.</p>:<ul>{caseEvidenceRows.map(item=><li key={String(item.id)}><b>{String(item.type)}</b> · SHA-256 <code>{String(item.content_hash)}</code> · {String(item.object_reference??"Référence non renseignée")}</li>)}</ul>}
+   </section>}
+   {caseTransitionError&&<p role="alert" className="tontine-create-error">{caseTransitionError}</p>}{decisionError&&<p role="alert">{decisionError}</p>}{voteError&&<p role="alert" className="tontine-create-error">{voteError}</p>}{panelLoading?<p>Chargement des données PostgreSQL…</p>:panelError?<p role="alert">{panelError}</p>:panelRows.length===0?<p>{api&&selectedGroupId?"Aucun enregistrement pour ce groupe.":"Une session API authentifiée et un groupe actif sont nécessaires."}</p>:<div className="tontine-record-table"><table><thead><tr>{panelColumns.map(key=><th key={key}>{key.replaceAll("_"," ")}</th>)}{active==="members"&&<th>Décision</th>}{(active==="governance"||active==="incidents")&&<th>Action</th>}</tr></thead><tbody>{panelRows.map((record,index)=><tr key={String(record.id??index)}>{panelColumns.map(key=><td key={key}>{record[key]===null||record[key]===undefined?"—":String(record[key])}</td>)}{active==="members"&&<td>{record.status==="pending"&&record.is_current_user===true?<div className="tontine-member-decisions"><button type="button" disabled={decisionBusy!==null} onClick={()=>void decideInvitation(String(record.id),"accept")}>{decisionBusy===record.id?"Traitement…":"Accepter"}</button><button type="button" disabled={decisionBusy!==null} onClick={()=>void decideInvitation(String(record.id),"decline")}>Refuser</button></div>:record.status==="pending"?"En attente du membre":"—"}</td>}{active==="incidents"&&<td><div className="tontine-member-decisions">{record.state==="opened"&&<button type="button" disabled={caseTransitionBusy!==null} onClick={()=>void transitionCase(String(record.id),"triaged","Dossier pris en charge pour triage")}>{caseTransitionBusy===record.id?"Traitement…":"Prendre en charge"}</button>}<button type="button" onClick={()=>void loadCaseEvidence(String(record.id))}>Preuves ({String(record.evidence_count??"—")})</button></div></td>}{active==="governance"&&<td>{record.status==="open"?<div className="tontine-member-decisions"><button type="button" disabled={voteBusy!==null} onClick={()=>void castGovernanceVote(String(record.id),"approve")}>{voteBusy===record.id?"…":"Approuver"}</button><button type="button" disabled={voteBusy!==null} onClick={()=>void castGovernanceVote(String(record.id),"reject")}>Rejeter</button>{record.allow_abstention_snapshot===true&&<button type="button" disabled={voteBusy!==null} onClick={()=>void castGovernanceVote(String(record.id),"abstain")}>S'abstenir</button>}{typeof record.closes_at==="string"&&new Date(record.closes_at).getTime()<=Date.now()&&<button type="button" disabled={voteBusy!==null} onClick={()=>void finalizeGovernanceProposal(String(record.id))}>Finaliser</button>}</div>:String(record.status)}</td>}</tr>)}</tbody></table></div>}
    <span className="tontine-record-foot">{panelRows.length} enregistrement(s) affiché(s) · limite 100 · lecture seule</span>
   </article></div>}
   <section className="tontine-integrity"><div><small>GARDE-FOUS NON NÉGOCIABLES</small><b>Tenant isolation · PostgreSQL · idempotence · audit · outbox</b></div><p>Les commandes de groupe, cycle, invitation, gouvernance et dossier sont activées uniquement sur les routes authentifiées déjà testées. La collecte, les paiements, les décaissements et les remboursements restent verrouillés tant que leurs callbacks signés, leur intégration Financial Core et leurs tests PostgreSQL live ne sont pas validés.</p></section>
