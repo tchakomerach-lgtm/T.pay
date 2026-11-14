@@ -34,6 +34,8 @@ function errorHttpStatus(error:unknown):number{
  const message=error instanceof Error?error.message:String(error??"");
  const pgCode=typeof error==="object"&&error!==null&&"code" in error?String((error as {code?:unknown}).code??""):"";
  if(message.startsWith("FORBIDDEN")||message==="CORS_ORIGIN_NOT_ALLOWED"||message==="AUTH_PERMISSIONS_EMPTY")return 403;
+ if(message==="TONTINE_GOVERNANCE_ACTIVE_MEMBER_REQUIRED")return 403;
+ if(message.includes("PROPOSAL_CLOSED")||message.includes("WINDOW_STILL_OPEN")||message.includes("ALREADY_FINALIZED")||message==="TONTINE_GOVERNANCE_POLICY_REQUIRED"||message==="TONTINE_MEMBER_GOVERNANCE_DISABLED")return 409;
  if(message.startsWith("AUTH_"))return 401;
  if(message==="API_ROUTE_NOT_ALLOWLISTED"||message.endsWith("_NOT_FOUND"))return 404;
  if(["23505","23503","23514","40001","40P01"].includes(pgCode))return 409;
