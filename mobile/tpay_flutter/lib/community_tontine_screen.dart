@@ -151,7 +151,7 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Si
         _action('Actualiser',Icons.sync,_load),
       ]),
       const SizedBox(height:12),
-      SegmentedButton<String>(segments:const [ButtonSegment(value:'members',label:Text('Membres')),ButtonSegment(value:'cycles',label:Text('Cycles')),ButtonSegment(value:'contributions',label:Text('Cotisations')),ButtonSegment(value:'cases',label:Text('Incidents'))],selected:{_panel},onSelectionChanged:(v)async{setState(()=>_panel=v.first);await _loadPanel();}),
+      SegmentedButton<String>(segments:const [ButtonSegment(value:'members',label:Text('Membres')),ButtonSegment(value:'cycles',label:Text('Cycles')),ButtonSegment(value:'contributions',label:Text('Cotisations')),ButtonSegment(value:'governance',label:Text('Votes')),ButtonSegment(value:'cases',label:Text('Incidents'))],selected:{_panel},onSelectionChanged:(v)async{setState(()=>_panel=v.first);await _loadPanel();}),
       const SizedBox(height:10),
       if(_records.isEmpty)const Card(child:Padding(padding:EdgeInsets.all(16),child:Text('Aucun enregistrement pour ce groupe.'))),
       for(final record in _records)Card(child:ListTile(title:Text((record['name']??record['summary']??record['type']??record['id']??'Enregistrement').toString()),subtitle:Text(record.entries.where((e)=>e.value!=null).take(4).map((e)=>'${e.key}: ${e.value}').join(' · ')),leading:const Icon(Icons.layers_outlined,color:_tontineGreen))),
@@ -176,7 +176,7 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Si
       const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         Text('T.PAY · COMMUNITY TONTINE',style:TextStyle(fontSize:9,letterSpacing:1.2,color:Colors.white70,fontWeight:FontWeight.w800)),
         SizedBox(height:10),Text('La solidarité,\nstructurée et transparente.',style:TextStyle(fontSize:21,height:1.12,color:Colors.white,fontWeight:FontWeight.w900)),
-        SizedBox(height:8),Text('Groupes · cycles · membres · incidents',style:TextStyle(fontSize:10,color:Colors.white70)),
+        SizedBox(height:8),Text('Groupes · cycles · membres · gouvernance',style:TextStyle(fontSize:10,color:Colors.white70)),
       ])),
       const SizedBox(width:12),
       AnimatedBuilder(
