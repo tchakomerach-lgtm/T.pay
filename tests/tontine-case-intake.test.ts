@@ -19,7 +19,7 @@ function makeServer(options:{contributionExists?:boolean}={}){
   syncClient:()=>({
    query:async(sql:string,values?:unknown[])=>{
     statements.push(sql);
-    if(sql.includes("INSERT INTO outbox_events"))eventTypes.push(String(values?.[2]));
+    if(sql.includes("INSERT INTO outbox_events"))eventTypes.push(sql);
     if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:values?.[0]}],rowCount:1};
     if(sql.includes("SELECT id,status FROM tontine_groups"))return {rows:[{id:groupId,status:"active"}],rowCount:1};
     if(sql.includes("SELECT id FROM tontine_contributions"))return {rows:options.contributionExists===false?[]:[{id:contributionId}],rowCount:options.contributionExists===false?0:1};
@@ -50,7 +50,7 @@ test("Community Tontine case intake is idempotency-keyed, audited and emitted at
   assert.ok(statements.some(sql=>sql.includes("FROM tontine_groups")&&sql.includes("FOR UPDATE")));
   assert.ok(statements.some(sql=>sql.includes("FROM tontine_contributions")&&sql.includes("FOR UPDATE")));
   assert.ok(statements.some(sql=>sql.includes("INSERT INTO tontine_cases")));
-  assert.ok(eventTypes.includes("tontine.case.opened"));
+  assert.ok(eventTypes.some(sql=>sql.includes("'tontine.case.opened'")));
   assert.ok(statements.some(sql=>sql.includes("INSERT INTO api_request_audit")));
   assert.equal(statements.at(-1),"COMMIT");
  }finally{await close(server);}
