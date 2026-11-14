@@ -848,3 +848,73 @@ test("Community Tontine partner settlement is payout-bound, maker-checker protec
     await client.end();
   }
 });
+
+
+test("Community Tontine governance snapshots are immutable and votes are unique per active member", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
+  const client = new pg.Client({ connectionString: databaseUrl });
+  await client.connect();
+  const organizationId = randomUUID();
+  const groupId = randomUUID();
+  const memberA = randomUUID();
+  const memberB = randomUUID();
+  const proposalId = randomUUID();
+  const voteId = randomUUID();
+  const now = new Date();
+  const closesAt = new Date(now.getTime() + 60 * 60 * 1000);
+  try {
+    await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await client.query("INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',$3)", [organizationId, "Tontine governance live", now]);
+    await client.query(
+      "INSERT INTO tontine_groups (id,organization_id,name,country_code,currency,frequency,contribution_mode,minimum_amount_minor,cycle_number,governance,status,created_by,created_at) VALUES ($1,$2,'Governance live','TG','XOF','weekly','fixed',500,1,'member_vote','active',$3,$4)",
+      [groupId, organizationId, memberA, now]
+    );
+    await client.query(
+      "INSERT INTO tontine_memberships (id,organization_id,group_id,client_id,role,status,joined_at) VALUES ($1,$3,$4,'member','active',$5),($2,$3,$6,'member','active',$5)",
+      [randomUUID(), randomUUID(), organizationId, groupId, now, memberB]
+    );
+    await client.query(
+      "INSERT INTO tontine_governance_group_policies (organization_id,group_id,policy_version,quorum_percent,approval_percent,allow_abstention,updated_by,effective_at) VALUES ($1,$2,1,50,66,false,$3,$4)",
+      [organizationId, groupId, memberA, now]
+    );
+    await client.query(
+      "INSERT INTO tontine_governance_proposals (id,organization_id,group_id,proposer_id,type,payload_version,payload_hash,payload,status,opened_at,closes_at,quorum_percent_snapshot,approval_percent_snapshot,allow_abstention_snapshot,eligible_member_count_snapshot,policy_version_snapshot) VALUES ($1,$2,$3,$4,'rule_change',1,$5,$6::jsonb,'open',$7,$8,50,66,false,2,1)",
+      [proposalId, organizationId, groupId, memberA, "a".repeat(64), JSON.stringify({ change: "weekly_amount" }), now, closesAt]
+    );
+
+    await client.query(
+      "INSERT INTO tontine_governance_votes (id,organization_id,proposal_id,voter_id,choice,cast_at) VALUES ($1,$2,$3,$4,'approve',$5)",
+      [voteId, organizationId, proposalId, memberB, now]
+    );
+    await assert.rejects(
+      client.query(
+        "INSERT INTO tontine_governance_votes (id,organization_id,proposal_id,voter_id,choice,cast_at) VALUES ($1,$2,$3,$4,'reject',$5)",
+        [randomUUID(), organizationId, proposalId, memberB, now]
+      )
+    );
+    await assert.rejects(
+      client.query("UPDATE tontine_governance_proposals SET payload=$2::jsonb WHERE organization_id=$1 AND id=$3", [organizationId, JSON.stringify({ change: "rewritten" }), proposalId]),
+      /TONTINE_GOVERNANCE_PROPOSAL_SNAPSHOT_IMMUTABLE/
+    );
+    await assert.rejects(
+      client.query("UPDATE tontine_governance_group_policies SET policy_version=3 WHERE organization_id=$1 AND group_id=$2", [organizationId, groupId]),
+      /TONTINE_GOVERNANCE_POLICY_VERSION_NOT_MONOTONIC/
+    );
+
+    await client.query(
+      "UPDATE tontine_governance_proposals SET status='approved',finalized_at=now() WHERE organization_id=$1 AND id=$2",
+      [organizationId, proposalId]
+    );
+    await assert.rejects(
+      client.query("UPDATE tontine_governance_proposals SET status='open',finalized_at=NULL WHERE organization_id=$1 AND id=$2", [organizationId, proposalId]),
+      /TONTINE_GOVERNANCE_PROPOSAL_FINAL_STATE_IMMUTABLE/
+    );
+  } finally {
+    await client.query("DELETE FROM tontine_governance_votes WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM tontine_governance_proposals WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM tontine_governance_group_policies WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM tontine_memberships WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM tontine_groups WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM organizations WHERE id=$1", [organizationId]);
+    await client.end();
+  }
+});
