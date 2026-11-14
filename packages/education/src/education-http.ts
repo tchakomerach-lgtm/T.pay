@@ -95,6 +95,7 @@ function route(path:string,method:string){
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===5&&parts[3]&&method==="GET"&&["members","cycles","contributions","governance","cases"].includes(parts[4]??""))return ["tontine-group-"+parts[4],parts[3]] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===5&&parts[3]&&parts[4]==="cycles"&&method==="POST")return ["tontine-cycle-create",parts[3]] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===5&&parts[3]&&parts[4]==="cases"&&method==="POST")return ["tontine-case-create",parts[3]] as const;
+ if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===6&&parts[3]&&parts[4]==="governance"&&parts[5]==="policy"&&method==="GET")return ["tontine-governance-policy-read",parts[3]] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===6&&parts[3]&&parts[4]==="governance"&&parts[5]==="policy"&&method==="PUT")return ["tontine-governance-policy",parts[3]] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===6&&parts[3]&&parts[4]==="governance"&&parts[5]==="proposals"&&method==="POST")return ["tontine-governance-proposal",parts[3]] as const;
  if(parts[1]==="tontine"&&parts[2]==="groups"&&parts.length===8&&parts[3]&&parts[4]==="governance"&&parts[5]==="proposals"&&parts[6]&&parts[7]==="votes"&&method==="POST")return ["tontine-governance-vote",parts[3],parts[6]] as const;
@@ -120,7 +121,7 @@ function route(path:string,method:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="tontine-governance-policy"||kind==="tontine-governance-finalize"?"org.manage":kind==="tontine-governance-proposal"||kind==="tontine-governance-vote"?"org.read":kind==="actor"||kind==="class-list"||kind==="student-list"||kind==="tontine-group-list"||kind.startsWith("tontine-group-")&&kind!=="tontine-group-create"||kind==="tontine-member-decision"?"org.read":kind==="tontine-group-create"||kind==="tontine-member-invite"||kind==="tontine-cycle-create"||kind==="tontine-case-create"||kind.startsWith("class-")?"org.manage":"member.manage";}
+function permissionFor(kind:string):Permission{return kind==="tontine-governance-policy-read"?"org.read":kind==="tontine-governance-policy"||kind==="tontine-governance-finalize"?"org.manage":kind==="tontine-governance-proposal"||kind==="tontine-governance-vote"?"org.read":kind==="actor"||kind==="class-list"||kind==="student-list"||kind==="tontine-group-list"||kind.startsWith("tontine-group-")&&kind!=="tontine-group-create"||kind==="tontine-member-decision"?"org.read":kind==="tontine-group-create"||kind==="tontine-member-invite"||kind==="tontine-cycle-create"||kind==="tontine-case-create"||kind.startsWith("class-")?"org.manage":"member.manage";}
 
 async function tenantScopedRead(deps:SchoolApiDependencies,tenantId:string,organizationId:string,sql:string,values:unknown[]=[]):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>{
  const client=await deps.syncClient();
@@ -321,6 +322,14 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      if(contentType!=="application/json")throw new Error("API_JSON_CONTENT_TYPE_REQUIRED");
    }
    const body=parse(bodyText);
+   if(r[0]==="tontine-governance-policy-read"){
+    if(method!=="GET")throw new Error("TONTINE_GOVERNANCE_READ_METHOD_REQUIRED");
+    const groupId=r[1]!;
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(groupId))throw new Error("TONTINE_GROUP_ID_INVALID");
+    const result=await tenantScopedRead(deps,auth.tenantId,organizationId,"SELECT organization_id,group_id,policy_version,quorum_percent,approval_percent,allow_abstention,updated_by,effective_at FROM tontine_governance_group_policies WHERE organization_id=$1 AND group_id=$2",[organizationId,groupId]);
+    await new ApiGatewayRepository(deps.db).audit({organizationId,requestId:correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path,resource:"tontine_governance_policy",groupId})});
+    json(res,200,buildApiSuccess("v1",correlationId,{policy:result.rows[0]??null}),correlationId);return;
+   }
    if(typeof r[0]==="string"&&r[0].startsWith("tontine-governance-")){
     const groupId=r[1]!;
     const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
