@@ -179,3 +179,53 @@ test("case transition rejects a direct unsafe closure and rolls back",async()=>{
   assert.equal(statements.at(-1),"ROLLBACK");
  }finally{await close(server);}
 });
+
+test("case evidence is stored by SHA-256 reference with tenant scope, audit and outbox",async()=>{
+ const evidenceId="123e4567-e89b-42d3-a456-426614174012";
+ const hash="a".repeat(64);
+ const {server,statements}=serverFor((sql,values)=>{
+  if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:evidenceId}],rowCount:1};
+  if(sql.includes("SELECT id FROM tontine_cases"))return {rows:[{id:caseId}],rowCount:1};
+  if(sql.includes("INSERT INTO tontine_case_evidence"))return {rows:[{id:evidenceId,case_id:caseId,type:"receipt",content_hash:hash,object_reference:"tpay-evidence/cases/receipt-1",captured_by:actorId,captured_at:new Date().toISOString()}],rowCount:1};
+  return {rows:[],rowCount:1};
+ });
+ const port=await listen(server);
+ try{
+  const response=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${groupId}/cases/${caseId}/evidence`,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"case-evidence-0001"},body:JSON.stringify({type:"receipt",contentHash:hash,objectReference:"tpay-evidence/cases/receipt-1"})});
+  const body=await response.json() as any;
+  assert.equal(response.status,201,JSON.stringify(body));
+  assert.equal(body.data.evidence.content_hash,hash);
+  assert.ok(statements.some(sql=>sql.includes("FROM tontine_cases")&&sql.includes("FOR UPDATE")));
+  assert.ok(statements.some(sql=>sql.includes("INSERT INTO tontine_case_evidence")));
+  assert.ok(statements.some(sql=>sql.includes("tontine.case.evidence.added")));
+  assert.ok(statements.some(sql=>sql.includes("INSERT INTO api_request_audit")));
+  assert.equal(statements.at(-1),"COMMIT");
+ }finally{await close(server);}
+});
+
+test("case evidence rejects non-SHA256 hashes and unsafe object references",async()=>{
+ for(const payload of [{type:"receipt",contentHash:"bad"},{type:"photo",contentHash:"b".repeat(64),objectReference:"../../private"}]){
+  const {server}=serverFor(()=>({rows:[],rowCount:0}));
+  const port=await listen(server);
+  try{
+   const response=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${groupId}/cases/${caseId}/evidence`,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"case-evidence-0002"},body:JSON.stringify(payload)});
+   assert.equal(response.status,400);
+  }finally{await close(server);}
+ }
+});
+
+test("case evidence listing is bounded and tenant/group scoped",async()=>{
+ const {server,statements}=serverFor(sql=>{
+  if(sql.includes("SELECT e.id,e.case_id,e.type,e.content_hash"))return {rows:[{id:"evidence-1",case_id:caseId,type:"receipt",content_hash:"c".repeat(64)}],rowCount:1};
+  return {rows:[],rowCount:1};
+ });
+ const port=await listen(server);
+ try{
+  const response=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${groupId}/cases/${caseId}/evidence?limit=10`);
+  const body=await response.json() as any;
+  assert.equal(response.status,200,JSON.stringify(body));
+  assert.equal(body.data.items.length,1);
+  assert.ok(statements.some(sql=>sql.includes("JOIN tontine_cases")&&sql.includes("e.organization_id=$1")));
+  assert.equal(statements.at(-1),"COMMIT");
+ }finally{await close(server);}
+});
