@@ -15,6 +15,7 @@ class CommunityTontineScreen extends StatefulWidget {
 
 class _CommunityTontineScreenState extends State<CommunityTontineScreen> with SingleTickerProviderStateMixin {
   late final AnimationController _entry=AnimationController(vsync:this,duration:const Duration(milliseconds:320))..forward();
+  late final AnimationController _motion=AnimationController(vsync:this,duration:const Duration(seconds:7));
   List<Map<String,dynamic>> _groups=[];
   List<Map<String,dynamic>> _records=[];
   String? _selectedGroup;
@@ -27,7 +28,9 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Si
   @override
   void initState(){super.initState();if(widget.apiClient!=null)_load();}
   @override
-  void dispose(){_entry.dispose();super.dispose();}
+  void didChangeDependencies(){super.didChangeDependencies();if(MediaQuery.of(context).disableAnimations){_motion.stop();_motion.value=0.5;}else if(!_motion.isAnimating){_motion.repeat(reverse:true);}}
+  @override
+  void dispose(){_entry.dispose();_motion.dispose();super.dispose();}
 
   Future<Map<String,dynamic>> _read(String path) async {
     final response=await widget.apiClient!.get(path);
@@ -176,9 +179,16 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Si
         SizedBox(height:8),Text('Groupes · cycles · membres · incidents',style:TextStyle(fontSize:10,color:Colors.white70)),
       ])),
       const SizedBox(width:12),
-      Transform(
-        alignment:Alignment.center,
-        transform:Matrix4.identity()..setEntry(3,2,0.001)..rotateY(-.16)..rotateX(.08),
+      AnimatedBuilder(
+        animation:_motion,
+        builder:(context,child)=>Transform(
+          alignment:Alignment.center,
+          transform:Matrix4.identity()
+            ..setEntry(3,2,0.001)
+            ..rotateY(-.22+(_motion.value*.44))
+            ..rotateX(.06+(_motion.value*.08)),
+          child:child,
+        ),
         child:Container(
           width:72,height:72,
           decoration:const BoxDecoration(
