@@ -5,6 +5,12 @@ import 'api/tpay_api_client.dart';
 
 const _tontineGreen=Color(0xff0f8f68);
 const _tontineMuted=Color(0xff718078);
+const _caseNextStates=<String,String>{
+ 'opened':'triaged','triaged':'evidence_collection','evidence_collection':'microfinance_review',
+ 'pending_party':'evidence_collection','microfinance_review':'mediation','mediation':'resolution',
+ 'admin_review':'resolution','resolution':'confirmed','recovery':'confirmed','confirmed':'closed',
+ 'hold':'triaged','appealed':'admin_review','escalated':'admin_review','rejected':'closed','cancelled':'closed',
+};
 
 class CommunityTontineScreen extends StatefulWidget {
   const CommunityTontineScreen({super.key,this.apiClient});
@@ -186,6 +192,19 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
     start.dispose();end.dispose();
   }
 
+
+  Future<void> _transitionCase(String caseId,String nextState) async {
+    if(widget.apiClient==null||_selectedGroup==null||_busy)return;
+    setState(()=>_busy=true);_error=null;
+    try{
+      await _command('/v1/tontine/groups/$_selectedGroup/cases/$caseId/transition',{
+        'state':nextState,'note':'Transition initiée depuis le client Flutter'
+      });
+      await _loadPanel();
+    }catch(error){if(mounted)setState(()=>_error=error.toString());}
+    finally{if(mounted)setState(()=>_busy=false);}
+  }
+
   Future<void> _openCase() async {
     final summary=TextEditingController();
     String type='incident',severity='medium';
@@ -226,7 +245,11 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
         title:Text((record['name']??record['summary']??record['type']??record['id']??'Enregistrement').toString()),
         subtitle:Text(record.entries.where((e)=>e.value!=null).take(4).map((e)=>'${e.key}: ${e.value}').join(' · ')),
         leading:const Icon(Icons.layers_outlined,color:_tontineGreen),
-        trailing:_panel=='governance'&&record['status']=='open'?Wrap(spacing:2,children:[
+        trailing:_panel=='cases'&&_caseNextStates.containsKey(record['state']?.toString())?IconButton(
+          tooltip:'Passer à ${_caseNextStates[record['state']]}',
+          onPressed:_busy?null:()=>_transitionCase(record['id'].toString(),_caseNextStates[record['state']]!),
+          icon:const Icon(Icons.arrow_forward_rounded,color:_tontineGreen),
+        ):_panel=='governance'&&record['status']=='open'?Wrap(spacing:2,children:[
           IconButton(tooltip:'Approuver',onPressed:_busy?null:()=>_vote(record['id'].toString(),'approve'),icon:const Icon(Icons.check_circle_outline,color:_tontineGreen)),
           IconButton(tooltip:'Rejeter',onPressed:_busy?null:()=>_vote(record['id'].toString(),'reject'),icon:const Icon(Icons.cancel_outlined,color:Colors.redAccent)),
           if(record['allow_abstention_snapshot']==true)IconButton(tooltip:'Abstention',onPressed:_busy?null:()=>_vote(record['id'].toString(),'abstain'),icon:const Icon(Icons.horizontal_rule)),
