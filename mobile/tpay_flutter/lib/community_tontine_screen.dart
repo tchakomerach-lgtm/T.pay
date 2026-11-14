@@ -13,7 +13,7 @@ class CommunityTontineScreen extends StatefulWidget {
   State<CommunityTontineScreen> createState()=>_CommunityTontineScreenState();
 }
 
-class _CommunityTontineScreenState extends State<CommunityTontineScreen> with SingleTickerProviderStateMixin {
+class _CommunityTontineScreenState extends State<CommunityTontineScreen> with TickerProviderStateMixin {
   late final AnimationController _entry=AnimationController(vsync:this,duration:const Duration(milliseconds:320))..forward();
   late final AnimationController _motion=AnimationController(vsync:this,duration:const Duration(milliseconds:1400));
   List<Map<String,dynamic>> _groups=[];
@@ -165,7 +165,9 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Si
     const Card(child:Padding(padding:EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       Icon(Icons.lock_outline,color:_tontineGreen,size:30),SizedBox(height:10),
       Text('Session sécurisée requise',style:TextStyle(fontWeight:FontWeight.w800,fontSize:17)),
-      SizedBox(height:6),Text('Les groupes, membres, cycles et dossiers ne sont affichés qu’après injection d’une session authentifiée. Aucune donnée fictive n’est créée.'),
+      SizedBox(height:6),Text('Les groupes, membres, cycles et dossiers ne sont affichés qu’après injection d’une session authentifiée.'),
+      SizedBox(height:8),
+      Text('Aucune donnée fictive n’est créée.',style:TextStyle(fontSize:11,color:_tontineMuted,fontWeight:FontWeight.w700)),
     ]))),
   ]);
 
