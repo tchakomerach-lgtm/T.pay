@@ -44,6 +44,19 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
  const [cycleBusy,setCycleBusy]=useState(false);
  const [cycleError,setCycleError]=useState<string|null>(null);
  const [panelRefresh,setPanelRefresh]=useState(0);
+ const [governancePolicy,setGovernancePolicy]=useState<Record<string,unknown>|null>(null);
+ const [policyQuorum,setPolicyQuorum]=useState("50");
+ const [policyApproval,setPolicyApproval]=useState("66");
+ const [policyAbstention,setPolicyAbstention]=useState(false);
+ const [policyBusy,setPolicyBusy]=useState(false);
+ const [policyError,setPolicyError]=useState<string|null>(null);
+ const [proposalType,setProposalType]=useState("rule_change");
+ const [proposalPayload,setProposalPayload]=useState('{"reason":"Modification proposée"}');
+ const [proposalClosesAt,setProposalClosesAt]=useState(()=>new Date(Date.now()+48*60*60*1000).toISOString().slice(0,16));
+ const [proposalBusy,setProposalBusy]=useState(false);
+ const [proposalError,setProposalError]=useState<string|null>(null);
+ const [voteBusy,setVoteBusy]=useState<string|null>(null);
+ const [voteError,setVoteError]=useState<string|null>(null);
  const [caseType,setCaseType]=useState("incident");
  const [caseSeverity,setCaseSeverity]=useState("medium");
  const [caseSummary,setCaseSummary]=useState("");
@@ -135,6 +148,60 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   }catch(error){setCycleError(error instanceof Error?error.message:"TONTINE_CYCLE_CREATE_FAILED");}
   finally{setCycleBusy(false);}
  },[api,selectedGroupId,cycleBusy,cycleStartsOn,cycleEndsOn,cycleRulesVersion]);
+ const saveGovernancePolicy=useCallback(async(event:FormEvent<HTMLFormElement>)=>{
+  event.preventDefault();if(!api||!selectedGroupId||policyBusy)return;
+  setPolicyBusy(true);setPolicyError(null);
+  try{
+   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/governance/policy",{method:"PUT",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({quorumPercent:Number(policyQuorum),approvalPercent:Number(policyApproval),allowAbstention:policyAbstention})});
+   const body=await response.json() as {data?:{policy?:Record<string,unknown>};error?:{message?:string}};
+   if(!response.ok||!body.data?.policy)throw new Error(body.error?.message??"TONTINE_GOVERNANCE_POLICY_HTTP_"+response.status);
+   setGovernancePolicy(body.data.policy);setPanelRefresh(value=>value+1);
+  }catch(error){setPolicyError(error instanceof Error?error.message:"TONTINE_GOVERNANCE_POLICY_FAILED");}
+  finally{setPolicyBusy(false);}
+ },[api,selectedGroupId,policyBusy,policyQuorum,policyApproval,policyAbstention]);
+ const createProposal=useCallback(async(event:FormEvent<HTMLFormElement>)=>{
+  event.preventDefault();if(!api||!selectedGroupId||proposalBusy)return;
+  setProposalBusy(true);setProposalError(null);
+  try{
+   let payload:unknown;try{payload=JSON.parse(proposalPayload);}catch{throw new Error("Le contenu de la proposition doit être un JSON valide.");}
+   if(!payload||typeof payload!=="object"||Array.isArray(payload))throw new Error("Le contenu doit être un objet JSON.");
+   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/governance/proposals",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({type:proposalType,payload,closesAt:new Date(proposalClosesAt).toISOString()})});
+   const body=await response.json() as {data?:{proposal?:{id:string}};error?:{message?:string}};
+   if(!response.ok||!body.data?.proposal?.id)throw new Error(body.error?.message??"TONTINE_PROPOSAL_CREATE_HTTP_"+response.status);
+   setPanelRefresh(value=>value+1);
+  }catch(error){setProposalError(error instanceof Error?error.message:"TONTINE_PROPOSAL_CREATE_FAILED");}
+  finally{setProposalBusy(false);}
+ },[api,selectedGroupId,proposalBusy,proposalType,proposalPayload,proposalClosesAt]);
+ const castGovernanceVote=useCallback(async(proposalId:string,choice:"approve"|"reject"|"abstain")=>{
+  if(!api||!selectedGroupId||voteBusy)return;
+  setVoteBusy(proposalId);setVoteError(null);
+  try{
+   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/governance/proposals/"+encodeURIComponent(proposalId)+"/votes",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({choice})});
+   const body=await response.json() as {data?:{vote?:{id:string}};error?:{message?:string}};
+   if(!response.ok||!body.data?.vote?.id)throw new Error(body.error?.message??"TONTINE_GOVERNANCE_VOTE_HTTP_"+response.status);
+   setPanelRefresh(value=>value+1);
+  }catch(error){setVoteError(error instanceof Error?error.message:"TONTINE_GOVERNANCE_VOTE_FAILED");}
+  finally{setVoteBusy(null);}
+ },[api,selectedGroupId,voteBusy]);
+ const finalizeGovernanceProposal=useCallback(async(proposalId:string)=>{
+  if(!api||!selectedGroupId||voteBusy)return;
+  setVoteBusy(proposalId);setVoteError(null);
+  try{
+   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/governance/proposals/"+encodeURIComponent(proposalId),{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({})});
+   const body=await response.json() as {data?:{proposal?:{id:string}};error?:{message?:string}};
+   if(!response.ok||!body.data?.proposal?.id)throw new Error(body.error?.message??"TONTINE_GOVERNANCE_FINALIZE_HTTP_"+response.status);
+   setPanelRefresh(value=>value+1);
+  }catch(error){setVoteError(error instanceof Error?error.message:"TONTINE_GOVERNANCE_FINALIZE_FAILED");}
+  finally{setVoteBusy(null);}
+ },[api,selectedGroupId,voteBusy]);
+ useEffect(()=>{
+  if(active!=="governance"||!api||!selectedGroupId){setGovernancePolicy(null);return;}
+  let cancelled=false;
+  api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/governance/policy")
+   .then(async response=>{if(!response.ok)throw new Error("TONTINE_GOVERNANCE_POLICY_READ_HTTP_"+response.status);const body=await response.json() as {data?:{policy?:Record<string,unknown>|null}};if(!cancelled){const policy=body.data?.policy??null;setGovernancePolicy(policy);if(policy){setPolicyQuorum(String(policy.quorum_percent));setPolicyApproval(String(policy.approval_percent));setPolicyAbstention(policy.allow_abstention===true);}}})
+   .catch(error=>{if(!cancelled)setPolicyError(error instanceof Error?error.message:"TONTINE_GOVERNANCE_POLICY_READ_FAILED");});
+  return()=>{cancelled=true;};
+ },[active,api,selectedGroupId,panelRefresh]);
  useEffect(()=>{void loadGroups();},[loadGroups]);
  useEffect(()=>{
   const firstGroupId=groups[0]?.id;if(firstGroupId&&!groups.some(group=>group.id===selectedGroupId))setSelectedGroupId(firstGroupId);
@@ -216,6 +283,24 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
     <button type="submit" disabled={cycleBusy||!cycleStartsOn||!cycleEndsOn||!cycleRulesVersion.trim()}>{cycleBusy?"Génération atomique…":"Générer le cycle"}</button>
     {cycleError&&<p role="alert" className="tontine-create-error">{cycleError}</p>}
    </form>}
+   {active==="governance"&&api&&selectedGroupId&&<div className="tontine-governance-commands">
+    <form className="tontine-policy-command" onSubmit={saveGovernancePolicy}>
+     <div><small>POLITIQUE DU GROUPE · VERSIONNÉE</small><h4>Quorum et seuil d'approbation</h4><p>{governancePolicy?"Version actuelle : "+String(governancePolicy.policy_version):"Aucune règle configurée. Une politique explicite est obligatoire avant toute proposition."}</p></div>
+     <label>Quorum (%)<input type="number" min="1" max="100" required value={policyQuorum} onChange={event=>setPolicyQuorum(event.target.value)}/></label>
+     <label>Approbation (%)<input type="number" min="51" max="100" required value={policyApproval} onChange={event=>setPolicyApproval(event.target.value)}/></label>
+     <label className="tontine-policy-check"><input type="checkbox" checked={policyAbstention} onChange={event=>setPolicyAbstention(event.target.checked)}/> Autoriser l'abstention</label>
+     {policyError&&<p role="alert" className="tontine-create-error">{policyError}</p>}
+     <button type="submit" disabled={policyBusy}>{policyBusy?"Enregistrement…":governancePolicy?"Publier la version suivante":"Créer la politique"}</button>
+    </form>
+    <form className="tontine-proposal-command" onSubmit={createProposal}>
+     <div><small>DÉLIBÉRATION DES MEMBRES</small><h4>Ouvrir une proposition</h4><p>Le serveur photographie la politique et le nombre de membres actifs au moment de l'ouverture.</p></div>
+     <label>Type<select value={proposalType} onChange={event=>setProposalType(event.target.value)}><option value="rule_change">Modification des règles</option><option value="beneficiary_order">Ordre des bénéficiaires</option><option value="pause">Mise en pause</option><option value="resume">Reprise</option><option value="member_admission">Admission d'un membre</option><option value="member_removal">Retrait d'un membre</option><option value="partner_change">Changement de partenaire</option></select></label>
+     <label>Clôture du vote<input type="datetime-local" required value={proposalClosesAt} onChange={event=>setProposalClosesAt(event.target.value)}/></label>
+     <label className="tontine-proposal-payload">Détails (JSON)<textarea rows={4} required value={proposalPayload} onChange={event=>setProposalPayload(event.target.value)}/></label>
+     {proposalError&&<p role="alert" className="tontine-create-error">{proposalError}</p>}
+     <button type="submit" disabled={proposalBusy||!governancePolicy}>{proposalBusy?"Ouverture…":"Soumettre la proposition"}</button>
+    </form>
+   </div>}
    {active==="incidents"&&api&&selectedGroupId&&<form className="tontine-case-command" onSubmit={createCase}>
     <div><small>OUVERTURE D'UN DOSSIER TRAÇABLE</small><h4>Signaler un incident ou un litige</h4><p>La création ouvre un dossier d'investigation. Elle ne modifie aucun solde et ne déclenche aucun remboursement.</p></div>
     <label>Type de dossier<select value={caseType} onChange={event=>setCaseType(event.target.value)}><option value="incident">Incident opérationnel</option><option value="dispute">Contestation / litige</option><option value="risk_investigation">Investigation risque</option><option value="recovery">Recouvrement</option><option value="refund">Demande de remboursement</option></select></label>
@@ -226,7 +311,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
     {caseError&&<p role="alert" className="tontine-create-error">{caseError}</p>}
     <button type="submit" disabled={caseBusy||!caseSummary.trim()||(caseType==="refund"&&!caseReferenceId.trim())}>{caseBusy?"Ouverture sécurisée…":"Ouvrir le dossier"}</button>
    </form>}
-   {decisionError&&<p role="alert">{decisionError}</p>}{panelLoading?<p>Chargement des données PostgreSQL…</p>:panelError?<p role="alert">{panelError}</p>:panelRows.length===0?<p>{api&&selectedGroupId?"Aucun enregistrement pour ce groupe.":"Une session API authentifiée et un groupe actif sont nécessaires."}</p>:<div className="tontine-record-table"><table><thead><tr>{panelColumns.map(key=><th key={key}>{key.replaceAll("_"," ")}</th>)}{active==="members"&&<th>Décision</th>}</tr></thead><tbody>{panelRows.map((record,index)=><tr key={String(record.id??index)}>{panelColumns.map(key=><td key={key}>{record[key]===null||record[key]===undefined?"—":String(record[key])}</td>)}{active==="members"&&<td>{record.status==="pending"&&record.is_current_user===true?<div className="tontine-member-decisions"><button type="button" disabled={decisionBusy!==null} onClick={()=>void decideInvitation(String(record.id),"accept")}>{decisionBusy===record.id?"Traitement…":"Accepter"}</button><button type="button" disabled={decisionBusy!==null} onClick={()=>void decideInvitation(String(record.id),"decline")}>Refuser</button></div>:record.status==="pending"?"En attente du membre":"—"}</td>}</tr>)}</tbody></table></div>}
+   {decisionError&&<p role="alert">{decisionError}</p>}{voteError&&<p role="alert" className="tontine-create-error">{voteError}</p>}{panelLoading?<p>Chargement des données PostgreSQL…</p>:panelError?<p role="alert">{panelError}</p>:panelRows.length===0?<p>{api&&selectedGroupId?"Aucun enregistrement pour ce groupe.":"Une session API authentifiée et un groupe actif sont nécessaires."}</p>:<div className="tontine-record-table"><table><thead><tr>{panelColumns.map(key=><th key={key}>{key.replaceAll("_"," ")}</th>)}{active==="members"&&<th>Décision</th>}{active==="governance"&&<th>Action</th>}</tr></thead><tbody>{panelRows.map((record,index)=><tr key={String(record.id??index)}>{panelColumns.map(key=><td key={key}>{record[key]===null||record[key]===undefined?"—":String(record[key])}</td>)}{active==="members"&&<td>{record.status==="pending"&&record.is_current_user===true?<div className="tontine-member-decisions"><button type="button" disabled={decisionBusy!==null} onClick={()=>void decideInvitation(String(record.id),"accept")}>{decisionBusy===record.id?"Traitement…":"Accepter"}</button><button type="button" disabled={decisionBusy!==null} onClick={()=>void decideInvitation(String(record.id),"decline")}>Refuser</button></div>:record.status==="pending"?"En attente du membre":"—"}</td>}{active==="governance"&&<td>{record.status==="open"?<div className="tontine-member-decisions"><button type="button" disabled={voteBusy!==null} onClick={()=>void castGovernanceVote(String(record.id),"approve")}>{voteBusy===record.id?"…":"Approuver"}</button><button type="button" disabled={voteBusy!==null} onClick={()=>void castGovernanceVote(String(record.id),"reject")}>Rejeter</button>{record.allow_abstention_snapshot===true&&<button type="button" disabled={voteBusy!==null} onClick={()=>void castGovernanceVote(String(record.id),"abstain")}>S'abstenir</button>}{typeof record.closes_at==="string"&&new Date(record.closes_at).getTime()<=Date.now()&&<button type="button" disabled={voteBusy!==null} onClick={()=>void finalizeGovernanceProposal(String(record.id))}>Finaliser</button>}</div>:String(record.status)}</td>}</tr>)}</tbody></table></div>}
    <span className="tontine-record-foot">{panelRows.length} enregistrement(s) affiché(s) · limite 100 · lecture seule</span>
   </article></div>}
   <section className="tontine-integrity"><div><small>GARDE-FOUS NON NÉGOCIABLES</small><b>Tenant isolation · PostgreSQL · idempotence · audit · outbox</b></div><p>Le renderer ne crée pas de groupe, ne collecte pas de cotisation et ne déclenche aucun payout. Les mutations seront activées uniquement après implémentation des routes authentifiées, des permissions, des transactions et des tests PostgreSQL live.</p></section>
