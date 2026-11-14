@@ -322,3 +322,19 @@ header{box-shadow:0 5px 22px #102b2008;backdrop-filter:blur(18px)}
 .tontine-case-command>button:disabled{opacity:.55;cursor:not-allowed}
 @media(max-width:700px){.tontine-case-command{grid-template-columns:1fr;padding:15px}.tontine-case-command>div:first-child,.tontine-case-summary{grid-column:auto}}
 @media(prefers-reduced-motion:reduce){.tontine-case-command,.tontine-case-command:hover,.tontine-case-command>button{transition:none;transform:none}}
+
+/* Community Tontine governance command surfaces */
+.tontine-governance-commands{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
+.tontine-policy-command,.tontine-proposal-command{display:grid;gap:11px;padding:16px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(145deg,var(--surface),#f3faf6);box-shadow:0 12px 28px #0b4b3210;transform-style:preserve-3d;transition:transform var(--motion-base),box-shadow var(--motion-base)}
+.tontine-policy-command:hover,.tontine-proposal-command:hover{transform:perspective(900px) translateY(-3px) rotateX(1deg);box-shadow:var(--depth-shadow-hover)}
+.tontine-policy-command>div:first-child small,.tontine-proposal-command>div:first-child small{font-size:8px;letter-spacing:.14em;color:var(--brand);font-weight:900}
+.tontine-policy-command h4,.tontine-proposal-command h4{font-size:14px;margin:6px 0}
+.tontine-policy-command p,.tontine-proposal-command p{font-size:9px;line-height:1.6;color:var(--muted);margin:0}
+.tontine-policy-command label,.tontine-proposal-command label{display:grid;gap:5px;font-size:9px;color:var(--muted);font-weight:800}
+.tontine-policy-command input:not([type=checkbox]),.tontine-proposal-command select,.tontine-proposal-command input,.tontine-proposal-command textarea{width:100%;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);font:inherit;font-size:10px}
+.tontine-policy-check{display:flex!important;align-items:center;gap:8px}
+.tontine-policy-check input{accent-color:var(--brand)}
+.tontine-proposal-payload{grid-column:1/-1}
+.tontine-policy-command>button,.tontine-proposal-command>button{justify-self:start;border:0;border-radius:8px;padding:10px 13px;background:linear-gradient(120deg,#0c7656,#159b70);color:white;font-size:9px;font-weight:900;box-shadow:0 7px 16px #0b80522b}
+.dark .tontine-policy-command,.dark .tontine-proposal-command{background:linear-gradient(145deg,#26382d,#202d26)}
+@media(max-width:680px){.tontine-governance-commands{grid-template-columns:1fr}.tontine-proposal-payload{grid-column:auto}}
