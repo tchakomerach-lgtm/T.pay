@@ -36,7 +36,7 @@ test("payout creation is bound to eligible slot, active beneficiary and selected
   const statements:{sql:string;values?:readonly unknown[]}[]=[];
   let executor:TontineSqlExecutor;
   executor={
-    query:async(sql,values)=>{statements.push({sql,values});return {rows:sql.includes("INSERT INTO payout_intents")?[{tontine_slot_id:slotId} as never]:[],rowCount:1};},
+    query:async(sql,values)=>{statements.push({sql,...(values?{values}:{})});return {rows:sql.includes("INSERT INTO payout_intents")?[{tontine_slot_id:slotId} as never]:[],rowCount:1};},
     transaction:async work=>work(executor)
   };
   const result=await new PostgresTontinePayoutRepository(executor).createIfAbsent(plan);
