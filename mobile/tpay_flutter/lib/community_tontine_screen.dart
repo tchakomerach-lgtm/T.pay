@@ -193,6 +193,168 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
   }
 
 
+
+  Future<void> _showEvidence(String caseId) async {
+    if(widget.apiClient==null||_selectedGroup==null)return;
+    try{
+      final data=await _read('/v1/tontine/groups/$_selectedGroup/cases/$caseId/evidence?limit=100');
+      final items=(data['items'] as List? ??const []).whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList();
+      if(!mounted)return;
+      await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(
+        title:const Text('Preuves du dossier'),
+        content:SizedBox(width:460,child:items.isEmpty
+          ?const Text('Aucune preuve indexée.')
+          :ListView(shrinkWrap:true,children:items.map((item)=>ListTile(
+            dense:true,
+            title:Text('${item['type']??'Preuve'}'),
+            subtitle:Text('SHA-256 : ${item['content_hash']??'—'}\\nRéférence : ${item['object_reference']??'—'}'),
+          )).toList())),
+        actions:[
+          TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Fermer')),
+          FilledButton.icon(onPressed:(){Navigator.pop(ctx);_addEvidence(caseId);},icon:const Icon(Icons.add),label:const Text('Indexer une preuve')),
+        ],
+      ));
+    }catch(error){if(mounted)setState(()=>_error=error.toString());}
+  }
+
+  Future<void> _addEvidence(String caseId) async {
+    final hash=TextEditingController();
+    final reference=TextEditingController();
+    String type='receipt';
+    await _showCommand(title:'Indexer une preuve déjà stockée',fields:[
+      DropdownButtonFormField<String>(initialValue:type,decoration:const InputDecoration(labelText:'Type'),items:const [
+        DropdownMenuItem(value:'receipt',child:Text('Reçu')),
+        DropdownMenuItem(value:'provider_callback',child:Text('Callback fournisseur')),
+        DropdownMenuItem(value:'statement',child:Text('Relevé')),
+        DropdownMenuItem(value:'photo',child:Text('Photo')),
+        DropdownMenuItem(value:'document',child:Text('Document')),
+        DropdownMenuItem(value:'participant_declaration',child:Text('Déclaration')),
+        DropdownMenuItem(value:'system_event',child:Text('Événement système')),
+      ],onChanged:(v)=>type=v??'receipt'),
+      TextFormField(controller:hash,decoration:const InputDecoration(labelText:'Empreinte SHA-256'),validator:(v)=>RegExp(r'^[a-fA-F0-9]{64}
+    if(widget.apiClient==null||_selectedGroup==null||_busy)return;
+    setState(()=>_busy=true);_error=null;
+    try{
+      await _command('/v1/tontine/groups/$_selectedGroup/cases/$caseId/transition',{
+        'state':nextState,'note':'Transition initiée depuis le client Flutter'
+      });
+      await _loadPanel();
+    }catch(error){if(mounted)setState(()=>_error=error.toString());}
+    finally{if(mounted)setState(()=>_busy=false);}
+  }
+
+  Future<void> _openCase() async {
+    final summary=TextEditingController();
+    String type='incident',severity='medium';
+    await _showCommand(title:'Ouvrir un dossier',fields:[
+      DropdownButtonFormField<String>(initialValue:type,decoration:const InputDecoration(labelText:'Type'),items:const [DropdownMenuItem(value:'incident',child:Text('Incident')),DropdownMenuItem(value:'dispute',child:Text('Litige')),DropdownMenuItem(value:'risk_investigation',child:Text('Risque')),DropdownMenuItem(value:'recovery',child:Text('Recouvrement'))],onChanged:(v)=>type=v??'incident'),
+      DropdownButtonFormField<String>(initialValue:severity,decoration:const InputDecoration(labelText:'Gravité'),items:const [DropdownMenuItem(value:'low',child:Text('Faible')),DropdownMenuItem(value:'medium',child:Text('Moyenne')),DropdownMenuItem(value:'high',child:Text('Élevée')),DropdownMenuItem(value:'critical',child:Text('Critique'))],onChanged:(v)=>severity=v??'medium'),
+      TextFormField(controller:summary,maxLines:3,decoration:const InputDecoration(labelText:'Résumé'),validator:(v)=>v==null||v.trim().isEmpty?'Résumé obligatoire':null),
+    ],payload:()async=>{'_path':'/v1/tontine/groups/$_selectedGroup/cases','type':type,'severity':severity,'summary':summary.text.trim()});
+    summary.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context){
+    if(widget.apiClient==null)return _locked();
+    return FadeTransition(opacity:_entry,child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      _hero(),
+      const SizedBox(height:16),
+      if(_error!=null)Card(color:const Color(0xffffefed),child:Padding(padding:const EdgeInsets.all(12),child:Text(_error!,style:const TextStyle(color:Color(0xffa33327))))),
+      Row(children:[Expanded(child:Text('Groupes réels · PostgreSQL',style:Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight:FontWeight.w800))),IconButton(onPressed:_loading?null:_load,icon:const Icon(Icons.refresh))]),
+      if(_loading&&_groups.isEmpty)const LinearProgressIndicator(),
+      if(_groups.isEmpty&&!_loading)const Card(child:Padding(padding:EdgeInsets.all(16),child:Text('Aucun groupe enregistré pour cette organisation.'))),
+      if(_groups.isNotEmpty)DropdownButtonFormField<String>(initialValue:_selectedGroup,decoration:const InputDecoration(labelText:'Groupe sélectionné'),items:_groups.map((g)=>DropdownMenuItem(value:g['id'].toString(),child:Text(g['name'].toString(),overflow:TextOverflow.ellipsis))).toList(),onChanged:(v)async{setState(()=>_selectedGroup=v);await _loadPanel();}),
+      const SizedBox(height:12),
+      Wrap(spacing:8,runSpacing:8,children:[
+        _action('Créer un groupe',Icons.add_circle_outline,_createGroup),
+        _action('Inviter',Icons.person_add_alt_1,_selectedGroup==null?_load:_invite),
+        _action('Créer un cycle',Icons.autorenew,_selectedGroup==null?_load:_cycle),
+        _action('Signaler',Icons.report_outlined,_selectedGroup==null?_load:_openCase),
+        if(_panel=='governance')_action('Règles',Icons.tune,_selectedGroup==null?_load:_configurePolicy),
+        if(_panel=='governance')_action('Proposition',Icons.how_to_vote,_selectedGroup==null?_load:_createProposal),
+        _action('Actualiser',Icons.sync,_load),
+      ]),
+      const SizedBox(height:12),
+      SegmentedButton<String>(segments:const [ButtonSegment(value:'members',label:Text('Membres')),ButtonSegment(value:'cycles',label:Text('Cycles')),ButtonSegment(value:'contributions',label:Text('Cotisations')),ButtonSegment(value:'governance',label:Text('Votes')),ButtonSegment(value:'cases',label:Text('Incidents'))],selected:{_panel},onSelectionChanged:(v)async{setState(()=>_panel=v.first);await _loadPanel();}),
+      const SizedBox(height:10),
+      if(_records.isEmpty)const Card(child:Padding(padding:EdgeInsets.all(16),child:Text('Aucun enregistrement pour ce groupe.'))),
+      for(final record in _records)Card(child:ListTile(
+        title:Text((record['name']??record['summary']??record['type']??record['id']??'Enregistrement').toString()),
+        subtitle:Text(record.entries.where((e)=>e.value!=null).take(4).map((e)=>'${e.key}: ${e.value}').join(' · ')),
+        leading:const Icon(Icons.layers_outlined,color:_tontineGreen),
+        trailing:_panel=='cases'?Wrap(spacing:2,children:[
+          if(_caseNextStates.containsKey(record['state']?.toString()))IconButton(
+            tooltip:'Passer à ${_caseNextStates[record['state']]}',
+            onPressed:_busy?null:()=>_transitionCase(record['id'].toString(),_caseNextStates[record['state']]!),
+            icon:const Icon(Icons.arrow_forward_rounded,color:_tontineGreen),
+          ),
+          IconButton(tooltip:'Consulter les preuves',onPressed:_busy?null:()=>_showEvidence(record['id'].toString()),icon:const Icon(Icons.attach_file_rounded)),
+        ]):_panel=='governance'&&record['status']=='open'?Wrap(spacing:2,children:[
+          IconButton(tooltip:'Approuver',onPressed:_busy?null:()=>_vote(record['id'].toString(),'approve'),icon:const Icon(Icons.check_circle_outline,color:_tontineGreen)),
+          IconButton(tooltip:'Rejeter',onPressed:_busy?null:()=>_vote(record['id'].toString(),'reject'),icon:const Icon(Icons.cancel_outlined,color:Colors.redAccent)),
+          if(record['allow_abstention_snapshot']==true)IconButton(tooltip:'Abstention',onPressed:_busy?null:()=>_vote(record['id'].toString(),'abstain'),icon:const Icon(Icons.horizontal_rule)),
+          if(DateTime.tryParse(record['closes_at']?.toString()??'')?.isBefore(DateTime.now())??false)IconButton(tooltip:'Finaliser',onPressed:_busy?null:()=>_finalizeProposal(record['id'].toString()),icon:const Icon(Icons.task_alt)),
+        ]):null,
+      )),
+      const SizedBox(height:8),
+      Text('Une intention n’est pas un paiement confirmé. Le Financial Core reste seul autorisé à comptabiliser les fonds.',style:Theme.of(context).textTheme.bodySmall?.copyWith(color:_tontineMuted)),
+    ]));
+  }
+
+  Widget _locked()=>Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+    _hero(),const SizedBox(height:14),
+    const Card(child:Padding(padding:EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Icon(Icons.lock_outline,color:_tontineGreen,size:30),SizedBox(height:10),
+      Text('Session sécurisée requise',style:TextStyle(fontWeight:FontWeight.w800,fontSize:17)),
+      SizedBox(height:6),Text('Les groupes, membres, cycles et dossiers ne sont affichés qu’après injection d’une session authentifiée.'),
+      SizedBox(height:8),
+      Text('Aucune donnée fictive n’est créée.',style:TextStyle(fontSize:11,color:_tontineMuted,fontWeight:FontWeight.w700)),
+    ]))),
+  ]);
+
+  Widget _hero()=>Container(
+    padding:const EdgeInsets.all(18),
+    decoration:BoxDecoration(gradient:const LinearGradient(colors:[Color(0xff103d35),Color(0xff0f8f68),Color(0xff43b88c)],begin:Alignment.topLeft,end:Alignment.bottomRight),borderRadius:BorderRadius.circular(20),boxShadow:const [BoxShadow(color:Color(0x330b674d),blurRadius:22,offset:Offset(0,12))]),
+    child:Row(children:[
+      const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text('T.PAY · COMMUNITY TONTINE',style:TextStyle(fontSize:9,letterSpacing:1.2,color:Colors.white70,fontWeight:FontWeight.w800)),
+        SizedBox(height:10),Text('La solidarité,\nstructurée et transparente.',style:TextStyle(fontSize:21,height:1.12,color:Colors.white,fontWeight:FontWeight.w900)),
+        SizedBox(height:8),Text('Groupes · cycles · membres · gouvernance',style:TextStyle(fontSize:10,color:Colors.white70)),
+      ])),
+      const SizedBox(width:12),
+      AnimatedBuilder(
+        animation:_motion,
+        builder:(context,child)=>Transform(
+          alignment:Alignment.center,
+          transform:Matrix4.identity()
+            ..setEntry(3,2,0.001)
+            ..rotateY(-.22+(_motion.value*.44))
+            ..rotateX(.06+(_motion.value*.08)),
+          child:child,
+        ),
+        child:Container(
+          width:72,height:72,
+          decoration:const BoxDecoration(
+            shape:BoxShape.circle,
+            gradient:RadialGradient(colors:[Color(0xffe0fff0),Color(0xff55dca9),Color(0xff08714f)]),
+            boxShadow:[BoxShadow(color:Color(0x66002118),blurRadius:20,offset:Offset(0,10))],
+          ),
+          alignment:Alignment.center,
+          child:const Text('T',style:TextStyle(fontSize:35,fontWeight:FontWeight.w900,color:Color(0xff07563e))),
+        ),
+      ),
+    ]),
+  );
+
+  Widget _action(String label,IconData icon,VoidCallback onPressed)=>FilledButton.tonalIcon(onPressed:_busy?null:onPressed,icon:Icon(icon,size:17),label:Text(label));
+}
+).hasMatch(v??'')?null:'64 caractères hexadécimaux requis'),
+      TextFormField(controller:reference,decoration:const InputDecoration(labelText:'Référence de stockage interne'),validator:(v){final value=v?.trim()??'';return value.isEmpty||(!value.contains('..')&&!value.contains('://'))?null:'Référence interne invalide';}),
+    ],payload:()async=>{'_path':'/v1/tontine/groups/$_selectedGroup/cases/$caseId/evidence','type':type,'contentHash':hash.text.trim(),'objectReference':reference.text.trim().isEmpty?null:reference.text.trim()});
+    hash.dispose();reference.dispose();
+  }
+
   Future<void> _transitionCase(String caseId,String nextState) async {
     if(widget.apiClient==null||_selectedGroup==null||_busy)return;
     setState(()=>_busy=true);_error=null;
