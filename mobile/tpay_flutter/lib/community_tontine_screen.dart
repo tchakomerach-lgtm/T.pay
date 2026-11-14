@@ -79,7 +79,7 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
         final policyData=await _read('/v1/tontine/groups/$_selectedGroup/governance/policy');
         if(policyData['policy'] is Map)policy=Map<String,dynamic>.from(policyData['policy'] as Map);
       }
-      if(mounted)setState(()=>{_records=items,_policy=policy});
+      if(mounted)setState((){_records=items;_policy=policy;});
     }catch(error){if(mounted)setState(()=>_error=error.toString());}
   }
 
@@ -106,8 +106,8 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
     final accepted=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,setDialog)=>AlertDialog(
       title:const Text('Règles de gouvernance'),
       content:Form(key:formKey,child:Column(mainAxisSize:MainAxisSize.min,children:[
-        TextFormField(controller:quorum,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Quorum (%)'),validator:(v)=>int.tryParse(v??'')==null||int.parse(v!)<1||int.parse(v)>100?'Valeur entre 1 et 100':null),
-        TextFormField(controller:approval,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Approbation (%)'),validator:(v)=>int.tryParse(v??'')==null||int.parse(v!)<51||int.parse(v)>100?'Valeur entre 51 et 100':null),
+        TextFormField(controller:quorum,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Quorum (%)'),validator:(v)=>int.tryParse(v??'')==null||int.parse(v!)<1||int.parse(v!)>100?'Valeur entre 1 et 100':null),
+        TextFormField(controller:approval,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Approbation (%)'),validator:(v)=>int.tryParse(v??'')==null||int.parse(v!)<51||int.parse(v!)>100?'Valeur entre 51 et 100':null),
         CheckboxListTile(contentPadding:EdgeInsets.zero,title:const Text('Autoriser l’abstention'),value:abstention,onChanged:(v)=>setDialog(()=>abstention=v??false)),
       ])),
       actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Annuler')),FilledButton(onPressed:()=>Navigator.pop(ctx,formKey.currentState?.validate()??false),child:const Text('Enregistrer'))],
