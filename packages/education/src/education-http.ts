@@ -468,7 +468,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      if(!replayed){const responseHash=createHash("sha256").update(JSON.stringify(responseData)).digest("hex");const statusCode=r[0]==="tontine-governance-vote"||r[0]==="tontine-governance-proposal"?201:200;await client.query("UPDATE api_request_deduplication SET response_hash=$3,status_code=$4 WHERE organization_id=$1 AND idempotency_key=$2",[organizationId,idem,responseHash,statusCode]);}
      await client.query("COMMIT");
     }catch(error){try{await client.query("ROLLBACK");}catch{}throw error;}finally{client.release?.();}
-    json(res,replayed?200:r[0]==="tontine-governance-vote"?201:r[0]==="tontine-governance-policy"?200:201,buildApiSuccess("v1",correlationId,{...responseData,replayed}),correlationId);return;
+    json(res,replayed?200:(r[0]==="tontine-governance-vote"||r[0]==="tontine-governance-proposal")?201:200,buildApiSuccess("v1",correlationId,{...responseData,replayed}),correlationId);return;
    }
    if(r[0]==="tontine-case-create"){
     const groupId=r[1]!;
