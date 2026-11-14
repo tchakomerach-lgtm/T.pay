@@ -18,6 +18,7 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
   late final AnimationController _motion=AnimationController(vsync:this,duration:const Duration(milliseconds:1400));
   List<Map<String,dynamic>> _groups=[];
   List<Map<String,dynamic>> _records=[];
+  Map<String,dynamic>? _policy;
   String? _selectedGroup;
   String _panel='members';
   bool _loading=false;
@@ -73,7 +74,12 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
     try{
       final data=await _read('/v1/tontine/groups/$_selectedGroup/$_panel?limit=100');
       final items=(data['items'] as List? ??const []).whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList();
-      if(mounted)setState(()=>_records=items);
+      Map<String,dynamic>? policy;
+      if(_panel=='governance'){
+        final policyData=await _read('/v1/tontine/groups/$_selectedGroup/governance/policy');
+        if(policyData['policy'] is Map)policy=Map<String,dynamic>.from(policyData['policy'] as Map);
+      }
+      if(mounted)setState(()=>{_records=items,_policy=policy});
     }catch(error){if(mounted)setState(()=>_error=error.toString());}
   }
 
@@ -87,6 +93,66 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
     if(accepted!=true)return;
     setState(()=>_busy=true);_error=null;
     try{final body=await payload();await _command(body.remove('_path') as String,body);await _load();}
+    catch(error){if(mounted)setState(()=>_error=error.toString());}
+    finally{if(mounted)setState(()=>_busy=false);}
+  }
+
+  Future<void> _configurePolicy() async {
+    if(_selectedGroup==null)return;
+    final quorum=TextEditingController(text:(_policy?['quorum_percent']??50).toString());
+    final approval=TextEditingController(text:(_policy?['approval_percent']??66).toString());
+    bool abstention=_policy?['allow_abstention']==true;
+    final formKey=GlobalKey<FormState>();
+    final accepted=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,setDialog)=>AlertDialog(
+      title:const Text('Règles de gouvernance'),
+      content:Form(key:formKey,child:Column(mainAxisSize:MainAxisSize.min,children:[
+        TextFormField(controller:quorum,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Quorum (%)'),validator:(v)=>int.tryParse(v??'')==null||int.parse(v!)<1||int.parse(v)>100?'Valeur entre 1 et 100':null),
+        TextFormField(controller:approval,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Approbation (%)'),validator:(v)=>int.tryParse(v??'')==null||int.parse(v!)<51||int.parse(v)>100?'Valeur entre 51 et 100':null),
+        CheckboxListTile(contentPadding:EdgeInsets.zero,title:const Text('Autoriser l’abstention'),value:abstention,onChanged:(v)=>setDialog(()=>abstention=v??false)),
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Annuler')),FilledButton(onPressed:()=>Navigator.pop(ctx,formKey.currentState?.validate()??false),child:const Text('Enregistrer'))],
+    )));
+    if(accepted==true){
+      setState(()=>_busy=true);
+      try{
+        final response=await widget.apiClient!.put('/v1/tontine/groups/$_selectedGroup/governance/policy',{'quorumPercent':int.parse(quorum.text),'approvalPercent':int.parse(approval.text),'allowAbstention':abstention},_key());
+        final raw=await response.transform(utf8.decoder).join();
+        final decoded=jsonDecode(raw) as Map<String,dynamic>;
+        if(response.statusCode<200||response.statusCode>=300){final error=decoded['error'];throw StateError(error is Map?'${error['code']??'TONTINE_POLICY_HTTP_${response.statusCode}'}':'TONTINE_POLICY_HTTP_${response.statusCode}');}
+        await _loadPanel();
+      }catch(error){if(mounted)setState(()=>_error=error.toString());}
+      finally{if(mounted)setState(()=>_busy=false);}
+    }
+    quorum.dispose();approval.dispose();
+  }
+
+  Future<void> _createProposal() async {
+    final payload=TextEditingController(text:'{"reason":"Modification proposée"}');
+    final closes=TextEditingController(text:DateTime.now().add(const Duration(days:2)).toUtc().toIso8601String());
+    String type='rule_change';
+    await _showCommand(title:'Ouvrir une proposition',fields:[
+      DropdownButtonFormField<String>(initialValue:type,decoration:const InputDecoration(labelText:'Type'),items:const [
+        DropdownMenuItem(value:'rule_change',child:Text('Modification des règles')),
+        DropdownMenuItem(value:'beneficiary_order',child:Text('Ordre des bénéficiaires')),
+        DropdownMenuItem(value:'pause',child:Text('Mise en pause')),
+        DropdownMenuItem(value:'resume',child:Text('Reprise')),
+        DropdownMenuItem(value:'member_admission',child:Text('Admission')),
+        DropdownMenuItem(value:'member_removal',child:Text('Retrait')),
+        DropdownMenuItem(value:'partner_change',child:Text('Changement de partenaire')),
+      ],onChanged:(v)=>type=v??'rule_change'),
+      TextFormField(controller:closes,decoration:const InputDecoration(labelText:'Clôture ISO 8601 (UTC)'),validator:(v)=>DateTime.tryParse(v??'')==null?'Date ISO invalide':null),
+      TextFormField(controller:payload,maxLines:4,decoration:const InputDecoration(labelText:'Contenu JSON'),validator:(v){try{final decoded=jsonDecode(v??'');return decoded is Map?null:'Un objet JSON est requis';}catch(_){return 'JSON invalide';}}),
+    ],payload:()async=>{'_path':'/v1/tontine/groups/$_selectedGroup/governance/proposals','type':type,'payload':jsonDecode(payload.text),'closesAt':DateTime.parse(closes.text).toUtc().toIso8601String()});
+    payload.dispose();closes.dispose();
+  }
+
+  Future<void> _vote(String proposalId,String choice) async {
+    await _showCommand(title:'Confirmer le vote',fields:[Text('Votre choix : $choice')],payload:()async=>{'_path':'/v1/tontine/groups/$_selectedGroup/governance/proposals/$proposalId/votes','choice':choice});
+  }
+
+  Future<void> _finalizeProposal(String proposalId) async {
+    setState(()=>_busy=true);
+    try{await _command('/v1/tontine/groups/$_selectedGroup/governance/proposals/$proposalId',{});}
     catch(error){if(mounted)setState(()=>_error=error.toString());}
     finally{if(mounted)setState(()=>_busy=false);}
   }
@@ -148,13 +214,25 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
         _action('Inviter',Icons.person_add_alt_1,_selectedGroup==null?_load:_invite),
         _action('Créer un cycle',Icons.autorenew,_selectedGroup==null?_load:_cycle),
         _action('Signaler',Icons.report_outlined,_selectedGroup==null?_load:_openCase),
+        if(_panel=='governance')_action('Règles',Icons.tune,_selectedGroup==null?_load:_configurePolicy),
+        if(_panel=='governance')_action('Proposition',Icons.how_to_vote,_selectedGroup==null?_load:_createProposal),
         _action('Actualiser',Icons.sync,_load),
       ]),
       const SizedBox(height:12),
       SegmentedButton<String>(segments:const [ButtonSegment(value:'members',label:Text('Membres')),ButtonSegment(value:'cycles',label:Text('Cycles')),ButtonSegment(value:'contributions',label:Text('Cotisations')),ButtonSegment(value:'governance',label:Text('Votes')),ButtonSegment(value:'cases',label:Text('Incidents'))],selected:{_panel},onSelectionChanged:(v)async{setState(()=>_panel=v.first);await _loadPanel();}),
       const SizedBox(height:10),
       if(_records.isEmpty)const Card(child:Padding(padding:EdgeInsets.all(16),child:Text('Aucun enregistrement pour ce groupe.'))),
-      for(final record in _records)Card(child:ListTile(title:Text((record['name']??record['summary']??record['type']??record['id']??'Enregistrement').toString()),subtitle:Text(record.entries.where((e)=>e.value!=null).take(4).map((e)=>'${e.key}: ${e.value}').join(' · ')),leading:const Icon(Icons.layers_outlined,color:_tontineGreen))),
+      for(final record in _records)Card(child:ListTile(
+        title:Text((record['name']??record['summary']??record['type']??record['id']??'Enregistrement').toString()),
+        subtitle:Text(record.entries.where((e)=>e.value!=null).take(4).map((e)=>'${e.key}: ${e.value}').join(' · ')),
+        leading:const Icon(Icons.layers_outlined,color:_tontineGreen),
+        trailing:_panel=='governance'&&record['status']=='open'?Wrap(spacing:2,children:[
+          IconButton(tooltip:'Approuver',onPressed:_busy?null:()=>_vote(record['id'].toString(),'approve'),icon:const Icon(Icons.check_circle_outline,color:_tontineGreen)),
+          IconButton(tooltip:'Rejeter',onPressed:_busy?null:()=>_vote(record['id'].toString(),'reject'),icon:const Icon(Icons.cancel_outlined,color:Colors.redAccent)),
+          if(record['allow_abstention_snapshot']==true)IconButton(tooltip:'Abstention',onPressed:_busy?null:()=>_vote(record['id'].toString(),'abstain'),icon:const Icon(Icons.horizontal_rule)),
+          if(DateTime.tryParse(record['closes_at']?.toString()??'')?.isBefore(DateTime.now())??false)IconButton(tooltip:'Finaliser',onPressed:_busy?null:()=>_finalizeProposal(record['id'].toString()),icon:const Icon(Icons.task_alt)),
+        ]):null,
+      )),
       const SizedBox(height:8),
       Text('Une intention n’est pas un paiement confirmé. Le Financial Core reste seul autorisé à comptabiliser les fonds.',style:Theme.of(context).textTheme.bodySmall?.copyWith(color:_tontineMuted)),
     ]));
