@@ -41,3 +41,15 @@ Le dossier d'incident est un sous-domaine distinct de la gouvernance. L'API expo
 - E2E terrain Web/Flutter sur PostgreSQL réel, puis certification Android et réseau instable.
 
 Une CI verte valide le code exécuté dans ses jobs; elle ne remplace pas les gates terrain et de concurrence explicitement listés ci-dessus.
+
+## P061 — Dossiers communautaires : preuves traçables
+
+- Ajout des routes authentifiées `GET/POST /v1/tontine/groups/:groupId/cases/:caseId/evidence`.
+- Une preuve est indexée par empreinte SHA-256, type, acteur, date de capture et référence opaque de stockage interne.
+- Le serveur refuse les URL distantes et les chemins traversants (`..`) comme références de pièce jointe.
+- L'écriture verrouille le dossier, vérifie le périmètre organisation/groupe, applique l'idempotence, l'unicité du hash par dossier, l'audit et l'Outbox dans la même transaction PostgreSQL.
+- La lecture est bornée à 100 éléments et rejoint le dossier pour garantir le périmètre du groupe.
+- Cette API enregistre les métadonnées d'une preuve déjà stockée ; elle ne fournit pas encore le stockage binaire ou l'upload signé. Le stockage objet chiffré, l'antivirus, la rétention légale et les URL de téléchargement à durée limitée restent à intégrer avant usage terrain.
+- Aucun remboursement, blocage de solde ou mouvement Ledger n'est déclenché par cette fonctionnalité.
+
+Validation attendue : tests API négatifs/positifs, tests PostgreSQL live RLS/concurrence, et vérification du service de stockage avant activation de l'upload utilisateur.
