@@ -28,6 +28,7 @@ export const API_ROUTE_POLICIES:readonly ApiRoutePolicy[]=[
  {route:"/v1/tontine/groups/:groupId/cases",methods:["GET"],auth:"member",financial:false},
  {route:"/v1/tontine/groups/:groupId/cases",methods:["POST"],auth:"member",financial:false},
  {route:"/v1/tontine/groups/:groupId/cases/:caseId/transition",methods:["POST"],auth:"member",financial:false},
+ {route:"/v1/tontine/groups/:groupId/cases/:caseId/evidence",methods:["GET","POST"],auth:"member",financial:false},
  {route:"/v1/education/actors/:actorId",methods:["GET"],auth:"member",financial:false},
  {route:"/v1/education/classes",methods:["GET"],auth:"member",financial:false},
  {route:"/v1/education/classes",methods:["POST"],auth:"member",financial:false},
