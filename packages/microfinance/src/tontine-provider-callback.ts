@@ -80,7 +80,7 @@ export async function processVerifiedTontinePayoutCallback(
 
   const payloadSha256 = createHash("sha256").update(callback.rawBody, "utf8").digest("hex");
 
-  const result = await db.transaction(async tx => {
+  const result = await db.transaction<TontineCallbackReceipt>(async tx => {
     const existing = await tx.query<{
       provider_event_id: string;
       payout_id: UUID;
