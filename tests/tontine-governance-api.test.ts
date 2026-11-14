@@ -34,6 +34,8 @@ test("Community Tontine governance endpoints are explicitly allowlisted",()=>{
  assert.equal(resolveRoutePolicy("POST",`/v1/tontine/groups/${groupId}/governance/proposals/${proposalId}/votes`)?.financial,false);
  assert.equal(resolveRoutePolicy("POST",`/v1/tontine/groups/${groupId}/governance/proposals/${proposalId}`)?.financial,false);
  assert.equal(resolveRoutePolicy("POST",`/v1/tontine/groups/${groupId}/cases/${caseId}/transition`)?.financial,false);
+ assert.equal(resolveRoutePolicy("GET",`/v1/tontine/groups/${groupId}/cases/${caseId}/evidence`)?.financial,false);
+ assert.equal(resolveRoutePolicy("POST",`/v1/tontine/groups/${groupId}/cases/${caseId}/evidence`)?.financial,false);
 });
 
 test("governance policy writes are versioned, idempotent, audited and outboxed in one transaction",async()=>{
