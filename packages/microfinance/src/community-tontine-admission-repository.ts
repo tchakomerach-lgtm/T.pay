@@ -14,7 +14,7 @@ export interface CommunityTontineAdmissionRepository {
   recordAttestation(organizationId: UUID, attestation: ThirdPartyTrustAttestation): Promise<void>;
   decideMembership(input: { organizationId: UUID; candidateId: UUID; groupId: UUID;
     expectedState: CandidateState; nextState: CandidateState; decision: AdmissionDecision;
-    actorId: UUID; reason: string; decidedAt: string }): Promise<void>;
+    actorRole: "COMMUNITY_ADMIN" | "MICROFINANCE_AGENT" | "SUPER_ADMIN"; actorId: UUID; reason: string; decidedAt: string }): Promise<void>;
   armLaunch(input: { organizationId: UUID; groupId: UUID; snapshotId: UUID; configHash: string;
     rotationSnapshotHash: string; canonicalPayload: string; idempotencyKey: string; actorId: UUID; armedAt: string }): Promise<void>;
   activateLaunch(input: { organizationId: UUID; groupId: UUID; snapshotId: UUID;
@@ -88,7 +88,8 @@ export class PostgresCommunityTontineAdmissionRepository implements CommunityTon
 
   async decideMembership(input: { organizationId: UUID; candidateId: UUID; groupId: UUID;
     expectedState: CandidateState; nextState: CandidateState; decision: AdmissionDecision;
-    actorId: UUID; reason: string; decidedAt: string }): Promise<void> {
+    actorRole: "COMMUNITY_ADMIN" | "MICROFINANCE_AGENT" | "SUPER_ADMIN"; actorId: UUID; reason: string; decidedAt: string }): Promise<void> {
+    if (input.actorRole !== "COMMUNITY_ADMIN") throw new Error("COMMUNITY_ADMIN_DECISION_REQUIRED");
     if (!input.reason.trim() || !VALID_CANDIDATE_STATES.has(input.nextState)) {
       throw new Error("COMMUNITY_TONTINE_ADMISSION_DECISION_INVALID");
     }
