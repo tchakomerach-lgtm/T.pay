@@ -88,7 +88,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   try{
    const query=new URLSearchParams({limit:"100"});
    if(filter!=="all")query.set("status",filter);
-   const response=await api.request("/v1/tontine/groups?"+query.toString());
+   const response=await api.command("/v1/tontine/groups?"+query.toString());
    if(!response.ok)throw new Error("TONTINE_API_HTTP_"+response.status);
    const body=await response.json() as GroupResponse;
    setGroups(Array.isArray(body.data?.items)?body.data.items:[]);
@@ -104,7 +104,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
    if(groupMode==="fixed")payload.fixedAmountMinor=groupFixed;
    if(groupMode==="goal")payload.targetMinor=groupTarget;
    if(groupMaxMembers.trim())payload.maxMembers=Number(groupMaxMembers);
-   const response=await api.request("/v1/tontine/groups",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify(payload)});
+   const response=await api.command("/v1/tontine/groups",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify(payload)});
    const body=await response.json() as {data?:{group?:TontineGroup};error?:{message?:string}};
    if(!response.ok||!body.data?.group?.id)throw new Error(body.error?.message??"TONTINE_GROUP_CREATE_HTTP_"+response.status);
    setCreateOpen(false);setGroupName("");setStatusFilter("all");setActive("groups");setSelectedGroupId(body.data.group.id);
@@ -116,7 +116,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   event.preventDefault();if(!api||!selectedGroupId||inviteBusy)return;
   setInviteBusy(true);setInviteError(null);
   try{
-   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/members",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({clientId:inviteClientId.trim()})});
+   const response=await api.command("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/members",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({clientId:inviteClientId.trim()})});
    const body=await response.json() as {data?:{membership?:{id:string;status:string}};error?:{message?:string}};
    if(!response.ok||!body.data?.membership?.id)throw new Error(body.error?.message??"TONTINE_MEMBER_INVITE_HTTP_"+response.status);
    setInviteClientId("");setPanelRefresh(value=>value+1);
@@ -127,7 +127,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   if(!api||!selectedGroupId||decisionBusy)return;
   setDecisionBusy(membershipId);setDecisionError(null);
   try{
-   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/members/"+encodeURIComponent(membershipId)+"/decision",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({decision})});
+   const response=await api.command("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/members/"+encodeURIComponent(membershipId)+"/decision",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({decision})});
    const body=await response.json() as {data?:{membership?:{id:string;status:string}};error?:{message?:string}};
    if(!response.ok||!body.data?.membership?.id)throw new Error(body.error?.message??"TONTINE_MEMBER_DECISION_HTTP_"+response.status);
    setPanelRefresh(value=>value+1);
@@ -140,7 +140,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   try{
    const payload:Record<string,string>={type:caseType,severity:caseSeverity,summary:caseSummary.trim()};
    if(caseReferenceId.trim())payload[caseReferenceKind==="payout"?"payoutId":"contributionId"]=caseReferenceId.trim();
-   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/cases",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify(payload)});
+   const response=await api.command("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/cases",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify(payload)});
    const body=await response.json() as {data?:{case?:{id:string;state:string}};error?:{message?:string}};
    if(!response.ok||!body.data?.case?.id)throw new Error(body.error?.message??"TONTINE_CASE_CREATE_HTTP_"+response.status);
    setCaseSummary("");setCaseReferenceId("");setPanelRefresh(value=>value+1);
@@ -151,7 +151,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   if(!api||!selectedGroupId||caseTransitionBusy)return;
   setCaseTransitionBusy(caseId);setCaseTransitionError(null);
   try{
-   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/cases/"+encodeURIComponent(caseId)+"/transition",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({state:nextState,note})});
+   const response=await api.command("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/cases/"+encodeURIComponent(caseId)+"/transition",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({state:nextState,note})});
    const body=await response.json() as {data?:{case?:{id:string;state:string}};error?:{message?:string}};
    if(!response.ok||!body.data?.case?.id)throw new Error(body.error?.message??"TONTINE_CASE_TRANSITION_HTTP_"+response.status);
    setPanelRefresh(value=>value+1);
@@ -163,7 +163,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   if(!api||!selectedGroupId)return;
   setSelectedEvidenceCase(caseId);setCaseEvidenceError(null);
   try{
-   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/cases/"+encodeURIComponent(caseId)+"/evidence?limit=100");
+   const response=await api.command("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/cases/"+encodeURIComponent(caseId)+"/evidence?limit=100");
    const body=await response.json() as {data?:{items?:TontineRecord[]};error?:{message?:string}};
    if(!response.ok)throw new Error(body.error?.message??"TONTINE_CASE_EVIDENCE_READ_HTTP_"+response.status);
    setCaseEvidenceRows(Array.isArray(body.data?.items)?body.data.items:[]);
@@ -173,7 +173,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   event.preventDefault();if(!api||!selectedGroupId||!selectedEvidenceCase||caseEvidenceBusy)return;
   setCaseEvidenceBusy(true);setCaseEvidenceError(null);
   try{
-   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/cases/"+encodeURIComponent(selectedEvidenceCase)+"/evidence",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({type:caseEvidenceType,contentHash:caseEvidenceHash.trim(),objectReference:caseEvidenceReference.trim()||null})});
+   const response=await api.command("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/cases/"+encodeURIComponent(selectedEvidenceCase)+"/evidence",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({type:caseEvidenceType,contentHash:caseEvidenceHash.trim(),objectReference:caseEvidenceReference.trim()||null})});
    const body=await response.json() as {data?:{evidence?:TontineRecord};error?:{message?:string}};
    if(!response.ok||!body.data?.evidence)throw new Error(body.error?.message??"TONTINE_CASE_EVIDENCE_CREATE_HTTP_"+response.status);
    setCaseEvidenceHash("");setCaseEvidenceReference("");
@@ -185,7 +185,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   event.preventDefault();if(!api||!selectedGroupId||cycleBusy)return;
   setCycleBusy(true);setCycleError(null);
   try{
-   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/cycles",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({startsOn:cycleStartsOn,endsOn:cycleEndsOn,rulesVersion:cycleRulesVersion.trim()})});
+   const response=await api.command("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/cycles",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({startsOn:cycleStartsOn,endsOn:cycleEndsOn,rulesVersion:cycleRulesVersion.trim()})});
    const body=await response.json() as {data?:{cycle?:{id:string;cycle_number:number}};error?:{message?:string}};
    if(!response.ok||!body.data?.cycle?.id)throw new Error(body.error?.message??"TONTINE_CYCLE_CREATE_HTTP_"+response.status);
    setPanelRefresh(value=>value+1);
@@ -196,7 +196,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   event.preventDefault();if(!api||!selectedGroupId||policyBusy)return;
   setPolicyBusy(true);setPolicyError(null);
   try{
-   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/governance/policy",{method:"PUT",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({quorumPercent:Number(policyQuorum),approvalPercent:Number(policyApproval),allowAbstention:policyAbstention})});
+   const response=await api.command("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/governance/policy",{method:"PUT",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({quorumPercent:Number(policyQuorum),approvalPercent:Number(policyApproval),allowAbstention:policyAbstention})});
    const body=await response.json() as {data?:{policy?:Record<string,unknown>};error?:{message?:string}};
    if(!response.ok||!body.data?.policy)throw new Error(body.error?.message??"TONTINE_GOVERNANCE_POLICY_HTTP_"+response.status);
    setGovernancePolicy(body.data.policy);setPanelRefresh(value=>value+1);
@@ -209,7 +209,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   try{
    let payload:unknown;try{payload=JSON.parse(proposalPayload);}catch{throw new Error("Le contenu de la proposition doit être un JSON valide.");}
    if(!payload||typeof payload!=="object"||Array.isArray(payload))throw new Error("Le contenu doit être un objet JSON.");
-   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/governance/proposals",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({type:proposalType,payload,closesAt:new Date(proposalClosesAt).toISOString()})});
+   const response=await api.command("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/governance/proposals",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({type:proposalType,payload,closesAt:new Date(proposalClosesAt).toISOString()})});
    const body=await response.json() as {data?:{proposal?:{id:string}};error?:{message?:string}};
    if(!response.ok||!body.data?.proposal?.id)throw new Error(body.error?.message??"TONTINE_PROPOSAL_CREATE_HTTP_"+response.status);
    setPanelRefresh(value=>value+1);
@@ -220,7 +220,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   if(!api||!selectedGroupId||voteBusy)return;
   setVoteBusy(proposalId);setVoteError(null);
   try{
-   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/governance/proposals/"+encodeURIComponent(proposalId)+"/votes",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({choice})});
+   const response=await api.command("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/governance/proposals/"+encodeURIComponent(proposalId)+"/votes",{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({choice})});
    const body=await response.json() as {data?:{vote?:{id:string}};error?:{message?:string}};
    if(!response.ok||!body.data?.vote?.id)throw new Error(body.error?.message??"TONTINE_GOVERNANCE_VOTE_HTTP_"+response.status);
    setPanelRefresh(value=>value+1);
@@ -231,7 +231,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   if(!api||!selectedGroupId||voteBusy)return;
   setVoteBusy(proposalId);setVoteError(null);
   try{
-   const response=await api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/governance/proposals/"+encodeURIComponent(proposalId),{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({})});
+   const response=await api.command("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/governance/proposals/"+encodeURIComponent(proposalId),{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({})});
    const body=await response.json() as {data?:{proposal?:{id:string}};error?:{message?:string}};
    if(!response.ok||!body.data?.proposal?.id)throw new Error(body.error?.message??"TONTINE_GOVERNANCE_FINALIZE_HTTP_"+response.status);
    setPanelRefresh(value=>value+1);
@@ -241,7 +241,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
  useEffect(()=>{
   if(active!=="governance"||!api||!selectedGroupId){setGovernancePolicy(null);return;}
   let cancelled=false;
-  api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/governance/policy")
+  api.command("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/governance/policy")
    .then(async response=>{if(!response.ok)throw new Error("TONTINE_GOVERNANCE_POLICY_READ_HTTP_"+response.status);const body=await response.json() as {data?:{policy?:Record<string,unknown>|null}};if(!cancelled){const policy=body.data?.policy??null;setGovernancePolicy(policy);if(policy){setPolicyQuorum(String(policy.quorum_percent));setPolicyApproval(String(policy.approval_percent));setPolicyAbstention(policy.allow_abstention===true);}}})
    .catch(error=>{if(!cancelled)setPolicyError(error instanceof Error?error.message:"TONTINE_GOVERNANCE_POLICY_READ_FAILED");});
   return()=>{cancelled=true;};
@@ -256,7 +256,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
  useEffect(()=>{
   if(!api||!panelResource||!selectedGroupId){setPanelRows([]);setPanelError(null);return;}
   let cancelled=false;setPanelLoading(true);setPanelError(null);
-  api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/"+panelResource+"?limit=100")
+  api.command("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/"+panelResource+"?limit=100")
    .then(async response=>{
     if(!response.ok)throw new Error("TONTINE_"+panelResource.toUpperCase()+"_HTTP_"+response.status);
     const body=await response.json() as GroupResponse;
