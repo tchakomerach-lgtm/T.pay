@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tpay_flutter/api/pending_idempotency_keys.dart';
+import 'package:tpay_mobile/api/pending_idempotency_keys.dart';
 
 void main() {
   test('retries reuse the same key until the command is confirmed', () {
