@@ -72,4 +72,10 @@ test("launch is armed and activated only with the same immutable config hash and
   const active = activateArmedTontine(armed,
     { configHash: "b".repeat(64), idempotencyKey: "launch-001", now: "2026-11-15T12:02:00Z" });
   assert.equal(active.state, "ACTIVE");
+  const replay = activateArmedTontine(active,
+    { configHash: "b".repeat(64), idempotencyKey: "launch-001", now: "2026-11-15T12:03:00Z" });
+  assert.equal(replay, active);
+  assert.throws(() => activateArmedTontine(active,
+    { configHash: "b".repeat(64), idempotencyKey: "launch-002", now: "2026-11-15T12:03:00Z" }),
+  /LAUNCH_IDEMPOTENCY_CONFLICT/);
 });
