@@ -89,9 +89,25 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
       "($1,$2,'CASH','Cash','asset','XOF','active',$5),($3,$2,'TONTINE','Tontine liability','liability','XOF','active',$5),($4,$2,'MF-FEE','Microfinance fees payable','liability','XOF','active',$5),($6,$2,'TPAY-FEE','T.Pay fee income','income','XOF','active',$5)",
       [cashAccount, organizationId, tontineAccount, microfinanceFeeAccount, now, tpayFeeAccount]
     );
+    const groupId = randomUUID();
+    const membershipId = randomUUID();
+    const memberClientId = randomUUID();
+    await client.query(
+      `INSERT INTO tontine_groups
+       (id,organization_id,name,country_code,currency,frequency,contribution_mode,fixed_amount_minor,minimum_amount_minor,
+        cycle_number,governance,status,created_by,created_at)
+       VALUES ($1,$2,'S-03.4 settlement group','TG','XOF','daily','fixed',1000,1000,1,'founder_managed','active',$3,$4)`,
+      [groupId,organizationId,memberClientId,now]
+    );
+    await client.query(
+      `INSERT INTO tontine_memberships
+       (id,organization_id,group_id,client_id,role,status,joined_at)
+       VALUES ($1,$2,$3,$4,'member','active',$5)`,
+      [membershipId,organizationId,groupId,memberClientId,now]
+    );
     await client.query(
       "INSERT INTO tontine_contributions (id,organization_id,group_id,membership_id,amount_minor,currency,idempotency_key,status,channel,scheduled_for,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF',$5,'pending','mobile_money',$6,$6)",
-      [contributionId, organizationId, randomUUID(), randomUUID(), idempotencyKey, now]
+      [contributionId, organizationId, groupId, membershipId, idempotencyKey, now]
     );
     await client.query(
       "INSERT INTO tontine_payment_intents (id,organization_id,contribution_id,idempotency_key,amount_minor,currency,provider,provider_reference,status,created_at,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF','tmoney','TM-LIVE','provider_confirmed',$5,$5)",
@@ -107,7 +123,7 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
         status: "provider_confirmed" as const, createdAt: now, updatedAt: now
       },
       contribution: {
-        id: contributionId as never, groupId: randomUUID() as never, membershipId: randomUUID() as never,
+        id: contributionId as never, groupId: groupId as never, membershipId: membershipId as never,
         scheduledFor: now, amountMinor: 1000n, currency: "XOF", status: "pending" as const,
         channel: "mobile_money" as const, idempotencyKey
       },
