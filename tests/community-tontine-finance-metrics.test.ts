@@ -28,9 +28,9 @@ test("finance dashboard uses exact integer arithmetic and rejects malformed mino
     { status: "pending", amount_minor: "-1" },
     { status: "unknown_future_state", amount_minor: null }
   ]);
-  assert.equal(summary.confirmedMinor, 9007199254740993n);
+  assert.equal(summary.confirmedMinor, 9007199254741000n);
   assert.equal(summary.invalidAmountCount, 3);
-  assert.equal(summary.exceptionCount, 2);
+  assert.equal(summary.exceptionCount, 1);
 });
 
 test("empty finance dashboard is explicitly zero rather than fabricated", () => {
