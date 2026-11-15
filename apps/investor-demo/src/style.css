@@ -5,3 +5,90 @@
 @media(max-width:800px){.sidebar{position:relative;width:auto;height:auto;inset:auto;padding:12px}.brand{padding-bottom:10px}.workspace-switch{margin-bottom:8px}.sidebar nav{display:flex;gap:8px;overflow:auto}.nav-group{display:flex;gap:5px;align-items:center;margin:0 8px 0 0}.nav-label{display:none}.nav-item{white-space:nowrap;width:auto}.sidebar-bottom{display:none}.main{margin:0}.topbar{padding:0 14px;height:54px}.top-actions{gap:6px}.search{width:min(42vw,210px)}.demo-banner{margin:10px 12px 0;flex-wrap:wrap;font-size:9px}.demo-banner button{margin-left:0}.page{padding:20px 13px}.page-head{align-items:flex-start;flex-direction:column}.page-head h1{font-size:27px}.welcome-strip{padding:17px;align-items:flex-start;flex-direction:column;gap:15px}.welcome-right{width:100%}.app-grid,.agent-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.two-col{grid-template-columns:1fr}.subsidy-flow{grid-template-columns:repeat(2,1fr)}.product-grid{grid-template-columns:repeat(2,1fr)}.kanban{grid-template-columns:1fr}.calendar-grid{grid-template-columns:repeat(2,1fr)}.footer{padding:13px;gap:8px;flex-direction:column}.risk-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:430px){.metric-grid{gap:8px}.metric{padding:12px}.metric strong{font-size:17px}.app-grid{gap:8px}.app-card{padding:11px;min-height:135px}.subsidy-flow{grid-template-columns:1fr}.top-actions .icon-btn{display:none}.crumb{font-size:10px}.paper{padding:15px}.engine-grid{grid-template-columns:repeat(2,1fr)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+/* T.Pay Motion Surface — layered depth, restrained 3D and accessible motion */
+:root{
+  --motion-ease:cubic-bezier(.2,.75,.25,1);
+  --depth-shadow:0 18px 48px rgba(17,55,39,.10),0 3px 10px rgba(17,55,39,.05);
+}
+body{
+  background:
+    radial-gradient(ellipse at 78% 4%,rgba(53,201,154,.10),transparent 34rem),
+    radial-gradient(ellipse at 18% 38%,rgba(115,87,200,.055),transparent 30rem),
+    var(--cloud);
+}
+.app-shell{isolation:isolate}
+.main{perspective:1400px}
+.topbar{
+  background:rgba(255,255,255,.88);
+  -webkit-backdrop-filter:blur(18px);
+  backdrop-filter:blur(18px);
+  box-shadow:0 5px 22px rgba(23,53,39,.035);
+}
+.brand-mark{
+  box-shadow:0 8px 18px rgba(15,143,104,.24),inset 0 1px 0 rgba(255,255,255,.3);
+  transform:translateZ(0);
+  transition:transform .45s var(--motion-ease),box-shadow .45s var(--motion-ease);
+}
+.brand:hover .brand-mark{
+  transform:rotateY(-14deg) rotateX(9deg) translateY(-2px);
+  box-shadow:0 14px 26px rgba(15,143,104,.28);
+}
+.page{animation:page-arrive .55s var(--motion-ease) both}
+.page-head{transform-origin:left center;animation:heading-arrive .65s var(--motion-ease) both}
+.metric,.panel,.app-card,.product-card,.agent-card,.subsidy-step,.welcome-strip,.wallet-card{
+  transform-style:preserve-3d;
+  transition:transform .32s var(--motion-ease),box-shadow .32s var(--motion-ease),border-color .32s var(--motion-ease);
+}
+.metric,.panel,.app-card,.product-card,.agent-card{
+  box-shadow:0 3px 12px rgba(24,59,42,.035);
+}
+.metric:hover,.panel:hover,.app-card:hover,.product-card:hover,.agent-card:hover{
+  transform:translateY(-4px) rotateX(1.2deg);
+  box-shadow:var(--depth-shadow);
+  border-color:#b5d8c8;
+}
+.metric-icon,.app-icon,.agent-icon,.logo-preview{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.72),0 5px 12px rgba(15,143,104,.08);
+}
+.welcome-strip{
+  box-shadow:0 18px 42px rgba(9,104,77,.19),inset 0 1px 0 rgba(255,255,255,.16);
+  background:linear-gradient(112deg,#075b45 0%,#0f8f68 56%,#42b98d 100%);
+}
+.welcome-strip:before{
+  content:"";
+  position:absolute;
+  width:180px;height:180px;
+  right:8%;bottom:-135px;
+  border:1px solid rgba(255,255,255,.22);
+  border-radius:38% 62% 54% 46%;
+  transform:rotate(28deg);
+  box-shadow:0 0 0 22px rgba(255,255,255,.035),0 0 0 48px rgba(255,255,255,.025);
+  pointer-events:none;
+}
+.welcome-strip:after{animation:orb-drift 12s ease-in-out infinite alternate}
+.welcome-right{
+  box-shadow:0 14px 28px rgba(0,0,0,.10),inset 0 1px 0 rgba(255,255,255,.18);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  transform:perspective(700px) rotateY(-5deg) rotateX(2deg);
+}
+.btn{transition:transform .2s var(--motion-ease),box-shadow .2s var(--motion-ease),background .2s ease}
+.btn:hover{transform:translateY(-2px)}
+.btn.primary:hover{box-shadow:0 9px 20px rgba(15,143,104,.22)}
+.nav-item{transition:background .2s ease,color .2s ease,transform .2s var(--motion-ease)}
+.nav-item:hover{transform:translateX(3px)}
+.badge{box-shadow:inset 0 1px 0 rgba(255,255,255,.65)}
+.modal-backdrop{ -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px) }
+@keyframes page-arrive{from{opacity:0;transform:translateY(12px) scale(.995)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes heading-arrive{from{opacity:0;transform:translateY(8px) translateZ(-12px)}to{opacity:1;transform:translateY(0) translateZ(0)}}
+@keyframes orb-drift{from{transform:translateY(0) rotate(0deg)}to{transform:translateY(18px) rotate(8deg)}}
+@media(max-width:900px){
+  .main{perspective:none}
+  .welcome-right{transform:none}
+  .metric:hover,.panel:hover,.app-card:hover,.product-card:hover,.agent-card:hover{transform:translateY(-2px)}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+  .page,.page-head{animation:none}
+}
+
