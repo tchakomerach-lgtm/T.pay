@@ -31,7 +31,15 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
   bool _loading=false;
   bool _busy=false;
   String? _error;
-  String _key()=>'${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(1<<32)}';
+  final Map<String,String> _pendingCommandKeys=<String,String>{};
+  String _key()=>'tpay-${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(1<<32)}';
+  String _idempotencyKey(String path,Map<String,dynamic> payload){
+    final fingerprint='$path:${jsonEncode(payload)}';
+    return _pendingCommandKeys.putIfAbsent(fingerprint,_key);
+  }
+  void _completeIdempotencyKey(String path,Map<String,dynamic> payload){
+    _pendingCommandKeys.remove('$path:${jsonEncode(payload)}');
+  }
 
   @override
   void initState(){super.initState();if(widget.apiClient!=null)_load();}
@@ -53,13 +61,16 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
   }
 
   Future<void> _command(String path,Map<String,dynamic> payload) async {
-    final response=await widget.apiClient!.post(path,payload,_key());
+    // Keep the same key after timeouts/network loss; clear only after a confirmed 2xx.
+    final key=_idempotencyKey(path,payload);
+    final response=await widget.apiClient!.post(path,payload,key);
     final raw=await response.transform(utf8.decoder).join();
     final decoded=jsonDecode(raw) as Map<String,dynamic>;
     if(response.statusCode<200||response.statusCode>=300){
       final error=decoded['error'];
       throw StateError(error is Map?'${error['code']??'TONTINE_HTTP_${response.statusCode}'}':'TONTINE_HTTP_${response.statusCode}');
     }
+    _completeIdempotencyKey(path,payload);
   }
 
   Future<void> _load() async {
@@ -122,10 +133,14 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
     if(accepted==true){
       setState(()=>_busy=true);
       try{
-        final response=await widget.apiClient!.put('/v1/tontine/groups/$_selectedGroup/governance/policy',{'quorumPercent':int.parse(quorum.text),'approvalPercent':int.parse(approval.text),'allowAbstention':abstention},_key());
+        final policyPath='/v1/tontine/groups/$_selectedGroup/governance/policy';
+        final policyPayload=<String,dynamic>{'quorumPercent':int.parse(quorum.text),'approvalPercent':int.parse(approval.text),'allowAbstention':abstention};
+        final policyKey=_idempotencyKey(policyPath,policyPayload);
+        final response=await widget.apiClient!.put(policyPath,policyPayload,policyKey);
         final raw=await response.transform(utf8.decoder).join();
         final decoded=jsonDecode(raw) as Map<String,dynamic>;
         if(response.statusCode<200||response.statusCode>=300){final error=decoded['error'];throw StateError(error is Map?'${error['code']??'TONTINE_POLICY_HTTP_${response.statusCode}'}':'TONTINE_POLICY_HTTP_${response.statusCode}');}
+        _completeIdempotencyKey(policyPath,policyPayload);
         await _loadPanel();
       }catch(error){if(mounted)setState(()=>_error=error.toString());}
       finally{if(mounted)setState(()=>_busy=false);}
