@@ -108,3 +108,11 @@ The prototype covers the investor-facing product surfaces across Experience OS, 
 The main CI now includes a dedicated `npm run investor:build` step, a full migration run before live PostgreSQL integration, PostgreSQL 17, a 35-minute timeout and concurrency cancellation. The GitHub Actions execution result on the exact merge commit is not yet evidenced as green. The existing Vercel production deployment for the merge commit reached READY, but its project build settings still target the existing School/Web app; an isolated investor preview deployment is pending separate Vercel project authorization/configuration.
 
 The effective CI optimization and Android workflow changes from PR #165 were applied to main in separate commits after comparing the remaining diff. PR #165 was closed as superseded (not merged). Its prior failing/unconfirmed checks are not treated as green.
+
+## P057 Security 001 — Fortress Admin Plane isolation
+- Canonical Vault schema is `tpay_vaults` (migration 047); never introduce a parallel legacy `fortress_vaults` schema.
+- `security/fortress-admin-plane-isolation-001` adds the platform-only `super_admin` vault class, same-tenant parent integrity, a NOLOGIN/NOSUPERUSER/NOBYPASSRLS Admin DB role, replacement RLS policies, exact-vault active grants, and append-only Vault audit.
+- `packages/security/vault-domain-boundary.ts` separates USER, ORGANIZATION, ADMIN_CONTROL and attested SERVICE planes. Super Admin is not a user-session step-up; no user-session context may accompany an Admin Control request.
+- PostgreSQL integration and policy tests are added. Exact-head CI has not yet been verified.
+- This is the database/policy isolation increment, not a production-ready Admin API. A separate Admin API process, dedicated DB login with membership only for that process, independent privileged WebAuthn session issuer/cookie, real PAM/JIT/JEA, HSM/KMS and recovery clean-room remain mandatory before activation.
+- See `docs/security/FORTRESS-ADMIN-PLANE-ISOLATION-001.md` for the plane matrix, Vault hierarchy, deployment prerequisites and remaining gates.
