@@ -34,7 +34,7 @@ $$;
 
 DROP TRIGGER IF EXISTS trg_tontine_hold_lock_payouts ON tontine_targeted_holds;
 CREATE TRIGGER trg_tontine_hold_lock_payouts
-BEFORE INSERT OR UPDATE OF scope, reference, released_at, expires_at
+BEFORE INSERT OR UPDATE
 ON tontine_targeted_holds
 FOR EACH ROW
 EXECUTE FUNCTION tontine_lock_payouts_for_targeted_hold();
