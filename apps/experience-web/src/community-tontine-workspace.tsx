@@ -88,7 +88,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
   try{
    const query=new URLSearchParams({limit:"100"});
    if(filter!=="all")query.set("status",filter);
-   const response=await api.command("/v1/tontine/groups?"+query.toString());
+   const response=await api.request("/v1/tontine/groups?"+query.toString());
    if(!response.ok)throw new Error("TONTINE_API_HTTP_"+response.status);
    const body=await response.json() as GroupResponse;
    setGroups(Array.isArray(body.data?.items)?body.data.items:[]);
@@ -241,7 +241,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
  useEffect(()=>{
   if(active!=="governance"||!api||!selectedGroupId){setGovernancePolicy(null);return;}
   let cancelled=false;
-  api.command("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/governance/policy")
+  api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/governance/policy")
    .then(async response=>{if(!response.ok)throw new Error("TONTINE_GOVERNANCE_POLICY_READ_HTTP_"+response.status);const body=await response.json() as {data?:{policy?:Record<string,unknown>|null}};if(!cancelled){const policy=body.data?.policy??null;setGovernancePolicy(policy);if(policy){setPolicyQuorum(String(policy.quorum_percent));setPolicyApproval(String(policy.approval_percent));setPolicyAbstention(policy.allow_abstention===true);}}})
    .catch(error=>{if(!cancelled)setPolicyError(error instanceof Error?error.message:"TONTINE_GOVERNANCE_POLICY_READ_FAILED");});
   return()=>{cancelled=true;};
@@ -256,7 +256,7 @@ export function CommunityTontineWorkspace({api}:{api:TPayApi|null}){
  useEffect(()=>{
   if(!api||!panelResource||!selectedGroupId){setPanelRows([]);setPanelError(null);return;}
   let cancelled=false;setPanelLoading(true);setPanelError(null);
-  api.command("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/"+panelResource+"?limit=100")
+  api.request("/v1/tontine/groups/"+encodeURIComponent(selectedGroupId)+"/"+panelResource+"?limit=100")
    .then(async response=>{
     if(!response.ok)throw new Error("TONTINE_"+panelResource.toUpperCase()+"_HTTP_"+response.status);
     const body=await response.json() as GroupResponse;
