@@ -39,12 +39,15 @@ class CommunityTontineFinanceSummary {
         case 'confirmed':
           confirmedCount++;
           if (amount != null) confirmedMinor += amount;
+          break;
         case 'pending':
           pendingCount++;
           if (amount != null) pendingMinor += amount;
+          break;
         default:
           // Failed, reversed, disputed and unknown states remain exceptions.
           exceptionCount++;
+          break;
       }
     }
 
