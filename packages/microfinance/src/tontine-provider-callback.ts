@@ -99,33 +99,40 @@ export async function processVerifiedTontinePayoutCallback(
         await tx.query("UPDATE tontine_provider_callback_receipts SET state='rejected', failure_code='CALLBACK_PAYLOAD_MISMATCH' WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3", [callback.organizationId, callback.provider, callback.providerEventId]);
         return { state: "rejected", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
       }
+      if (existing.rows[0].state === "rejected") {
+        return { state: "rejected", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
+      }
+      if (existing.rows[0].state === "processed" || existing.rows[0].state === "replayed") {
+        await tx.query(
+          `UPDATE tontine_provider_callback_receipts
+           SET state='replayed'
+           WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3`,
+          [callback.organizationId, callback.provider, callback.providerEventId]
+        );
+        return { state: "replayed", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
+      }
+      // A durable 'received' receipt may be retried after a worker interruption.
+      // Continue the settlement path instead of treating it as already processed.
+    } else {
       await tx.query(
-        `UPDATE tontine_provider_callback_receipts
-         SET state='replayed'
-         WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3`,
-        [callback.organizationId, callback.provider, callback.providerEventId]
+        `INSERT INTO tontine_provider_callback_receipts
+         (id,organization_id,provider,provider_event_id,payload_sha256,signature_verified,
+          received_at,state,payout_id,provider_reference,amount_minor,currency)
+         VALUES ($1,$2,$3,$4,$5,true,$6,'received',$7,$8,$9,$10)`,
+        [
+          deterministicReceiptId(callback),
+          callback.organizationId,
+          callback.provider,
+          callback.providerEventId,
+          payloadSha256,
+          callback.receivedAt,
+          callback.payoutId,
+          callback.providerReference,
+          callback.amountMinor.toString(),
+          callback.currency
+        ]
       );
-      return { state: "replayed", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
     }
-
-    await tx.query(
-      `INSERT INTO tontine_provider_callback_receipts
-       (id,organization_id,provider,provider_event_id,payload_sha256,signature_verified,
-        received_at,state,payout_id,provider_reference,amount_minor,currency)
-       VALUES ($1,$2,$3,$4,$5,true,$6,'received',$7,$8,$9,$10)`,
-      [
-        deterministicReceiptId(callback),
-        callback.organizationId,
-        callback.provider,
-        callback.providerEventId,
-        payloadSha256,
-        callback.receivedAt,
-        callback.payoutId,
-        callback.providerReference,
-        callback.amountMinor.toString(),
-        callback.currency
-      ]
-    );
 
     const intent = await tx.query<{
       payout_id: UUID;
