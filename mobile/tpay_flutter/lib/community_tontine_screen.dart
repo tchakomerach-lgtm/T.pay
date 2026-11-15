@@ -316,7 +316,7 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
             alignment:Alignment.center,
             transform:Matrix4.identity()
               ..setEntry(3,2,0.0015)
-              ..rotateY(-.18+(_motion.value*.36)
+              ..rotateY(-.18+(_motion.value*.36))
               ..rotateZ(-.12+(_motion.value*.24)),
             child:child,
           ),
