@@ -65,3 +65,14 @@ test("launch activation is compare-and-set and scoped by tenant, group, snapshot
   assert.equal(values.length,7);
   assert.equal(values[5],id);
 });
+
+test("microfinance partner cannot make community admission decisions", async () => {
+  let writes = 0;
+  const tx = {query:async()=>{writes++;return {rows:[{state:"APPROVED"}],rowCount:1};},
+    transaction:async(work:(tx:any)=>Promise<unknown>)=>work(tx)} as any;
+  const repo = new PostgresCommunityTontineAdmissionRepository(tx);
+  await assert.rejects(() => repo.decideMembership({organizationId:id,groupId:id,candidateId:id,
+    expectedState:"VERIFYING",nextState:"APPROVED",decision:"ACCEPT",actorRole:"MICROFINANCE_AGENT",
+    actorId:id,reason:"Partner verification only",decidedAt:"2026-11-15T10:00:00Z"}),/COMMUNITY_ADMIN_DECISION_REQUIRED/);
+  assert.equal(writes,0);
+});
