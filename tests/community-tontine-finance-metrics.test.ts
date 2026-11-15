@@ -23,6 +23,7 @@ test("finance dashboard counts only persisted confirmed and pending contribution
 test("finance dashboard uses exact integer arithmetic and rejects malformed minor amounts", () => {
   const summary = summarizeCommunityTontineContributions([
     { status: "confirmed", amount_minor: "9007199254740993" },
+    { status: "confirmed", amount_minor: "7" },
     { status: "confirmed", amount_minor: "7.25" },
     { status: "pending", amount_minor: "-1" },
     { status: "unknown_future_state", amount_minor: null }
