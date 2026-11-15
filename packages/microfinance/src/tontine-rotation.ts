@@ -32,9 +32,10 @@ export function selectRotatingBeneficiary(
   policy: TontineRotationPolicy = { allowRepeatOnlyAfterFullRound: true, requireActiveMembership: true }
 ): BeneficiarySelection {
   if (memberships.some(m => m.groupId !== group.id)) throw new Error("TONTINE_ROTATION_GROUP_MISMATCH");
-  const active = memberOrder(memberships);
-  const eligible = policy.requireActiveMembership ? active : memberships.slice()
-    .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt) || a.id.localeCompare(b.id));
+  if (!policy.requireActiveMembership) {
+    throw new Error("TONTINE_ROTATION_ACTIVE_MEMBERSHIP_REQUIRED");
+  }
+  const eligible = memberOrder(memberships);
   if (eligible.length < 2) throw new Error("TONTINE_ROTATION_REQUIRES_TWO_ELIGIBLE_MEMBERS");
   const fresh = eligible.filter(m => !previouslyPaidMemberIds.has(m.id));
   const useUnpaidRound = policy.allowRepeatOnlyAfterFullRound && fresh.length > 0;
