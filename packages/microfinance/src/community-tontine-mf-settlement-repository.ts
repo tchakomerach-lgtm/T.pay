@@ -53,7 +53,7 @@ export class PostgresCommunityTontineMfSettlementRepository implements Community
            AND slot.group_id=$3 AND slot.status='eligible'
            AND beneficiary.client_id=$6 AND beneficiary.status='active'
            AND beneficiary.selected_microfinance_id=$4
-           AND pi.amount_minor=$7 AND pi.currency=$8::text AND pi.destination_ref=$9
+           AND pi.amount_minor=$7 AND pi.currency::text=$8::text AND pi.destination_ref=$9
            AND pi.requires_human_approval=true AND pi.kyc_verified=true
            AND pi.state='approved'
          ON CONFLICT DO NOTHING
