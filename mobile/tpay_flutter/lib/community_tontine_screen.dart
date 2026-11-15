@@ -243,6 +243,7 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
       if(_loading&&_groups.isEmpty)const LinearProgressIndicator(),
       if(_groups.isEmpty&&!_loading)const Card(child:Padding(padding:EdgeInsets.all(16),child:Text('Aucun groupe enregistré pour cette organisation.'))),
       if(_groups.isNotEmpty)DropdownButtonFormField<String>(initialValue:_selectedGroup,decoration:const InputDecoration(labelText:'Groupe sélectionné'),items:_groups.map((g)=>DropdownMenuItem(value:g['id'].toString(),child:Text(g['name'].toString(),overflow:TextOverflow.ellipsis))).toList(),onChanged:(v)async{setState(()=>_selectedGroup=v);await _loadPanel();}),
+      if(_groups.isNotEmpty)_rotationOverview(),
       const SizedBox(height:12),
       Wrap(spacing:8,runSpacing:8,children:[
         _action('Créer un groupe',Icons.add_circle_outline,_createGroup),
@@ -279,6 +280,63 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
       Text('Une intention n’est pas un paiement confirmé. Le Financial Core reste seul autorisé à comptabiliser les fonds.',style:Theme.of(context).textTheme.bodySmall?.copyWith(color:_tontineMuted)),
     ]));
   }
+
+  Widget _rotationOverview(){
+    final group=_groups.firstWhere((g)=>g['id']?.toString()==_selectedGroup,orElse:()=>_groups.first);
+    final cycle=group['latest_cycle'] is Map?Map<String,dynamic>.from(group['latest_cycle'] as Map):<String,dynamic>{};
+    final cycleNumber=cycle['cycleNumber']??group['cycle_number']??'—';
+    final cycleStatus=(cycle['status']??'—').toString();
+    String metricValue(String key)=>group[key]==null?'—':group[key].toString();
+    return Container(
+      margin:const EdgeInsets.only(top:12,bottom:4),
+      padding:const EdgeInsets.all(15),
+      decoration:BoxDecoration(
+        color:const Color(0xff102f2a),
+        borderRadius:BorderRadius.circular(20),
+        border:Border.all(color:const Color(0xff28765e)),
+        boxShadow:const [BoxShadow(color:Color(0x220b674d),blurRadius:18,offset:Offset(0,8))],
+      ),
+      child:Row(crossAxisAlignment:CrossAxisAlignment.center,children:[
+        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          const Text('ROTATION COMMUNAUTAIRE',style:TextStyle(fontSize:9,letterSpacing:1.1,color:Color(0xff8ee4bf),fontWeight:FontWeight.w800)),
+          const SizedBox(height:5),
+          Text('Cycle $cycleNumber',style:const TextStyle(fontSize:19,color:Colors.white,fontWeight:FontWeight.w900)),
+          Text('État : $cycleStatus',style:const TextStyle(fontSize:10,color:Colors.white70)),
+          const SizedBox(height:14),
+          Wrap(spacing:18,runSpacing:12,children:[
+            _rotationMetric('MEMBRES ACTIFS',metricValue('active_member_count')),
+            _rotationMetric('COTISATIONS OK',metricValue('confirmed_contribution_count')),
+            _rotationMetric('EN ATTENTE',metricValue('pending_member_count')),
+          ]),
+        ])),
+        const SizedBox(width:8),
+        AnimatedBuilder(
+          animation:_motion,
+          builder:(context,child)=>Transform(
+            alignment:Alignment.center,
+            transform:Matrix4.identity()
+              ..setEntry(3,2,0.0015)
+              ..rotateY(-.18+(_motion.value*.36)
+              ..rotateZ(-.12+(_motion.value*.24)),
+            child:child,
+          ),
+          child:SizedBox(width:76,height:76,child:Stack(alignment:Alignment.center,children:[
+            Container(width:72,height:72,decoration:BoxDecoration(shape:BoxShape.circle,border:Border.all(color:const Color(0xff52d6a4),width:1.5))),
+            Transform.rotate(angle:.7,child:Container(width:64,height:30,decoration:BoxDecoration(border:Border.all(color:const Color(0xff9af0cb),width:1.2),borderRadius:BorderRadius.circular(50)))),
+            Container(width:38,height:38,decoration:const BoxDecoration(shape:BoxShape.circle,gradient:RadialGradient(colors:[Color(0xffd9ffed),Color(0xff48c995),Color(0xff08714f)]),boxShadow:[BoxShadow(color:Color(0x7755dca9),blurRadius:15)]),alignment:Alignment.center,child:const Text('T',style:TextStyle(fontSize:20,fontWeight:FontWeight.w900,color:Color(0xff07563e)))),
+          ])),
+        ),
+      ]),
+    );
+  }
+
+  Widget _rotationMetric(String label,String value)=>SizedBox(
+    width:82,
+    child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Text(value,style:const TextStyle(fontSize:17,color:Colors.white,fontWeight:FontWeight.w900)),
+      Text(label,style:const TextStyle(fontSize:8,color:Color(0xffa8c8bd),fontWeight:FontWeight.w700),maxLines:2),
+    ]),
+  );
 
   Widget _locked()=>Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
     _hero(),const SizedBox(height:14),
