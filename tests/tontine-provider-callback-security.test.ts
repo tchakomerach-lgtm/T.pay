@@ -12,7 +12,7 @@ const payout = {
   now: "2026-10-05T10:00:00Z"
 };
 
-test("community tontine rejects same provider event replay with substituted payload", async () => {
+test("community tontine durably quarantines same provider event replay with substituted payload", async () => {
   let receipt: { hash: string; payoutId: UUID } | undefined;
   const db = {
     async query<Row = Record<string, unknown>>(sql: string, values?: readonly unknown[]) {
@@ -39,9 +39,8 @@ test("community tontine rejects same provider event replay with substituted payl
     }
   };
   const bridge = { async settle() { return undefined; } };
-  await processVerifiedTontinePayoutCallback(db, verifier, { provider:"mf", rawBody:"body-A", signature:"sig", receivedAt:"2026-10-05T10:00:00Z" }, id, payout, { tontineClearingAccountId:"a", microfinanceSettlementAccountId:"b" }, "tx-1", bridge);
-  await assert.rejects(
-    () => processVerifiedTontinePayoutCallback(db, verifier, { provider:"mf", rawBody:"body-B", signature:"sig", receivedAt:"2026-10-05T10:01:00Z" }, id, payout, { tontineClearingAccountId:"a", microfinanceSettlementAccountId:"b" }, "tx-2", bridge),
-    /TONTINE_CALLBACK_REPLAY_PAYLOAD_MISMATCH/
-  );
+  const first = await processVerifiedTontinePayoutCallback(db, verifier, { provider:"mf", rawBody:"body-A", signature:"sig", receivedAt:"2026-10-05T10:00:00Z" }, id, payout, { tontineClearingAccountId:"a", microfinanceSettlementAccountId:"b" }, "tx-1", bridge);
+  assert.equal(first.state, "rejected");
+  const replay = await processVerifiedTontinePayoutCallback(db, verifier, { provider:"mf", rawBody:"body-B", signature:"sig", receivedAt:"2026-10-05T10:01:00Z" }, id, payout, { tontineClearingAccountId:"a", microfinanceSettlementAccountId:"b" }, "tx-2", bridge);
+  assert.equal(replay.state, "rejected");
 });

@@ -27,7 +27,7 @@ export async function encryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyR
   cipher.setAAD(aadBytes);
   const ciphertext=Buffer.concat([cipher.update(plaintext),cipher.final()]);
   const result={nonce,ciphertext,authTag:cipher.getAuthTag(),aadSha256:sha256(aadBytes),payloadSha256:sha256(plaintext)};
-  if(audit)await audit.record({vaultId:ref.vaultId,actorId:context?.actorId??null,action:"write",objectId:context?.objectId,keyVersion:ref.keyVersion,correlationId:context?.correlationId});
+  if(audit)await audit.record({vaultId:ref.vaultId,actorId:context?.actorId??null,action:"write",keyVersion:ref.keyVersion,...(context?.objectId?{objectId:context.objectId}:{}),...(context?.correlationId?{correlationId:context.correlationId}:{})});
   return result;
 }
 
@@ -43,7 +43,7 @@ export async function decryptVaultObject(provider:VaultKeyProvider,ref:VaultKeyR
   decipher.setAuthTag(object.authTag);
   const plaintext=Buffer.concat([decipher.update(object.ciphertext),decipher.final()]);
   if(!sha256(plaintext).equals(object.payloadSha256))throw new Error("TPAY_VAULT_PAYLOAD_HASH_MISMATCH");
-  if(audit)await audit.record({vaultId:ref.vaultId,actorId:context?.actorId??null,action:"read",objectId:context?.objectId,keyVersion:ref.keyVersion,correlationId:context?.correlationId});
+  if(audit)await audit.record({vaultId:ref.vaultId,actorId:context?.actorId??null,action:"read",keyVersion:ref.keyVersion,...(context?.objectId?{objectId:context.objectId}:{}),...(context?.correlationId?{correlationId:context.correlationId}:{})});
   return plaintext;
 }
 
