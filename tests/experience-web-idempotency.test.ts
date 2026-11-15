@@ -36,7 +36,7 @@ test("web API command reuses idempotency key after ambiguous network failure and
     const nextOperation = await api.command("/v1/tontine/contributions", command);
     assert.equal(nextOperation.status, 200);
     assert.equal(keys.length, 3);
-    assert.ok(keys[0].length > 20);
+    assert.ok(keys[0] && keys[0].length > 20, "first command must receive a non-empty idempotency key");
     assert.equal(keys[0], keys[1], "ambiguous retry must reuse the original key");
     assert.notEqual(keys[1], keys[2], "a confirmed command must release its key");
   } finally {
