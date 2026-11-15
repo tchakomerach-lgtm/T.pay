@@ -178,6 +178,11 @@ export function activateArmedTontine(
   aggregate: LaunchAggregate,
   input: { configHash: string; idempotencyKey: string; now: string }
 ): LaunchAggregate {
+  if (aggregate.state === "ACTIVE") {
+    if (aggregate.configHash !== input.configHash) throw new Error("LAUNCH_CONFIG_CHANGED");
+    if (aggregate.idempotencyKey !== input.idempotencyKey) throw new Error("LAUNCH_IDEMPOTENCY_CONFLICT");
+    return aggregate;
+  }
   if (aggregate.state !== "ARMED") throw new Error("TONTINE_NOT_ARMED");
   if (aggregate.configHash !== input.configHash) throw new Error("LAUNCH_CONFIG_CHANGED");
   if (aggregate.idempotencyKey !== input.idempotencyKey) throw new Error("LAUNCH_IDEMPOTENCY_CONFLICT");
