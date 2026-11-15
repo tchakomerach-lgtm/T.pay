@@ -28,14 +28,13 @@ test("strict round-robin policy follows cycle sequence even when earlier members
   assert.equal(selected.sequence,3);
 });
 
-test("policy may explicitly include inactive members when configured",()=>{
+test("rotation rejects a policy that would permit inactive beneficiaries",()=>{
   const roster=[
     member("123e4567-e89b-42d3-a456-426614174011","exited","2026-01-01T00:00:00.000Z"),
     member("123e4567-e89b-42d3-a456-426614174012","suspended","2026-01-02T00:00:00.000Z"),
     members[0]!
   ];
-  const selected=selectRotatingBeneficiary(group,roster,new Set(),{
+  assert.throws(()=>selectRotatingBeneficiary(group,roster,new Set(),{
     allowRepeatOnlyAfterFullRound:true,requireActiveMembership:false
-  });
-  assert.equal(selected.memberId,roster[0]!.id);
+  }),/TONTINE_ROTATION_ACTIVE_MEMBERSHIP_REQUIRED/);
 });
