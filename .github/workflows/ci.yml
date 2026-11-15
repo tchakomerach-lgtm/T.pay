@@ -12,9 +12,9 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: tpay-ci-${{ github.workflow }}-${{ github.ref }}
-  # Cancel superseded PR validation runs, but preserve main-branch release evidence.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: tpay-ci-${{ github.workflow }}-${{ github.ref }}-${{ github.sha }}
+  # Keep every authoritative run; isolate commits so older SHA runs do not queue newer ones.
+  cancel-in-progress: false
 jobs:
   quality:
     runs-on: ubuntu-latest
