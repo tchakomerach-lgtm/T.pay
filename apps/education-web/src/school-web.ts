@@ -8,6 +8,9 @@ function assertSession(session:SchoolWebSession){if(!session.accessToken)throw n
 export function createSchoolWebClient(config:SchoolWebConfig){
   const base=assertHttps(config.apiBaseUrl).toString().replace(/\/$/,"");
   return {
+    async health():Promise<Response>{
+      return fetch(assertHttps(base+"/health/ready"),{method:"GET",headers:{accept:"application/json"},cache:"no-store",redirect:"error"});
+    },
     async request(path:string,init:RequestInit={}):Promise<Response>{
       assertSession(config.session);
       const headers=new Headers(init.headers);
