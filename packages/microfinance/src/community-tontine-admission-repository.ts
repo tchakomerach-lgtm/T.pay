@@ -7,7 +7,7 @@ import type {
 
 export interface CommunityTontineAdmissionRepository {
   createCandidate(organizationId: UUID, candidate: Candidate): Promise<void>;
-  recordConsent(organizationId: UUID, consent: ConsentGrant & { id: UUID; termsVersion: string;
+  recordConsent(organizationId: UUID, consent: Omit<ConsentGrant, "purpose"> & { id: UUID; purpose: ConsentGrant["purpose"] | "FINAL_PARTICIPATION"; termsVersion: string;
     contributionAmountMinor?: bigint; currency?: string; cadence?: "DAILY"|"WEEKLY"|"MONTHLY"|"CUSTOM";
     rotationOrderHash?: string }): Promise<void>;
   revokeConsent(organizationId: UUID, groupId: UUID, consentId: UUID, revokedAt: string): Promise<void>;
@@ -41,7 +41,7 @@ export class PostgresCommunityTontineAdmissionRepository implements CommunityTon
     );
   }
 
-  async recordConsent(organizationId: UUID, consent: ConsentGrant & { id: UUID; termsVersion: string;
+  async recordConsent(organizationId: UUID, consent: Omit<ConsentGrant, "purpose"> & { id: UUID; purpose: ConsentGrant["purpose"] | "FINAL_PARTICIPATION"; termsVersion: string;
     contributionAmountMinor?: bigint; currency?: string; cadence?: "DAILY"|"WEEKLY"|"MONTHLY"|"CUSTOM";
     rotationOrderHash?: string }): Promise<void> {
     if (Date.parse(consent.expiresAt) <= Date.parse(consent.grantedAt)) throw new Error("COMMUNITY_TONTINE_CONSENT_WINDOW_INVALID");
@@ -144,12 +144,12 @@ export class PostgresCommunityTontineAdmissionRepository implements CommunityTon
     configHash: string; idempotencyKey: string; actorId: UUID; activatedAt: string }): Promise<void> {
     const result = await this.db.query(
       `UPDATE community_tontine_launch_snapshots
-       SET state='ACTIVE',activated_by=$7,activated_at=$8,version=version+1
+       SET state='ACTIVE',activated_by=$6,activated_at=$7,version=version+1
        WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND config_hash=$4
          AND idempotency_key=$5 AND state='ARMED'
        RETURNING id`,
       [input.organizationId,input.groupId,input.snapshotId,input.configHash,input.idempotencyKey,
-       input.actorId,input.actorId,input.activatedAt]
+       input.actorId,input.activatedAt]
     );
     if ((result.rowCount ?? result.rows.length) !== 1) throw new Error("COMMUNITY_TONTINE_LAUNCH_ACTIVATION_CONFLICT");
   }
