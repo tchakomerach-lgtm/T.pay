@@ -338,3 +338,32 @@ header{box-shadow:0 5px 22px #102b2008;backdrop-filter:blur(18px)}
 .tontine-policy-command>button,.tontine-proposal-command>button{justify-self:start;border:0;border-radius:8px;padding:10px 13px;background:linear-gradient(120deg,#0c7656,#159b70);color:white;font-size:9px;font-weight:900;box-shadow:0 7px 16px #0b80522b}
 .dark .tontine-policy-command,.dark .tontine-proposal-command{background:linear-gradient(145deg,#26382d,#202d26)}
 @media(max-width:680px){.tontine-governance-commands{grid-template-columns:1fr}.tontine-proposal-payload{grid-column:auto}}
+
+
+/* Community Tontine — live 3D operational stage (data-bound, no synthetic payout state). */
+.tontine-rotation-stage{display:grid;grid-template-columns:minmax(180px,.8fr) minmax(0,1.6fr);align-items:center;gap:clamp(18px,4vw,42px);margin:14px 0 18px;padding:clamp(18px,3vw,28px);border:1px solid #8ed7b4;border-radius:22px;background:radial-gradient(ellipse at 18% 48%,#d9f8e8 0,transparent 42%),linear-gradient(130deg,#f7fffb,#eaf7f0 65%,#f7fbf8);box-shadow:0 22px 52px #0c654017,inset 0 1px #fff;overflow:hidden;transform-style:preserve-3d;perspective:1200px}
+.tontine-rotation-scene{position:relative;display:grid;place-items:center;min-height:190px;isolation:isolate;transform-style:preserve-3d}
+.tontine-rotation-ring{position:absolute;width:164px;height:164px;border:1px solid #2aa97866;border-radius:50%;box-shadow:inset 0 0 24px #38b98518,0 0 25px #38b98512;transform-style:preserve-3d}
+.tontine-rotation-ring.ring-one{transform:rotateX(66deg) rotateZ(-18deg);animation:tontine-ring-turn 16s linear infinite}
+.tontine-rotation-ring.ring-two{width:132px;height:132px;border-color:#0c80604d;transform:rotateY(68deg) rotateX(20deg);animation:tontine-ring-turn 22s linear infinite reverse}
+.tontine-rotation-core{position:relative;z-index:2;width:92px;height:92px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid #fff;border-radius:50%;background:radial-gradient(circle at 30% 22%,#fff,#c9f5df 45%,#48c391 100%);box-shadow:inset -9px -12px 20px #0b79512b,0 17px 30px #0b79513b;transform:translateZ(28px) rotateX(8deg)}
+.tontine-rotation-core span,.tontine-rotation-core small{font-size:8px;letter-spacing:.14em;font-weight:900;color:#176b4c}
+.tontine-rotation-core b{font-size:27px;line-height:1.1;color:#084c35}
+.tontine-rotation-core small{letter-spacing:.04em}
+.rotation-node{position:absolute;z-index:3;width:13px;height:13px;border:3px solid #f4fff8;border-radius:50%;background:#0e9b70;box-shadow:0 0 0 5px #0e9b7020,0 5px 12px #075c3b55}
+.rotation-node.node-one{top:19px;left:calc(50% - 6px)}.rotation-node.node-two{right:calc(50% - 88px);bottom:36px;background:#43b88c}.rotation-node.node-three{left:calc(50% - 84px);bottom:45px;background:#087b5a}
+.tontine-rotation-copy{min-width:0;transform:translateZ(14px)}
+.tontine-rotation-copy>small{font-size:8px;letter-spacing:.15em;color:#087c58;font-weight:900}
+.tontine-rotation-copy h3{margin:7px 0;font-size:clamp(17px,2vw,22px);letter-spacing:-.03em;color:#173c2c}
+.tontine-rotation-copy>p{max-width:650px;margin:0;color:#61766a;font-size:10px;line-height:1.65}
+.tontine-rotation-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:16px 0 12px}
+.tontine-rotation-metrics>div{display:grid;gap:4px;min-width:0;padding:11px;border:1px solid #cfe8d8;border-radius:12px;background:#ffffffb8;box-shadow:0 5px 14px #155d3910}
+.tontine-rotation-metrics b{font-size:22px;line-height:1;color:#0b8059}.tontine-rotation-metrics span{font-size:8px;color:#63786b}
+.tontine-rotation-guard{display:flex;align-items:center;gap:8px;color:#547164;font-size:9px;font-weight:750}
+.tontine-rotation-guard>span{width:7px;height:7px;flex:0 0 auto;border-radius:50%;background:#d99a00;box-shadow:0 0 0 4px #d99a001b}
+@keyframes tontine-ring-turn{from{rotate:0deg}to{rotate:360deg}}
+.dark .tontine-rotation-stage{background:radial-gradient(ellipse at 18% 48%,#234a36 0,transparent 42%),linear-gradient(130deg,#20372d,#1c2d24 65%,#243a2e);border-color:#416c56}
+.dark .tontine-rotation-copy h3{color:#e5f4ea}.dark .tontine-rotation-copy>p,.dark .tontine-rotation-guard{color:#aabbb1}
+.dark .tontine-rotation-metrics>div{background:#26382d;border-color:#405d4b}.dark .tontine-rotation-metrics b{color:#8ee0b5}.dark .tontine-rotation-metrics span{color:#aabbb1}
+@media(max-width:620px){.tontine-rotation-stage{grid-template-columns:1fr;gap:8px}.tontine-rotation-scene{min-height:160px}.tontine-rotation-metrics{gap:6px}.tontine-rotation-metrics>div{padding:9px}.tontine-rotation-metrics b{font-size:19px}}
+@media(prefers-reduced-motion:reduce){.tontine-rotation-ring{animation:none!important}.tontine-rotation-stage{transform:none}}
