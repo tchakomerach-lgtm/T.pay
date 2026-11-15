@@ -83,3 +83,39 @@ test("settlement state and beneficiary slot transition are one repository transa
   assert.ok(statements[0]?.includes("settlement_transaction_id=$3"));
   assert.ok(statements[1]?.includes("status='paid'"));
 });
+
+
+test("approval retry after a lost response replays the same persisted approval without a second insert",async()=>{
+  const statements:string[]=[];
+  let executor:TontineSqlExecutor;
+  executor={
+    query:async(sql)=>{
+      statements.push(sql);
+      if(sql.includes("SELECT pi.payout_id"))return {rows:[row("approved")] as never[],rowCount:1};
+      if(sql.includes("SELECT decision,reason FROM payout_approvals"))return {rows:[{decision:"approve",reason:"validated"}] as never[],rowCount:1};
+      return {rows:[],rowCount:1};
+    },
+    transaction:async work=>work(executor)
+  };
+  const result=await new PostgresTontinePayoutRepository(executor).approve(org as never,payoutId as never,{
+    payoutId,approverId:"supervisor-9",decision:"approve",reason:"validated",at:"2026-11-14T00:02:00.000Z"
+  });
+  assert.equal(result.intent.state,"approved");
+  assert.equal(statements.filter(sql=>sql.includes("INSERT INTO payout_approvals")).length,0);
+  assert.equal(statements.filter(sql=>sql.includes("UPDATE payout_intents SET state='approved'")).length,0);
+});
+
+test("an approval retry with a changed reason is rejected instead of silently replayed",async()=>{
+  let executor:TontineSqlExecutor;
+  executor={
+    query:async(sql)=>{
+      if(sql.includes("SELECT pi.payout_id"))return {rows:[row("approved")] as never[],rowCount:1};
+      if(sql.includes("SELECT decision,reason FROM payout_approvals"))return {rows:[{decision:"approve",reason:"validated"}] as never[],rowCount:1};
+      return {rows:[],rowCount:1};
+    },
+    transaction:async work=>work(executor)
+  };
+  await assert.rejects(()=>new PostgresTontinePayoutRepository(executor).approve(org as never,payoutId as never,{
+    payoutId,approverId:"supervisor-9",decision:"approve",reason:"different reason",at:"2026-11-14T00:03:00.000Z"
+  }),/TONTINE_PAYOUT_APPROVAL_CONFLICT/);
+});
