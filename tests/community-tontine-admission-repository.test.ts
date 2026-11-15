@@ -14,7 +14,7 @@ test("admission decision and immutable audit are committed in one transaction", 
   }, transaction: async (work:(tx:any)=>Promise<unknown>) => work(tx) } as any;
   const repo = new PostgresCommunityTontineAdmissionRepository(tx);
   await repo.decideMembership({organizationId:id,groupId:id,candidateId:id,expectedState:"VERIFYING",
-    nextState:"APPROVED",decision:"ACCEPT",actorId:id,reason:"Identity evidence verified",decidedAt:"2026-11-15T10:00:00Z"});
+    nextState:"APPROVED",decision:"ACCEPT",actorRole:"COMMUNITY_ADMIN",actorId:id,reason:"Identity evidence verified",decidedAt:"2026-11-15T10:00:00Z"});
   assert.equal(calls.length,2);
   assert.match(calls[0]!.sql,/organization_id=\$1 AND group_id=\$2 AND id=\$3 AND state=\$4/);
   assert.match(calls[1]!.sql,/INSERT INTO community_tontine_admission_audit/);
@@ -31,7 +31,7 @@ test("admission compare-and-set conflict aborts before audit insert", async () =
   }, transaction: async (work:(tx:any)=>Promise<unknown>) => work(tx) } as any;
   const repo = new PostgresCommunityTontineAdmissionRepository(tx);
   await assert.rejects(() => repo.decideMembership({organizationId:id,groupId:id,candidateId:id,
-    expectedState:"VERIFYING",nextState:"APPROVED",decision:"ACCEPT",actorId:id,
+    expectedState:"VERIFYING",nextState:"APPROVED",decision:"ACCEPT",actorRole:"COMMUNITY_ADMIN",actorId:id,
     reason:"verified",decidedAt:"2026-11-15T10:00:00Z"}),/STATE_CONFLICT/);
   assert.equal(auditInserted,false);
 });
