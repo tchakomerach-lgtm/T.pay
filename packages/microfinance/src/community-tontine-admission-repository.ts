@@ -134,7 +134,7 @@ export class PostgresCommunityTontineAdmissionRepository implements CommunityTon
     const replay = await this.db.query(
       `SELECT id FROM community_tontine_launch_snapshots
        WHERE organization_id=$1 AND group_id=$2 AND idempotency_key=$3
-         AND config_hash=$4 AND rotation_snapshot_hash=$5 AND canonical_payload=$6::jsonb AND state='ARMED'`,
+         AND config_hash=$4 AND rotation_snapshot_hash=$5 AND canonical_payload=$6::jsonb AND state IN ('ARMED','ACTIVE')`,
       [input.organizationId,input.groupId,input.idempotencyKey,input.configHash,input.rotationSnapshotHash,
        JSON.stringify(payload)]
     );
@@ -152,6 +152,13 @@ export class PostgresCommunityTontineAdmissionRepository implements CommunityTon
       [input.organizationId,input.groupId,input.snapshotId,input.configHash,input.idempotencyKey,
        input.actorId,input.activatedAt]
     );
-    if ((result.rowCount ?? result.rows.length) !== 1) throw new Error("COMMUNITY_TONTINE_LAUNCH_ACTIVATION_CONFLICT");
+    if ((result.rowCount ?? result.rows.length) === 1) return;
+    const replay = await this.db.query(
+      `SELECT id FROM community_tontine_launch_snapshots
+       WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND config_hash=$4
+         AND idempotency_key=$5 AND state='ACTIVE' AND activated_by=$6`,
+      [input.organizationId,input.groupId,input.snapshotId,input.configHash,input.idempotencyKey,input.actorId]
+    );
+    if (replay.rows.length !== 1) throw new Error("COMMUNITY_TONTINE_LAUNCH_ACTIVATION_CONFLICT");
   }
 }
