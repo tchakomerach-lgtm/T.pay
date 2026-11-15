@@ -1,6 +1,10 @@
 -- Serialize targeted hold writes with payout initiation.
 -- A hold inserted while a payout exists locks that payout row. markInitiated()
 -- takes the same row lock before checking active holds and transitioning state.
+CREATE INDEX IF NOT EXISTS idx_tontine_targeted_holds_active
+  ON tontine_targeted_holds (organization_id, scope, reference)
+  WHERE released_at IS NULL;
+
 CREATE OR REPLACE FUNCTION tontine_lock_payouts_for_targeted_hold()
 RETURNS trigger
 LANGUAGE plpgsql
