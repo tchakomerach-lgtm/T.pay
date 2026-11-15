@@ -219,7 +219,8 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     const updated=await deps.db.query("UPDATE education_service_requests SET status=$1,version=$2,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND request_id=$5 AND version=$6 RETURNING *",[next.status,next.version,auth.tenantId,organizationId,r[1],Number((q.rows[0] as any).version)]);
     if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
    }
-   if(deps.realtime && deps.realtimeStore && r[0]!=="actor"){
+   const realtimeStore = deps.realtimeStore;
+   if(deps.realtime && realtimeStore && r[0]!=="actor"){
     const typeMap:Record<string,SchoolRealtimeEvent["type"]>={sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
     const eventType=typeMap[r[0]];
     if(eventType){
@@ -233,7 +234,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
         version:Number((data as any)?.version??1),
         data:{operation:method,route:path}
       };
-      const streamSequence=await deps.realtimeStore.append(event);
+      const streamSequence=await realtimeStore.append(event);
       event.streamSequence=streamSequence.toString();
       deps.realtime.publish(event);
     }
