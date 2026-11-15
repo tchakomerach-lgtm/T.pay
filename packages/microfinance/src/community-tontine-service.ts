@@ -17,6 +17,7 @@ export interface TontineNotificationPort {
 }
 
 export interface TontineProviderPort {
+  /** Provider completion is evidence only; Financial Core confirmation is a separate verified settlement. */
   initiate(input: { contribution: TontineContribution }): Promise<{ providerReference: string; status: "pending" | "completed" }>;
 }
 
@@ -48,17 +49,19 @@ export async function initiateContributionPayment(
     notifications: TontineNotificationPort;
     repository: Pick<CommunityTontineRepository, "findMembership">;
   }
-): Promise<{ providerReference: string; status: "pending" | "completed" }> {
+): Promise<{ providerReference: string; status: "pending"; providerReportedStatus: "pending" | "completed" }> {
   const membership = await deps.repository.findMembership(contribution.membershipId);
   if (!membership || membership.groupId !== contribution.groupId) throw new Error("TONTINE_CONTEXT_INVALID");
   const result = await deps.provider.initiate({ contribution });
+  // A provider response cannot confirm a contribution or post the Ledger.
+  // Keep the domain state pending until signed callback verification and Financial Core settlement complete.
   await deps.notifications.notify({
     groupId: contribution.groupId,
     memberId: membership.clientId,
-    type: result.status === "completed" ? "tontine.contribution.confirmed" : "tontine.contribution.pending",
+    type: result.status === "completed" ? "tontine.contribution.provider_reported_completed" : "tontine.contribution.pending",
     referenceId: contribution.id
   });
-  return result;
+  return { providerReference: result.providerReference, status: "pending", providerReportedStatus: result.status };
 }
 
 export async function settleBeneficiaryPayout(
