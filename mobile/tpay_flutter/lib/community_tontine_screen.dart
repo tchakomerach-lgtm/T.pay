@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'api/tpay_api_client.dart';
+import 'community_tontine_finance_summary.dart';
 
 const _tontineGreen=Color(0xff0f8f68);
 const _tontineMuted=Color(0xff718078);
@@ -257,6 +258,7 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
       const SizedBox(height:12),
       SegmentedButton<String>(segments:const [ButtonSegment(value:'members',label:Text('Membres')),ButtonSegment(value:'cycles',label:Text('Cycles')),ButtonSegment(value:'contributions',label:Text('Cotisations')),ButtonSegment(value:'governance',label:Text('Votes')),ButtonSegment(value:'cases',label:Text('Incidents'))],selected:{_panel},onSelectionChanged:(v)async{setState(()=>_panel=v.first);await _loadPanel();}),
       const SizedBox(height:10),
+      if(_panel=='contributions')_contributionFinanceSummary(),
       if(_records.isEmpty)const Card(child:Padding(padding:EdgeInsets.all(16),child:Text('Aucun enregistrement pour ce groupe.'))),
       for(final record in _records)Card(child:ListTile(
         title:Text((record['name']??record['summary']??record['type']??record['id']??'Enregistrement').toString()),
@@ -279,6 +281,56 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
       const SizedBox(height:8),
       Text('Une intention n’est pas un paiement confirmé. Le Financial Core reste seul autorisé à comptabiliser les fonds.',style:Theme.of(context).textTheme.bodySmall?.copyWith(color:_tontineMuted)),
     ]));
+  }
+
+  Widget _contributionFinanceSummary(){
+    final summary=CommunityTontineFinanceSummary.fromRows(_records);
+    final group=_groups.firstWhere((g)=>g['id']?.toString()==_selectedGroup,orElse:()=>_groups.first);
+    final currency=(group['currency']??'XOF').toString();
+    Widget metric(String label,String value,Color accent)=>Container(
+      constraints:const BoxConstraints(minWidth:135),
+      padding:const EdgeInsets.all(12),
+      decoration:BoxDecoration(
+        color:const Color(0xff173c32),
+        borderRadius:BorderRadius.circular(13),
+        border:Border(top:BorderSide(color:accent,width:3),bottom:BorderSide(color:accent.withValues(alpha:.25))),
+        boxShadow:const [BoxShadow(color:Color(0x22000000),blurRadius:10,offset:Offset(0,4))],
+      ),
+      child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text(label,style:const TextStyle(fontSize:8,letterSpacing:.7,color:Color(0xffb5d4c7),fontWeight:FontWeight.w800)),
+        const SizedBox(height:7),
+        Text(value,style:const TextStyle(fontSize:20,color:Colors.white,fontWeight:FontWeight.w900),maxLines:1,overflow:TextOverflow.ellipsis),
+      ]),
+    );
+    return Container(
+      margin:const EdgeInsets.only(top:12),
+      padding:const EdgeInsets.all(15),
+      decoration:BoxDecoration(
+        gradient:const LinearGradient(colors:[Color(0xff102f2a),Color(0xff164b3b),Color(0xff1d654b)],begin:Alignment.topLeft,end:Alignment.bottomRight),
+        borderRadius:BorderRadius.circular(18),
+        border:Border.all(color:const Color(0xff398568)),
+        boxShadow:const [BoxShadow(color:Color(0x220b674d),blurRadius:18,offset:Offset(0,8))],
+      ),
+      child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Row(children:[
+          const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            Text('FINANCIAL CORE · COTISATIONS',style:TextStyle(fontSize:8,letterSpacing:1,color:Color(0xff8ee4bf),fontWeight:FontWeight.w900)),
+            SizedBox(height:5),
+            Text('Rapprochement des contributions',style:TextStyle(fontSize:15,color:Colors.white,fontWeight:FontWeight.w900)),
+          ])),
+          AnimatedBuilder(animation:_motion,builder:(context,child)=>Transform.rotate(angle:_motion.value*.35,child:child),child:const Icon(Icons.account_balance_wallet_outlined,color:Color(0xff8ee4bf),size:26)),
+        ]),
+        const SizedBox(height:12),
+        Wrap(spacing:8,runSpacing:8,children:[
+          metric('CONFIRMÉES',summary.confirmedCount.toString(),const Color(0xff55dca9)),
+          metric('MONTANT CONFIRMÉ','${summary.confirmedMinor} $currency',const Color(0xff55dca9)),
+          metric('EN ATTENTE','${summary.pendingCount} · ${summary.pendingMinor} $currency',const Color(0xffffc45c)),
+          metric('EXCEPTIONS',summary.exceptionCount.toString(),const Color(0xffff8e82)),
+        ]),
+        const SizedBox(height:10),
+        Text('Page API : ${summary.totalCount} ligne(s), limite serveur 100. Montants invalides : ${summary.invalidAmountCount}. Une intention n’est pas un paiement confirmé ; aucune opération financière n’est lancée depuis cet écran.',style:const TextStyle(fontSize:9,height:1.5,color:Color(0xffc0d8ce))),
+      ]),
+    );
   }
 
   Widget _rotationOverview(){
