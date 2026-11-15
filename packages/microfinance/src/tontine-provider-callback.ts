@@ -97,7 +97,8 @@ export async function processVerifiedTontinePayoutCallback(
     if (existing.rows[0]) {
       if (existing.rows[0].payload_sha256 !== payloadSha256 || existing.rows[0].payout_id !== callback.payoutId) {
         await tx.query("UPDATE tontine_provider_callback_receipts SET state='rejected', failure_code='CALLBACK_PAYLOAD_MISMATCH' WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3", [callback.organizationId, callback.provider, callback.providerEventId]);
-        throw new Error("TONTINE_CALLBACK_REPLAY_PAYLOAD_MISMATCH");
+        // Return instead of throwing: throwing here would roll back the quarantine update.
+        return { state: "rejected", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
       }
       await tx.query(
         `UPDATE tontine_provider_callback_receipts
@@ -140,7 +141,25 @@ export async function processVerifiedTontinePayoutCallback(
       [callback.organizationId, callback.payoutId]
     );
     const row = intent.rows[0];
-    if (!row) throw new Error("TONTINE_PAYOUT_INTENT_NOT_FOUND");
+    if (!row) {
+      await tx.query(
+        `UPDATE tontine_provider_callback_receipts
+         SET state='rejected', failure_code='PAYOUT_INTENT_NOT_FOUND'
+         WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3`,
+        [callback.organizationId, callback.provider, callback.providerEventId]
+      );
+      return { state: "rejected", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
+    }
+
+    if (row.state !== "approved" && row.state !== "settled") {
+      await tx.query(
+        `UPDATE tontine_provider_callback_receipts
+         SET state='rejected', failure_code='PAYOUT_NOT_APPROVED'
+         WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3`,
+        [callback.organizationId, callback.provider, callback.providerEventId]
+      );
+      return { state: "rejected", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
+    }
 
     if (row.state === "settled") {
       await tx.query(
