@@ -173,11 +173,40 @@ export class PostgresTontinePayoutRepository {
 
   async markInitiated(organizationId: UUID, payoutId: UUID, provider: string, providerReference: string): Promise<void> {
     if (!provider.trim() || !providerReference.trim()) throw new Error("TONTINE_PAYOUT_PROVIDER_EVIDENCE_REQUIRED");
-    const result = await this.db.query(
-      "UPDATE payout_intents SET state='initiated',provider=$3,provider_reference=$4 WHERE organization_id=$1 AND payout_id=$2 AND state='approved'",
-      [organizationId,payoutId,provider,providerReference]
-    );
-    if ((result.rowCount ?? 0) !== 1) throw new Error("TONTINE_PAYOUT_INITIATION_CONFLICT");
+    await this.db.transaction(async tx => {
+      // Serialize initiation against hold creation. Migration 121 makes hold writes
+      // lock the matching payout row before becoming visible.
+      const selected = await tx.query<PayoutRow>(
+        SELECT_PAYOUT + " FOR UPDATE",
+        [organizationId,payoutId]
+      );
+      const row = selected.rows[0];
+      if (!row || String(row.state) !== "approved") throw new Error("TONTINE_PAYOUT_INITIATION_CONFLICT");
+
+      // Fail closed: a query error aborts the transaction, and any active targeted
+      // hold for this payout, beneficiary membership, destination or provider ref
+      // prevents the external provider call from being initiated.
+      const hold = await tx.query<PayoutRow>(
+        `SELECT id FROM tontine_targeted_holds
+         WHERE organization_id=$1 AND released_at IS NULL
+           AND (expires_at IS NULL OR expires_at > now())
+           AND (
+             (scope='payout' AND reference=$2)
+             OR (scope='membership' AND reference=$3)
+             OR (scope='provider_reference' AND reference IN ($4,$5))
+           )
+         LIMIT 1`,
+        [organizationId,payoutId,String(row.beneficiary_membership_id),String(row.destination_ref),providerReference]
+      );
+      if (hold.rows.length > 0) throw new Error("TONTINE_PAYOUT_TARGETED_HOLD_ACTIVE");
+
+      const updated = await tx.query(
+        `UPDATE payout_intents SET state='initiated',provider=$3,provider_reference=$4
+         WHERE organization_id=$1 AND payout_id=$2 AND state='approved'`,
+        [organizationId,payoutId,provider,providerReference]
+      );
+      if ((updated.rowCount ?? 0) !== 1) throw new Error("TONTINE_PAYOUT_INITIATION_CONFLICT");
+    });
   }
 
   async markFailed(organizationId: UUID, payoutId: UUID): Promise<void> {
