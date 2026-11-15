@@ -18,7 +18,8 @@ function proposal(overrides: Partial<TontineProposal> = {}): TontineProposal {
     groupId: "123e4567-e89b-42d3-a456-426614174004" as never,
     proposerId: voterA,
     type: "rule_change",
-    payload: { reason: "Test" },
+    payloadVersion: 1,
+    payloadHash: "a".repeat(64),
     status: "open",
     openedAt: "2026-11-15T10:00:00.000Z",
     closesAt: "2026-11-16T10:00:00.000Z",
@@ -103,5 +104,5 @@ test("member-vote governance blocks actions until the proposal is approved", () 
 });
 
 test("manager governance does not require a member-vote proposal", () => {
-  assert.doesNotThrow(() => assertGovernanceAction("manager", proposal()));
+  assert.doesNotThrow(() => assertGovernanceAction("founder_managed", proposal()));
 });
