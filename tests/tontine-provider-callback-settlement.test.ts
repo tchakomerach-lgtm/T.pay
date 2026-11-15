@@ -86,12 +86,6 @@ test("same provider event with a different payload is durably rejected without L
 
 
 test("same payload cannot revive a callback receipt already marked rejected",async()=>{
-  const {db}=database(sql=>{
-    if(sql.includes("FROM tontine_provider_callback_receipts"))return {rows:[{
-      provider_event_id:"event-001",payout_id:payoutId,payload_sha256:"same-payload-hash",state:"rejected"
-    }],rowCount:1};
-    return {rows:[],rowCount:1};
-  });
   let settled=false;
   const cryptoHash = await import("node:crypto");
   const payloadSha256 = cryptoHash.createHash("sha256").update(callback.rawBody,"utf8").digest("hex");
@@ -105,5 +99,4 @@ test("same payload cannot revive a callback receipt already marked rejected",asy
     settle:async()=>{settled=true;}
   }),/TONTINE_CALLBACK_REPLAY_PAYLOAD_MISMATCH/);
   assert.equal(settled,false);
-  void db;
-});
+ });
