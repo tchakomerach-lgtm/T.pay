@@ -22,7 +22,7 @@ test("School HTTP rejects mutation without idempotency key",async()=>{
  const server=createSchoolApiServer({db:db() as any,authenticate:async()=>auth(),syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any});
  await new Promise<void>(resolve=>server.listen(0,resolve)); const port=(server.address() as any).port;
  const res=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"application/json"},body:"{}"});
- assert.equal(res.status,400); await new Promise<void>(resolve=>server.close(()=>resolve()));
+ assert.equal(res.status,400); const body=await res.json() as any; assert.equal(body.code,"API_IDEMPOTENCY_KEY_INVALID"); await new Promise<void>(resolve=>server.close(()=>resolve()));
 });
 
 
@@ -31,7 +31,7 @@ test("P047 HTTP rejects oversized payloads and malformed realtime cursors",async
  await new Promise<void>(resolve=>server.listen(0,resolve)); const port=(server.address() as any).port;
  try{
   const oversized=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"047-large"},body:JSON.stringify({blob:"x".repeat(1024*1024+1)})});
-  assert.equal(oversized.status,400);
+  assert.equal(oversized.status,400); const oversizedBody=await oversized.json() as any; assert.equal(oversizedBody.code,"PAYLOAD_TOO_LARGE");
   const malformed=await fetch(`http://127.0.0.1:${port}/v1/education/events/stream`,{headers:{"last-event-id":"not-a-sequence"}});
   assert.equal(malformed.status,400);
  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
@@ -71,7 +71,7 @@ test("P049 fortress request envelope rejects oversized URL/header and emits hard
   assert.equal(longHeader.status,400);
 
   const oversizedLength=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"p049-length"},body:JSON.stringify({blob:"x".repeat(1024*1024+1)})});
-  assert.equal(oversizedLength.status,400);
+  assert.equal(oversizedLength.status,400); const oversizedLengthBody=await oversizedLength.json() as any; assert.equal(oversizedLengthBody.code,"PAYLOAD_TOO_LARGE");
 
   const sse=await fetch(`http://127.0.0.1:${port}/v1/education/events/stream`,{headers:{accept:"text/event-stream"}});
   assert.equal(sse.status,200);
