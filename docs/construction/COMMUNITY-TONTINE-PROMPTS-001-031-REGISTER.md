@@ -1,57 +1,145 @@
-# Community Tontine — Prompt 001–031 integration register
+# Bible Tontine communautaire — Registre historique récupéré des prompts 001 à 031
 
-**Status:** construction register; not a certification document.
-**Target:** `tchakomerach-lgtm/T.pay`, branch `feat/community-tontine-prompt-001-031`.
-**Rule:** a prompt is complete only when its exact Bible requirements are traced to implementation, UI/API, persistence, authorization, tests and CI evidence.
+**Dépôt :** `tchakomerach-lgtm/T.pay`  
+**Branche :** `feat/community-tontine-prompt-001-031`  
+**PR :** #194 (brouillon)  
+**Nature du document :** reconstruction à partir des conversations historiques récupérées. Ce document distingue les éléments explicitement retrouvés des prompts dont le texte intégral n'a pas été retrouvé. Il ne remplace pas les prompts originaux mot pour mot.
 
-## Domain invariants (apply to all 31 prompts)
+## Règles transversales obligatoires
 
-1. Community Tontine is an independent product domain. A partner microfinance supplies scoped services; it does not own community constitution, rotation, votes or group administration.
-2. T.Pay Financial Core is the sole authority for posted money. Tontine has no parallel ledger.
-3. Provider response/callback is evidence, not settlement. `provider_pending` and provider-reported completion are not a confirmed contribution or payout.
-4. Every financial command is tenant/group scoped, idempotent, auditable and concurrency-safe.
-5. Offline capture is a signed operational intent only; it cannot mutate balances or Ledger.
-6. Fee/commission rules and minimum contribution are versioned policy data. No universal hard-coded contribution floor or commission rate.
-7. Mismatch, dispute, replay, timeout or uncertain status fails closed and opens reconciliation; never self-heal silently.
-8. Historical events and posted Ledger entries are immutable; correction uses compensating Financial Core transactions.
+- La Tontine communautaire est un domaine produit indépendant. Les microfinances partenaires fournissent des services limités et consentis; elles ne prennent pas le contrôle de la gouvernance, de la constitution, des votes ou de la rotation communautaire.
+- Le Financial Core de T.Pay est l'unique autorité des écritures financières confirmées. Aucun second ledger tontine.
+- Une réponse fournisseur, un webhook non vérifié ou un état `provider_pending` ne constitue pas un règlement. Vérification de signature/fraîcheur, anti-rejeu, rapprochement et transaction Financial Core sont obligatoires.
+- Chaque commande est autorisée par tenant/groupe, idempotente, auditée et résistante à la concurrence.
+- Les opérations offline sont des intentions signées à synchroniser; elles ne modifient jamais directement le Ledger.
+- Les commissions, frais et seuils sont des politiques versionnées et auditables. Toute règle de taux issue d'un prompt doit être réconciliée avec le moteur de politique et les exigences contractuelles/réglementaires; ne pas coder silencieusement un taux global.
+- Les écarts, litiges, suspicions, expirations et timeouts passent par un état d'exception et la réconciliation; aucune correction silencieuse.
+- Les écritures postées et événements historiques sont immuables; correction par transaction compensatoire.
 
-## Prompt source integrity
+## Inventaire historique par prompt
 
-The current repository exposes the general tontine architecture and implementation skills, plus historical references for Prompt 001, Prompt 003 and Prompt 028. It does **not** currently contain the authoritative full text/title of all prompts 001–031 as a single source. This register therefore does not invent the missing prompt titles or requirements. The complete Bible source must be imported into `docs/bibles/` before the 31 individual prompts can be certified as faithfully implemented.
+### Prompt 001 — Fondations de la Tontine communautaire
+Le registre historique confirme un prompt fondateur couvrant le périmètre, l'architecture, les rôles, les états, les workflows, les règles métier, les cycles, les cotisations, l'idempotence, le mode offline, la gouvernance, le risque/IA, l'audit, les API, l'isolation tenant, les intégrations, l'observabilité, les tests et les critères d'acceptation. Le titre exact et le texte intégral ne sont pas récupérés.  
+**Code existant associé :** ADR-004, TPAY-TONTINE-CYCLE-001, community-tontine.ts, community-tontine-service.ts, cycle/rules/reconciliation.  
+**État :** partiel; ne pas certifier sans texte original, UI/API réelle et preuves.
 
-| Prompt | Requirements recoverable from current records | Existing implementation evidence | Status |
-|---|---|---|---|
-| 001 | Foundations, scope, architecture, roles, states, workflows, rules engine, scheduler, contributions, idempotency, offline, governance, risk/AI, audit, APIs, tenancy, integrations, observability, tests and acceptance criteria | `ADR-004-community-tontine.md`, `TPAY-TONTINE-CYCLE-001.md`, `community-tontine.ts`, `community-tontine-service.ts`, cycle/rules/reconciliation modules | Partial; UI/API wiring and full evidence required |
-| 002 | Full authoritative prompt text not present in current repository/context | Not safely attributable without source text | Source required |
-| 003 | Ultra-secure independent Tontine ↔ Microfinance integration: partner connectors, identity mapping/consent, payment intents/webhooks, routing, reconciliation, settlement, credit separation, disputes/audit and kill switch | `community-tontine-mf-*.ts`, migrations 106–114, settlement repository/approval tests | Partial; live provider and full end-to-end proof required |
-| 004–027 | Full authoritative prompt texts not present in current repository/context | Existing modules may cover overlapping capabilities; no prompt-level attribution is asserted | Source required |
-| 028 | Unified Trust Fabric for human/org/community/device/session/document/transaction/AI identities; passkeys/WebAuthn, attestations, RBAC/ABAC, intent provenance, offline signatures, recovery, security events, KYA, keys, privacy and deployment phases | Identity/passkey/security contracts and tontine offline envelope exist; integration coverage must be demonstrated | Partial; cross-domain binding and end-to-end tests required |
-| 029–031 | Full authoritative prompt texts not present in current repository/context | No prompt-level attribution is asserted | Source required |
+### Prompt 002 — Texte historique non récupéré
+Titre, exigences et critères d'acceptation non retrouvés. Ne pas inventer.
 
-## Current implementation map (not a substitute for the prompt texts)
+### Prompt 003 — Intégration ultra-sécurisée Tontine communautaire ↔ Microfinance
+Résumé historique : connecteurs partenaires; identité et consentement; intents de paiement et webhooks; routage multi-partenaires; règlement et rapprochement; séparation du crédit et de la tontine; litiges, audit et kill switch.  
+**Code associé :** community-tontine-mf-*.ts, migrations 106–114, repositories/approval/settlement.  
+**État :** partiel; adaptateurs fournisseurs réels et E2E restent à prouver.
 
-- **Domain and rules:** `community-tontine.ts`, `tontine-rules.ts`, `tontine-cycle.ts`, `tontine-rotation.ts`.
-- **Contribution and payout orchestration:** `community-tontine-service.ts`, `tontine-payout.ts`, `tontine-payout-orchestrator.ts`, `tontine-payout-settlement.ts`.
-- **Persistence and isolation:** `tontine-repositories.ts`, `community-tontine-mf-repositories.ts`, migrations 100–114.
-- **Provider callbacks and reconciliation:** `tontine-provider-callback.ts`, `tontine-reconciliation.ts`, `tontine-receipt-evidence.ts`.
-- **Offline and continuity:** `tontine-offline.ts`, migration 102.
-- **Governance, cases and intelligence:** `tontine-governance.ts`, `tontine-governance-policy.ts`, `tontine-case.ts`, `tontine-economic-network.ts`, `tontine-intelligence.ts`.
-- **Partner microfinance:** `community-tontine-mf-operations.ts`, `community-tontine-mf-approval.ts`, `community-tontine-mf-settlement-repository.ts`.
-- **Tests:** `tests/community-tontine*.test.ts`, `tests/tontine-*.test.ts`.
+### Prompt 004 — Texte historique non récupéré
+Titre et exigences non retrouvés.
 
-## Defect fixed in this construction increment
+### Prompt 005 — Tontine multi-microfinances, collecte individuelle, rotation, distribution et commissions
+Résumé historique : chaque participant peut choisir sa microfinance; fréquence et montant de cotisation configurables; collecte individuelle; rotation des bénéficiaires; distribution; commissions; Mobile Money; consentements et rapprochement. L'indépendance de la tontine doit être préservée malgré plusieurs partenaires.  
+**État :** exigences fonctionnelles historiques retrouvées sous forme de résumé; vérifier chaque flux dans l'implémentation.
 
-`initiateContributionPayment` previously emitted `tontine.contribution.confirmed` when a provider initiation response said `completed`. That conflated provider-reported status with verified Financial Core settlement. It now keeps the domain result `pending`, exposes the provider-reported status separately, and emits `provider_reported_completed` as evidence only. A regression test asserts that this path never emits a confirmed event.
+### Prompt 006 — Rotation Engine & Distribution Engine
+Résumé historique : moteur d'ordre de bénéficiaires auditable; gestion des pots avec états expected/collected/cleared/distributable; règlement; retraits; double entrée exclusivement via Financial Core. Rotation non modifiable rétroactivement sans procédure gouvernée et auditée.  
+**État :** résumé récupéré; tests de concurrence et preuves de règlement nécessaires.
 
-## Release and UI/API integration gates
+### Prompt 007 — Trust & Admission Engine
+Résumé historique : admission des membres; attestation de microfinance; capacité de cotisation; cautionnement communautaire; score explicable; décision d'admission et piste d'audit. Le score ne doit pas devenir une décision opaque; recours humain et minimisation des données à appliquer.  
+**État :** résumé récupéré; critères détaillés du score et du recours à confirmer dans le prompt source.
 
-- Publish the exact Bible prompts 001–031 under `docs/bibles/` and map every requirement to a stable requirement ID.
-- For each requirement, record: domain rule, screen/state, API route, authorization policy, DB constraint/migration, audit event, test ID, observability signal and acceptance evidence.
-- Wire real authenticated API routes and Web/Mobile screens to the domain services; domain TypeScript modules alone do not constitute a usable application interface.
-- Add PostgreSQL live/concurrency tests for contribution idempotency, beneficiary claims, provider replay, tenant isolation, maker/checker and rollback.
-- Run typecheck, unit tests, PostgreSQL integration, security fortress, web build, dependency audit and Android build on the exact candidate SHA.
-- Keep release blocked until GitHub Actions has assigned a real runner and all required jobs have executed successfully. A job failing with runner_id 0 and no steps/logs is an infrastructure blocker, not a source test result.
+### Prompt 008 — Collection Engine & Agent Terrain
+Résumé historique : agents terrain; tournées; QR; collecte offline; preuves; synchronisation et réconciliation; gestion des litiges; contrôles antifraude. Réaffectation d'un agent sans changer l'identité de la cotisation. Géolocalisation = preuve contextuelle, jamais facteur unique d'authentification.  
+**État :** résumé récupéré; application terrain et chaîne offline réelle à valider.
 
-## Acceptance rule
+### Prompt 009 — Smart Distribution & Inter-Microfinance Settlement
+Résumé historique : versement bénéficiaire; netting entre microfinances; destination du bénéficiaire; états de règlement; rapprochement multi-institutions. Le netting ne peut pas créer de monnaie ni contourner le Financial Core.  
+**État :** résumé récupéré; connecteurs et settlement live requis.
 
-No prompt is marked complete based on a filename, a planned component, a mock, a domain-only function or a test that did not execute. Completion requires the authoritative prompt text, production implementation, real persistence/API/UI wiring, negative security tests, live PostgreSQL evidence where applicable and green CI on the exact SHA.
+### Prompt 010 — Rotation intelligente, ordre des bénéficiaires & protection du tour
+Titre retrouvé. Le texte détaillé n'a pas été récupéré. Le périmètre explicitement connu porte sur la rotation intelligente, l'ordre et la protection du tour du bénéficiaire. Ne pas ajouter de règles précises non confirmées.
+
+### Prompt 011 — Smart Collection & Settlement Reconciliation Fabric
+Résumé historique : Contribution Truth Engine; états expected/collected/confirmed/settled/reserved/distributed; synchronisation multi-microfinance; snapshots de cycle; rapprochement; event bus; observabilité; gestion des opérations offline et isolation des pannes. Le moteur doit établir la vérité de la contribution depuis les preuves vérifiées et le Ledger, pas depuis une déclaration client/fournisseur.
+
+### Prompt 012 — Risk, Fraud & Collusion Command Center
+Résumé historique : RiskEvent et RiskGraph; détection comportementale, appareil/compte compromis, fraude fournisseur, collusion; playbooks; holds ciblés; dossiers d'enquête; décision humaine; appels; gouvernance ML/IA et traçabilité. Les blocages doivent être proportionnés, limités et contestables.
+
+### Prompt 013 — Community Geo-Trust & Participation Boundary Engine
+Résumé historique : couverture pays/région/ville/polygone/rayon; preuves d'identité, de localisation et d'affiliation microfinance; consentement; signaux géographiques minimisés; protection de la vie privée; revue collaborative des risques. La position n'est pas une preuve d'identité.
+
+### Prompt 014 — Zero Trust Tontine & Cyber Resilience Fabric
+Résumé historique : sécurité des administrateurs et microfinances; MFA; appareils; coffre et rotation des clés; séparation des environnements; anti-bot; sauvegardes immuables; reprise après sinistre; continuité offline. Gouvernance de commissions avec séparation des comptes participant/T.Pay/microfinance/administration, CommissionSplitEngine, AdminCommissionAccount et FeePolicyEngine; wallets séparés; tests de sécurité, commissions et recovery.
+
+### Prompt 015 — Dynamic Commission Governance & Pricing Control Fabric
+Résumé historique : T.Pay fixe, autorise ou négocie le taux; modes FIXED, ADMIN_SELECT, NEGOTIABLE et HYBRID; Policy Resolver; versions; PricingSnapshot; vote/quorum; Fee Lock; transparence; APIs; simulation et tests de gouvernance tarifaire. Une synthèse historique mentionne un plancher serveur de 6%; cette règle doit être confirmée dans le prompt source et son champ légal/contractuel avant activation. Elle ne doit pas être confondue avec un taux universel arbitraire dans le domaine.
+
+### Prompt 016 — Tontine Growth, Promotion & Multi-Platform Distribution Fabric
+Résumé historique : promotion T.Pay et externe; profils publics; découverte marketplace; boosts gratuits/payants; QR et deep links; WhatsApp, Facebook, Instagram, TikTok, Telegram, SMS et email; attribution et analytics de campagne; media kits; modération; antifraude; confidentialité; gel/révocation de campagne.
+
+### Prompt 017 — Trusted Recruitment, Referral & Community Ambassador Engine
+Résumé historique : workflow candidat; quotas et sur-réservation; liste d'attente; parrainage et cautions; ambassadeurs; RBAC/ABAC; anti-spam/bot/Sybil; vérification microfinance; score de confiance; appels; expiration; remplacement; dates de verrouillage; recrutement offline; événements; analytics; garde-fous sur récompenses.
+
+### Prompt 018 — Texte historique non récupéré
+Le numéro apparaît dans la séquence historique, mais titre et exigences détaillées ne sont pas récupérés. Ne pas inventer.
+
+### Prompt 019 — Smart Contribution Collection & Real-Time Tontine Operations Engine
+Résumé historique : cotisations identifiées par cycle; suivi des montants et statuts, y compris partiels; opérations tontine en temps réel. Le détail complet du schéma et des critères n'a pas été récupéré. À relier au Contribution Truth Engine et au settlement sécurisé du Prompt 011.
+
+### Prompt 020 — Tontine Dispute, Incident & Recovery Engine
+Résumé historique : litiges; incidents; collecte et conservation des preuves; holds ciblés; médiation; récupération; rapprochement; agents offline; SLA; appels; analyse des causes racines et prévention; Safe Mode. Les incidents ne doivent pas autoriser de correction directe du Ledger.
+
+### Prompt 021 — Tontine Trust, Risk & Community Safety Engine
+Résumé historique : confiance et risque dynamiques; garanties; comportements collectifs; prévention de fraude de groupe; sécurité communautaire; tontines individuelles et B2B/inter-entreprises. Distinguer le risque individuel, le risque du groupe, le risque partenaire et le risque systémique; décisions explicables et recours.
+
+### Prompt 022 — Texte incomplet / objectif partiellement retrouvé
+L'historique comporte une section intitulée « Objectif du PROMPT 022 » à proximité du Prompt 021, mais le titre exact et le corps complet ne sont pas récupérés. Ne pas attribuer arbitrairement un titre ou des fonctions.
+
+### Prompt 023 — Capital Allocation & Beneficiary Orchestration
+Résumé historique : positions bénéficiaires; méthodes d'allocation; priorités; readiness; réserves; pools de projets; routage multi-tontines; analytics de concentration et d'équité; prévisions; séparation stricte du Financial Core. L'orchestrateur propose/coordonne l'allocation, mais seul le Financial Core exécute les mouvements comptables.
+
+### Prompt 024 — Tontine Economic Network & Community Market Engine
+Résumé historique : agrégation de la demande communautaire; RFQ; achats groupés et approvisionnement; intelligence fournisseurs; commandes; livraison; qualité; retours; opportunités B2B; antifraude/anti-collusion; commerce offline. Les achats et ventes sont des opérations distinctes des cotisations et du Ledger tontine.
+
+### Prompt 025 — Tontine Inter-Community Network & Cross-Tontine Coordination Engine
+Titre retrouvé; détails historiques partiels. Coordination entre communautés/tontines, interopérabilité et coopération cross-tontine. Toute fédération doit préserver l'isolation tenant, le consentement, la gouvernance locale et la séparation des fonds; pas de transfert implicite de pouvoir entre groupes. Détails complets à récupérer.
+
+### Prompt 026 — Tontine Community Intelligence, Economic Digital Twin & Predictive Decision Engine
+Titre retrouvé; résumé historique : intelligence communautaire; jumeau numérique économique; prévisions et aide à la décision. Les projections doivent être distinguées des données financières confirmées; explicabilité, provenance, qualité des données, scénarios et validation humaine obligatoires. Détails complets à récupérer.
+
+### Prompt 027 — T.Pay Autonomous Operations & Agentic Control Plane
+Titre retrouvé; résumé historique partiel : plan de contrôle d'opérations autonomes/agents. Les agents peuvent observer, recommander et exécuter uniquement des actions explicitement autorisées; permissions bornées dans le temps, provenance d'intention, journal d'audit, approbation humaine et kill switch pour actions sensibles. Aucun agent ne peut contourner les règles du Financial Core.
+
+### Prompt 028 — T.Pay Real-Time Trust, Identity & Agent Security Fabric
+Résumé historique détaillé : identité unifiée humain/organisation/microfinance/appareil/session/document/transaction/agent IA; preuves et attestations vérifiables; divulgation sélective respectueuse de la vie privée; passkeys/WebAuthn; confiance appareil/session; authentification adaptative au risque; autorisation OPA/Cedar RBAC/ABAC; KYA (Know Your Agent); jetons d'intention et chaîne cryptographique intention→action→transaction; KMS/HSM et rotation des clés; identités service/API; récupération; anti-SIM-swap et anti-Sybil; événements offline signés et anti-rejeu; Security Event Fabric; fédération d'identité; Trust Tokens; machine à états; APIs/modèle de données; tests, red team, phases MVP, KPIs et architecture.
+
+### Prompt 029 — T.Pay Real-Time Fraud, Anti-Money-Laundering, Anti-Scam & Financial Crime Intelligence Engine
+Titre proposé dans l'historique; contenu détaillé non récupéré. Intention explicitement retrouvée : séparer détection, investigation, conformité, blocages préventifs, décisions humaines et exécution financière. Ne pas présenter comme spécification approuvée complète.
+
+### Prompt 030 — Texte historique non récupéré
+Titre, exigences et critères d'acceptation non retrouvés.
+
+### Prompt 031 — Texte historique non récupéré
+Titre, exigences et critères d'acceptation non retrouvés.
+
+## Carte de code connue dans le dépôt
+
+- Domaine/règles : `community-tontine.ts`, `tontine-rules.ts`, `tontine-cycle.ts`, `tontine-rotation.ts`.
+- Contribution/payout : `community-tontine-service.ts`, `tontine-payout.ts`, `tontine-payout-orchestrator.ts`, `tontine-payout-settlement.ts`.
+- Persistance/isolation : `tontine-repositories.ts`, `community-tontine-mf-repositories.ts`, migrations 100–114.
+- Callbacks/rapprochement : `tontine-provider-callback.ts`, `tontine-reconciliation.ts`, `tontine-receipt-evidence.ts`.
+- Offline/continuité : `tontine-offline.ts`, migration 102.
+- Gouvernance/cas/intelligence : `tontine-governance.ts`, `tontine-governance-policy.ts`, `tontine-case.ts`, `tontine-economic-network.ts`, `tontine-intelligence.ts`.
+- Microfinance partenaire : `community-tontine-mf-operations.ts`, `community-tontine-mf-approval.ts`, `community-tontine-mf-settlement-repository.ts`.
+
+## État de récupération
+
+- **Résumé récupéré :** prompts 001, 003, 005–009, 011–017, 019–021, 023–028.
+- **Titre ou intention seulement :** prompts 010 et 029.
+- **Partiel/incomplet :** prompts 022, 025–027.
+- **Non récupéré :** prompts 002, 004, 018, 030, 031.
+- Ce document est une reconstruction des éléments retrouvés dans les conversations antérieures; il ne prétend pas contenir le texte intégral mot pour mot de chacun des 31 prompts.
+
+## Portes de réalisation et d'acceptation
+
+Pour chaque prompt, transformer chaque exigence en identifiant stable et tracer : règle métier, écran Web/Mobile, état UI, endpoint API authentifié, permission, contrainte/migration DB, événement d'audit, test, signal d'observabilité et preuve d'acceptation.
+
+Ne pas déclarer un prompt terminé à partir d'un nom de fichier, d'un mock, d'un module de domaine isolé ou d'un test non exécuté. Exiger UI/API réellement câblées, persistance réelle, tests négatifs de sécurité, tests PostgreSQL/concurrence pertinents et CI verte sur le SHA exact. Un échec GitHub Actions avec `runner_id=0`, zéro étape et aucun log est un blocage d'infrastructure, pas un résultat de test.
