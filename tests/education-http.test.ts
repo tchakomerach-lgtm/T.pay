@@ -70,7 +70,7 @@ test("P049 fortress request envelope rejects oversized URL/header and emits hard
   const longHeader=await fetch(`http://127.0.0.1:${port}/v1/education/actors/teacher-1`,{headers:{"x-correlation-id":"a".repeat(4097)}});
   assert.equal(longHeader.status,400);
 
-  const oversizedLength=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"application/json","content-length":String(1024*1024+1),"x-idempotency-key":"p049-length"},body:"{}"});
+  const oversizedLength=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"p049-length"},body:JSON.stringify({blob:"x".repeat(1024*1024+1)})});
   assert.equal(oversizedLength.status,400);
 
   const sse=await fetch(`http://127.0.0.1:${port}/v1/education/events/stream`,{headers:{accept:"text/event-stream"}});
