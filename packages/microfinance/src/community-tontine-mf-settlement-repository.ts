@@ -40,7 +40,7 @@ export class PostgresCommunityTontineMfSettlementRepository implements Community
         `INSERT INTO community_tontine_mf_settlement_instructions
          (id,organization_id,tontine_group_id,microfinance_id,payout_id,beneficiary_client_id,
           amount_minor,currency,destination_ref,requires_human_approval,prepared_by,approved_by,state)
-         SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NULL,'prepared'
+         SELECT $1,$2,$3,$4,$5,$6,$7,$8::text,$9,$10,$11,NULL,'prepared'
          FROM payout_intents pi
          JOIN tontine_beneficiary_slots slot
            ON slot.id=pi.tontine_slot_id AND slot.organization_id=pi.organization_id
@@ -53,7 +53,7 @@ export class PostgresCommunityTontineMfSettlementRepository implements Community
            AND slot.group_id=$3 AND slot.status='eligible'
            AND beneficiary.client_id=$6 AND beneficiary.status='active'
            AND beneficiary.selected_microfinance_id=$4
-           AND pi.amount_minor=$7 AND pi.currency=$8 AND pi.destination_ref=$9
+           AND pi.amount_minor=$7 AND pi.currency=$8::text AND pi.destination_ref=$9
            AND pi.requires_human_approval=true AND pi.kyc_verified=true
            AND pi.state='approved'
          ON CONFLICT DO NOTHING
