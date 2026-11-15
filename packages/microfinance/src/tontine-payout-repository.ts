@@ -129,13 +129,30 @@ export class PostgresTontinePayoutRepository {
       const selected = await tx.query<PayoutRow>(SELECT_PAYOUT + " FOR UPDATE", [organizationId,payoutId]);
       const row = selected.rows[0];
       if (!row) throw new Error("TONTINE_PAYOUT_NOT_FOUND");
-      if (String(row.state) !== "pending_approval" || !Boolean(row.requires_human_approval) || !Boolean(row.kyc_verified)) {
-        throw new Error("TONTINE_PAYOUT_NOT_APPROVABLE");
-      }
       if (approval.payoutId !== payoutId || approval.decision !== "approve" || !approval.approverId.trim()) {
         throw new Error("TONTINE_PAYOUT_APPROVAL_INVALID");
       }
       if (approval.approverId === String(row.beneficiary_id)) throw new Error("PAYOUT_SELF_APPROVAL_FORBIDDEN");
+
+      // A client may lose the HTTP response after the transaction commits.
+      // Treat an identical approval replay as success, but reject a changed actor/reason.
+      if (String(row.state) === "approved") {
+        const prior = await tx.query<PayoutRow>(
+          "SELECT decision,reason FROM payout_approvals WHERE payout_id=$1 AND approver_id=$2",
+          [payoutId,approval.approverId]
+        );
+        const savedApproval = prior.rows[0];
+        if (!savedApproval || savedApproval.decision !== "approve" ||
+            (savedApproval.reason ?? null) !== (approval.reason ?? null)) {
+          throw new Error("TONTINE_PAYOUT_APPROVAL_CONFLICT");
+        }
+        const replayed = await tx.query<PayoutRow>(SELECT_PAYOUT, [organizationId,payoutId]);
+        if (!replayed.rows[0]) throw new Error("TONTINE_PAYOUT_NOT_FOUND");
+        return toPayout(replayed.rows[0]);
+      }
+      if (String(row.state) !== "pending_approval" || !Boolean(row.requires_human_approval) || !Boolean(row.kyc_verified)) {
+        throw new Error("TONTINE_PAYOUT_NOT_APPROVABLE");
+      }
       const saved = await tx.query(
         `INSERT INTO payout_approvals(payout_id,approver_id,decision,reason,approved_at)
          VALUES($1,$2,'approve',$3,$4::timestamptz)
