@@ -1,5 +1,5 @@
 const modules = [
-  {id:"home",label:"Vue d'ensemble",icon:"⌂",group:"Espace de travail",desc:"Le cockpit unifié de l'écosystème T.Pay."},
+  {id:"home",label:"Vue d’ensemble",icon:"⌂",group:"Espace de travail",desc:"Le cockpit unifié de l’écosystème T.Pay."},
   {id:"organizations",label:"Organisations",icon:"▦",group:"Espace de travail",desc:"Création, identité, équipes et espaces de travail."},
   {id:"education",label:"School OS",icon:"▤",group:"Verticales",desc:"Gestion scolaire, pédagogie, familles et documents."},
   {id:"subsidy",label:"School Subsidy",icon:"◈",group:"Verticales",desc:"Financement garanti, fournitures et recouvrement progressif."},
@@ -11,7 +11,7 @@ const modules = [
   {id:"opportunity",label:"Opportunité & Work",icon:"↗",group:"Économie",desc:"Compétences, matching, contrats et missions."},
   {id:"social",label:"Réseau social",icon:"◎",group:"Économie",desc:"Publications, communautés et modération."},
   {id:"investment",label:"Investment Core",icon:"▥",group:"Finance",desc:"Éducation, opportunités, risques et scénarios."},
-  {id:"ai",label:"AI Core",icon:"✳",group:"Intelligence",desc:"Orchestration d'agents, politiques et validation humaine."},
+  {id:"ai",label:"AI Core",icon:"✳",group:"Intelligence",desc:"Orchestration d’agents, politiques et validation humaine."},
   {id:"documents",label:"Documents",icon:"▧",group:"Pilotage",desc:"Modèles versionnés, identité et traçabilité documentaire."},
   {id:"workflows",label:"Workflows & projets",icon:"⇢",group:"Pilotage",desc:"Tâches, étapes, dépendances et validations."},
   {id:"calendar",label:"Temps & réservations",icon:"▦",group:"Pilotage",desc:"Calendriers, réunions et arbitrage des ressources."},
@@ -31,7 +31,7 @@ const seed = {
     {name:"Yao K.",ref:"CLI-0043",agency:"Lomé Centre",status:"Actif"}
   ],
   posts:[
-    {author:"Équipe T.Pay",body:"Bienvenue dans le réseau de démonstration T.Pay OS.",time:"À l'instant"},
+    {author:"Équipe T.Pay",body:"Bienvenue dans le réseau de démonstration T.Pay OS.",time:"À l’instant"},
     {author:"École Lumière",body:"Les inscriptions pour la rentrée sont ouvertes.",time:"Il y a 2 h"}
   ],
   events:[
@@ -74,7 +74,7 @@ function nav(){
 }
 function shell(){
   const m=moduleById(active);
-  return '<div class="app-shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">T.</div><div><b>T.Pay</b><small>OPERATING SYSTEM</small></div></div><div class="workspace-switch"><span class="workspace-avatar">EL</span><span><b>'+esc(state.org)+'</b><small>'+esc(state.context)+'</small></span><span class="chevron">⌄</span></div><nav>'+nav()+'</nav><div class="sidebar-bottom"><div class="sync-state"><span class="pulse"></span><span>Mode démonstration</span></div><button class="nav-item" data-action="tour"><span class="nav-icon">▷</span><span>Visite investisseur</span></button><div class="profile"><div class="avatar">TA</div><div><b>Administrateur démo</b><small>Accès de démonstration</small></div><span>•••</span></div></div></aside><main class="main"><header class="topbar"><div class="crumb"><span>Workspace</span><b>/</b><strong>'+m.label+'</strong></div><div class="top-actions"><label class="search"><span>⌕</span><input id="global-search" placeholder="Rechercher dans T.Pay..." value="'+esc(search)+'"></label><button class="icon-btn" data-action="notifications" aria-label="Notifications">♧<i></i></button><button class="icon-btn" data-action="help" aria-label="Aide">?</button><div class="avatar small">TA</div></div></header><div class="demo-banner"><span>●</span><b>ENVIRONNEMENT INVESTISSEUR</b><span>Données fictives · Actions simulées · Aucun mouvement d'argent réel</span><button data-action="reset">Réinitialiser la démo</button></div><section class="page" id="page">'+renderPage()+'</section><footer class="footer"><span>T.Pay OS · Investor Prototype</span><span>Prototype non financier · Version de démonstration</span></footer></main></div>'+(modal?renderModal():"")+(tourStep>=0?renderTour():"");
+  return '<div class="app-shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">T.</div><div><b>T.Pay</b><small>OPERATING SYSTEM</small></div></div><div class="workspace-switch"><span class="workspace-avatar">EL</span><span><b>'+esc(state.org)+'</b><small>'+esc(state.context)+'</small></span><span class="chevron">⌄</span></div><nav>'+nav()+'</nav><div class="sidebar-bottom"><div class="sync-state"><span class="pulse"></span><span>Mode démonstration</span></div><button class="nav-item" data-action="tour"><span class="nav-icon">▷</span><span>Visite investisseur</span></button><div class="profile"><div class="avatar">TA</div><div><b>Administrateur démo</b><small>Accès de démonstration</small></div><span>•••</span></div></div></aside><main class="main"><header class="topbar"><div class="crumb"><span>Workspace</span><b>/</b><strong>'+m.label+'</strong></div><div class="top-actions"><label class="search"><span>⌕</span><input id="global-search" placeholder="Rechercher dans T.Pay..." value="'+esc(search)+'"></label><button class="icon-btn" data-action="notifications" aria-label="Notifications">♧<i></i></button><button class="icon-btn" data-action="help" aria-label="Aide">?</button><div class="avatar small">TA</div></div></header><div class="demo-banner"><span>●</span><b>ENVIRONNEMENT INVESTISSEUR</b><span>Données fictives · Actions simulées · Aucun mouvement d\'argent réel</span><button data-action="reset">Réinitialiser la démo</button></div><section class="page" id="page">'+renderPage()+'</section><footer class="footer"><span>T.Pay OS · Investor Prototype</span><span>Prototype non financier · Version de démonstration</span></footer></main></div>'+(modal?renderModal():"")+(tourStep>=0?renderTour():"");
 }
 function renderPage(){
   const m=moduleById(active);
@@ -103,9 +103,9 @@ function table(headers,rows){return '<div class="table-wrap"><table><thead><tr>'
 function dashboard(){
   const ev=state.data.events.slice(0,5).map(e=>'<div class="activity-row"><span class="activity-dot"></span><div><b>'+esc(e.title)+'</b><small>'+esc(e.detail)+'</small></div><time>'+esc(e.time)+'</time></div>').join("");
   return pageHead("PILOTAGE GLOBAL","Votre écosystème, <em>en un seul endroit.</em>","La vue opérationnelle unifiée des organisations, des services et des flux T.Pay.",button("Lancer la visite","tour"))+
-  '<div class="welcome-strip"><div><span class="welcome-chip">T.PAY OS</span><h2>Bonjour, Administrateur.</h2><p>Voici l'activité de votre espace de démonstration.</p></div><div class="welcome-right"><span>Contexte actif</span><b>'+esc(state.org)+'</b><small>Dernière synchronisation : à l'instant</small></div></div>'+
+  '<div class="welcome-strip"><div><span class="welcome-chip">T.PAY OS</span><h2>Bonjour, Administrateur.</h2><p>Voici l’activité de votre espace de démonstration.</p></div><div class="welcome-right"><span>Contexte actif</span><b>'+esc(state.org)+'</b><small>Dernière synchronisation : à l’instant</small></div></div>'+
   '<div class="metric-grid">'+metric("Organisations actives","24","+ 3 ce mois","▦")+metric("Utilisateurs démo","1 284","+ 12,8 %","♙")+metric("Opérations simulées","8 492","Flux multi-domaines","↗")+metric("Volume illustratif",money(28450000),"XOF · valeur fictive","₣")+'</div>'+
-  '<div class="section-title"><div><h2>Applications T.Pay</h2><p>Un système modulaire, unifié par les mêmes règles d'identité et de gouvernance.</p></div><span class="muted">18 espaces</span></div><div class="app-grid">'+modules.filter(x=>x.id!=="home").map(m=>'<button class="app-card" data-nav="'+m.id+'"><span class="app-icon">'+m.icon+'</span><b>'+m.label+'</b><small>'+m.desc+'</small><span class="app-open">Ouvrir →</span></button>').join("")+'</div>'+
+  '<div class="section-title"><div><h2>Applications T.Pay</h2><p>Un système modulaire, unifié par les mêmes règles d’identité et de gouvernance.</p></div><span class="muted">18 espaces</span></div><div class="app-grid">'+modules.filter(x=>x.id!=="home").map(m=>'<button class="app-card" data-nav="'+m.id+'"><span class="app-icon">'+m.icon+'</span><b>'+m.label+'</b><small>'+m.desc+'</small><span class="app-open">Ouvrir →</span></button>').join("")+'</div>'+
   '<div class="two-col">'+panel("Activité récente",ev||'<p class="empty">Aucune activité.</p>', '<span class="muted">Journal démo</span>')+panel("Parcours de valeur T.Pay",'<div class="value-flow">'+["Identité","Organisation","Opérations","Financial Core","Partenaires","IA & Gouvernance"].map((x,i)=>'<div class="flow-step"><span>'+(i+1)+'</span><b>'+x+'</b></div>').join("")+'</div><p class="hint">Une chaîne de valeur intégrée, avec des frontières métier et financières explicites.</p>')+'</div>';
 }
 function organizations(){
@@ -120,21 +120,21 @@ function organizations(){
 }
 function education(){
  const rows=state.data.students.map(s=>'<tr><td><b>'+esc(s.name)+'</b><small>'+esc(s.ref)+'</small></td><td>'+esc(s.class)+'</td><td>'+badge(s.status,s.status==="Inscrit"?"success":"warning")+'</td><td><button class="link-btn" data-action="edit-student" data-ref="'+esc(s.ref)+'">Voir</button></td></tr>');
- return pageHead("SCHOOL OS","La gestion scolaire, <em>sans rupture.</em>","De l'inscription à l'évaluation, des familles aux documents pédagogiques.",button("＋ Ajouter un élève","add-student"))+
+ return pageHead("SCHOOL OS","La gestion scolaire, <em>sans rupture.</em>","De l’inscription à l’évaluation, des familles aux documents pédagogiques.",button("＋ Ajouter un élève","add-student"))+
  '<div class="tabs">'+["Vue générale","Élèves","Enseignants","Classes","Notes & bulletins","Présences","Familles"].map((x,i)=>'<button class="tab '+(i===0?"selected":"")+'" data-tab="'+x+'">'+x+'</button>').join("")+'</div>'+
  '<div class="metric-grid">'+metric("Élèves inscrits",state.data.students.length,"Données de démonstration","♙")+metric("Enseignants","32","Affectations suivies","♧")+metric("Classes","18","Année 2026–2027","▤")+metric("Présence du jour","94,2 %","Taux illustratif","✓")+'</div>'+
  panel("Registre des élèves",table(["Élève","Classe","Statut","Dossier"],rows))+
  '<div class="two-col">'+panel("Chaîne pédagogique",'<div class="value-flow vertical">'+["Année scolaire","Classes & affectations","Élèves & responsables","Présences & évaluations","Validation des notes","Bulletins & relevés"].map((x,i)=>'<div class="flow-step"><span>'+(i+1)+'</span><b>'+x+'</b></div>').join("")+'</div>')+panel("Documents scolaires",'<div class="document-card"><span>▤</span><div><b>Bulletin trimestriel</b><small>Modèle versionné · Logo établissement</small></div>'+badge("Aperçu","info")+'</div><div class="document-card"><span>▧</span><div><b>Relevé de notes</b><small>Coefficients et périodes configurables</small></div>'+badge("Aperçu","info")+'</div><p class="hint">Les frais scolaires passent exclusivement par le Financial Core.</p>')+'</div>';
 }
 function subsidy(){
- return pageHead("SCHOOL SUBSIDY","Financer l'année scolaire, <em>progressivement.</em>","Un mécanisme de garantie microfinance, d'approvisionnement et de récupération encadrée.",button("＋ Nouvelle demande","new-subsidy"))+
+ return pageHead("SCHOOL SUBSIDY","Financer l’année scolaire, <em>progressivement.</em>","Un mécanisme de garantie microfinance, d’approvisionnement et de récupération encadrée.",button("＋ Nouvelle demande","new-subsidy"))+
  '<div class="metric-grid">'+metric("Demandes suivies","12","États distincts","▧")+metric("Budget annuel indicatif",money(18500000),"Cahier des charges","₣")+metric("Packs fournitures","640","Par classe","▣")+metric("Commission cible","1–5 %","Négociable","↗")+'</div>'+
  '<div class="subsidy-flow">'+["École lance un appel","Microfinance étudie et garantit","Cahier des charges financé","Packs remis aux élèves","Tontine journalière de remboursement","Récupération sur écolages"].map((x,i)=>'<div class="subsidy-step"><span>'+(i+1)+'</span><b>'+x+'</b></div>').join("")+'</div>'+
  panel("Dossiers de financement",table(["Établissement","Garant","Montant indicatif","Récupération","Statut"],[
  ["École Lumière","SFD Solidarité",money(8500000),"Écolages + tontine",badge("Étude","warning")],
  ["Institut Horizon","Microfinance Espoir",money(6200000),"Écolages + tontine",badge("Préparation","info")],
  ["Groupe Scolaire Avenir","SFD Solidarité",money(3800000),"Écolages + tontine",badge("Brouillon","neutral")]
- ]))+'<p class="notice-box">Démonstration : aucun prêt, garantie, paiement ou remboursement réel n'est engagé. Le financement et la récupération exigent des contrats, autorisations et écritures Financial Core.</p>';
+ ]))+'<p class="notice-box">Démonstration : aucun prêt, garantie, paiement ou remboursement réel n’est engagé. Le financement et la récupération exigent des contrats, autorisations et écritures Financial Core.</p>';
 }
 function microfinance(){
  const rows=state.data.clients.map(c=>'<tr><td><b>'+esc(c.name)+'</b><small>'+esc(c.ref)+'</small></td><td>'+esc(c.agency)+'</td><td>'+badge(c.status,c.status==="Actif"?"success":"warning")+'</td><td><button class="link-btn" data-action="client-detail">Dossier</button></td></tr>');
@@ -151,14 +151,14 @@ function tontine(){
  ["Femmes Entrepreneures","Mensuel","24","Akossiwa D.",badge("En cours","success")],
  ["Jeunes Bâtisseurs","Objectif","12","À déterminer",badge("Gouvernance","warning")]
  ]))+
- '<div class="two-col">'+panel("Règles de gouvernance",'<div class="check-list">'+["Adhésion et rôles","Quorum et décisions","Rotation déterministe","Calcul du pool net après frais","KYC et approbation du bénéficiaire","Gestion des litiges et remboursements"].map(x=>'<div>✓ <span>'+x+'</span></div>').join("")+'</div>')+panel("Séparation des mécanismes",'<div class="separation"><div><b>Tontine journalière</b><small>Remboursement progressif des packs et dispositifs convenus.</small></div><div><b>Tontine communautaire</b><small>Épargne collective, cycle et rotation des bénéficiaires.</small></div></div><p class="hint">Les deux domaines restent distincts et s'appuient sur le Financial Core pour toute écriture financière.</p>')+'</div>';
+ '<div class="two-col">'+panel("Règles de gouvernance",'<div class="check-list">'+["Adhésion et rôles","Quorum et décisions","Rotation déterministe","Calcul du pool net après frais","KYC et approbation du bénéficiaire","Gestion des litiges et remboursements"].map(x=>'<div>✓ <span>'+x+'</span></div>').join("")+'</div>')+panel("Séparation des mécanismes",'<div class="separation"><div><b>Tontine journalière</b><small>Remboursement progressif des packs et dispositifs convenus.</small></div><div><b>Tontine communautaire</b><small>Épargne collective, cycle et rotation des bénéficiaires.</small></div></div><p class="hint">Les deux domaines restent distincts et s’appuient sur le Financial Core pour toute écriture financière.</p>')+'</div>';
 }
 function finance(){
  return pageHead("FINANCIAL CORE","Une vérité comptable, <em>plusieurs services.</em>","Le moteur canonique des écritures, des règlements, des commissions et du rapprochement.",button("Simuler une opération","simulate-payment"))+
  '<div class="metric-grid">'+metric("Écritures démo","12 842","Ledger illustratif","▤")+metric("Paiements simulés",money(42600000),"Aucun fonds réel","₣")+metric("Rapprochement","98,4 %","Taux fictif","✓")+metric("Exceptions","12","À investiguer","!")+'</div>'+
  '<div class="two-col">'+panel("Cycle de règlement",'<div class="value-flow vertical">'+["Intention de contribution","Payment Intent","Adaptateur partenaire","Webhook signé / anti-rejeu","Transaction Ledger atomique","Commission snapshot","Reçu & rapprochement"].map((x,i)=>'<div class="flow-step"><span>'+(i+1)+'</span><b>'+x+'</b></div>').join("")+'</div>')+panel("Contrôles non négociables",'<div class="check-list">'+["Ledger append-only et équilibré","Idempotence et anti-rejeu","Autorisation côté serveur","Séparation des moteurs financiers","Réconciliation et gestion des exceptions","Validation humaine des opérations sensibles"].map(x=>'<div>✓ <span>'+x+'</span></div>').join("")+'</div>')+'</div>'+
  panel("Moteurs financiers distincts",'<div class="engine-grid">'+["Wallet","Paiements","Crédit","Commissions","Subventions","Règlements"].map(x=>'<div class="engine-card"><span>◈</span><b>'+x+'</b><small>Service métier séparé</small></div>').join("")+'</div>')+
- '<p class="notice-box">Aucune connexion TMoney, Flooz ou banque n'est activée dans cette démonstration. Les adaptateurs de production doivent respecter les contrats opérateurs et les contrôles signés.</p>';
+ '<p class="notice-box">Aucune connexion TMoney, Flooz ou banque n’est activée dans cette démonstration. Les adaptateurs de production doivent respecter les contrats opérateurs et les contrôles signés.</p>';
 }
 function wallet(){
  return pageHead("WALLET","Les comptes et mouvements, <em>clairement séparés.</em>","Une interface unifiée au-dessus des services financiers autorisés.",button("＋ Simuler un mouvement","simulate-payment"))+
@@ -171,10 +171,10 @@ function wallet(){
  ]));
 }
 function marketplace(){
- return pageHead("MARKETPLACE","L'offre et la demande, <em>connectées.</em>","Catalogue, fournisseurs, commandes, achats et logistique.",button("＋ Ajouter un produit","add-product"))+
+ return pageHead("MARKETPLACE","L’offre et la demande, <em>connectées.</em>","Catalogue, fournisseurs, commandes, achats et logistique.",button("＋ Ajouter un produit","add-product"))+
  '<div class="metric-grid">'+metric("Produits","1 240","Catalogue fictif","◇")+metric("Fournisseurs","86","Partenaires démo","▦")+metric("Commandes","324","Cycle de commande","▤")+metric("Volume indicatif",money(9600000),"XOF fictifs","₣")+'</div>'+
  '<div class="product-grid">'+[["Pack scolaire 6e","Fournitures","18 500 F"],["Kit solaire rural","Énergie","42 000 F"],["Céréales locales","Agriculture","8 500 F"],["Service comptable","Services","Sur devis"]].map((p,i)=>'<article class="product-card"><div class="product-art art-'+i+'">'+["▤","☼","⌁","▧"][i]+'</div><div><small>'+p[1]+'</small><b>'+p[0]+'</b><strong>'+p[2]+'</strong></div><button data-action="order-product" data-name="'+p[0]+'">Simuler commande</button></article>').join("")+'</div>'+
- panel("Chaîne d'approvisionnement",'<div class="value-flow">'+["Demande","Validation","Commande","Livraison","Réception","Règlement"].map((x,i)=>'<div class="flow-step"><span>'+(i+1)+'</span><b>'+x+'</b></div>').join("")+'</div>');
+ panel("Chaîne d’approvisionnement",'<div class="value-flow">'+["Demande","Validation","Commande","Livraison","Réception","Règlement"].map((x,i)=>'<div class="flow-step"><span>'+(i+1)+'</span><b>'+x+'</b></div>').join("")+'</div>');
 }
 function opportunity(){
  return pageHead("OPPORTUNITY & WORK","Les compétences deviennent des <em>opportunités.</em>","Du profil à la mission, au contrat, à la livraison et à la confiance.",button("＋ Publier une opportunité","new-opportunity"))+
@@ -188,25 +188,25 @@ function opportunity(){
 }
 function social(){
  const posts=state.data.posts.map(p=>'<article class="post"><div class="post-top"><div class="avatar">'+esc(p.author.slice(0,2).toUpperCase())+'</div><div><b>'+esc(p.author)+'</b><small>'+esc(p.time)+' · Espace organisation</small></div></div><p>'+esc(p.body)+'</p><div class="post-actions"><button data-action="like-post">♡ J’aime</button><button data-action="comment-post">Commenter</button><span>Publication de démonstration</span></div></article>').join("");
- return pageHead("SOCIAL & GROWTH","Les communautés au cœur de <em>l'activité.</em>","Réseaux internes, groupes, communication et croissance commerciale.",button("＋ Nouvelle publication","new-post"))+
- '<div class="two-col social-layout">'+panel("Fil de l'organisation",posts)+panel("Espaces communautaires",'<div class="community"><b>Équipe pédagogique</b><small>42 membres · Privé</small>'+badge("Actif","success")+'</div><div class="community"><b>Entrepreneurs du Togo</b><small>1 240 membres · Public</small>'+badge("Modéré","info")+'</div><div class="community"><b>Parents d'élèves</b><small>380 membres · Restreint</small>'+badge("Actif","success")+'</div><p class="hint">Consentement, rôles, modération et règles de publication gouvernent les interactions.</p>')+'</div>';
+ return pageHead("SOCIAL & GROWTH","Les communautés au cœur de <em>l’activité.</em>","Réseaux internes, groupes, communication et croissance commerciale.",button("＋ Nouvelle publication","new-post"))+
+ '<div class="two-col social-layout">'+panel("Fil de l’organisation",posts)+panel("Espaces communautaires",'<div class="community"><b>Équipe pédagogique</b><small>42 membres · Privé</small>'+badge("Actif","success")+'</div><div class="community"><b>Entrepreneurs du Togo</b><small>1 240 membres · Public</small>'+badge("Modéré","info")+'</div><div class="community"><b>Parents d’élèves</b><small>380 membres · Restreint</small>'+badge("Actif","success")+'</div><p class="hint">Consentement, rôles, modération et règles de publication gouvernent les interactions.</p>')+'</div>';
 }
 function investment(){
  return pageHead("INVESTMENT CORE","Investir avec des informations <em>traçables.</em>","Éducation financière, opportunités, risques, liquidité et scénarios.",button("Simuler un scénario","investment-scenario"))+
  '<div class="metric-grid">'+metric("Opportunités suivies","18","Données de démonstration","◇")+metric("Portefeuille fictif",money(2500000),"Aucun actif réel","₣")+metric("Profil de risque","Modéré","Exemple pédagogique","◉")+metric("Scénarios","3","Stress / central / optimiste","▥")+'</div>'+
- panel("Analyse d'une opportunité",'<div class="investment-card"><div><span class="eyebrow">PROJET AGRICOLE · EXEMPLE</span><h3>Chaîne de valeur du soja</h3><p>Projet illustratif de financement d'équipements et de stockage.</p></div><div class="risk-grid"><div><small>Horizon indicatif</small><b>36 mois</b></div><div><small>Liquidité</small><b>Limitée</b></div><div><small>Risque</small>'+badge("Élevé","warning")+'</div><div><small>Provenance</small><b>À vérifier</b></div></div></div>')+
+ panel("Analyse d’une opportunité",'<div class="investment-card"><div><span class="eyebrow">PROJET AGRICOLE · EXEMPLE</span><h3>Chaîne de valeur du soja</h3><p>Projet illustratif de financement d’équipements et de stockage.</p></div><div class="risk-grid"><div><small>Horizon indicatif</small><b>36 mois</b></div><div><small>Liquidité</small><b>Limitée</b></div><div><small>Risque</small>'+badge("Élevé","warning")+'</div><div><small>Provenance</small><b>À vérifier</b></div></div></div>')+
  panel("Garde-fous investissement",'<div class="check-list">'+["Éducation et compréhension du risque","Provenance et qualité des données","Liquidité et horizon","Scénarios défavorables","Aucune promesse de rendement","Exécution via partenaires autorisés uniquement"].map(x=>'<div>✓ <span>'+x+'</span></div>').join("")+'</div>')+
- '<p class="notice-box">Les rendements ne sont jamais garantis. Ce prototype ne réalise aucune souscription, transaction boursière ou gestion d'actifs.</p>';
+ '<p class="notice-box">Les rendements ne sont jamais garantis. Ce prototype ne réalise aucune souscription, transaction boursière ou gestion d’actifs.</p>';
 }
 function aiCore(){
  return pageHead("T.PAY AI CORE","Une intelligence gouvernée, <em>pas un chatbot isolé.</em>","Les agents proposent, les politiques autorisent, les humains décident.",button("＋ Nouvelle analyse","ai-analysis"))+
  '<div class="metric-grid">'+metric("Agents spécialisés","12","Orchestration centralisée","✳")+metric("Actions préparées","48","Validation requise","▤")+metric("Approbations humaines","16","Contrôle explicite","✓")+metric("Actions financières autonomes","0","Interdites par conception","⊘")+'</div>'+
  '<div class="agent-grid">'+[["Finance Agent","Rapprochement & analyse"],["Education Agent","Scolarité & bulletins"],["Microfinance Agent","Portefeuille & terrain"],["Growth Agent","CRM & acquisition"],["HR Agent","Compétences & équipes"],["Document Agent","Extraction & génération"],["Voice Agent","Appels & rendez-vous"],["Project Agent","Délais & dépendances"]].map((a,i)=>'<article class="agent-card"><div class="agent-icon">✳</div><b>'+a[0]+'</b><small>'+a[1]+'</small><button data-action="ask-agent" data-name="'+a[0]+'">Préparer une analyse</button></article>').join("")+'</div>'+
- panel("Chaîne de contrôle de l'IA",'<div class="value-flow">'+["Contexte autorisé","Sources & données","Proposition IA","Capability Broker","Policy / risque / consentement","Approbation / step-up","Exécution autorisée","Trace & audit"].map((x,i)=>'<div class="flow-step"><span>'+(i+1)+'</span><b>'+x+'</b></div>').join("")+'</div>')+
- '<p class="notice-box">L'IA ne contourne jamais les permissions, ne valide pas un paiement et ne modifie pas directement le ledger. Toute action à impact suit une politique et une autorisation humaine adaptée.</p>';
+ panel("Chaîne de contrôle de l’IA",'<div class="value-flow">'+["Contexte autorisé","Sources & données","Proposition IA","Capability Broker","Policy / risque / consentement","Approbation / step-up","Exécution autorisée","Trace & audit"].map((x,i)=>'<div class="flow-step"><span>'+(i+1)+'</span><b>'+x+'</b></div>').join("")+'</div>')+
+ '<p class="notice-box">L’IA ne contourne jamais les permissions, ne valide pas un paiement et ne modifie pas directement le ledger. Toute action à impact suit une politique et une autorisation humaine adaptée.</p>';
 }
 function documents(){
- return pageHead("DOCUMENT OS","Les documents suivent <em>l'identité de l'organisation.</em>","Modèles versionnés, filigranes, approbations et historique.",button("＋ Créer un modèle","new-document"))+
+ return pageHead("DOCUMENT OS","Les documents suivent <em>l’identité de l’organisation.</em>","Modèles versionnés, filigranes, approbations et historique.",button("＋ Créer un modèle","new-document"))+
  '<div class="document-list">'+[["Bulletin scolaire","École Lumière","Version 2.1"],["Contrat de prestation","T.Pay Work","Version 1.4"],["Reçu de paiement","Financial Core","Version 3.0"],["Rapport de microfinance","SFD Solidarité","Version 1.2"]].map(d=>'<article class="document-row"><span class="doc-icon">▧</span><div><b>'+d[0]+'</b><small>'+d[1]+' · '+d[2]+'</small></div>'+badge("Modèle actif","success")+'<button class="link-btn" data-action="preview-document">Aperçu</button></article>').join("")+'</div>'+
  panel("Aperçu du document",'<div class="paper"><div class="paper-brand"><div class="logo-preview">EL</div><div><b>ÉCOLE LUMIÈRE</b><small>Année scolaire 2026–2027</small></div></div><h3>BULLETIN TRIMESTRIEL</h3><div class="watermark">EL</div><p>Élève : Ama Mensah · Classe : 6e A</p>'+table(["Matière","Coefficient","Moyenne"],[["Mathématiques","4","15,5"],["Français","3","14,0"],["Sciences","2","16,0"]])+'<p class="paper-foot">Document fictif · Modèle versionné · Filigrane organisation</p></div>');
 }
@@ -223,13 +223,13 @@ function calendar(){
  panel("Gouvernance des réservations",'<div class="check-list">'+["Priorité P0 urgence","P1 critique opérationnelle","P2 activité normale","P3 confort","Aucune réservation écrasée silencieusement","Arbitrage humain et historique"].map(x=>'<div>✓ <span>'+x+'</span></div>').join("")+'</div>');
 }
 function superadmin(){
- return pageHead("SUPER ADMIN","La gouvernance du système, <em>sous contrôle.</em>","Identité, organisations, politiques, autorisations temporelles, audit et continuité.",button("Ouvrir le journal d'audit","audit-log"))+
+ return pageHead("SUPER ADMIN","La gouvernance du système, <em>sous contrôle.</em>","Identité, organisations, politiques, autorisations temporelles, audit et continuité.",button("Ouvrir le journal d’audit","audit-log"))+
  '<div class="metric-grid">'+metric("Organisations","24","Périmètres séparés","▦")+metric("Sessions actives","318","Données fictives","♙")+metric("Alertes sécurité","3","À examiner","!")+metric("Services","99,95 %","Disponibilité simulée","✓")+'</div>'+
- '<div class="two-col">'+panel("Gouvernance des accès",'<div class="permission-row"><b>Administrateur plateforme</b>'+badge("Permanent","info")+'</div><div class="permission-row"><b>Gestionnaire École Lumière</b>'+badge("Actif · expire 18:00","success")+'</div><div class="permission-row"><b>Auditeur externe</b>'+badge("En attente","warning")+'</div><div class="permission-row"><b>Accès urgence</b>'+badge("Désactivé","neutral")+'</div><p class="hint">Permissions liées à un acteur, un périmètre, une action, une période, une approbation et un audit.</p>')+panel("Contrôles de plateforme",'<div class="check-list">'+["FIDO2 / WebAuthn et step-up","PAM, JIT / JEA","HSM / KMS et rotation des clés","Isolation tenant et RLS","Journal d'audit append-only","Sauvegardes et restauration","Mode maintenance et reprise","Quorum et récupération d'urgence"].map(x=>'<div>✓ <span>'+x+'</span></div>').join("")+'</div>')+'</div>'+
- panel("Journal d'activité",state.data.events.slice(0,6).map(e=>'<div class="activity-row"><span class="activity-dot"></span><div><b>'+esc(e.title)+'</b><small>'+esc(e.detail)+'</small></div><time>'+esc(e.time)+'</time></div>').join(""));
+ '<div class="two-col">'+panel("Gouvernance des accès",'<div class="permission-row"><b>Administrateur plateforme</b>'+badge("Permanent","info")+'</div><div class="permission-row"><b>Gestionnaire École Lumière</b>'+badge("Actif · expire 18:00","success")+'</div><div class="permission-row"><b>Auditeur externe</b>'+badge("En attente","warning")+'</div><div class="permission-row"><b>Accès urgence</b>'+badge("Désactivé","neutral")+'</div><p class="hint">Permissions liées à un acteur, un périmètre, une action, une période, une approbation et un audit.</p>')+panel("Contrôles de plateforme",'<div class="check-list">'+["FIDO2 / WebAuthn et step-up","PAM, JIT / JEA","HSM / KMS et rotation des clés","Isolation tenant et RLS","Journal d’audit append-only","Sauvegardes et restauration","Mode maintenance et reprise","Quorum et récupération d’urgence"].map(x=>'<div>✓ <span>'+x+'</span></div>').join("")+'</div>')+'</div>'+
+ panel("Journal d’activité",state.data.events.slice(0,6).map(e=>'<div class="activity-row"><span class="activity-dot"></span><div><b>'+esc(e.title)+'</b><small>'+esc(e.detail)+'</small></div><time>'+esc(e.time)+'</time></div>').join(""));
 }
 function ecosystem(){
- return pageHead("VERTICALES","Un socle commun, <em>des métiers multiples.</em>","Les verticales spécialisées réutilisent l'identité, la sécurité, les documents et le Financial Core.",'')+
+ return pageHead("VERTICALES","Un socle commun, <em>des métiers multiples.</em>","Les verticales spécialisées réutilisent l’identité, la sécurité, les documents et le Financial Core.",'')+
  '<div class="app-grid">'+[["Agriculture","Coopératives, campagnes, intrants, collecte et traçabilité"],["Transport","Flottes, trajets, réservation, livraison et maintenance"],["Santé","Structures, rendez-vous, dossiers et confidentialité"],["Hôtellerie","Réservations, chambres, services et caisse"],["Commerce","Points de vente, stocks, commandes et fidélité"],["Administration","Services publics, dossiers et workflows"]].map((x,i)=>'<article class="app-card"><span class="app-icon">'+["♧","⇄","✚","⌂","◇","▦"][i]+'</span><b>'+x[0]+'</b><small>'+x[1]+'</small>'+badge("Aperçu de domaine","info")+'</article>').join("")+'</div>'+
  panel("Architecture partagée",'<div class="value-flow">'+["Identity & Trust","Organization OS","Domain Services","Event Fabric","Financial Core","AI Core","Partner Gateway"].map((x,i)=>'<div class="flow-step"><span>'+(i+1)+'</span><b>'+x+'</b></div>').join("")+'</div>');
 }
@@ -247,12 +247,12 @@ function renderModal(){
  else if(modal==="new-opportunity"){title="Publier une opportunité";body='<label>Intitulé<input name="title" required></label><label>Compétences recherchées<input name="skills" required></label><label>Type<select name="type"><option>Mission</option><option>Emploi</option><option>Stage</option></select></label>';}
  else if(modal==="new-document"){title="Créer un modèle documentaire";body='<label>Nom du modèle<input name="name" required></label><label>Organisation<input name="org" value="'+esc(state.org)+'"></label><label>Version<input name="version" value="1.0"></label>';}
  else if(modal==="new-booking"){title="Réserver une ressource";body='<label>Ressource<input name="resource" required placeholder="Salle A"></label><label>Objet<input name="purpose" required></label><label>Priorité<select name="priority"><option>P2 — Normale</option><option>P1 — Critique</option><option>P3 — Confort</option></select></label><label>Date<input name="date" type="date" required></label>';}
- else if(modal==="investment-scenario"){title="Simulation d'investissement";body='<label>Capital fictif XOF<input name="capital" type="number" min="1" value="500000"></label><label>Scénario<select name="scenario"><option>Central</option><option>Prudent</option><option>Stress</option></select></label><p class="hint">Simulation pédagogique sans rendement garanti ni transaction réelle.</p>';}
+ else if(modal==="investment-scenario"){title="Simulation d’investissement";body='<label>Capital fictif XOF<input name="capital" type="number" min="1" value="500000"></label><label>Scénario<select name="scenario"><option>Central</option><option>Prudent</option><option>Stress</option></select></label><p class="hint">Simulation pédagogique sans rendement garanti ni transaction réelle.</p>';}
  else {title="Analyse IA préparée";body='<p>La demande est préparée en mode démonstration. L’agent propose une analyse, sans exécuter d’action financière ni contacter un tiers.</p><label>Contexte<input name="context" placeholder="Préciser le contexte"></label>';}
  return '<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true"><div class="modal-head"><div><div class="eyebrow">T.PAY · DÉMONSTRATION</div><h2>'+title+'</h2></div><button class="icon-btn" data-action="close-modal">×</button></div><form id="demo-form">'+body+'<div class="modal-actions"><button type="button" class="btn secondary" data-action="close-modal">Annuler</button><button class="btn primary" type="submit">'+submit+'</button></div></form></section></div>';
 }
 function renderTour(){
- const steps=[["Identité & organisation","Un même socle d'identité, de contexte et de permissions pour toutes les organisations."],["Opérations métier","School OS, microfinance, tontine et marketplace orchestrent leurs propres règles."],["Financial Core","Un seul ledger canonique, des moteurs séparés et des adaptateurs contractuels."],["AI Core","Les agents analysent et préparent ; les politiques et les humains contrôlent."],["Gouvernance","L'audit, les autorisations temporelles et la sécurité traversent le système."]];
+ const steps=[["Identité & organisation","Un même socle d’identité, de contexte et de permissions pour toutes les organisations."],["Opérations métier","School OS, microfinance, tontine et marketplace orchestrent leurs propres règles."],["Financial Core","Un seul ledger canonique, des moteurs séparés et des adaptateurs contractuels."],["AI Core","Les agents analysent et préparent ; les politiques et les humains contrôlent."],["Gouvernance","L’audit, les autorisations temporelles et la sécurité traversent le système."]];
  const s=steps[tourStep]||steps[0];
  return '<div class="tour-backdrop"><section class="tour-card"><span class="eyebrow">VISITE INVESTISSEUR · '+(tourStep+1)+' / '+steps.length+'</span><h2>'+s[0]+'</h2><p>'+s[1]+'</p><div class="tour-progress">'+steps.map((x,i)=>'<i class="'+(i<=tourStep?"done":"")+'"></i>').join("")+'</div><div class="modal-actions"><button class="btn secondary" data-action="tour-close">Quitter</button><button class="btn primary" data-action="tour-next">'+(tourStep===steps.length-1?"Terminer":"Suivant →")+'</button></div></section></div>';
 }
@@ -280,11 +280,11 @@ function act(action,data={}){
  if(action==="notifications"){alert("Aucune notification critique. 3 éléments de démonstration.");return;}
  if(action==="help"){alert("Prototype investisseur T.Pay OS. Toutes les données sont fictives.");return;}
  if(action==="audit-log"){alert(state.data.events.map(e=>e.time+" — "+e.title).join("\n"));return;}
- if(action==="preview-document"){alert("Aperçu documentaire simulé : modèle versionné, identité de l'organisation et filigrane.");return;}
+ if(action==="preview-document"){alert("Aperçu documentaire simulé : modèle versionné, identité de l’organisation et filigrane.");return;}
  if(action==="like-post"){eventLog("Réaction ajoutée","Interaction sociale simulée");render();return;}
  if(action==="comment-post"){modal="comment-post";render();return;}
  if(action==="client-detail"){alert("Dossier client de démonstration : KYC, historique et autorisations.");return;}
- if(action==="order-product"){eventLog("Commande simulée",data.name||"Produit");alert("Commande de démonstration créée. Aucun paiement n'est exécuté.");render();return;}
+ if(action==="order-product"){eventLog("Commande simulée",data.name||"Produit");alert("Commande de démonstration créée. Aucun paiement n’est exécuté.");render();return;}
  if(action==="advance-task"){const t=state.data.tasks.find(x=>x.title===data.name);if(t){t.status=t.status==="À faire"?"En cours":t.status==="En cours"?"À valider":"Terminé";eventLog("Tâche avancée",t.title+" → "+t.status);persist();render();}return;}
  if(action==="ask-agent"){modal="ask-agent";render();return;}
  modal=action;render();
@@ -293,7 +293,7 @@ function submitForm(e){
  e.preventDefault();const fd=new FormData(e.currentTarget);const v=Object.fromEntries(fd.entries());
  if(modal==="add-student"){state.data.students.push({name:v.name,ref:v.ref||"ELV-DEMO-"+Date.now(),class:v.class,status:"Inscrit"});eventLog("Élève ajouté",v.name);}
  else if(modal==="add-client"){state.data.clients.push({name:v.name,ref:v.ref||"CLI-DEMO-"+Date.now(),agency:v.agency,status:"KYC à vérifier"});eventLog("Client ajouté",v.name);}
- else if(modal==="new-post"){state.data.posts.unshift({author:"Administrateur démo",body:v.body,time:"À l'instant"});eventLog("Publication créée","Fil social de l'organisation");}
+ else if(modal==="new-post"){state.data.posts.unshift({author:"Administrateur démo",body:v.body,time:"À l’instant"});eventLog("Publication créée","Fil social de l’organisation");}
  else if(modal==="create-org"){state.org=v.name;state.context=v.sector;eventLog("Organisation créée",v.name+" · "+v.sector);}
  else if(modal==="new-task"){state.data.tasks.push({title:v.title,owner:v.owner,status:"À faire"});eventLog("Tâche créée",v.title);}
  else if(modal==="new-subsidy"){eventLog("Demande School Subsidy créée",v.school+" · garant "+v.guarantor+" · "+v.amount+" XOF · commission "+v.commission+" %");}
@@ -303,7 +303,7 @@ function submitForm(e){
  else if(modal==="new-opportunity"){eventLog("Opportunité publiée",v.title+" · "+v.skills+" · "+v.type);}
  else if(modal==="new-document"){eventLog("Modèle documentaire créé",v.name+" · v"+v.version);}
  else if(modal==="new-booking"){eventLog("Réservation simulée",v.resource+" · "+v.purpose+" · "+v.priority+" · "+v.date);}
- else if(modal==="investment-scenario"){eventLog("Scénario d'investissement simulé",v.capital+" XOF · "+v.scenario);}
+ else if(modal==="investment-scenario"){eventLog("Scénario d’investissement simulé",v.capital+" XOF · "+v.scenario);}
  else if(modal==="comment-post"){eventLog("Commentaire ajouté","Commentaire social simulé");}
  else {eventLog("Analyse préparée",v.context||"Agent IA · aucune exécution");}
  persist();modal=null;render();

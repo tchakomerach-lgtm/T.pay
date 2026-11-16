@@ -55,7 +55,7 @@ export function readRuntimeConfig(source=process.env):RuntimeConfig{
   };
 }
 
-class PooledTransactionClient implements PostgresTransactionClient{
+export class PooledTransactionClient implements PostgresTransactionClient{
   private client:PoolClient|undefined;
   constructor(private readonly pool:Pool){}
   async query<T extends QueryResultRow=Record<string,unknown>>(sql:string,values?:unknown[]):Promise<{rows:T[];rowCount:number|null}>{
@@ -66,8 +66,8 @@ class PooledTransactionClient implements PostgresTransactionClient{
       if(command==="COMMIT"||command==="ROLLBACK"){this.client.release();this.client=undefined;}
       return {rows:result.rows,rowCount:result.rowCount};
     }catch(error){
-      this.client?.release();
-      this.client=undefined;
+      // Keep the same connection checked out so the transaction owner can issue
+      // ROLLBACK on the transaction that actually failed.
       throw error;
     }
   }

@@ -14,6 +14,13 @@ test("governance requires quorum before approval", () => {
     { id: "v3" as never, proposalId: "p" as never, voterId: "u3" as never, choice: "reject" as const, castAt: "2026-10-05T00:00:00Z" }
   ];
   assert.equal(evaluateGovernance(votes, 5, policy), "approved");
+  assert.throws(() => evaluateGovernance([...votes, { ...votes[0]!, id: "v4" as never }], 5, policy), /TONTINE_DUPLICATE_VOTE/);
+  assert.throws(() => evaluateGovernance([...votes, { ...votes[0]!, id: "v4" as never, voterId: "u4" as never, choice: "abstain" }], 5, { ...policy, allowAbstention: false }), /TONTINE_ABSTENTION_NOT_ALLOWED/);
+  assert.equal(evaluateGovernance([
+    ...votes,
+    { id: "v4" as never, proposalId: "p" as never, voterId: "u4" as never, choice: "abstain" as const, castAt: "2026-10-05T00:00:00Z" }
+  ], 5, policy), "approved");
+  assert.throws(() => evaluateGovernance(votes, 2, policy), /TONTINE_VOTE_COUNT_EXCEEDS_MEMBERS/);
 });
 
 test("community procurement chooses best-value deterministic bid and blocks delivery regression", () => {

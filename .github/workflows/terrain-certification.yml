@@ -25,7 +25,7 @@ jobs:
           adb version
           gradle --version | head -n 5
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Validate local terrain environment
         shell: bash
@@ -112,7 +112,7 @@ jobs:
 
       - name: Upload terrain diagnostics
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: tpay-terrain-diagnostics
           path: |

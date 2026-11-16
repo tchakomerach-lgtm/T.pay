@@ -10,3 +10,40 @@ test("parameterized API routes resolve against concrete paths",()=>{
 test("unlisted sibling routes remain deny-by-default",()=>{
  assert.equal(authorizeRoute({method:"GET",route:"/v1/education/actors/teacher-1/secrets",authClass:"member"}).allowed,false);
 });
+
+test("community tontine group portfolio is readable and creation is authenticated non-financial",()=>{
+ const route="/v1/tontine/groups";
+ assert.equal(resolveRoutePolicy("GET",route)?.financial,false);
+ assert.equal(authorizeRoute({method:"GET",route,authClass:"member"}).allowed,true);
+ assert.equal(resolveRoutePolicy("POST",route)?.financial,false);
+ assert.equal(authorizeRoute({method:"POST",route,authClass:"member"}).allowed,true);
+});
+
+
+test("community tontine operational read resources are authenticated and read-only",()=>{
+ for(const resource of ["members","cycles","contributions","governance","cases"]){
+  const route=`/v1/tontine/groups/123e4567-e89b-42d3-a456-426614174000/${resource}`;
+  assert.equal(resolveRoutePolicy("GET",route)?.financial,false,resource);
+  assert.equal(authorizeRoute({method:"GET",route,authClass:"member"}).allowed,true,resource);
+  if(resource==="cases"){
+   assert.equal(resolveRoutePolicy("POST",route)?.financial,false,resource);
+   assert.equal(authorizeRoute({method:"POST",route,authClass:"member"}).allowed,true,resource);
+  }else if(resource==="cycles"){
+   assert.equal(resolveRoutePolicy("POST",route)?.financial,false,resource);
+   assert.equal(authorizeRoute({method:"POST",route,authClass:"member"}).allowed,true,resource);
+  }else if(resource==="members"){
+   assert.equal(resolveRoutePolicy("POST",route)?.financial,false,resource);
+   assert.equal(authorizeRoute({method:"POST",route,authClass:"member"}).allowed,true,resource);
+  }else{
+   assert.equal(authorizeRoute({method:"POST",route,authClass:"member"}).allowed,false,resource);
+  }
+ }
+});
+
+
+test("community tontine invitation decision is authenticated, scoped and non-financial",()=>{
+ const route="/v1/tontine/groups/123e4567-e89b-42d3-a456-426614174000/members/123e4567-e89b-42d3-a456-426614174001/decision";
+ assert.equal(resolveRoutePolicy("POST",route)?.financial,false);
+ assert.equal(authorizeRoute({method:"POST",route,authClass:"member"}).allowed,true);
+ assert.equal(authorizeRoute({method:"GET",route,authClass:"member"}).allowed,false);
+});

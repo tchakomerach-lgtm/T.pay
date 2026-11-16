@@ -23,7 +23,10 @@ export async function initiateApprovedPayout(intent:PayoutIntent,approval:Payout
   assertPayoutTransition(approvedIntent.state,"initiated");
   const result=await provider.initiate({payoutId:intent.payoutId,idempotencyKey:intent.idempotencyKey,amountMinor:intent.amountMinor,currency:intent.currency,destinationRef:intent.destinationRef});
   if(result.status==="rejected") return {state:"failed"};
-  return {state:"initiated",evidence:{payoutId:intent.payoutId,organizationId:intent.organizationId,provider:result.provider,providerReference:result.providerReference,amountMinor:intent.amountMinor,currency:intent.currency}};
+  if(result.status!=="accepted" && result.status!=="pending") throw new Error("PAYOUT_PROVIDER_STATUS_INVALID");
+  if(!result.provider?.trim()) throw new Error("PAYOUT_PROVIDER_ID_REQUIRED");
+  if(!result.providerReference?.trim()) throw new Error("PAYOUT_PROVIDER_REFERENCE_REQUIRED");
+  return {state:"initiated",evidence:{payoutId:intent.payoutId,organizationId:intent.organizationId,provider:result.provider.trim(),providerReference:result.providerReference.trim(),amountMinor:intent.amountMinor,currency:intent.currency}};
 }
 export function buildPayoutSettlementIdempotency(intent:PayoutIntent,providerReference:string):string{
  return `payout-settlement:${intent.organizationId}:${intent.payoutId}:${providerReference}`;
