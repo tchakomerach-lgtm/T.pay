@@ -120,8 +120,26 @@ test("global identity RLS isolates two tenants under a non-owner non-BYPASSRLS r
     await owner.query("ROLLBACK");
     transactionOpen = false;
   } finally {
-    if (transactionOpen) await owner.query("ROLLBACK");
-    if (roleCreated) await owner.query(`DROP ROLE "${role}"`);
-    await owner.end();
+    // Always leave the transaction before removing the temporary role. PostgreSQL
+    // keeps GRANT dependencies after ROLLBACK, so DROP ROLE alone is insufficient.
+    try {
+      if (transactionOpen) {
+        await owner.query("ROLLBACK");
+        transactionOpen = false;
+      }
+    } finally {
+      try {
+        if (roleCreated) {
+          // The role is created exclusively by this test and receives only temporary
+          // schema/table privileges. DROP OWNED removes those dependencies first.
+          await owner.query(`DROP OWNED BY "${role}"`);
+          await owner.query(`DROP ROLE "${role}"`);
+          roleCreated = false;
+        }
+      } finally {
+        // Do not leak a PostgreSQL client if rollback or role cleanup fails.
+        await owner.end();
+      }
+    }
   }
 });
