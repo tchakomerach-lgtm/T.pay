@@ -46,6 +46,8 @@ L'authentification prouve l'identité du sujet et la validité de sa session. El
 
 ### M1 — Schéma d'identité global
 - Introduire le sujet global et les tables d'appartenance tenant/organisation, affectations de rôles et grants temporels.
+- Migration 130 ajoute `tpay_tenants`, le mapping explicite tenant/organisation, les sujets globaux, les liens d'acteurs de domaine, les appartenances tenant/organisation, les grants temporels, les sessions liées aux sessions d'appareil et l'audit append-only.
+- La migration 130 ne crée aucune association legacy automatiquement : le mapping et le lien des acteurs doivent être alimentés à partir de preuves vérifiées, avec les lignes ambiguës mises en quarantaine.
 - Utiliser des clés étrangères composites garantissant le même tenant et la même organisation sur chaque relation.
 - Prévoir unicités partielles pour les appartenances actives, index d'expiration/révocation et audit append-only.
 - Ajouter les nouvelles colonnes/références en mode expand; backfill uniquement depuis des correspondances démontrées.
@@ -97,4 +99,4 @@ La livraison Tontine ne peut être considérée complète que lorsque les trois 
 
 Les tests unitaires seuls ne valident pas ces gates. Une migration créée, un endpoint compilé ou un écran rendu ne constituent pas une preuve d'intégration.
 
-**État courant de cette PR :** migrations communautaires 115–116 présentes; API HTTP Tontine et écrans dédiés non livrés; identité multi-organisations non encore démontrée comme socle runtime commun. PR maintenue ouverte; aucune fusion, mise en production ou certification revendiquée.
+**État courant de cette PR :** migration 130 pose le schéma d'identité global avec FORCE RLS, sans backfill implicite. Les tests de catalogue PostgreSQL sont ajoutés; ils ne prouvent pas encore l'isolation comportementale avec le rôle runtime non-owner. Le serveur API authentifie toujours via `education_actors`; l'adoption du nouveau résolveur, les routes HTTP Tontine et les écrans connectés ne sont pas livrés. PR maintenue ouverte; aucune fusion, mise en production ou certification revendiquée.
