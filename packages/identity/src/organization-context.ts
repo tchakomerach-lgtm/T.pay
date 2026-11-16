@@ -16,6 +16,9 @@ export interface OrganizationMembership {
   tenantId: string;
   organizationId: string;
   status: "active" | "suspended" | "revoked";
+  validFrom: number;
+  validUntil?: number;
+  revokedAt?: number;
 }
 
 export interface TemporalPermissionGrant {
@@ -59,7 +62,13 @@ export function resolveOrganizationContext(input: OrganizationContextInput): Res
   if (membership.subjectId !== session.subjectId) throw new Error("ORGANIZATION_MEMBERSHIP_SUBJECT_MISMATCH");
   if (membership.tenantId !== session.tenantId) throw new Error("ORGANIZATION_MEMBERSHIP_TENANT_MISMATCH");
   if (membership.organizationId !== session.activeOrganizationId) throw new Error("ORGANIZATION_MEMBERSHIP_SCOPE_MISMATCH");
-  if (membership.status !== "active") throw new Error("ORGANIZATION_MEMBERSHIP_NOT_ACTIVE");
+  if (membership.status !== "active" || membership.revokedAt !== undefined) {
+    throw new Error("ORGANIZATION_MEMBERSHIP_NOT_ACTIVE");
+  }
+  if (now < membership.validFrom) throw new Error("ORGANIZATION_MEMBERSHIP_NOT_YET_VALID");
+  if (membership.validUntil !== undefined && now >= membership.validUntil) {
+    throw new Error("ORGANIZATION_MEMBERSHIP_EXPIRED");
+  }
 
   const permissions = new Set<Permission>();
   for (const grant of input.grants) {
