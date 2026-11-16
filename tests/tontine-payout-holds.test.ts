@@ -9,10 +9,14 @@ const membershipId = "123e4567-e89b-42d3-a456-426614174003";
 
 function executor(activeHold: boolean, statements: string[]): TontineSqlExecutor {
   const db: TontineSqlExecutor = {
-    query: async (sql) => {
+    query: async <Row = Record<string, unknown>>(
+      sql: string,
+      _values?: readonly unknown[]
+    ): Promise<{ rows: Row[]; rowCount: number }> => {
       statements.push(sql);
+      let rows: Record<string, unknown>[] = [];
       if (sql.includes("SELECT pi.payout_id")) {
-        return { rows: [{
+        rows = [{
           payout_id: payoutId, organization_id: organizationId, cycle_id: "cycle-1",
           beneficiary_id: "client-1", amount_minor: "2500", currency: "XOF",
           destination_ref: "wallet-destination", state: "approved",
@@ -20,15 +24,13 @@ function executor(activeHold: boolean, statements: string[]): TontineSqlExecutor
           created_at: "2026-11-14T00:00:00.000Z", provider: null, provider_reference: null,
           settlement_transaction_id: null, beneficiary_membership_id: membershipId,
           microfinance_id: "mf-1", tontine_slot_id: "slot-1"
-        }], rowCount: 1 };
+        }];
+      } else if (sql.includes("FROM tontine_targeted_holds")) {
+        rows = activeHold ? [{ id: "hold-1" }] : [];
+      } else if (sql.includes("UPDATE payout_intents SET state='initiated'")) {
+        rows = [{ payout_id: payoutId }];
       }
-      if (sql.includes("FROM tontine_targeted_holds")) {
-        return { rows: activeHold ? [{ id: "hold-1" }] : [], rowCount: activeHold ? 1 : 0 };
-      }
-      if (sql.includes("UPDATE payout_intents SET state='initiated'")) {
-        return { rows: [{ payout_id: payoutId }], rowCount: 1 };
-      }
-      return { rows: [], rowCount: 1 };
+      return { rows: rows as Row[], rowCount: rows.length };
     },
     transaction: async work => work(db)
   };
