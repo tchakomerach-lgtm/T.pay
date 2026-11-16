@@ -7,7 +7,7 @@ import { applyMigrations } from "../packages/finance/src/postgres-migrations.js"
 
 const databaseUrl = process.env.TPAY_DATABASE_URL;
 
-test("Community Tontine admission tables enable organization-scoped PostgreSQL RLS", {
+test("Community Tontine admission RLS is installed and organization context fails closed", {
   skip: !databaseUrl && "TPAY_DATABASE_URL is not configured"
 }, async () => {
   const client = new pg.Client({ connectionString: databaseUrl });
@@ -54,6 +54,15 @@ test("Community Tontine admission tables enable organization-scoped PostgreSQL R
       assert.match(row.qual ?? "", /tpay_current_organization_id/);
       assert.match(row.with_check ?? "", /tpay_current_organization_id/);
     }
+
+    await client.query("RESET tpay.organization_id");
+    const absent = await client.query("SELECT public.tpay_current_organization_id() AS organization_id");
+    assert.equal(absent.rows[0]?.organization_id, null, "missing organization context must fail closed");
+
+    const organizationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    await client.query("SELECT set_config('tpay.organization_id',$1,true)", [organizationId]);
+    const scoped = await client.query("SELECT public.tpay_current_organization_id() AS organization_id");
+    assert.equal(scoped.rows[0]?.organization_id, organizationId);
   } finally {
     await client.end();
   }
