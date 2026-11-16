@@ -95,16 +95,34 @@ export async function processVerifiedTontinePayoutCallback(
     );
 
     if (existing.rows[0]) {
-      if (existing.rows[0].payload_sha256 !== payloadSha256 || existing.rows[0].payout_id !== callback.payoutId) {
-        await tx.query("UPDATE tontine_provider_callback_receipts SET state='rejected', failure_code='CALLBACK_PAYLOAD_MISMATCH' WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3", [callback.organizationId, callback.provider, callback.providerEventId]);
-        throw new Error("TONTINE_CALLBACK_REPLAY_PAYLOAD_MISMATCH");
+      const prior = existing.rows[0];
+      if (prior.payload_sha256 !== payloadSha256 || prior.payout_id !== callback.payoutId) {
+        // Persist the quarantine and COMMIT it: throwing here would roll back the
+        // very evidence needed to investigate a provider event-ID collision.
+        await tx.query(
+          `UPDATE tontine_provider_callback_receipts
+              SET state='rejected', failure_code='CALLBACK_PAYLOAD_MISMATCH', processed_at=now()
+            WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3`,
+          [callback.organizationId, callback.provider, callback.providerEventId]
+        );
+        return { state: "rejected", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
       }
-      await tx.query(
-        `UPDATE tontine_provider_callback_receipts
-         SET state='replayed'
-         WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3`,
-        [callback.organizationId, callback.provider, callback.providerEventId]
-      );
+      // A quarantined event remains quarantined even if a later retry restores
+      // the original body. Never silently clear an integrity incident.
+      if (prior.state === "rejected") {
+        return { state: "rejected", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
+      }
+      if (prior.state !== "processed" && prior.state !== "replayed") {
+        await tx.query(
+          `UPDATE tontine_provider_callback_receipts
+              SET state='rejected', failure_code='CALLBACK_RECEIPT_STALE', processed_at=now()
+            WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3`,
+          [callback.organizationId, callback.provider, callback.providerEventId]
+        );
+        return { state: "rejected", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
+      }
+      // Keep the first receipt immutable; a duplicate is reported to the caller
+      // without rewriting the original processed evidence.
       return { state: "replayed", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
     }
 
@@ -150,6 +168,18 @@ export async function processVerifiedTontinePayoutCallback(
         [callback.organizationId, callback.provider, callback.providerEventId]
       );
       return { state: "processed", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
+    }
+
+    // A provider callback is evidence of external delivery, not authorization
+    // to release funds. Only a server-approved payout may enter settlement.
+    if (row.state !== "approved") {
+      await tx.query(
+        `UPDATE tontine_provider_callback_receipts
+            SET state='rejected', failure_code='PAYOUT_NOT_APPROVED', processed_at=now()
+          WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3`,
+        [callback.organizationId, callback.provider, callback.providerEventId]
+      );
+      return { state: "rejected", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
     }
 
     await settlementBridge.settle(

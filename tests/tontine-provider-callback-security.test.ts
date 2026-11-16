@@ -12,36 +12,86 @@ const payout = {
   now: "2026-10-05T10:00:00Z"
 };
 
-test("community tontine rejects same provider event replay with substituted payload", async () => {
-  let receipt: { hash: string; payoutId: UUID } | undefined;
+function createHarness(payoutState: "initiated" | "approved" | "blocked" | "settled" = "approved") {
+  let receipt: { hash: string; payoutId: UUID; state: "processed" | "rejected" | "replayed"; failureCode?: string } | undefined;
+  let settlementCalls = 0;
   const db = {
     async query<Row = Record<string, unknown>>(sql: string, values?: readonly unknown[]) {
       if (sql.includes("SELECT provider_event_id")) {
         if (!receipt) return { rows: [] as Row[], rowCount: 0 };
-        return { rows: [{ provider_event_id: "evt-1", payout_id: receipt.payoutId, payload_sha256: receipt.hash, state: "processed" }] as Row[], rowCount: 1 };
+        return { rows: [{
+          provider_event_id: "evt-1", payout_id: receipt.payoutId,
+          payload_sha256: receipt.hash, state: receipt.state
+        }] as Row[], rowCount: 1 };
+      }
+      if (sql.includes("UPDATE tontine_provider_callback_receipts")) {
+        if (receipt && sql.includes("state='rejected'")) {
+          receipt.state = "rejected";
+          receipt.failureCode = sql.includes("CALLBACK_PAYLOAD_MISMATCH") ? "CALLBACK_PAYLOAD_MISMATCH" : sql.includes("PAYOUT_NOT_APPROVED") ? "PAYOUT_NOT_APPROVED" : "CALLBACK_RECEIPT_STALE";
+        } else if (receipt && sql.includes("state='processed'")) {
+          receipt.state = "processed";
+        }
+        return { rows: [] as Row[], rowCount: 1 };
       }
       if (sql.includes("SELECT payout_id,organization_id,state,idempotency_key")) {
-        return { rows: [{ payout_id: id, organization_id: id, state: "initiated", idempotency_key: "payout-1" }] as Row[], rowCount: 1 };
+        return { rows: [{ payout_id: id, organization_id: id, state: payoutState, idempotency_key: "payout-1" }] as Row[], rowCount: 1 };
       }
       if (sql.includes("INSERT INTO tontine_provider_callback_receipts")) {
-        receipt = { hash: String(values?.[4]), payoutId: values?.[6] as UUID };
-        return { rows: [], rowCount: 1 };
+        receipt = { hash: String(values?.[4]), payoutId: values?.[6] as UUID, state: "processed" };
+        return { rows: [] as Row[], rowCount: 1 };
       }
       return { rows: [] as Row[], rowCount: 1 };
     },
-    async transaction<T>(work: (tx: any) => Promise<T>): Promise<T> { return work(this); }
+    async transaction<T>(work: (tx: any) => Promise<T>): Promise<T> { return work(this); },
+    getReceipt() { return receipt; },
+    getSettlementCalls() { return settlementCalls; },
+    countSettlement() { settlementCalls += 1; }
   } as any;
   const verifier = {
-    async verifyAndNormalize(input: any) {
-      return { provider: input.provider, providerEventId: "evt-1", payoutId: id, organizationId: id,
+    async verifyAndNormalize(input: { provider: string; rawBody: string; receivedAt: string }) {
+      return {
+        provider: input.provider, providerEventId: "evt-1", payoutId: id, organizationId: id,
         providerReference: "ref-1", amountMinor: 1000n, currency: "XOF",
-        receivedAt: "2026-10-05T10:00:00Z", rawBody: input.rawBody };
+        receivedAt: input.receivedAt, rawBody: input.rawBody
+      };
     }
   };
-  const bridge = { async settle() { return undefined; } };
-  await processVerifiedTontinePayoutCallback(db, verifier, { provider:"mf", rawBody:"body-A", signature:"sig", receivedAt:"2026-10-05T10:00:00Z" }, id, payout, { tontineClearingAccountId:"a", microfinanceSettlementAccountId:"b" }, "tx-1", bridge);
-  await assert.rejects(
-    () => processVerifiedTontinePayoutCallback(db, verifier, { provider:"mf", rawBody:"body-B", signature:"sig", receivedAt:"2026-10-05T10:01:00Z" }, id, payout, { tontineClearingAccountId:"a", microfinanceSettlementAccountId:"b" }, "tx-2", bridge),
-    /TONTINE_CALLBACK_REPLAY_PAYLOAD_MISMATCH/
+  const bridge = { async settle() { db.countSettlement(); return undefined; } };
+  const run = (rawBody: string) => processVerifiedTontinePayoutCallback(
+    db, verifier,
+    { provider: "mf", rawBody, signature: "sig", receivedAt: "2026-10-05T10:00:00Z" },
+    id, payout,
+    { tontineClearingAccountId: "a", microfinanceSettlementAccountId: "b" },
+    "tx-1", bridge
   );
+  return { run, db };
+}
+
+test("same provider event ID with substituted payload is durably quarantined", async () => {
+  const { run, db } = createHarness();
+  assert.equal((await run("body-A")).state, "processed");
+  assert.equal((await run("body-B")).state, "rejected");
+  assert.equal(db.getReceipt()?.state, "rejected");
+  assert.equal(db.getReceipt()?.failureCode, "CALLBACK_PAYLOAD_MISMATCH");
+  // Restoring the original payload does not clear the integrity incident.
+  assert.equal((await run("body-A")).state, "rejected");
+  assert.equal(db.getReceipt()?.state, "rejected");
+  assert.equal(db.getSettlementCalls(), 1);
+});
+
+test("identical processed callback replay is acknowledged without rewriting or settling again", async () => {
+  const { run, db } = createHarness();
+  assert.equal((await run("body-A")).state, "processed");
+  assert.equal((await run("body-A")).state, "replayed");
+  assert.equal(db.getReceipt()?.state, "processed");
+  assert.equal(db.getSettlementCalls(), 1);
+});
+
+
+test("provider callback cannot settle a payout that has not been approved", async () => {
+  const { run, db } = createHarness("initiated");
+  assert.equal((await run("body-A")).state, "rejected");
+  assert.equal(db.getReceipt()?.state, "rejected");
+  assert.equal(db.getReceipt()?.failureCode, "PAYOUT_NOT_APPROVED");
+  assert.equal(db.getSettlementCalls(), 0);
 });
