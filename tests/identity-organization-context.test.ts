@@ -64,3 +64,24 @@ test("identity context ignores expired, revoked and foreign-scope grants", () =>
   assert.deepEqual(context.permissions, ["finance.read"]);
   assert.throws(() => assertOrganizationPermission(context, "finance.approve"), /IDENTITY_PERMISSION_DENIED/);
 });
+
+test("identity context denies memberships from another organization and inactive memberships", () => {
+  assert.throws(() => resolveOrganizationContext({
+    session, membership: { ...membership, organizationId: "org-b" }, grants: [grant], now
+  }), /ORGANIZATION_MEMBERSHIP_SCOPE_MISMATCH/);
+  assert.throws(() => resolveOrganizationContext({
+    session, membership: { ...membership, status: "suspended" }, grants: [grant], now
+  }), /ORGANIZATION_MEMBERSHIP_NOT_ACTIVE/);
+});
+
+test("identity context denies sessions that are not yet valid and ignores future grants", () => {
+  assert.throws(() => resolveOrganizationContext({
+    session: { ...session, createdAt: now + 1 }, membership, grants: [grant], now
+  }), /IDENTITY_SESSION_NOT_YET_VALID/);
+  const context = resolveOrganizationContext({
+    session, membership,
+    grants: [{ ...grant, validFrom: now + 1 }],
+    now
+  });
+  assert.deepEqual(context.permissions, []);
+});
