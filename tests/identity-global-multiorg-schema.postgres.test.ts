@@ -65,6 +65,31 @@ test("global identity schema is installed with FORCE RLS and fail-closed tenant 
       await client.query("ROLLBACK");
     }
 
+    await client.query("SELECT set_config('tpay.organization_id','',false)");
+    const organizationAbsent = await client.query(
+      "SELECT public.tpay_current_organization_id() AS organization_id"
+    );
+    assert.equal(organizationAbsent.rows[0]?.organization_id, null,
+      "missing organization context must fail closed");
+
+    const organizationId = "00000000-0000-4000-8000-000000000130";
+    await client.query("BEGIN");
+    try {
+      await client.query("SELECT set_config('tpay.organization_id',$1,true)", [organizationId]);
+      const organizationScoped = await client.query(
+        "SELECT public.tpay_current_organization_id() AS organization_id"
+      );
+      assert.equal(organizationScoped.rows[0]?.organization_id, organizationId,
+        "organization context must be transaction-local and explicit");
+    } finally {
+      await client.query("ROLLBACK");
+    }
+    const organizationAfterRollback = await client.query(
+      "SELECT public.tpay_current_organization_id() AS organization_id"
+    );
+    assert.equal(organizationAfterRollback.rows[0]?.organization_id, null,
+      "organization context must not leak across pooled transactions");
+
     const immutable = await client.query<{ trigger_name: string; event_manipulation: string }>(
       `SELECT DISTINCT trigger_name,event_manipulation FROM information_schema.triggers
        WHERE event_object_schema='public' AND event_object_table='identity_audit'
