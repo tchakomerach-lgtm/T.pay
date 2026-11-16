@@ -65,12 +65,16 @@ test("global identity schema is installed with FORCE RLS and fail-closed tenant 
       await client.query("ROLLBACK");
     }
 
-    const immutable = await client.query<{ trigger_name: string }>(
-      `SELECT trigger_name FROM information_schema.triggers
+    const immutable = await client.query<{ trigger_name: string; event_manipulation: string }>(
+      `SELECT DISTINCT trigger_name,event_manipulation FROM information_schema.triggers
        WHERE event_object_schema='public' AND event_object_table='identity_audit'
          AND trigger_name='trg_identity_audit_immutable'`
     );
-    assert.equal(immutable.rows.length, 1, "identity audit must be append-only");
+    assert.deepEqual(
+      immutable.rows.map(row => row.event_manipulation).sort(),
+      ["DELETE", "UPDATE"],
+      "identity audit must reject both UPDATE and DELETE mutations"
+    );
 
     const sessionGuard = await client.query<{ trigger_name: string }>(
       `SELECT trigger_name FROM information_schema.triggers
