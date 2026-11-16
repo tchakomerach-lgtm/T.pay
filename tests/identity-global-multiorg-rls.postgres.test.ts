@@ -78,21 +78,43 @@ test("global identity RLS isolates two tenants under a non-owner non-BYPASSRLS r
     );
 
     await owner.query(`SET LOCAL ROLE "${role}"`);
-    await owner.query("SELECT set_config('tpay.tenant_id',$1,true)", [tenantA]);
-    await owner.query("SELECT set_config('tpay.organization_id',$1,true)", [orgA]);
 
     const visible = async (table: string, column = "id") => {
       const result = await owner.query(`SELECT ${column}::text AS id FROM public.${table} ORDER BY 1`);
       return result.rows.map(row => row.id);
     };
-    assert.deepEqual(await visible("tpay_tenants"), [tenantA]);
-    assert.deepEqual(await visible("tpay_organization_tenants", "organization_id"), [orgA]);
-    assert.deepEqual(await visible("identity_subjects"), [subjectA]);
-    assert.deepEqual(await visible("identity_actor_links"), [actorLinkA]);
-    assert.deepEqual(await visible("identity_tenant_memberships"), [tenantMembershipA]);
-    assert.deepEqual(await visible("identity_organization_memberships"), [orgMembershipA]);
-    assert.deepEqual(await visible("identity_permission_grants"), [grantA]);
-    assert.equal((await visible("identity_audit", "id")).length, 1);
+    const assertNoIdentityRows = async () => {
+      for (const table of [
+        "tpay_tenants", "tpay_organization_tenants", "identity_subjects",
+        "identity_actor_links", "identity_tenant_memberships",
+        "identity_organization_memberships", "identity_permission_grants",
+        "identity_sessions", "identity_audit"
+      ]) {
+        assert.deepEqual(await visible(table), [], `${table} must deny reads without a tenant and organization context`);
+      }
+    };
+    const setScope = async (tenantId: string, organizationId: string) => {
+      await owner.query("SELECT set_config('tpay.tenant_id',$1,true)", [tenantId]);
+      await owner.query("SELECT set_config('tpay.organization_id',$1,true)", [organizationId]);
+    };
+    const assertTenantScope = async (tenantId: string, organizationId: string, subjectId: string,
+      actorLinkId: string, tenantMembershipId: string, organizationMembershipId: string,
+      grantId: string) => {
+      assert.deepEqual(await visible("tpay_tenants"), [tenantId]);
+      assert.deepEqual(await visible("tpay_organization_tenants", "organization_id"), [organizationId]);
+      assert.deepEqual(await visible("identity_subjects"), [subjectId]);
+      assert.deepEqual(await visible("identity_actor_links"), [actorLinkId]);
+      assert.deepEqual(await visible("identity_tenant_memberships"), [tenantMembershipId]);
+      assert.deepEqual(await visible("identity_organization_memberships"), [organizationMembershipId]);
+      assert.deepEqual(await visible("identity_permission_grants"), [grantId]);
+      assert.equal((await visible("identity_audit", "id")).length, 1);
+    };
+
+    await assertNoIdentityRows();
+    await setScope(tenantA, orgA);
+    await assertTenantScope(tenantA, orgA, subjectA, actorLinkA, tenantMembershipA, orgMembershipA, grantA);
+    await setScope(tenantB, orgB);
+    await assertTenantScope(tenantB, orgB, subjectB, actorLinkB, tenantMembershipB, orgMembershipB, grantB);
     await owner.query("ROLLBACK");
     transactionOpen = false;
   } finally {
