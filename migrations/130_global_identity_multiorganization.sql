@@ -139,9 +139,9 @@ BEGIN
     FROM identity_actor_links
     WHERE id = NEW.actor_link_id AND subject_id = NEW.subject_id
       AND tenant_id = NEW.tenant_id AND organization_id = NEW.organization_id;
-  IF api_actor IS NULL OR api_organization IS NULL
+  IF api_actor IS NULL OR api_organization IS NULL OR link_actor IS NULL
      OR api_actor <> link_actor OR api_organization <> NEW.organization_id
-     OR link_status <> 'active' THEN
+     OR link_status IS DISTINCT FROM 'active' THEN
     RAISE EXCEPTION 'IDENTITY_SESSION_ACTOR_BINDING_INVALID';
   END IF;
   RETURN NEW;
