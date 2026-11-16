@@ -15,7 +15,7 @@ const session: IdentitySession = {
 };
 const membership: OrganizationMembership = {
   id: "membership-1", subjectId: "subject-1", tenantId: "tenant-a",
-  organizationId: "org-a", status: "active"
+  organizationId: "org-a", status: "active", validFrom: now - 1_000
 };
 const grant: TemporalPermissionGrant = {
   id: "grant-1", membershipId: "membership-1", tenantId: "tenant-a",
@@ -84,4 +84,16 @@ test("identity context denies sessions that are not yet valid and ignores future
     now
   });
   assert.deepEqual(context.permissions, []);
+});
+
+test("identity context denies organization memberships outside their validity window", () => {
+  assert.throws(() => resolveOrganizationContext({
+    session, membership: { ...membership, validFrom: now + 1 }, grants: [grant], now
+  }), /ORGANIZATION_MEMBERSHIP_NOT_YET_VALID/);
+  assert.throws(() => resolveOrganizationContext({
+    session, membership: { ...membership, validUntil: now }, grants: [grant], now
+  }), /ORGANIZATION_MEMBERSHIP_EXPIRED/);
+  assert.throws(() => resolveOrganizationContext({
+    session, membership: { ...membership, revokedAt: now - 1 }, grants: [grant], now
+  }), /ORGANIZATION_MEMBERSHIP_NOT_ACTIVE/);
 });
