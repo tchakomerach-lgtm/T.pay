@@ -195,9 +195,16 @@ CREATE POLICY identity_actor_links_current_scope ON identity_actor_links
 
 ALTER TABLE identity_tenant_memberships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE identity_tenant_memberships FORCE ROW LEVEL SECURITY;
-CREATE POLICY identity_tenant_memberships_current_scope ON identity_tenant_memberships
-  USING (tenant_id = public.tpay_current_tenant_id())
-  WITH CHECK (tenant_id = public.tpay_current_tenant_id());
+CREATE POLICY identity_tenant_memberships_visible_through_org_scope ON identity_tenant_memberships
+  FOR SELECT USING (
+    tenant_id = public.tpay_current_tenant_id()
+    AND EXISTS (
+      SELECT 1 FROM identity_organization_memberships m
+      WHERE m.tenant_membership_id = identity_tenant_memberships.id
+        AND m.tenant_id = public.tpay_current_tenant_id()
+        AND m.organization_id = public.tpay_current_organization_id()
+    )
+  );
 
 ALTER TABLE identity_organization_memberships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE identity_organization_memberships FORCE ROW LEVEL SECURITY;
