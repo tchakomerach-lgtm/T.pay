@@ -71,6 +71,13 @@ test("global identity schema is installed with FORCE RLS and fail-closed tenant 
          AND trigger_name='trg_identity_audit_immutable'`
     );
     assert.equal(immutable.rows.length, 1, "identity audit must be append-only");
+
+    const sessionGuard = await client.query<{ trigger_name: string }>(
+      `SELECT trigger_name FROM information_schema.triggers
+       WHERE event_object_schema='public' AND event_object_table='identity_sessions'
+         AND trigger_name='trg_identity_session_actor_binding'`
+    );
+    assert.equal(sessionGuard.rows.length, 1, "identity sessions must bind to the same subject, actor and organization");
   } finally {
     await client.end();
   }
