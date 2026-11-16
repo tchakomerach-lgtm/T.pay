@@ -38,7 +38,7 @@ test("tontine callback payload substitution persists a rejected receipt in Postg
     );
 
     const db: TontineSqlExecutor = {
-      query: (sql, values) => client.query(sql, values as unknown[]),
+      async query<Row = Record<string, unknown>>(sql: string, values?: readonly unknown[]) {\n        const result = await client.query(sql, values as unknown[] | undefined);\n        return { rows: result.rows as Row[], rowCount: result.rowCount ?? undefined };\n      },
       async transaction<T>(work: (tx: TontineSqlExecutor) => Promise<T>): Promise<T> {
         await client.query("BEGIN");
         try {
