@@ -45,7 +45,7 @@ test("school API exposes liveness and database readiness without authentication"
 
 
 test("pooled transaction client releases its connection after COMMIT and ROLLBACK",async()=>{
-  for(const command of ["COMMIT","ROLLBACK"]){
+  for(const command of ["COMMIT","ROLLBACK","COMMIT;","ROLLBACK;"]){
     let released=0;
     const client={query:async()=>({rows:[],rowCount:0}),release:()=>{released++;}};
     const pool={connect:async()=>client} as any;
