@@ -130,16 +130,20 @@ RETURNS trigger LANGUAGE plpgsql AS $
 DECLARE
   api_actor uuid;
   api_organization uuid;
+  api_status text;
+  api_expires_at timestamptz;
   link_actor uuid;
   link_status text;
 BEGIN
-  SELECT actor_id, organization_id INTO api_actor, api_organization
+  SELECT actor_id, organization_id, status, expires_at
+    INTO api_actor, api_organization, api_status, api_expires_at
     FROM api_sessions WHERE id = NEW.api_session_id;
   SELECT actor_id, status INTO link_actor, link_status
     FROM identity_actor_links
     WHERE id = NEW.actor_link_id AND subject_id = NEW.subject_id
       AND tenant_id = NEW.tenant_id AND organization_id = NEW.organization_id;
-  IF api_actor IS NULL OR api_organization IS NULL OR link_actor IS NULL
+  IF api_actor IS NULL OR api_organization IS NULL OR api_status IS DISTINCT FROM 'active'
+     OR api_expires_at IS NULL OR api_expires_at <= NEW.issued_at OR link_actor IS NULL
      OR api_actor <> link_actor OR api_organization <> NEW.organization_id
      OR link_status IS DISTINCT FROM 'active' THEN
     RAISE EXCEPTION 'IDENTITY_SESSION_ACTOR_BINDING_INVALID';
