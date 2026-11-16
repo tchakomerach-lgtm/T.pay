@@ -76,12 +76,16 @@ test("global identity schema is installed with FORCE RLS and fail-closed tenant 
       "identity audit must reject both UPDATE and DELETE mutations"
     );
 
-    const sessionGuard = await client.query<{ trigger_name: string }>(
-      `SELECT trigger_name FROM information_schema.triggers
+    const sessionGuard = await client.query<{ event_manipulation: string }>(
+      `SELECT DISTINCT event_manipulation FROM information_schema.triggers
        WHERE event_object_schema='public' AND event_object_table='identity_sessions'
          AND trigger_name='trg_identity_session_actor_binding'`
     );
-    assert.equal(sessionGuard.rows.length, 1, "identity sessions must bind to the same subject, actor and organization");
+    assert.deepEqual(
+      sessionGuard.rows.map(row => row.event_manipulation).sort(),
+      ["INSERT", "UPDATE"],
+      "identity session binding guard must protect both INSERT and UPDATE"
+    );
   } finally {
     await client.end();
   }
