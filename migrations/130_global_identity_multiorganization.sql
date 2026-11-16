@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS identity_actor_links (
     REFERENCES tpay_organization_tenants(tenant_id, organization_id) ON DELETE RESTRICT,
   UNIQUE (tenant_id, organization_id, domain_code, actor_id),
   UNIQUE (id, tenant_id, organization_id),
+  UNIQUE (id, subject_id, tenant_id, organization_id),
   CHECK ((status = 'revoked') = (revoked_at IS NOT NULL))
 );
 CREATE INDEX IF NOT EXISTS idx_identity_actor_links_subject
@@ -116,13 +117,40 @@ CREATE TABLE IF NOT EXISTS identity_sessions (
   issued_at timestamptz NOT NULL,
   expires_at timestamptz NOT NULL,
   revoked_at timestamptz,
-  FOREIGN KEY (actor_link_id, tenant_id, organization_id)
-    REFERENCES identity_actor_links(id, tenant_id, organization_id) ON DELETE RESTRICT,
+  FOREIGN KEY (actor_link_id, subject_id, tenant_id, organization_id)
+    REFERENCES identity_actor_links(id, subject_id, tenant_id, organization_id) ON DELETE RESTRICT,
   CHECK (expires_at > issued_at)
 );
 CREATE INDEX IF NOT EXISTS idx_identity_sessions_subject_scope
   ON identity_sessions(tenant_id, organization_id, subject_id, expires_at)
   WHERE revoked_at IS NULL;
+
+CREATE OR REPLACE FUNCTION guard_identity_session_actor_binding()
+RETURNS trigger LANGUAGE plpgsql AS $
+DECLARE
+  api_actor uuid;
+  api_organization uuid;
+  link_actor uuid;
+  link_status text;
+BEGIN
+  SELECT actor_id, organization_id INTO api_actor, api_organization
+    FROM api_sessions WHERE id = NEW.api_session_id;
+  SELECT actor_id, status INTO link_actor, link_status
+    FROM identity_actor_links
+    WHERE id = NEW.actor_link_id AND subject_id = NEW.subject_id
+      AND tenant_id = NEW.tenant_id AND organization_id = NEW.organization_id;
+  IF api_actor IS NULL OR api_organization IS NULL
+     OR api_actor <> link_actor OR api_organization <> NEW.organization_id
+     OR link_status <> 'active' THEN
+    RAISE EXCEPTION 'IDENTITY_SESSION_ACTOR_BINDING_INVALID';
+  END IF;
+  RETURN NEW;
+END;
+$;
+DROP TRIGGER IF EXISTS trg_identity_session_actor_binding ON identity_sessions;
+CREATE TRIGGER trg_identity_session_actor_binding
+BEFORE INSERT OR UPDATE ON identity_sessions
+FOR EACH ROW EXECUTE FUNCTION guard_identity_session_actor_binding();
 
 CREATE TABLE IF NOT EXISTS identity_audit (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
