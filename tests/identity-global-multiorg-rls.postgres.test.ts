@@ -84,13 +84,14 @@ test("global identity RLS isolates two tenants under a non-owner non-BYPASSRLS r
       return result.rows.map(row => row.id);
     };
     const assertNoIdentityRows = async () => {
-      for (const table of [
-        "tpay_tenants", "tpay_organization_tenants", "identity_subjects",
-        "identity_actor_links", "identity_tenant_memberships",
-        "identity_organization_memberships", "identity_permission_grants",
-        "identity_sessions", "identity_audit"
+      for (const [table, column] of [
+        ["tpay_tenants", "id"], ["tpay_organization_tenants", "organization_id"],
+        ["identity_subjects", "id"], ["identity_actor_links", "id"],
+        ["identity_tenant_memberships", "id"], ["identity_organization_memberships", "id"],
+        ["identity_permission_grants", "id"], ["identity_sessions", "id"],
+        ["identity_audit", "id"]
       ]) {
-        assert.deepEqual(await visible(table), [], `${table} must deny reads without a tenant and organization context`);
+        assert.deepEqual(await visible(table, column), [], `${table} must deny reads without a tenant and organization context`);
       }
     };
     const setScope = async (tenantId: string, organizationId: string) => {
