@@ -33,6 +33,7 @@ test("global identity RLS isolates two tenants under a non-owner non-BYPASSRLS r
   const grantA = randomUUID();
   const grantB = randomUUID();
   let roleCreated = false;
+  let transactionOpen = false;
 
   try {
     await applyMigrations(owner, pathToFileURL(join(process.cwd(), "migrations") + "/"));
@@ -49,6 +50,8 @@ test("global identity RLS isolates two tenants under a non-owner non-BYPASSRLS r
 
     const now = new Date(Date.now() - 60_000).toISOString();
     const later = new Date(Date.now() + 60 * 60_000).toISOString();
+    await owner.query("BEGIN");
+    transactionOpen = true;
     await owner.query("INSERT INTO organizations(id,name,status,created_at) VALUES ($1,'RLS tenant A','active',now()),($2,'RLS tenant B','active',now())", [orgA, orgB]);
     await owner.query("INSERT INTO tpay_tenants(id) VALUES ($1),($2)", [tenantA, tenantB]);
     await owner.query("INSERT INTO tpay_organization_tenants(tenant_id,organization_id) VALUES ($1,$2),($3,$4)", [tenantA, orgA, tenantB, orgB]);
@@ -74,45 +77,27 @@ test("global identity RLS isolates two tenants under a non-owner non-BYPASSRLS r
       [tenantA, orgA, subjectA, actorA, tenantB, orgB, subjectB, actorB]
     );
 
-    const runtime = new pg.Client({ connectionString: databaseUrl });
-    await runtime.connect();
-    try {
-      await runtime.query(`SET ROLE "${role}"`);
-      await runtime.query("BEGIN");
-      await runtime.query("SELECT set_config('tpay.tenant_id',$1,true)", [tenantA]);
-      await runtime.query("SELECT set_config('tpay.organization_id',$1,true)", [orgA]);
+    await owner.query(`SET LOCAL ROLE "${role}"`);
+    await owner.query("SELECT set_config('tpay.tenant_id',$1,true)", [tenantA]);
+    await owner.query("SELECT set_config('tpay.organization_id',$1,true)", [orgA]);
 
-      const visible = async (table: string, column = "id") => {
-        const result = await runtime.query(`SELECT ${column}::text AS id FROM public.${table} ORDER BY 1`);
-        return result.rows.map(row => row.id);
-      };
-      assert.deepEqual(await visible("tpay_tenants"), [tenantA]);
-      assert.deepEqual(await visible("tpay_organization_tenants", "organization_id"), [orgA]);
-      assert.deepEqual(await visible("identity_subjects"), [subjectA]);
-      assert.deepEqual(await visible("identity_actor_links"), [actorLinkA]);
-      assert.deepEqual(await visible("identity_tenant_memberships"), [tenantMembershipA]);
-      assert.deepEqual(await visible("identity_organization_memberships"), [orgMembershipA]);
-      assert.deepEqual(await visible("identity_permission_grants"), [grantA]);
-      assert.deepEqual(await visible("identity_audit", "id").then(rows => rows.length), 1);
-      await runtime.query("ROLLBACK");
-      await runtime.query("RESET ROLE");
-    } finally {
-      await runtime.end();
-    }
+    const visible = async (table: string, column = "id") => {
+      const result = await owner.query(`SELECT ${column}::text AS id FROM public.${table} ORDER BY 1`);
+      return result.rows.map(row => row.id);
+    };
+    assert.deepEqual(await visible("tpay_tenants"), [tenantA]);
+    assert.deepEqual(await visible("tpay_organization_tenants", "organization_id"), [orgA]);
+    assert.deepEqual(await visible("identity_subjects"), [subjectA]);
+    assert.deepEqual(await visible("identity_actor_links"), [actorLinkA]);
+    assert.deepEqual(await visible("identity_tenant_memberships"), [tenantMembershipA]);
+    assert.deepEqual(await visible("identity_organization_memberships"), [orgMembershipA]);
+    assert.deepEqual(await visible("identity_permission_grants"), [grantA]);
+    assert.equal((await visible("identity_audit", "id")).length, 1);
+    await owner.query("ROLLBACK");
+    transactionOpen = false;
   } finally {
-    if (roleCreated) {
-      await owner.query("DELETE FROM identity_audit WHERE tenant_id=ANY($1::text[])", [[tenantA, tenantB]]);
-      await owner.query("DELETE FROM identity_permission_grants WHERE id=ANY($1::uuid[])", [[grantA, grantB]]);
-      await owner.query("DELETE FROM identity_organization_memberships WHERE id=ANY($1::uuid[])", [[orgMembershipA, orgMembershipB]]);
-      await owner.query("DELETE FROM identity_tenant_memberships WHERE id=ANY($1::uuid[])", [[tenantMembershipA, tenantMembershipB]]);
-      await owner.query("DELETE FROM identity_actor_links WHERE id=ANY($1::uuid[])", [[actorLinkA, actorLinkB]]);
-      await owner.query("DELETE FROM identity_subjects WHERE id=ANY($1::uuid[])", [[subjectA, subjectB]]);
-      await owner.query("DELETE FROM tpay_organization_tenants WHERE tenant_id=ANY($1::text[])", [[tenantA, tenantB]]);
-      await owner.query("DELETE FROM tpay_tenants WHERE id=ANY($1::text[])", [[tenantA, tenantB]]);
-      await owner.query("DELETE FROM organizations WHERE id=ANY($1::uuid[])", [[orgA, orgB]]);
-      await owner.query(`DROP OWNED BY "${role}"`);
-      await owner.query(`DROP ROLE "${role}"`);
-    }
+    if (transactionOpen) await owner.query("ROLLBACK");
+    if (roleCreated) await owner.query(`DROP ROLE "${role}"`);
     await owner.end();
   }
 });
