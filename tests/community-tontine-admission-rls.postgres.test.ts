@@ -60,9 +60,14 @@ test("Community Tontine admission RLS is installed and organization context fail
     assert.equal(absent.rows[0]?.organization_id, null, "missing organization context must fail closed");
 
     const organizationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-    await client.query("SELECT set_config('tpay.organization_id',$1,true)", [organizationId]);
-    const scoped = await client.query("SELECT public.tpay_current_organization_id() AS organization_id");
-    assert.equal(scoped.rows[0]?.organization_id, organizationId);
+    await client.query("BEGIN");
+    try {
+      await client.query("SELECT set_config('tpay.organization_id',$1,true)", [organizationId]);
+      const scoped = await client.query("SELECT public.tpay_current_organization_id() AS organization_id");
+      assert.equal(scoped.rows[0]?.organization_id, organizationId);
+    } finally {
+      await client.query("ROLLBACK");
+    }
   } finally {
     await client.end();
   }
