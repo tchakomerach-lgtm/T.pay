@@ -126,7 +126,7 @@ CREATE INDEX IF NOT EXISTS idx_identity_sessions_subject_scope
   WHERE revoked_at IS NULL;
 
 CREATE OR REPLACE FUNCTION guard_identity_session_actor_binding()
-RETURNS trigger LANGUAGE plpgsql AS $
+RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
   api_actor uuid;
   api_organization uuid;
@@ -150,7 +150,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 DROP TRIGGER IF EXISTS trg_identity_session_actor_binding ON identity_sessions;
 CREATE TRIGGER trg_identity_session_actor_binding
 BEFORE INSERT OR UPDATE ON identity_sessions
