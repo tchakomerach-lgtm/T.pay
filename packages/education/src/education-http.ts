@@ -502,7 +502,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      if(method!=="POST")throw new Error("TONTINE_PROMOTION_METHOD_NOT_ALLOWED");
      const input=body as Record<string,unknown>;
      const allowedChannels=new Set(["LINK","QR","USSD","AGENT","SOCIAL"]);
-     if(!Array.isArray(input.allowedChannels)||input.allowedChannels.some(c=>typeof c!=="string"||!allowedChannels.has(c)))throw new Error("TONTINE_PROMOTION_CHANNELS_INVALID");
+     if(!Array.isArray(input.allowedChannels)||input.allowedChannels.length===0||input.allowedChannels.some(c=>typeof c!=="string"||!allowedChannels.has(c)))throw new Error("TONTINE_PROMOTION_CHANNELS_INVALID");
      const campaign:CommunityTontinePromotionCampaign={
       id:randomUUID() as UUID,organizationId:organizationId as UUID,groupId:groupId as UUID,
       code:typeof input.code==="string"?input.code.trim().toUpperCase():"",
