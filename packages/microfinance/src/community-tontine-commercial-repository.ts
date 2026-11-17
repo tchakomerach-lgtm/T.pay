@@ -300,7 +300,8 @@ export class PostgresCommunityTontineCommercialRepository {
   }
 
   async reservePromotionRedemption(input: {
-    campaign: CommunityTontinePromotionCampaign; redemption: CommunityTontinePromotionRedemption; now: string;
+    campaign: CommunityTontinePromotionCampaign; redemption: CommunityTontinePromotionRedemption;
+    actorId: UUID; now: string;
   }): Promise<void> {
     const { campaign, redemption, now } = input;
     assertPromotionCampaignValid(campaign);
@@ -335,15 +336,17 @@ export class PostgresCommunityTontineCommercialRepository {
         `INSERT INTO community_tontine_commercial_audit
          (id,organization_id,group_id,object_type,object_id,action,actor_id,reason,payload,occurred_at)
          VALUES ($1,$2,$3,'PROMOTION_REDEMPTION',$4,'RESERVED',$5,'Promotion redemption reserved atomically',$6::jsonb,$7::timestamptz)`,
-        [randomUUID(),campaign.organizationId,campaign.groupId,redemption.id,redemption.candidateId,
-         JSON.stringify({campaignId:campaign.id,rewardMinor:redemption.rewardMinor.toString(),
+        [randomUUID(),campaign.organizationId,campaign.groupId,redemption.id,input.actorId,
+         JSON.stringify({campaignId:campaign.id,candidateId:redemption.candidateId,
+           ambassadorId:redemption.ambassadorId??null,rewardMinor:redemption.rewardMinor.toString(),
            idempotencyKey:redemption.idempotencyKey}),now]
       );
     });
   }
 
   async markPromotionRewardPendingApproval(input: {
-    organizationId: UUID; groupId: UUID; redemptionId: UUID; firstContributionId: UUID; now: string;
+    organizationId: UUID; groupId: UUID; redemptionId: UUID; firstContributionId: UUID;
+    actorId: UUID; now: string;
     candidateVerified: boolean; membershipAccepted: boolean; fraudReviewClear: boolean;
   }): Promise<void> {
     if (!input.candidateVerified || !input.membershipAccepted || !input.fraudReviewClear) {
@@ -375,9 +378,9 @@ export class PostgresCommunityTontineCommercialRepository {
         `INSERT INTO community_tontine_commercial_audit
          (id,organization_id,group_id,object_type,object_id,action,actor_id,reason,payload,occurred_at)
          VALUES ($1,$2,$3,'PROMOTION_REDEMPTION',$4,'PENDING_APPROVAL',$5,'First settled contribution verified; reward awaits approval',$6::jsonb,$7::timestamptz)`,
-        [randomUUID(),input.organizationId,input.groupId,input.redemptionId,
-         settled.rows[0]?.candidate_id ?? input.redemptionId,
-         JSON.stringify({firstContributionId:input.firstContributionId}),input.now]
+        [randomUUID(),input.organizationId,input.groupId,input.redemptionId,input.actorId,
+         JSON.stringify({firstContributionId:input.firstContributionId,
+           candidateId:settled.rows[0]?.candidate_id}),input.now]
       );
     });
   }
