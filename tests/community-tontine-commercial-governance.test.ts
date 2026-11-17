@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  assertCommunityTontineFeeSnapshotForSettlement,
   assertCommunityTontinePermission,
   assertCommunityTontineRoleGrant,
+  computeCommunityTontineCommissionPolicyHash,
   assertPromotionCampaignValid,
   attributeCommunityTontinePromotion,
   evaluateCommunityTontinePromotionReward,
@@ -23,12 +25,12 @@ const contribution = "00000000-0000-4000-8000-000000000006" as never;
 const now = "2026-11-17T07:00:00.000Z";
 
 function policy(overrides: Partial<CommunityTontineCommissionPolicy> = {}): CommunityTontineCommissionPolicy {
-  return {
+  const value: CommunityTontineCommissionPolicy = {
     id: "00000000-0000-4000-8000-000000000010" as never,
     organizationId: org, groupId: group, version: "v1", transactionLevel: "CONTRIBUTION",
     currency: "XOF", state: "ACTIVE", payer: "SPLIT", memberShareBps: 6000,
     effectiveFrom: "2026-11-01T00:00:00.000Z", createdBy: admin, approvedBy: approver,
-    policyHash: "a".repeat(64),
+    policyHash: "0".repeat(64),
     components: [
       { recipient: "TPAY", rateBps: 100, enabled: true },
       { recipient: "PARTNER", rateBps: 50, enabled: true },
@@ -39,6 +41,8 @@ function policy(overrides: Partial<CommunityTontineCommissionPolicy> = {}): Comm
     ],
     ...overrides
   };
+  value.policyHash = computeCommunityTontineCommissionPolicyHash(value);
+  return value;
 }
 
 test("commission quote locks transaction-level fee components and payer split", () => {
@@ -60,6 +64,30 @@ test("commission quote locks transaction-level fee components and payer split", 
   assert.equal(snapshot.totalFeeMinor, 2000n);
   assert.equal(snapshot.memberFeeMinor, 1200n);
   assert.equal(snapshot.beneficiaryFeeMinor, 800n);
+});
+
+test("accepted commission snapshot must predate payment initiation", () => {
+  const quote = quoteCommunityTontineCommission({
+    id: "00000000-0000-4000-8000-000000000015" as never,
+    transactionReference: contribution, policy: policy(), grossAmountMinor: 10_000n,
+    currency: "XOF", now, expiresAt: "2026-11-17T07:05:00.000Z"
+  });
+  const snapshot = toTontineFeeSnapshot(lockCommunityTontineFeeQuote(quote, "2026-11-17T07:01:00.000Z"), contribution);
+  const contributionRow = {
+    id: contribution, groupId: group, membershipId: member, scheduledFor: now,
+    amountMinor: 10_000n, currency: "XOF", status: "confirmed" as const,
+    channel: "mobile_money" as const, idempotencyKey: "tontine-idempotency-key-001"
+  };
+  const payment = {
+    id: "00000000-0000-4000-8000-000000000016" as never, organizationId: org,
+    contributionId: contribution, idempotencyKey: contributionRow.idempotencyKey,
+    amountMinor: 10_000n, currency: "XOF", provider: "TMONEY", status: "provider_confirmed" as const,
+    createdAt: "2026-11-17T07:02:00.000Z", updatedAt: "2026-11-17T07:02:00.000Z"
+  };
+  assert.doesNotThrow(() => assertCommunityTontineFeeSnapshotForSettlement(snapshot, contributionRow, payment));
+  assert.throws(() => assertCommunityTontineFeeSnapshotForSettlement(snapshot, contributionRow, {
+    ...payment, createdAt: "2026-11-17T07:00:30.000Z"
+  }), /TONTINE_COMMISSION_ACCEPTANCE_AFTER_PAYMENT_INITIATION/);
 });
 
 test("commission policy rejects rates above gross and invalid maker-checker", () => {
