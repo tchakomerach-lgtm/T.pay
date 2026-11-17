@@ -23,6 +23,46 @@ function policyComponentsJson(policy: CommunityTontineCommissionPolicy): string 
 export class PostgresCommunityTontineCommercialRepository {
   constructor(private readonly db: TontineSqlExecutor) {}
 
+  async getActiveCommissionPolicy(input: {
+    organizationId: UUID; groupId: UUID; transactionLevel: CommunityTontineCommissionPolicy["transactionLevel"];
+    currency: string; now: string;
+  }): Promise<CommunityTontineCommissionPolicy | null> {
+    const result = await this.db.query<Record<string, unknown>>(
+      `SELECT id,organization_id,group_id,version,transaction_level,currency,state,payer_mode,member_share_bps,
+              effective_from,effective_until,components,policy_hash,created_by,approved_by
+       FROM community_tontine_commission_policies
+       WHERE organization_id=$1 AND group_id=$2 AND transaction_level=$3 AND currency=$4
+         AND state='ACTIVE' AND effective_from<=$5::timestamptz
+         AND (effective_until IS NULL OR effective_until>$5::timestamptz)
+       FOR SHARE`,
+      [input.organizationId,input.groupId,input.transactionLevel,input.currency,input.now]
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    const rawComponents = typeof row.components === "string" ? JSON.parse(row.components) : row.components;
+    if (!Array.isArray(rawComponents)) throw new Error("TONTINE_COMMISSION_POLICY_COMPONENTS_INVALID");
+    const components = rawComponents.map((raw: Record<string, unknown>) => ({
+      recipient: raw.recipient as CommunityTontineCommissionPolicy["components"][number]["recipient"],
+      rateBps: Number(raw.rateBps),
+      enabled: raw.enabled === true,
+      ...(raw.minMinor !== undefined ? { minMinor: BigInt(String(raw.minMinor)) } : {}),
+      ...(raw.maxMinor !== undefined ? { maxMinor: BigInt(String(raw.maxMinor)) } : {})
+    }));
+    const policy: CommunityTontineCommissionPolicy = {
+      id: String(row.id) as UUID, organizationId: String(row.organization_id) as UUID,
+      groupId: String(row.group_id) as UUID, version: String(row.version),
+      transactionLevel: row.transaction_level as CommunityTontineCommissionPolicy["transactionLevel"],
+      currency: String(row.currency), state: row.state as CommunityTontineCommissionPolicy["state"],
+      payer: row.payer_mode as CommunityTontineCommissionPolicy["payer"],
+      memberShareBps: Number(row.member_share_bps), effectiveFrom: new Date(String(row.effective_from)).toISOString(),
+      ...(row.effective_until ? { effectiveUntil: new Date(String(row.effective_until)).toISOString() } : {}),
+      components, createdBy: String(row.created_by) as UUID,
+      ...(row.approved_by ? { approvedBy: String(row.approved_by) as UUID } : {}),
+      policyHash: String(row.policy_hash)
+    };
+    return policy;
+  }
+
   async createCommissionPolicy(policy: CommunityTontineCommissionPolicy, auditId: UUID, now: string): Promise<void> {
     validateCommunityTontineCommissionPolicy(policy);
     if (policy.state !== "DRAFT") throw new Error("TONTINE_COMMISSION_POLICY_MUST_START_DRAFT");
@@ -136,6 +176,49 @@ export class PostgresCommunityTontineCommercialRepository {
       [input.organizationId,input.groupId,input.grantId,input.revokedAt]
     );
     if (result.rows.length !== 1) throw new Error("TONTINE_ROLE_GRANT_NOT_REVOCABLE");
+  }
+
+  async createPromotionCampaign(campaign: CommunityTontinePromotionCampaign): Promise<void> {
+    assertPromotionCampaignValid(campaign);
+    if (campaign.state !== "DRAFT") throw new Error("TONTINE_PROMOTION_MUST_START_DRAFT");
+    await this.db.query(
+      `INSERT INTO community_tontine_promotion_campaigns
+       (id,organization_id,group_id,code,title,state,starts_at,ends_at,currency,reward_minor,max_redemptions,
+        accepted_redemptions,max_budget_minor,committed_budget_minor,allowed_channels,created_by,approved_by)
+       VALUES ($1,$2,$3,$4,$5,'DRAFT',$6::timestamptz,$7::timestamptz,$8,$9::numeric,$10,0,
+               $11::numeric,0,$12,$13,NULL)`,
+      [campaign.id,campaign.organizationId,campaign.groupId,campaign.code,campaign.title,campaign.startsAt,
+       campaign.endsAt,campaign.currency,campaign.rewardMinor.toString(),campaign.maxRedemptions,
+       campaign.maxBudgetMinor.toString(),[...campaign.allowedChannels],campaign.createdBy]
+    );
+  }
+
+  async approvePromotionCampaign(input: {
+    organizationId: UUID; groupId: UUID; campaignId: UUID; approverId: UUID;
+  }): Promise<void> {
+    const result = await this.db.query(
+      `UPDATE community_tontine_promotion_campaigns
+       SET state='APPROVED',approved_by=$4
+       WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND state='DRAFT' AND created_by<>$4
+       RETURNING id`,
+      [input.organizationId,input.groupId,input.campaignId,input.approverId]
+    );
+    if (result.rows.length !== 1) throw new Error("TONTINE_PROMOTION_APPROVAL_REJECTED");
+  }
+
+  async activatePromotionCampaign(input: {
+    organizationId: UUID; groupId: UUID; campaignId: UUID; actorId: UUID;
+  }): Promise<void> {
+    const result = await this.db.query(
+      `UPDATE community_tontine_promotion_campaigns
+       SET state='ACTIVE'
+       WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND state='APPROVED'
+         AND approved_by IS NOT NULL AND approved_by<>$4
+         AND starts_at<=now() AND ends_at>now()
+       RETURNING id`,
+      [input.organizationId,input.groupId,input.campaignId,input.actorId]
+    );
+    if (result.rows.length !== 1) throw new Error("TONTINE_PROMOTION_ACTIVATION_REJECTED");
   }
 
   async reservePromotionRedemption(input: {
