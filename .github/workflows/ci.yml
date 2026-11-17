@@ -13,7 +13,8 @@ permissions:
   contents: read
 concurrency:
   group: tpay-ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Authoritative security/DB validation must not be cancelled by a newer commit.
+  cancel-in-progress: false
 jobs:
   quality:
     runs-on: ubuntu-latest
