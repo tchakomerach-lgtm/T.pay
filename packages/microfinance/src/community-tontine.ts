@@ -79,6 +79,19 @@ export interface TontineFeeSnapshot {
   currency: string;
   ruleVersion: string;
   calculatedAt: string;
+  /** Extended immutable GAIN policy snapshot fields; absent on legacy snapshots. */
+  agentFeeMinor?: bigint;
+  reserveFeeMinor?: bigint;
+  taxFeeMinor?: bigint;
+  optionalServiceFeeMinor?: bigint;
+  memberFeeMinor?: bigint;
+  beneficiaryFeeMinor?: bigint;
+  payerMode?: "MEMBER" | "BENEFICIARY" | "SPLIT";
+  policyId?: UUID;
+  transactionLevel?: "CONTRIBUTION" | "BENEFICIARY_PAYOUT" | "TRANSFER" | "OPTIONAL_SERVICE";
+  componentSnapshot?: string;
+  snapshotHash?: string;
+  acceptedAt?: string;
 }
 
 export function validateCommunityTontine(group: CommunityTontineGroup): void {
