@@ -228,7 +228,7 @@ export function toTontineFeeSnapshot(
     componentSnapshot: JSON.stringify(snapshot.components.map(x => ({
       recipient: x.recipient, rateBps: x.rateBps, amountMinor: x.amountMinor.toString()
     }))),
-    snapshotHash: snapshot.snapshotHash, acceptedAt: snapshot.acceptedAt
+    quoteHash: snapshot.quoteHash, snapshotHash: snapshot.snapshotHash, acceptedAt: snapshot.acceptedAt
   };
 }
 
@@ -246,25 +246,42 @@ export function assertCommunityTontineFeeSnapshotForSettlement(
     throw new Error("TONTINE_COMMISSION_SETTLEMENT_CONTEXT_INVALID");
   }
   if (!snapshot.policyId || snapshot.transactionLevel !== "CONTRIBUTION" ||
-      !snapshot.acceptedAt || !snapshot.snapshotHash || !HASH.test(snapshot.snapshotHash)) {
+      !snapshot.acceptedAt || !snapshot.quoteHash || !HASH.test(snapshot.quoteHash) ||
+      !snapshot.snapshotHash || !HASH.test(snapshot.snapshotHash)) {
     throw new Error("TONTINE_COMMISSION_ACCEPTED_SNAPSHOT_REQUIRED");
   }
   if (Date.parse(snapshot.acceptedAt) > Date.parse(paymentIntent.createdAt)) {
     throw new Error("TONTINE_COMMISSION_ACCEPTANCE_AFTER_PAYMENT_INITIATION");
   }
+  const expectedSnapshotHash = createHash("sha256").update(JSON.stringify({
+    quoteHash: snapshot.quoteHash, acceptedAt: snapshot.acceptedAt
+  })).digest("hex");
+  if (expectedSnapshotHash !== snapshot.snapshotHash) throw new Error("TONTINE_COMMISSION_SNAPSHOT_HASH_MISMATCH");
   if (snapshot.componentSnapshot) {
     let components: unknown;
     try { components = JSON.parse(snapshot.componentSnapshot); } catch { throw new Error("TONTINE_COMMISSION_COMPONENT_SNAPSHOT_INVALID"); }
     if (!Array.isArray(components)) throw new Error("TONTINE_COMMISSION_COMPONENT_SNAPSHOT_INVALID");
+    const amounts = new Map<string, bigint>();
     const total = components.reduce((sum: bigint, item: unknown) => {
       if (!item || typeof item !== "object" || !("amountMinor" in item) ||
           typeof (item as {amountMinor?:unknown}).amountMinor !== "string" ||
           !/^[0-9]{1,38}$/.test((item as {amountMinor:string}).amountMinor)) {
         throw new Error("TONTINE_COMMISSION_COMPONENT_SNAPSHOT_INVALID");
       }
-      return sum + BigInt((item as {amountMinor:string}).amountMinor);
+      const value = item as {recipient?:unknown;amountMinor:string};
+      if (typeof value.recipient !== "string") throw new Error("TONTINE_COMMISSION_COMPONENT_SNAPSHOT_INVALID");
+      amounts.set(value.recipient, (amounts.get(value.recipient) ?? 0n) + BigInt(value.amountMinor));
+      return sum + BigInt(value.amountMinor);
     }, 0n);
-    if (total !== snapshot.totalFeeMinor) throw new Error("TONTINE_COMMISSION_COMPONENT_TOTAL_MISMATCH");
+    if (total !== snapshot.totalFeeMinor ||
+        (amounts.get("TPAY") ?? 0n) !== snapshot.tpayFeeMinor ||
+        (amounts.get("PARTNER") ?? 0n) !== snapshot.microfinanceFeeMinor ||
+        (amounts.get("AGENT") ?? 0n) !== (snapshot.agentFeeMinor ?? 0n) ||
+        (amounts.get("RESERVE") ?? 0n) !== (snapshot.reserveFeeMinor ?? 0n) ||
+        (amounts.get("TAX") ?? 0n) !== (snapshot.taxFeeMinor ?? 0n) ||
+        (amounts.get("OPTIONAL_SERVICE") ?? 0n) !== (snapshot.optionalServiceFeeMinor ?? 0n)) {
+      throw new Error("TONTINE_COMMISSION_COMPONENT_TOTAL_MISMATCH");
+    }
   }
 }
 
