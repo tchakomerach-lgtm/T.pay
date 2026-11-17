@@ -62,7 +62,7 @@ const json=(res:ServerResponse,status:number,body:unknown,correlationId:string)=
 async function readBody(req:IncomingMessage):Promise<string>{
   const declaredLength=String(req.headers["content-length"]??"").trim();
   if(declaredLength){
-    if(!/^\\d+$/.test(declaredLength))throw new Error("CONTENT_LENGTH_INVALID");
+    if(!/^\d+$/.test(declaredLength))throw new Error("CONTENT_LENGTH_INVALID");
     if(Number(declaredLength)>MAX_BODY_BYTES)throw new Error("PAYLOAD_TOO_LARGE");
   }
   let out="",size=0;
@@ -242,6 +242,6 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(dedupe?.status==="reserved")await gateway.completeIdempotency({requestId:dedupe.requestId,state:"succeeded",responseHash:canonicalRequestHash("RESPONSE",path,JSON.stringify(response)),statusCode:200});
    await gateway.audit({organizationId,requestId:dedupe?.requestId??correlationId,route:path,actorId:auth.principal.userId,authClass:"member",outcome:"accepted",correlationId,metadata:JSON.stringify({method,path})});
    json(res,200,response,correlationId);
-  }catch(error){const status=String(error).startsWith("Error: FORBIDDEN")?403:400;json(res,status,buildApiError(error,correlationId),correlationId);}
+  }catch(error){const message=String(error);const status=message.includes("PAYLOAD_TOO_LARGE")?413:message.startsWith("Error: FORBIDDEN")?403:400;json(res,status,buildApiError(error,correlationId),correlationId);}
  });
 }
