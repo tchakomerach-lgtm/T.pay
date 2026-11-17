@@ -17,7 +17,7 @@ const REQUIRED_ENV=["TPAY_DATABASE_URL","TPAY_TLS_KEY_FILE","TPAY_TLS_CERT_FILE"
 const permissionSet=new Set<Permission>([
   "org.read","org.manage","member.manage","finance.read","finance.initiate",
   "finance.approve","ledger.read","ledger.post","audit.read","security.manage",
-  "community.tontine.read","community.members.manage","community.admission.decide",
+  "community.tontine.read","community.groups.manage","community.members.manage","community.admission.decide",
   "community.contribution.initiate","community.governance.propose","community.governance.vote",
   "community.payout.approve","community.dispute.manage"
 ]);
