@@ -383,6 +383,184 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      return saved.rows[0];
     });
     data={group:{...created,active_member_count:1,pending_member_count:0,latest_cycle:null,confirmed_contribution_count:0,confirmed_contribution_minor:"0"},founderMembershipId:membershipId};
+   }else if(r[0]==="tontine-commission-policies"){
+    const groupId=r[1] as string;
+    const now=(deps.now??(()=>new Date()))().toISOString();
+    data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
+     await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
+     const repository=commercialRepository(client);
+     if(method==="GET"){
+      const query=new URL(rawUrl,"https://tpay.invalid").searchParams;
+      const level=String(query.get("level")??"CONTRIBUTION");
+      const currency=String(query.get("currency")??"XOF").toUpperCase();
+      if(!["CONTRIBUTION","BENEFICIARY_PAYOUT","TRANSFER","OPTIONAL_SERVICE"].includes(level))throw new Error("TONTINE_COMMISSION_LEVEL_INVALID");
+      const policy=await repository.getActiveCommissionPolicy({
+       organizationId:organizationId as UUID,groupId:groupId as UUID,
+       transactionLevel:level as CommunityTontineCommissionPolicy["transactionLevel"],currency,now
+      });
+      return {policy:policy?feePolicyView(policy):null};
+     }
+     if(method!=="POST")throw new Error("TONTINE_COMMISSION_METHOD_NOT_ALLOWED");
+     const input=body as Record<string,unknown>;
+     const level=String(input.transactionLevel??"");
+     const payer=String(input.payer??"");
+     const recipients=new Set(["TPAY","PARTNER","AGENT","RESERVE","TAX","OPTIONAL_SERVICE"]);
+     if(!["CONTRIBUTION","BENEFICIARY_PAYOUT","TRANSFER","OPTIONAL_SERVICE"].includes(level))throw new Error("TONTINE_COMMISSION_LEVEL_INVALID");
+     if(!["MEMBER","BENEFICIARY","SPLIT"].includes(payer))throw new Error("TONTINE_COMMISSION_PAYER_INVALID");
+     if(!Array.isArray(input.components)||input.components.length===0)throw new Error("TONTINE_COMMISSION_COMPONENTS_REQUIRED");
+     const components:CommunityTontineFeeComponentRule[]=input.components.map((raw:unknown)=>{
+      if(!raw||typeof raw!=="object"||Array.isArray(raw))throw new Error("TONTINE_COMMISSION_COMPONENT_INVALID");
+      const item=raw as Record<string,unknown>;
+      const recipient=String(item.recipient??"");
+      const rateBps=Number(item.rateBps);
+      if(!recipients.has(recipient)||!Number.isInteger(rateBps)||rateBps<0||rateBps>10000||typeof item.enabled!=="boolean")throw new Error("TONTINE_COMMISSION_COMPONENT_INVALID");
+      return {
+       recipient:recipient as CommunityTontineFeeRecipient,rateBps,enabled:item.enabled,
+       ...(item.minMinor!==undefined?{minMinor:tontineNonNegativeAmount(item.minMinor,"minMinor")}:{}),
+       ...(item.maxMinor!==undefined?{maxMinor:tontineNonNegativeAmount(item.maxMinor,"maxMinor")}:{})
+      };
+     });
+     const policy:CommunityTontineCommissionPolicy={
+      id:randomUUID() as UUID,organizationId:organizationId as UUID,groupId:groupId as UUID,
+      version:typeof input.version==="string"?input.version.trim():"",
+      transactionLevel:level as CommunityTontineCommissionPolicy["transactionLevel"],
+      currency:typeof input.currency==="string"?input.currency.toUpperCase():"XOF",
+      state:"DRAFT",payer:payer as CommunityTontineCommissionPolicy["payer"],
+      memberShareBps:Number(input.memberShareBps),effectiveFrom:typeof input.effectiveFrom==="string"?input.effectiveFrom:now,
+      ...(typeof input.effectiveUntil==="string"?{effectiveUntil:input.effectiveUntil}:{}),
+      components,createdBy:auth.principal.userId as UUID,policyHash:"0".repeat(64)
+     };
+     policy.policyHash=computeCommunityTontineCommissionPolicyHash(policy);
+     await repository.createCommissionPolicy(policy,randomUUID() as UUID,now);
+     return {policy:feePolicyView(policy)};
+    });
+   }else if(r[0]==="tontine-commission-policy-approve"){
+    if(method!=="POST")throw new Error("TONTINE_COMMISSION_METHOD_NOT_ALLOWED");
+    const groupId=r[1] as string,policyId=r[2] as string;
+    const input=body as Record<string,unknown>;
+    const now=(deps.now??(()=>new Date()))().toISOString();
+    data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
+     await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
+     await commercialRepository(client).approveCommissionPolicy({
+      organizationId:organizationId as UUID,groupId:groupId as UUID,policyId:policyId as UUID,
+      approverId:auth.principal.userId as UUID,auditId:randomUUID() as UUID,
+      reason:typeof input.reason==="string"?input.reason:"",now
+     });
+     return {policyId,state:"APPROVED"};
+    });
+   }else if(r[0]==="tontine-commission-policy-activate"){
+    if(method!=="POST")throw new Error("TONTINE_COMMISSION_METHOD_NOT_ALLOWED");
+    const groupId=r[1] as string,policyId=r[2] as string;
+    const input=body as Record<string,unknown>;
+    const now=(deps.now??(()=>new Date()))().toISOString();
+    data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
+     await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
+     await commercialRepository(client).activateCommissionPolicy({
+      organizationId:organizationId as UUID,groupId:groupId as UUID,policyId:policyId as UUID,
+      actorId:auth.principal.userId as UUID,auditId:randomUUID() as UUID,
+      reason:typeof input.reason==="string"?input.reason:"",now
+     });
+     return {policyId,state:"ACTIVE"};
+    });
+   }else if(r[0]==="tontine-roles"){
+    if(method!=="POST")throw new Error("TONTINE_ROLE_METHOD_NOT_ALLOWED");
+    const groupId=r[1] as string,input=body as Record<string,unknown>;
+    const now=(deps.now??(()=>new Date()))().toISOString();
+    data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
+     const grantorRole=await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
+     const targetRole=String(input.role??"");
+     const permissions=input.permissions;
+     const validPermissions=new Set(["group.manage","member.manage","member.invite","roles.grant","rules.manage","governance.manage","governance.vote","contribution.read","contribution.initiate","contribution.collect","offline.sync","payout.prepare","payout.approve","finance.reconcile","incident.manage","incident.review","reports.read","documents.manage","member.self"]);
+     if(!["FOUNDER","COMMUNITY_ADMIN","PRESIDENT","TREASURER","SECRETARY","COLLECTOR","CONTROLLER","MEDIATOR","PAYOUT_APPROVER","MEMBER"].includes(targetRole)||
+        !Array.isArray(permissions)||permissions.some(p=>typeof p!=="string"||!validPermissions.has(p)))throw new Error("TONTINE_ROLE_GRANT_PAYLOAD_INVALID");
+     const actorId=String(input.actorId??"");
+     if(!/^[0-9a-f-]{36}$/i.test(actorId))throw new Error("TONTINE_ROLE_TARGET_INVALID");
+     const grantId=randomUUID() as UUID;
+     await commercialRepository(client).grantRole({
+      id:grantId,organizationId:organizationId as UUID,groupId:groupId as UUID,actorId:actorId as UUID,
+      grantorId:auth.principal.userId as UUID,grantorRole,targetRole:targetRole as CommunityTontineAdminRole,
+      permissions:permissions as CommunityTontinePermission[],
+      validFrom:typeof input.validFrom==="string"?input.validFrom:now,
+      expiresAt:typeof input.expiresAt==="string"?input.expiresAt:""
+     });
+     return {grantId,actorId,role:targetRole,permissions,expiresAt:input.expiresAt};
+    });
+   }else if(r[0]==="tontine-role-revoke"){
+    if(method!=="POST")throw new Error("TONTINE_ROLE_METHOD_NOT_ALLOWED");
+    const groupId=r[1] as string,grantId=r[2] as string;
+    const now=(deps.now??(()=>new Date()))().toISOString();
+    data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
+     await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
+     await commercialRepository(client).revokeRole({organizationId:organizationId as UUID,groupId:groupId as UUID,grantId:grantId as UUID,revokedAt:now});
+     return {grantId,state:"REVOKED"};
+    });
+   }else if(r[0]==="tontine-promotions"){
+    const groupId=r[1] as string,now=(deps.now??(()=>new Date()))().toISOString();
+    data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
+     await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
+     const repository=commercialRepository(client);
+     if(method!=="POST")throw new Error("TONTINE_PROMOTION_METHOD_NOT_ALLOWED");
+     const input=body as Record<string,unknown>;
+     const allowedChannels=new Set(["LINK","QR","USSD","AGENT","SOCIAL"]);
+     if(!Array.isArray(input.allowedChannels)||input.allowedChannels.some(c=>typeof c!=="string"||!allowedChannels.has(c)))throw new Error("TONTINE_PROMOTION_CHANNELS_INVALID");
+     const campaign:CommunityTontinePromotionCampaign={
+      id:randomUUID() as UUID,organizationId:organizationId as UUID,groupId:groupId as UUID,
+      code:typeof input.code==="string"?input.code.trim().toUpperCase():"",
+      title:typeof input.title==="string"?input.title.trim():"",
+      state:"DRAFT",startsAt:typeof input.startsAt==="string"?input.startsAt:"",
+      endsAt:typeof input.endsAt==="string"?input.endsAt:"",
+      currency:typeof input.currency==="string"?input.currency.toUpperCase():"XOF",
+      rewardMinor:tontineNonNegativeAmount(input.rewardMinor,"rewardMinor"),
+      maxRedemptions:Number(input.maxRedemptions),maxBudgetMinor:tontineNonNegativeAmount(input.maxBudgetMinor,"maxBudgetMinor"),
+      acceptedRedemptions:0,committedBudgetMinor:0n,createdBy:auth.principal.userId as UUID,
+      allowedChannels:input.allowedChannels as CommunityTontinePromotionCampaign["allowedChannels"]
+     };
+     await repository.createPromotionCampaign(campaign);
+     return {campaignId:campaign.id,state:"DRAFT",code:campaign.code};
+    });
+   }else if(r[0]==="tontine-promotion-approve"){
+    if(method!=="POST")throw new Error("TONTINE_PROMOTION_METHOD_NOT_ALLOWED");
+    const groupId=r[1] as string,campaignId=r[2] as string,now=(deps.now??(()=>new Date()))().toISOString();
+    data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
+     await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
+     await commercialRepository(client).approvePromotionCampaign({
+      organizationId:organizationId as UUID,groupId:groupId as UUID,campaignId:campaignId as UUID,
+      approverId:auth.principal.userId as UUID
+     });
+     return {campaignId,state:"APPROVED"};
+    });
+   }else if(r[0]==="tontine-promotion-activate"){
+    if(method!=="POST")throw new Error("TONTINE_PROMOTION_METHOD_NOT_ALLOWED");
+    const groupId=r[1] as string,campaignId=r[2] as string,now=(deps.now??(()=>new Date()))().toISOString();
+    data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
+     await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
+     await commercialRepository(client).activatePromotionCampaign({
+      organizationId:organizationId as UUID,groupId:groupId as UUID,campaignId:campaignId as UUID,actorId:auth.principal.userId as UUID
+     });
+     return {campaignId,state:"ACTIVE"};
+    });
+   }else if(r[0]==="tontine-promotion-redemptions"){
+    if(method!=="POST")throw new Error("TONTINE_PROMOTION_METHOD_NOT_ALLOWED");
+    const groupId=r[1] as string,campaignId=r[2] as string,now=(deps.now??(()=>new Date()))().toISOString();
+    data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
+     await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
+     const repository=commercialRepository(client);
+     const campaign=await repository.getPromotionCampaign({
+      organizationId:organizationId as UUID,groupId:groupId as UUID,campaignId:campaignId as UUID
+     });
+     if(!campaign)throw new Error("TONTINE_PROMOTION_NOT_FOUND");
+     const input=body as Record<string,unknown>;
+     const channel=String(input.channel??"");
+     if(!["LINK","QR","USSD","AGENT","SOCIAL"].includes(channel))throw new Error("TONTINE_PROMOTION_CHANNEL_INVALID");
+     const candidateId=String(input.candidateId??"");
+     if(!/^[0-9a-f-]{36}$/i.test(candidateId))throw new Error("TONTINE_PROMOTION_CANDIDATE_INVALID");
+     const redemption=attributeCommunityTontinePromotion({
+      campaign,candidateId:candidateId as UUID,ambassadorId:auth.principal.userId as UUID,
+      channel:channel as CommunityTontinePromotionRedemption["channel"],now,redemptionId:randomUUID() as UUID
+     });
+     await repository.reservePromotionRedemption({campaign,redemption,now});
+     return {redemption};
+    });
    }else if(r[0]==="actor"){
     const q=await deps.db.query("SELECT actor_id,organization_id,kind,active,data,version,updated_at FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,r[1]]);
     if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("ACTOR_NOT_FOUND"),correlationId),correlationId);return;}
