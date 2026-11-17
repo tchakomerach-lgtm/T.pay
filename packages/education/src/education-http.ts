@@ -128,6 +128,7 @@ function route(path:string){
 function permissionFor(kind:string,method:string):Permission{
  if(kind==="tontine-groups"||kind==="tontine-commission-policies")return method==="GET"?"community.tontine.read":"community.groups.manage";
  if(kind==="tontine-roles"||kind==="tontine-role-revoke")return "community.members.manage";
+ if(kind==="tontine-promotion-redemptions")return "community.tontine.read";
  if(kind.startsWith("tontine-promotion"))return "community.groups.manage";
  if(kind.startsWith("tontine-commission-policy-"))return "community.groups.manage";
  return kind==="actor"?"org.read":"member.manage";
@@ -188,6 +189,15 @@ async function assertCommunityTontineAdministrator(
  const role=String((result.rows[0] as {role?:string}|undefined)?.role??"");
  if(role!=="FOUNDER"&&role!=="COMMUNITY_ADMIN")throw new Error("TONTINE_COMMUNITY_ADMIN_REQUIRED");
  return role;
+}
+async function assertCommunityTontineMember(
+ client:SchoolSyncClient,organizationId:string,groupId:string,actorId:string
+):Promise<void>{
+ const result=await client.query(
+  "SELECT id FROM tontine_memberships WHERE organization_id=$1 AND group_id=$2 AND client_id=$3 AND status='active' LIMIT 1",
+  [organizationId,groupId,actorId]
+ );
+ if(!result.rows[0])throw new Error("TONTINE_ACTIVE_MEMBERSHIP_REQUIRED");
 }
 function feePolicyView(policy:CommunityTontineCommissionPolicy){
  return {...policy,components:policy.components.map(c=>({
@@ -543,7 +553,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     if(method!=="POST")throw new Error("TONTINE_PROMOTION_METHOD_NOT_ALLOWED");
     const groupId=r[1] as string,campaignId=r[2] as string,now=(deps.now??(()=>new Date()))().toISOString();
     data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
-     await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
+     await assertCommunityTontineMember(client,organizationId,groupId,auth.principal.userId);
      const repository=commercialRepository(client);
      const campaign=await repository.getPromotionCampaign({
       organizationId:organizationId as UUID,groupId:groupId as UUID,campaignId:campaignId as UUID
