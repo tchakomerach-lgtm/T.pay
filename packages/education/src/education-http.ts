@@ -120,7 +120,7 @@ async function withTontineOrganizationScope<T>(
 }
 function tontineAmount(value:unknown,field:string):bigint{
  const raw=typeof value==="number"||typeof value==="string"?String(value):"";
- if(!/^\\d{1,38}$/.test(raw))throw new Error("TONTINE_AMOUNT_INVALID:"+field);
+ if(!/^\d{1,38}$/.test(raw))throw new Error("TONTINE_AMOUNT_INVALID");
  const amount=BigInt(raw);
  if(amount<=0n)throw new Error("TONTINE_AMOUNT_INVALID:"+field);
  return amount;
