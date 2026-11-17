@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { UUID } from "../../domain/src/types.js";
 import type { TontineSqlExecutor } from "./tontine-repositories.js";
 import {
