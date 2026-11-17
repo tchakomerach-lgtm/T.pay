@@ -54,7 +54,7 @@ function fakePool(options: { noBootstrap?: boolean; grants?: Record<string, unkn
   const calls: Array<{ sql: string; values?: unknown[] }> = [];
   const client: IdentityRuntimeClient = {
     async query(sql, values) {
-      calls.push({ sql, values });
+      calls.push({ sql, ...(values === undefined ? {} : { values }) });
       if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK" || sql.includes("set_config")) {
         return { rows: [], rowCount: 0 };
       }
