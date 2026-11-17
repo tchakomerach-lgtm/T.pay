@@ -31,6 +31,13 @@ function fixture() {
   const syncClient = {
     async query(sql: string, values?: unknown[]) {
       sqlCalls.push({ sql, ...(values === undefined ? {} : { values }) });
+      if (sql.startsWith("SELECT id FROM tontine_groups WHERE organization_id=$1 AND id=$2")) {
+        const row = [...groups.values()].find(x => x.id === values?.[1]);
+        return { rows: row ? [{ id: row.id }] : [], rowCount: row ? 1 : 0 };
+      }
+      if (sql.startsWith("SELECT role FROM community_tontine_role_grants")) {
+        return { rows: [{ role: "FOUNDER" }], rowCount: 1 };
+      }
       if (sql.startsWith("INSERT INTO tontine_groups")) {
         const row = {
           id: values?.[0], organization_id: values?.[1], name: values?.[2],
@@ -61,7 +68,7 @@ function fixture() {
     principal: {
       userId: "55555555-5555-4555-8555-555555555555",
       organizationId: "33333333-3333-4333-8333-333333333333",
-      permissions: ["community.tontine.read", "community.groups.manage"] as const,
+      permissions: ["community.tontine.read", "community.groups.manage", "community.members.manage"] as const,
       sessionId: "11111111-1111-4111-8111-111111111111"
     },
     tenantId: "tenant-alpha",
@@ -75,7 +82,8 @@ function fixture() {
   const server = createSchoolApiServer({
     db: db as any,
     authenticate: async () => auth,
-    syncClient: async () => syncClient as any
+    syncClient: async () => syncClient as any,
+    now: () => new Date("2026-11-17T07:00:00.000Z")
   });
   return { server, sqlCalls };
 }
@@ -144,6 +152,77 @@ test("Community Tontine group creation rejects invalid frequency and amount befo
     });
     assert.equal(response.status, 400);
     assert.equal(sqlCalls.some(x => x.sql.startsWith("INSERT INTO tontine_groups")), false);
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  }
+});
+
+
+test("Community Tontine commission policy, temporal roles and promotion draft use authenticated group administration", async () => {
+  const { server, sqlCalls } = fixture();
+  await new Promise<void>(resolve => server.listen(0, resolve));
+  const port = (server.address() as any).port;
+  try {
+    const groupResponse = await fetch(`http://127.0.0.1:${port}/v1/tontine/groups`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-idempotency-key": "tontine-admin-group-01" },
+      body: JSON.stringify({
+        name: "Communauté Test", countryCode: "TG", currency: "XOF", frequency: "weekly",
+        contributionMode: "fixed", minimumAmountMinor: "1000", fixedAmountMinor: "1000"
+      })
+    });
+    const groupBody = await groupResponse.json() as any;
+    assert.equal(groupResponse.status, 200, JSON.stringify(groupBody));
+    const groupId = groupBody.data.group.id as string;
+
+    const commission = await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${groupId}/commission-policies`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-idempotency-key": "tontine-commission-01" },
+      body: JSON.stringify({
+        version: "community-v1", transactionLevel: "CONTRIBUTION", currency: "XOF",
+        payer: "SPLIT", memberShareBps: 6000, effectiveFrom: "2026-11-17T06:00:00.000Z",
+        components: [
+          { recipient: "TPAY", rateBps: 100, enabled: true },
+          { recipient: "PARTNER", rateBps: 50, enabled: true },
+          { recipient: "AGENT", rateBps: 25, enabled: true }
+        ]
+      })
+    });
+    const commissionBody = await commission.json() as any;
+    assert.equal(commission.status, 200, JSON.stringify(commissionBody));
+    assert.equal(commissionBody.data.policy.state, "DRAFT");
+    assert.equal(commissionBody.data.policy.policyHash.length, 64);
+    assert.ok(sqlCalls.some(x => x.sql.startsWith("INSERT INTO community_tontine_commission_policies")));
+
+    const role = await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${groupId}/roles`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-idempotency-key": "tontine-role-grant-01" },
+      body: JSON.stringify({
+        actorId: "66666666-6666-4666-8666-666666666666", role: "PRESIDENT",
+        permissions: ["member.invite"], validFrom: "2026-11-17T07:00:00.000Z",
+        expiresAt: "2026-11-17T08:00:00.000Z"
+      })
+    });
+    const roleBody = await role.json() as any;
+    assert.equal(role.status, 200, JSON.stringify(roleBody));
+    assert.equal(roleBody.data.role, "PRESIDENT");
+    assert.ok(sqlCalls.some(x => x.sql.startsWith("INSERT INTO community_tontine_role_grants")));
+
+    const promotion = await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${groupId}/promotions`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-idempotency-key": "tontine-promo-create-01" },
+      body: JSON.stringify({
+        code: "LOME2026", title: "Lancement communautaire",
+        startsAt: "2026-11-17T06:00:00.000Z", endsAt: "2026-11-30T23:59:59.000Z",
+        currency: "XOF", rewardMinor: "1000", maxRedemptions: 10, maxBudgetMinor: "10000",
+        allowedChannels: ["LINK", "QR"]
+      })
+    });
+    const promotionBody = await promotion.json() as any;
+    assert.equal(promotion.status, 200, JSON.stringify(promotionBody));
+    assert.equal(promotionBody.data.state, "DRAFT");
+    assert.ok(sqlCalls.some(x => x.sql.startsWith("INSERT INTO community_tontine_promotion_campaigns")));
   } finally {
     server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve()));
