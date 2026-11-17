@@ -110,15 +110,15 @@ export function computeCommunityTontineCommissionPolicyHash(policy: CommunityTon
 export function validateCommunityTontineCommissionPolicy(policy: CommunityTontineCommissionPolicy): void {
   if (!policy.version.trim() || !policy.groupId || !policy.organizationId) throw new Error("TONTINE_COMMISSION_POLICY_IDENTITY_INVALID");
   if (!/^[A-Z]{3}$/.test(policy.currency)) throw new Error("TONTINE_COMMISSION_CURRENCY_INVALID");
+  const effectiveFrom = assertIsoDate(policy.effectiveFrom, "TONTINE_COMMISSION_EFFECTIVE_FROM_INVALID");
+  if (policy.effectiveUntil && assertIsoDate(policy.effectiveUntil, "TONTINE_COMMISSION_EFFECTIVE_UNTIL_INVALID") <= effectiveFrom) {
+    throw new Error("TONTINE_COMMISSION_EFFECTIVE_WINDOW_INVALID");
+  }
   if (!HASH.test(policy.policyHash) || computeCommunityTontineCommissionPolicyHash(policy) !== policy.policyHash) {
     throw new Error("TONTINE_COMMISSION_POLICY_HASH_INVALID");
   }
   if (policy.state === "ACTIVE" && !policy.approvedBy) throw new Error("TONTINE_COMMISSION_APPROVAL_REQUIRED");
   if (policy.approvedBy && policy.approvedBy === policy.createdBy) throw new Error("TONTINE_COMMISSION_MAKER_CHECKER_REQUIRED");
-  const from = assertIsoDate(policy.effectiveFrom, "TONTINE_COMMISSION_EFFECTIVE_FROM_INVALID");
-  if (policy.effectiveUntil && assertIsoDate(policy.effectiveUntil, "TONTINE_COMMISSION_EFFECTIVE_UNTIL_INVALID") <= from) {
-    throw new Error("TONTINE_COMMISSION_EFFECTIVE_WINDOW_INVALID");
-  }
   if (!Number.isInteger(policy.memberShareBps) || policy.memberShareBps < 0 || policy.memberShareBps > BPS) {
     throw new Error("TONTINE_COMMISSION_PAYER_SPLIT_INVALID");
   }
@@ -251,14 +251,15 @@ export function assertCommunityTontineFeeSnapshotForSettlement(
       !snapshot.snapshotHash || !HASH.test(snapshot.snapshotHash)) {
     throw new Error("TONTINE_COMMISSION_ACCEPTED_SNAPSHOT_REQUIRED");
   }
-  if (Date.parse(snapshot.acceptedAt) > Date.parse(paymentIntent.createdAt)) {
-    throw new Error("TONTINE_COMMISSION_ACCEPTANCE_AFTER_PAYMENT_INITIATION");
-  }
+  const acceptedAtEpoch = assertIsoDate(snapshot.acceptedAt, "TONTINE_COMMISSION_ACCEPTANCE_TIME_INVALID");
+  const paymentCreatedEpoch = assertIsoDate(paymentIntent.createdAt, "TONTINE_COMMISSION_PAYMENT_TIME_INVALID");
+  if (acceptedAtEpoch > paymentCreatedEpoch) throw new Error("TONTINE_COMMISSION_ACCEPTANCE_AFTER_PAYMENT_INITIATION");
+  if (!snapshot.componentSnapshot) throw new Error("TONTINE_COMMISSION_COMPONENT_SNAPSHOT_REQUIRED");
   const expectedSnapshotHash = createHash("sha256").update(JSON.stringify({
     quoteHash: snapshot.quoteHash, acceptedAt: snapshot.acceptedAt
   })).digest("hex");
   if (expectedSnapshotHash !== snapshot.snapshotHash) throw new Error("TONTINE_COMMISSION_SNAPSHOT_HASH_MISMATCH");
-  if (snapshot.componentSnapshot) {
+  {
     let components: unknown;
     try { components = JSON.parse(snapshot.componentSnapshot); } catch { throw new Error("TONTINE_COMMISSION_COMPONENT_SNAPSHOT_INVALID"); }
     if (!Array.isArray(components)) throw new Error("TONTINE_COMMISSION_COMPONENT_SNAPSHOT_INVALID");
