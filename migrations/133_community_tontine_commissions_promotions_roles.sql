@@ -543,11 +543,11 @@ BEGIN
   IF OLD.state='RETIRED' THEN RAISE EXCEPTION 'COMMUNITY_TONTINE_COMMISSION_POLICY_RETIRED'; END IF;
   IF ROW(NEW.id,NEW.organization_id,NEW.group_id,NEW.version,NEW.transaction_level,NEW.currency,
          NEW.payer_mode,NEW.member_share_bps,NEW.effective_from,NEW.effective_until,NEW.components,
-         NEW.policy_hash,NEW.created_by)
+         NEW.policy_hash,NEW.created_by,NEW.approved_by)
      IS DISTINCT FROM
      ROW(OLD.id,OLD.organization_id,OLD.group_id,OLD.version,OLD.transaction_level,OLD.currency,
          OLD.payer_mode,OLD.member_share_bps,OLD.effective_from,OLD.effective_until,OLD.components,
-         OLD.policy_hash,OLD.created_by)
+         OLD.policy_hash,OLD.created_by,OLD.approved_by)
      AND OLD.state <> 'DRAFT' THEN
     RAISE EXCEPTION 'COMMUNITY_TONTINE_COMMISSION_POLICY_CONFIG_IMMUTABLE';
   END IF;
@@ -577,10 +577,11 @@ LANGUAGE plpgsql AS $$
 BEGIN
   IF TG_OP='DELETE' THEN RAISE EXCEPTION 'COMMUNITY_TONTINE_PROMOTION_IMMUTABLE'; END IF;
   IF ROW(NEW.id,NEW.organization_id,NEW.group_id,NEW.code,NEW.title,NEW.starts_at,NEW.ends_at,
-         NEW.currency,NEW.reward_minor,NEW.max_redemptions,NEW.max_budget_minor,NEW.allowed_channels,NEW.created_by)
+         NEW.currency,NEW.reward_minor,NEW.max_redemptions,NEW.max_budget_minor,NEW.allowed_channels,NEW.created_by,NEW.approved_by)
      IS DISTINCT FROM
      ROW(OLD.id,OLD.organization_id,OLD.group_id,OLD.code,OLD.title,OLD.starts_at,OLD.ends_at,
-         OLD.currency,OLD.reward_minor,OLD.max_redemptions,OLD.max_budget_minor,OLD.allowed_channels,OLD.created_by) THEN
+         OLD.currency,OLD.reward_minor,OLD.max_redemptions,OLD.max_budget_minor,OLD.allowed_channels,OLD.created_by,OLD.approved_by)
+     AND OLD.state <> 'DRAFT' THEN
     RAISE EXCEPTION 'COMMUNITY_TONTINE_PROMOTION_TERMS_IMMUTABLE';
   END IF;
   IF NEW.accepted_redemptions < OLD.accepted_redemptions OR
