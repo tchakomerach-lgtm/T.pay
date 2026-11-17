@@ -14,9 +14,26 @@ test("Community Tontine commercial foreign keys reject cross-organization group 
   const orgA = randomUUID(), orgB = randomUUID();
   const groupA = randomUUID(), groupB = randomUUID();
   const actor = randomUUID(), policyId = randomUUID(), campaignId = randomUUID();
+  let transactionOpen = false;
+  const expectForeignKeyViolation = async (label:string, query:string, values:unknown[]) => {
+    await client.query("SAVEPOINT " + label);
+    try {
+      await client.query(query, values);
+      await client.query("ROLLBACK TO SAVEPOINT " + label);
+      await client.query("RELEASE SAVEPOINT " + label);
+      assert.fail("Expected cross-organization foreign-key violation: " + label);
+    } catch (error:unknown) {
+      await client.query("ROLLBACK TO SAVEPOINT " + label);
+      await client.query("RELEASE SAVEPOINT " + label);
+      assert.ok(error && typeof error==="object" && "code" in error &&
+        (error as {code:string}).code==="23503", "Expected PostgreSQL foreign-key violation for " + label);
+    }
+  };
   try {
     await client.connect();
     await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    await client.query("BEGIN");
+    transactionOpen = true;
     await client.query("INSERT INTO organizations (id,name,status,created_at) VALUES ($1,'Scope A','active',now()),($2,'Scope B','active',now())",[orgA,orgB]);
     const insertGroup = async (id:string, org:string) => client.query(
       "INSERT INTO tontine_groups (id,organization_id,name,country_code,currency,frequency,contribution_mode,minimum_amount_minor,cycle_number,governance,status,created_by,created_at) VALUES ($1,$2,'Scope test','TG','XOF','weekly','fixed',1000,1,'member_vote','active',$3,now())",
@@ -34,8 +51,7 @@ test("Community Tontine commercial foreign keys reject cross-organization group 
        VALUES ($1,$2,$3,'v1','CONTRIBUTION','XOF','DRAFT','MEMBER',10000,now(),$4::jsonb,$5,$6)`,
       policyValues
     );
-    await assert.rejects(
-      client.query(
+    await expectForeignKeyViolation("bad_policy_group",
         `INSERT INTO community_tontine_commission_policies
          (id,organization_id,group_id,version,transaction_level,currency,state,payer_mode,member_share_bps,
           effective_from,components,policy_hash,created_by)
@@ -53,32 +69,21 @@ test("Community Tontine commercial foreign keys reject cross-organization group 
                'XOF',100,1,0,100,0,ARRAY['QR']::text[],$4)`,
       [campaignId,orgA,groupA,actor]
     );
-    await assert.rejects(
-      client.query(
+    await expectForeignKeyViolation("bad_redemption_group",
         `INSERT INTO community_tontine_promotion_redemptions
          (id,organization_id,group_id,campaign_id,candidate_id,channel,state,reward_minor,currency,idempotency_key)
          VALUES ($1,$2,$3,$4,$5,'QR','ATTRIBUTED',100,'XOF',$6)`,
         [randomUUID(),orgA,groupB,campaignId,randomUUID(),"scope-"+randomUUID()]
-      ),
-      (error:unknown)=>Boolean(error&&typeof error==="object"&&"code" in error&&(error as {code:string}).code==="23503")
-    );
+      );
 
-    await assert.rejects(
-      client.query(
+    await expectForeignKeyViolation("bad_role_group",
         `INSERT INTO community_tontine_role_grants
          (id,organization_id,group_id,actor_id,role,permissions,granted_by,valid_from,expires_at)
          VALUES ($1,$2,$3,$4,'TREASURER',ARRAY['contribution.read'],$5,now(),now()+interval '1 day')`,
         [randomUUID(),orgA,groupB,randomUUID(),actor]
-      ),
-      (error:unknown)=>Boolean(error&&typeof error==="object"&&"code" in error&&(error as {code:string}).code==="23503")
-    );
+      );
   } finally {
-    await client.query("DELETE FROM community_tontine_promotion_redemptions WHERE organization_id = ANY($1::uuid[])",[[orgA,orgB]]).catch(()=>undefined);
-    await client.query("DELETE FROM community_tontine_promotion_campaigns WHERE organization_id = ANY($1::uuid[])",[[orgA,orgB]]).catch(()=>undefined);
-    await client.query("DELETE FROM community_tontine_role_grants WHERE organization_id = ANY($1::uuid[])",[[orgA,orgB]]).catch(()=>undefined);
-    await client.query("DELETE FROM community_tontine_commission_policies WHERE organization_id = ANY($1::uuid[])",[[orgA,orgB]]).catch(()=>undefined);
-    await client.query("DELETE FROM tontine_groups WHERE organization_id = ANY($1::uuid[])",[[orgA,orgB]]).catch(()=>undefined);
-    await client.query("DELETE FROM organizations WHERE id = ANY($1::uuid[])",[[orgA,orgB]]).catch(()=>undefined);
+    if (transactionOpen) await client.query("ROLLBACK").catch(()=>undefined);
     await client.end().catch(()=>undefined);
   }
 });
