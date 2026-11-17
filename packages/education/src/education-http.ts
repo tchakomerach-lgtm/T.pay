@@ -517,6 +517,11 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
         !Array.isArray(permissions)||permissions.some(p=>typeof p!=="string"||!validPermissions.has(p)))throw new Error("TONTINE_ROLE_GRANT_PAYLOAD_INVALID");
      const actorId=String(input.actorId??"");
      if(!/^[0-9a-f-]{36}$/i.test(actorId))throw new Error("TONTINE_ROLE_TARGET_INVALID");
+     const targetMembership=await client.query(
+      "SELECT id FROM tontine_memberships WHERE organization_id=$1 AND group_id=$2 AND client_id=$3 AND status='active' LIMIT 1",
+      [organizationId,groupId,actorId]
+     );
+     if(!targetMembership.rows[0])throw new Error("TONTINE_ROLE_TARGET_MUST_BE_ACTIVE_MEMBER");
      const grantId=randomUUID() as UUID;
      await commercialRepository(client).grantRole({
       id:grantId,organizationId:organizationId as UUID,groupId:groupId as UUID,actorId:actorId as UUID,
