@@ -97,7 +97,8 @@ export function computeCommunityTontineCommissionPolicyHash(policy: CommunityTon
     id: policy.id, organizationId: policy.organizationId, groupId: policy.groupId,
     version: policy.version, transactionLevel: policy.transactionLevel, currency: policy.currency,
     payer: policy.payer, memberShareBps: policy.memberShareBps,
-    effectiveFrom: policy.effectiveFrom, effectiveUntil: policy.effectiveUntil ?? null,
+    effectiveFrom: new Date(policy.effectiveFrom).toISOString(),
+    effectiveUntil: policy.effectiveUntil ? new Date(policy.effectiveUntil).toISOString() : null,
     components: [...policy.components].sort((a,b) => a.recipient.localeCompare(b.recipient)).map(c => ({
       recipient: c.recipient, rateBps: c.rateBps, enabled: c.enabled,
       minMinor: c.minMinor?.toString() ?? null, maxMinor: c.maxMinor?.toString() ?? null
