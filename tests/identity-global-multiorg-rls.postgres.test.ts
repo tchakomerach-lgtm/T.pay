@@ -32,6 +32,12 @@ test("global identity RLS isolates two tenants under a non-owner non-BYPASSRLS r
   const orgMembershipB = randomUUID();
   const grantA = randomUUID();
   const grantB = randomUUID();
+  const deviceA = randomUUID();
+  const deviceB = randomUUID();
+  const apiSessionA = randomUUID();
+  const apiSessionB = randomUUID();
+  const identitySessionA = randomUUID();
+  const identitySessionB = randomUUID();
   let roleCreated = false;
   let transactionOpen = false;
 
@@ -76,6 +82,20 @@ test("global identity RLS isolates two tenants under a non-owner non-BYPASSRLS r
       "INSERT INTO identity_audit(tenant_id,organization_id,subject_id,actor_id,action,reason_code) VALUES ($1,$2,$3,$4,'subject_created','rls-test-a'),($5,$6,$7,$8,'subject_created','rls-test-b')",
       [tenantA, orgA, subjectA, actorA, tenantB, orgB, subjectB, actorB]
     );
+    await owner.query(
+      "INSERT INTO api_devices(id,organization_id,actor_id,device_key_hash,device_label,status,trust_epoch,created_at,updated_at) VALUES ($1,$2,$3,$4,'identity RLS device A','active',1,$5,$5),($6,$7,$8,$9,'identity RLS device B','active',1,$5,$5)",
+      [deviceA, orgA, actorA, "a".repeat(64), deviceB, orgB, actorB, "b".repeat(64), now]
+    );
+    await owner.query(
+      "INSERT INTO api_sessions(id,organization_id,actor_id,device_id,session_hash,status,trust_epoch,issued_at,expires_at) VALUES ($1,$2,$3,$4,$5,'active',1,$6,$7),($8,$9,$10,$11,$12,'active',1,$6,$7)",
+      [apiSessionA, orgA, actorA, deviceA, "c".repeat(64), now, later,
+       apiSessionB, orgB, actorB, deviceB, "d".repeat(64)]
+    );
+    await owner.query(
+      "INSERT INTO identity_sessions(id,api_session_id,subject_id,actor_link_id,tenant_id,organization_id,assurance,issued_at,expires_at) VALUES ($1,$2,$3,$4,$5,$6,'standard',$7,$8),($9,$10,$11,$12,$13,$14,'step_up',$7,$8)",
+      [identitySessionA, apiSessionA, subjectA, actorLinkA, tenantA, orgA, now, later,
+       identitySessionB, apiSessionB, subjectB, actorLinkB, tenantB, orgB]
+    );
 
     await owner.query(`SET LOCAL ROLE "${role}"`);
 
@@ -113,9 +133,16 @@ test("global identity RLS isolates two tenants under a non-owner non-BYPASSRLS r
     };
 
     await assertNoIdentityRows();
+    await owner.query("SELECT set_config('tpay.api_session_id',$1,true)", [apiSessionA]);
+    assert.deepEqual(await visible("identity_sessions"), [identitySessionA],
+      "bootstrap policy must reveal only the exact API session validated by the server");
+    assert.deepEqual(await visible("identity_subjects"), [],
+      "bootstrap session lookup must not reveal subject rows before tenant/org scope is set");
     await setScope(tenantA, orgA);
     await assertTenantScope(tenantA, orgA, subjectA, actorLinkA, tenantMembershipA, orgMembershipA, grantA);
+    await owner.query("SELECT set_config('tpay.api_session_id',$1,true)", [apiSessionB]);
     await setScope(tenantB, orgB);
+    assert.deepEqual(await visible("identity_sessions"), [identitySessionB]);
     await assertTenantScope(tenantB, orgB, subjectB, actorLinkB, tenantMembershipB, orgMembershipB, grantB);
     await owner.query("ROLLBACK");
     transactionOpen = false;
