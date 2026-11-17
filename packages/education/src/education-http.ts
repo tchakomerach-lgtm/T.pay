@@ -403,7 +403,28 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       const query=new URL(rawUrl,"https://tpay.invalid").searchParams;
       const level=String(query.get("level")??"CONTRIBUTION");
       const currency=String(query.get("currency")??"XOF").toUpperCase();
+      const state=String(query.get("state")??"ACTIVE").toUpperCase();
       if(!["CONTRIBUTION","BENEFICIARY_PAYOUT","TRANSFER","OPTIONAL_SERVICE"].includes(level))throw new Error("TONTINE_COMMISSION_LEVEL_INVALID");
+      if(state==="ALL"||state==="DRAFT"||state==="APPROVED"||state==="RETIRED"){
+       const result=await client.query(
+        `SELECT id,organization_id,group_id,version,transaction_level,currency,state,payer_mode,member_share_bps,
+                effective_from,effective_until,components,policy_hash,created_by,approved_by
+         FROM community_tontine_commission_policies
+         WHERE organization_id=$1 AND group_id=$2 AND transaction_level=$3 AND currency=$4
+           AND ($5::text='ALL' OR state=$5)
+         ORDER BY created_at DESC,id DESC LIMIT 100`,
+        [organizationId,groupId,level,currency,state]
+       );
+       const items=result.rows.map(row=>{
+        const raw=typeof row.components==="string"?JSON.parse(row.components as string):row.components;
+        return {id:row.id,organizationId:row.organization_id,groupId:row.group_id,version:row.version,
+         transactionLevel:row.transaction_level,currency:row.currency,state:row.state,payer:row.payer_mode,
+         memberShareBps:row.member_share_bps,effectiveFrom:row.effective_from,effectiveUntil:row.effective_until,
+         components:raw,policyHash:row.policy_hash,createdBy:row.created_by,approvedBy:row.approved_by};
+       });
+       return {items};
+      }
+      if(state!=="ACTIVE")throw new Error("TONTINE_COMMISSION_POLICY_STATE_FILTER_INVALID");
       const policy=await repository.getActiveCommissionPolicy({
        organizationId:organizationId as UUID,groupId:groupId as UUID,
        transactionLevel:level as CommunityTontineCommissionPolicy["transactionLevel"],currency,now
