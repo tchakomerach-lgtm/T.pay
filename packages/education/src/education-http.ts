@@ -15,6 +15,19 @@ import { reconcileAttendance, claimWorkItem, resolveWorkItem, type AttendanceRec
 import { assignService, transitionService, type ActorRef, type ServiceRequest } from "./actor-services.js";
 import { validateCommunityTontine, type CommunityTontineGroup } from "../../microfinance/src/community-tontine.js";
 import type { UUID } from "../../domain/src/types.js";
+import {
+  attributeCommunityTontinePromotion,
+  computeCommunityTontineCommissionPolicyHash,
+  type CommunityTontineAdminRole,
+  type CommunityTontineCommissionPolicy,
+  type CommunityTontineFeeComponentRule,
+  type CommunityTontineFeeRecipient,
+  type CommunityTontinePermission,
+  type CommunityTontinePromotionCampaign,
+  type CommunityTontinePromotionRedemption
+} from "../../microfinance/src/community-tontine-commercial-governance.js";
+import { PostgresCommunityTontineCommercialRepository } from "../../microfinance/src/community-tontine-commercial-repository.js";
+import type { TontineSqlExecutor } from "../../microfinance/src/tontine-repositories.js";
 
 export interface SchoolAuthContext { principal: Principal; session: OrganizationSession; tenantId: string; }
 export interface SchoolApiDependencies {
@@ -81,6 +94,24 @@ function route(path:string){
  if(parts[0]!=="v1")return null;
  if(parts[1]==="tontine"){
   if(parts[2]==="groups"&&parts.length===3)return ["tontine-groups"] as const;
+  if(parts[2]==="groups"&&parts[3]&&parts[4]==="commission-policies"&&parts.length===5)
+    return ["tontine-commission-policies",parts[3]] as const;
+  if(parts[2]==="groups"&&parts[3]&&parts[4]==="commission-policies"&&parts[5]&&parts[6]==="approve"&&parts.length===7)
+    return ["tontine-commission-policy-approve",parts[3],parts[5]] as const;
+  if(parts[2]==="groups"&&parts[3]&&parts[4]==="commission-policies"&&parts[5]&&parts[6]==="activate"&&parts.length===7)
+    return ["tontine-commission-policy-activate",parts[3],parts[5]] as const;
+  if(parts[2]==="groups"&&parts[3]&&parts[4]==="roles"&&parts.length===5)
+    return ["tontine-roles",parts[3]] as const;
+  if(parts[2]==="groups"&&parts[3]&&parts[4]==="roles"&&parts[5]&&parts[6]==="revoke"&&parts.length===7)
+    return ["tontine-role-revoke",parts[3],parts[5]] as const;
+  if(parts[2]==="groups"&&parts[3]&&parts[4]==="promotions"&&parts.length===5)
+    return ["tontine-promotions",parts[3]] as const;
+  if(parts[2]==="groups"&&parts[3]&&parts[4]==="promotions"&&parts[5]&&parts[6]==="approve"&&parts.length===7)
+    return ["tontine-promotion-approve",parts[3],parts[5]] as const;
+  if(parts[2]==="groups"&&parts[3]&&parts[4]==="promotions"&&parts[5]&&parts[6]==="activate"&&parts.length===7)
+    return ["tontine-promotion-activate",parts[3],parts[5]] as const;
+  if(parts[2]==="groups"&&parts[3]&&parts[4]==="promotions"&&parts[5]&&parts[6]==="redemptions"&&parts.length===7)
+    return ["tontine-promotion-redemptions",parts[3],parts[5]] as const;
   return null;
  }
  if(parts[1]!=="education")return null;
@@ -94,7 +125,13 @@ function route(path:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string,method:string):Permission{if(kind==="tontine-groups")return method==="GET"?"community.tontine.read":"community.groups.manage";return kind==="actor"?"org.read":"member.manage";}
+function permissionFor(kind:string,method:string):Permission{
+ if(kind==="tontine-groups"||kind==="tontine-commission-policies")return method==="GET"?"community.tontine.read":"community.groups.manage";
+ if(kind==="tontine-roles"||kind==="tontine-role-revoke")return "community.members.manage";
+ if(kind.startsWith("tontine-promotion"))return "community.groups.manage";
+ if(kind.startsWith("tontine-commission-policy-"))return "community.groups.manage";
+ return kind==="actor"?"org.read":"member.manage";
+}
 export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
 type SchoolSyncClient = Awaited<ReturnType<SchoolApiDependencies["syncClient"]>>;
 async function withTontineOrganizationScope<T>(
@@ -117,6 +154,46 @@ async function withTontineOrganizationScope<T>(
  }finally{
   client.release?.();
  }
+}
+function tontineNonNegativeAmount(value:unknown,field:string):bigint{
+ const raw=typeof value==="number"||typeof value==="string"?String(value):"";
+ if(!/^(0|[1-9][0-9]{0,37})$/.test(raw))throw new Error("TONTINE_AMOUNT_INVALID:"+field);
+ return BigInt(raw);
+}
+function commercialRepository(client:SchoolSyncClient):PostgresCommunityTontineCommercialRepository{
+ const executor={} as TontineSqlExecutor;
+ executor.query=async <Row=Record<string,unknown>>(sql:string,values?:readonly unknown[])=>{
+  const result=await client.query(sql,values as unknown[]|undefined);
+  return {rows:result.rows as Row[],...(result.rowCount===null?{}:{rowCount:result.rowCount})};
+ };
+ executor.transaction=async <T>(work:(tx:TontineSqlExecutor)=>Promise<T>)=>work(executor);
+ return new PostgresCommunityTontineCommercialRepository(executor);
+}
+async function assertCommunityTontineAdministrator(
+ client:SchoolSyncClient,organizationId:string,groupId:string,actorId:string,now:string
+):Promise<CommunityTontineAdminRole>{
+ const group=await client.query("SELECT id FROM tontine_groups WHERE organization_id=$1 AND id=$2",[organizationId,groupId]);
+ if(!group.rows[0])throw new Error("TONTINE_GROUP_NOT_FOUND");
+ const result=await client.query(
+  `SELECT role FROM community_tontine_role_grants
+   WHERE organization_id=$1 AND group_id=$2 AND actor_id=$3 AND revoked_at IS NULL
+     AND valid_from<=$4::timestamptz AND expires_at>$4::timestamptz
+     AND role IN ('FOUNDER','COMMUNITY_ADMIN')
+   UNION ALL
+   SELECT 'FOUNDER' AS role FROM tontine_memberships
+   WHERE organization_id=$1 AND group_id=$2 AND client_id=$3 AND status='active' AND role='founder'
+   LIMIT 1`,
+  [organizationId,groupId,actorId,now]
+ );
+ const role=String((result.rows[0] as {role?:string}|undefined)?.role??"");
+ if(role!=="FOUNDER"&&role!=="COMMUNITY_ADMIN")throw new Error("TONTINE_COMMUNITY_ADMIN_REQUIRED");
+ return role;
+}
+function feePolicyView(policy:CommunityTontineCommissionPolicy){
+ return {...policy,components:policy.components.map(c=>({
+  ...c,...(c.minMinor!==undefined?{minMinor:c.minMinor.toString()}:{}),
+  ...(c.maxMinor!==undefined?{maxMinor:c.maxMinor.toString()}:{})
+ }))};
 }
 function tontineAmount(value:unknown,field:string):bigint{
  const raw=typeof value==="number"||typeof value==="string"?String(value):"";
