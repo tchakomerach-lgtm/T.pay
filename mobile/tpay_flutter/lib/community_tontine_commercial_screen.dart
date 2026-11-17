@@ -49,8 +49,18 @@ class _CommunityTontineCommercialScreenState
   @override
   void initState() {
     super.initState();
-    _motion.repeat(reverse: true);
     _load();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.of(context).disableAnimations) {
+      _motion.stop();
+      _motion.value = 0.5;
+    } else if (!_motion.isAnimating) {
+      _motion.repeat(reverse: true);
+    }
   }
 
   @override
