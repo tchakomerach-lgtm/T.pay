@@ -6,6 +6,7 @@ import pg, { type Pool, type PoolClient, type QueryResultRow } from "pg";
 import type { IncomingMessage, Server, RequestListener } from "node:http";
 import { applyMigrations } from "../../../packages/finance/src/postgres-migrations.js";
 import { DeviceTrustRepository } from "../../../packages/api-gateway/src/auth-device.js";
+import { resolveCommunityTontineIdentity } from "../../../packages/identity/src/postgres-runtime.js";
 import { createSchoolApiServer } from "../../../packages/education/src/education-http.js";
 import { PostgresEducationSyncStore, type PostgresTransactionClient } from "../../../packages/education/src/postgres-sync-fabric.js";
 import { PostgresSchoolRealtimeStore } from "../../../packages/education/src/postgres-realtime-store.js";
@@ -15,7 +16,10 @@ import type { Permission } from "../../../packages/security/src/policy.js";
 const REQUIRED_ENV=["TPAY_DATABASE_URL","TPAY_TLS_KEY_FILE","TPAY_TLS_CERT_FILE"] as const;
 const permissionSet=new Set<Permission>([
   "org.read","org.manage","member.manage","finance.read","finance.initiate",
-  "finance.approve","ledger.read","ledger.post","audit.read","security.manage"
+  "finance.approve","ledger.read","ledger.post","audit.read","security.manage",
+  "community.tontine.read","community.members.manage","community.admission.decide",
+  "community.contribution.initiate","community.governance.propose","community.governance.vote",
+  "community.payout.approve","community.dispute.manage"
 ]);
 
 function env(name:string):string{
@@ -84,6 +88,33 @@ async function authenticateFactory(pool:Pool){
     const validated=await devices.validateSession({sessionCredential:credential,now:new Date().toISOString()});
     if(!validated.valid||!validated.sessionId||!validated.actorId||!validated.organizationId||!validated.issuedAt||!validated.expiresAt){
       throw new Error("AUTH_SESSION_INVALID");
+    }
+    const requestPath=String(request.url??"/").split("?")[0]??"/";
+    if(requestPath==="/v1/tontine"||requestPath.startsWith("/v1/tontine/")){
+      const identity=await resolveCommunityTontineIdentity(pool,{
+        sessionId:validated.sessionId,
+        actorId:validated.actorId,
+        organizationId:validated.organizationId,
+        issuedAt:validated.issuedAt,
+        expiresAt:validated.expiresAt
+      });
+      return {
+        principal:{
+          userId:identity.subjectId,
+          organizationId:identity.organizationId,
+          permissions:identity.permissions,
+          sessionId:identity.sessionId
+        },
+        tenantId:identity.tenantId,
+        session:{
+          sessionId:identity.sessionId,
+          userId:identity.subjectId,
+          organizationId:identity.organizationId,
+          createdAt:identity.issuedAt,
+          expiresAt:identity.expiresAt,
+          assurance:identity.assurance
+        }
+      };
     }
     const actor=await pool.query(
       "SELECT tenant_id,organization_id,active FROM education_actors WHERE actor_id=$1 AND organization_id=$2 LIMIT 1",
