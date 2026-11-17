@@ -11,7 +11,7 @@ import { computeSyncPayloadHash } from "./sync-fabric.js";
 import { SchoolRealtimeHub, toSseMessage, type SchoolRealtimeEvent } from "./school-realtime.js";
 import { PostgresSchoolRealtimeStore } from "./postgres-realtime-store.js";
 import type { SchoolRealtimeMessage } from "./school-realtime.js";
-import { reconcileAttendance, claimWorkItem, resolveWorkItem, type AttendanceRecord, type WorkItem } from "./school-operations.js";
+import { reconcileAttendance, claimWorkItem, resolveWorkItem, transitionStudent, type StudentState, type StudentLifecycle, type AttendanceRecord, type WorkItem } from "./school-operations.js";
 import { assignService, transitionService, type ActorRef, type ServiceRequest } from "./actor-services.js";
 
 export interface SchoolAuthContext { principal: Principal; session: OrganizationSession; tenantId: string; }
@@ -62,7 +62,7 @@ const json=(res:ServerResponse,status:number,body:unknown,correlationId:string)=
 async function readBody(req:IncomingMessage):Promise<string>{
   const declaredLength=String(req.headers["content-length"]??"").trim();
   if(declaredLength){
-    if(!/^\\d+$/.test(declaredLength))throw new Error("CONTENT_LENGTH_INVALID");
+    if(!/^\d+$/.test(declaredLength))throw new Error("CONTENT_LENGTH_INVALID");
     if(Number(declaredLength)>MAX_BODY_BYTES)throw new Error("PAYLOAD_TOO_LARGE");
   }
   let out="",size=0;
@@ -80,6 +80,11 @@ function route(path:string){
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
  if(parts[2]==="sync"&&parts[3]==="events"&&parts.length===4)return ["sync"] as const;
  if(parts[2]==="attendance"&&parts.length===3)return ["attendance"] as const;
+ if(parts[2]==="classes"&&parts.length===3)return ["classes"] as const;
+ if(parts[2]==="enrollments"&&parts.length===3)return ["enrollments"] as const;
+ if(parts[2]==="students"&&parts.length===3)return ["students"] as const;
+ if(parts[2]==="students"&&parts.length===4&&parts[3])return ["student",parts[3]] as const;
+ if(parts[2]==="students"&&parts.length===5&&parts[3]&&parts[4]==="lifecycle")return ["student-lifecycle",parts[3]] as const;
  if(parts[2]==="work-items"&&parts.length===3)return ["work-create"] as const;
  if(parts[2]==="work-items"&&parts.length===5&&parts[3]&&(parts[4]==="claim"||parts[4]==="resolve"))return ["work",parts[3],parts[4]] as const;
  if(parts[2]==="service-requests"&&parts.length===3)return ["service-create"] as const;
@@ -87,7 +92,7 @@ function route(path:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="actor"?"org.read":"member.manage";}
+function permissionFor(kind:string,method:string):Permission{return kind==="actor"||(kind==="student"&&method==="GET")||(kind==="students"&&method==="GET")||(kind==="classes"&&method==="GET")||(kind==="enrollments"&&method==="GET")?"org.read":"member.manage";}
 export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
 
 export function createSchoolApiServer(deps:SchoolApiDependencies, options:SchoolApiServerOptions={}){
@@ -103,7 +108,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      const values=Array.isArray(value)?value:value===undefined?[]:[value];
      for(const item of values)if(String(item).length>MAX_HEADER_VALUE_LENGTH)throw new Error("API_HEADER_TOO_LARGE:"+name);
    }
-   const method=(req.method??"GET").toUpperCase(), path=(rawUrl.split("?")[0]??"/"), r=route(path);
+   const method=(req.method??"GET").toUpperCase(), path=(rawUrl.split("?")[0] ?? "/"), r=route(path);
    const origin=String(req.headers.origin??"").trim();
    if(origin){
      if(!(deps.corsOrigins??[]).includes(origin)){
@@ -125,7 +130,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(!routeAuth.allowed)throw new Error(routeAuth.reason);
    const organizationId=auth.principal.organizationId; if(!auth.tenantId)throw new Error("TENANT_CONTEXT_REQUIRED");
    if(!organizationId)throw new Error("ORGANIZATION_CONTEXT_REQUIRED");
-   assertAuthorized(auth.principal,{organizationId,requestedPermission:permissionFor(r[0])});
+   assertAuthorized(auth.principal,{organizationId,requestedPermission:permissionFor(r[0],method)});
    if(r[0]==="stream"){
     if(method!=="GET")throw new Error("REALTIME_METHOD_NOT_ALLOWED");
     if(!deps.realtime)throw new Error("REALTIME_NOT_CONFIGURED");
@@ -171,7 +176,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    }
    const bodyText=await readBody(req);
    if(method!=="GET"){
-     const contentType=String(req.headers["content-type"]??"").split(";")[0].trim().toLowerCase();
+     const contentType=String(req.headers["content-type"]??"").split(";")[0]!.trim().toLowerCase();
      if(contentType!=="application/json")throw new Error("API_JSON_CONTENT_TYPE_REQUIRED");
    }
    const body=parse(bodyText);
@@ -183,7 +188,53 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(dedupe?.status==="conflict")throw new Error("API_IDEMPOTENCY_CONFLICT");
    if(dedupe?.status==="replay"){res.statusCode=dedupe.statusCode??200;json(res,res.statusCode,{ok:true,replayed:true,requestId:dedupe.requestId},correlationId);return;}
    let data:unknown;
-   if(r[0]==="actor"){
+   if(r[0]==="classes"){
+    if(method==="GET"){
+     const q=await deps.db.query("SELECT class_id,academic_year,label,capacity,enrolled_count,status,version,created_at,updated_at FROM education_classes WHERE tenant_id=$1 AND organization_id=$2 ORDER BY academic_year DESC,label LIMIT 200",[auth.tenantId,organizationId]); data=q.rows;
+    }else if(method==="POST"){
+     const classId=String((body as any).classId??randomUUID()).trim();
+     const academicYear=String((body as any).academicYear??"").trim();
+     const label=String((body as any).label??"").trim();
+     const capacity=Number((body as any).capacity);
+     if(!/^[A-Za-z0-9._:-]{3,96}$/.test(classId)||!/^\d{4}-\d{4}$/.test(academicYear)||!label||label.length>120||!Number.isSafeInteger(capacity)||capacity<1||capacity>5000)throw new Error("EDUCATION_CLASS_INPUT_INVALID");
+     const q=await deps.db.query("INSERT INTO education_classes(class_id,tenant_id,organization_id,academic_year,label,capacity) VALUES($1,$2,$3,$4,$5,$6) RETURNING class_id,academic_year,label,capacity,enrolled_count,status,version,created_at,updated_at",[classId,auth.tenantId,organizationId,academicYear,label,capacity]);
+     data=q.rows[0]; if(!data)throw new Error("EDUCATION_CLASS_CREATE_FAILED");
+    }else throw new Error("EDUCATION_CLASS_METHOD_NOT_ALLOWED");
+   } else if(r[0]==="enrollments"){
+    if(method==="GET"){
+     const q=await deps.db.query("SELECT enrollment_id,student_id,class_id,academic_year,status,enrolled_at,ended_at,version,created_by,created_at FROM education_enrollments WHERE tenant_id=$1 AND organization_id=$2 ORDER BY created_at DESC LIMIT 200",[auth.tenantId,organizationId]); data=q.rows;
+    }else if(method==="POST"){
+     const enrollmentId=String((body as any).enrollmentId??randomUUID()).trim();
+     const studentId=String((body as any).studentId??"").trim();
+     const classId=String((body as any).classId??"").trim();
+     const academicYear=String((body as any).academicYear??"").trim();
+     const status=String((body as any).status??"PENDING");
+     if(!/^[A-Za-z0-9._:-]{3,96}$/.test(enrollmentId)||!/^[A-Za-z0-9._:-]{3,96}$/.test(studentId)||!/^[A-Za-z0-9._:-]{3,96}$/.test(classId)||!/^\d{4}-\d{4}$/.test(academicYear)||!["PENDING","CONFIRMED"].includes(status))throw new Error("EDUCATION_ENROLLMENT_INPUT_INVALID");
+     const q=await deps.db.query("INSERT INTO education_enrollments(enrollment_id,tenant_id,organization_id,student_id,class_id,academic_year,status,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING enrollment_id,student_id,class_id,academic_year,status,enrolled_at,ended_at,version,created_by,created_at",[enrollmentId,auth.tenantId,organizationId,studentId,classId,academicYear,status,auth.principal.userId]);
+     data=q.rows[0]; if(!data)throw new Error("EDUCATION_ENROLLMENT_CREATE_FAILED");
+    }else throw new Error("EDUCATION_ENROLLMENT_METHOD_NOT_ALLOWED");
+   } else if(r[0]==="students"){
+    if(method==="GET"){
+     const q=await deps.db.query("SELECT student_id,tenant_id,organization_id,lifecycle,version,updated_at FROM education_students WHERE tenant_id=$1 AND organization_id=$2 ORDER BY student_id LIMIT 200",[auth.tenantId,organizationId]); data=q.rows;
+    }else if(method==="POST"){
+     const studentId=String((body as any).studentId??"").trim(); const lifecycle=String((body as any).lifecycle??"PROSPECT") as StudentLifecycle;
+     const valid:StudentLifecycle[]=["PROSPECT","APPLICANT","ADMITTED","ENROLLED","ACTIVE","SUSPENDED","WITHDRAWAL_PENDING","WITHDRAWN","ALUMNI"];
+     if(!/^[A-Za-z0-9._:-]{3,96}$/.test(studentId)||!valid.includes(lifecycle))throw new Error("STUDENT_INPUT_INVALID");
+     const inserted=await deps.db.query("INSERT INTO education_students(student_id,tenant_id,organization_id,lifecycle,version) VALUES($1,$2,$3,$4,1) ON CONFLICT DO NOTHING RETURNING student_id,tenant_id,organization_id,lifecycle,version,updated_at",[studentId,auth.tenantId,organizationId,lifecycle]);
+     if(!inserted.rows[0])throw new Error("STUDENT_ALREADY_EXISTS"); data=inserted.rows[0];
+    }else throw new Error("STUDENT_METHOD_NOT_ALLOWED");
+   } else if(r[0]==="student"){
+    if(method!=="GET")throw new Error("STUDENT_METHOD_NOT_ALLOWED");
+    const q=await deps.db.query("SELECT student_id,tenant_id,organization_id,lifecycle,version,updated_at FROM education_students WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3",[auth.tenantId,organizationId,r[1]]);
+    if(!q.rows[0])throw new Error("STUDENT_NOT_FOUND"); data=q.rows[0];
+   } else if(r[0]==="student-lifecycle"){
+    if(method!=="POST")throw new Error("STUDENT_METHOD_NOT_ALLOWED");
+    const q=await deps.db.query("SELECT student_id,organization_id,lifecycle,version FROM education_students WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3",[auth.tenantId,organizationId,r[1]]);
+    if(!q.rows[0])throw new Error("STUDENT_NOT_FOUND");
+    const current=q.rows[0] as unknown as StudentState; const next=transitionStudent({...current,version:BigInt(current.version)},String((body as any).lifecycle) as StudentLifecycle);
+    const updated=await deps.db.query("UPDATE education_students SET lifecycle=$1,version=$2,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND student_id=$5 AND version=$6 RETURNING student_id,organization_id,lifecycle,version,updated_at",[next.lifecycle,next.version.toString(),auth.tenantId,organizationId,r[1],current.version.toString()]);
+    if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
+   } else if(r[0]==="actor"){
     const q=await deps.db.query("SELECT actor_id,organization_id,kind,active,data,version,updated_at FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,r[1]]);
     if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("ACTOR_NOT_FOUND"),correlationId),correlationId);return;}
     data=q.rows[0];
@@ -193,7 +244,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     try{ data=await new PostgresEducationSyncStore(syncClient).accept(event as any); }
     finally{ syncClient.release?.(); }
    } else if(r[0]==="attendance"){
-    const incoming=body as AttendanceRecord; incoming.organizationId=organizationId;
+    const incoming={...(body as AttendanceRecord),organizationId,recordedBy:auth.principal.userId};
     const q=await deps.db.query("SELECT * FROM education_attendance WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3 AND class_id=$4",[auth.tenantId,organizationId,incoming.studentId,incoming.classId]);
     const existing=(q.rows[0]??null) as AttendanceRecord|null;
     const accepted=reconcileAttendance(existing,incoming);
@@ -220,7 +271,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
    }
    if(deps.realtime && deps.realtimeStore && r[0]!=="actor"){
-    const typeMap:Record<string,SchoolRealtimeEvent["type"]>={sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
+    const typeMap:Record<string,SchoolRealtimeEvent["type"]>={classes:"class.changed",enrollments:"enrollment.changed",students:"student.changed",student:"student.changed","student-lifecycle":"student.lifecycle.changed",sync:"sync.accepted",attendance:"attendance.changed","work-create":"work_item.changed",work:"work_item.changed","service-create":"service_request.changed","service-transition":"service_request.changed"};
     const eventType=typeMap[r[0]];
     if(eventType){
       const event:SchoolRealtimeEvent={
