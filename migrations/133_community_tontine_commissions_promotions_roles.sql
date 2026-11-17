@@ -535,3 +535,92 @@ DROP TRIGGER IF EXISTS community_tontine_fee_snapshot_immutable ON tontine_fee_s
 CREATE TRIGGER community_tontine_fee_snapshot_immutable
 BEFORE UPDATE OR DELETE OR TRUNCATE ON tontine_fee_snapshots
 FOR EACH STATEMENT EXECUTE FUNCTION community_tontine_reject_immutable_mutation();
+
+CREATE OR REPLACE FUNCTION community_tontine_guard_commission_policy() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP='DELETE' THEN RAISE EXCEPTION 'COMMUNITY_TONTINE_COMMISSION_POLICY_IMMUTABLE'; END IF;
+  IF OLD.state='RETIRED' THEN RAISE EXCEPTION 'COMMUNITY_TONTINE_COMMISSION_POLICY_RETIRED'; END IF;
+  IF ROW(NEW.id,NEW.organization_id,NEW.group_id,NEW.version,NEW.transaction_level,NEW.currency,
+         NEW.payer_mode,NEW.member_share_bps,NEW.effective_from,NEW.effective_until,NEW.components,
+         NEW.policy_hash,NEW.created_by)
+     IS DISTINCT FROM
+     ROW(OLD.id,OLD.organization_id,OLD.group_id,OLD.version,OLD.transaction_level,OLD.currency,
+         OLD.payer_mode,OLD.member_share_bps,OLD.effective_from,OLD.effective_until,OLD.components,
+         OLD.policy_hash,OLD.created_by)
+     AND OLD.state <> 'DRAFT' THEN
+    RAISE EXCEPTION 'COMMUNITY_TONTINE_COMMISSION_POLICY_CONFIG_IMMUTABLE';
+  END IF;
+  IF OLD.state='DRAFT' AND NEW.state NOT IN ('DRAFT','APPROVED') THEN
+    RAISE EXCEPTION 'COMMUNITY_TONTINE_COMMISSION_POLICY_TRANSITION_INVALID';
+  END IF;
+  IF OLD.state='APPROVED' AND NEW.state NOT IN ('APPROVED','ACTIVE') THEN
+    RAISE EXCEPTION 'COMMUNITY_TONTINE_COMMISSION_POLICY_TRANSITION_INVALID';
+  END IF;
+  IF OLD.state='ACTIVE' AND NEW.state NOT IN ('ACTIVE','RETIRED') THEN
+    RAISE EXCEPTION 'COMMUNITY_TONTINE_COMMISSION_POLICY_TRANSITION_INVALID';
+  END IF;
+  IF OLD.state='DRAFT' AND NEW.state='APPROVED' AND
+     (NEW.approved_by IS NULL OR NEW.approved_by=NEW.created_by) THEN
+    RAISE EXCEPTION 'COMMUNITY_TONTINE_COMMISSION_POLICY_MAKER_CHECKER_REQUIRED';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS community_tontine_commission_policy_guard ON community_tontine_commission_policies;
+CREATE TRIGGER community_tontine_commission_policy_guard
+BEFORE UPDATE OR DELETE ON community_tontine_commission_policies
+FOR EACH ROW EXECUTE FUNCTION community_tontine_guard_commission_policy();
+
+CREATE OR REPLACE FUNCTION community_tontine_guard_promotion_campaign() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP='DELETE' THEN RAISE EXCEPTION 'COMMUNITY_TONTINE_PROMOTION_IMMUTABLE'; END IF;
+  IF ROW(NEW.id,NEW.organization_id,NEW.group_id,NEW.code,NEW.title,NEW.starts_at,NEW.ends_at,
+         NEW.currency,NEW.reward_minor,NEW.max_redemptions,NEW.max_budget_minor,NEW.allowed_channels,NEW.created_by)
+     IS DISTINCT FROM
+     ROW(OLD.id,OLD.organization_id,OLD.group_id,OLD.code,OLD.title,OLD.starts_at,OLD.ends_at,
+         OLD.currency,OLD.reward_minor,OLD.max_redemptions,OLD.max_budget_minor,OLD.allowed_channels,OLD.created_by) THEN
+    RAISE EXCEPTION 'COMMUNITY_TONTINE_PROMOTION_TERMS_IMMUTABLE';
+  END IF;
+  IF NEW.accepted_redemptions < OLD.accepted_redemptions OR
+     NEW.committed_budget_minor < OLD.committed_budget_minor THEN
+    RAISE EXCEPTION 'COMMUNITY_TONTINE_PROMOTION_RESERVATION_NOT_REVERSIBLE';
+  END IF;
+  IF OLD.state='DRAFT' AND NEW.state NOT IN ('DRAFT','APPROVED') THEN
+    RAISE EXCEPTION 'COMMUNITY_TONTINE_PROMOTION_TRANSITION_INVALID';
+  END IF;
+  IF OLD.state='APPROVED' AND NEW.state NOT IN ('APPROVED','ACTIVE') THEN
+    RAISE EXCEPTION 'COMMUNITY_TONTINE_PROMOTION_TRANSITION_INVALID';
+  END IF;
+  IF OLD.state='ACTIVE' AND NEW.state NOT IN ('ACTIVE','PAUSED','ENDED') THEN
+    RAISE EXCEPTION 'COMMUNITY_TONTINE_PROMOTION_TRANSITION_INVALID';
+  END IF;
+  IF OLD.state='PAUSED' AND NEW.state NOT IN ('PAUSED','ACTIVE','ENDED') THEN
+    RAISE EXCEPTION 'COMMUNITY_TONTINE_PROMOTION_TRANSITION_INVALID';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS community_tontine_promotion_campaign_guard ON community_tontine_promotion_campaigns;
+CREATE TRIGGER community_tontine_promotion_campaign_guard
+BEFORE UPDATE OR DELETE ON community_tontine_promotion_campaigns
+FOR EACH ROW EXECUTE FUNCTION community_tontine_guard_promotion_campaign();
+
+CREATE OR REPLACE FUNCTION community_tontine_guard_role_grant() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP='DELETE' THEN RAISE EXCEPTION 'COMMUNITY_TONTINE_ROLE_GRANT_IMMUTABLE'; END IF;
+  IF OLD.revoked_at IS NOT NULL OR NEW.revoked_at IS NULL OR
+     ROW(NEW.id,NEW.organization_id,NEW.group_id,NEW.actor_id,NEW.role,NEW.permissions,NEW.granted_by,NEW.valid_from,NEW.expires_at)
+     IS DISTINCT FROM
+     ROW(OLD.id,OLD.organization_id,OLD.group_id,OLD.actor_id,OLD.role,OLD.permissions,OLD.granted_by,OLD.valid_from,OLD.expires_at) THEN
+    RAISE EXCEPTION 'COMMUNITY_TONTINE_ROLE_GRANT_IMMUTABLE';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS community_tontine_role_grant_guard ON community_tontine_role_grants;
+CREATE TRIGGER community_tontine_role_grant_guard
+BEFORE UPDATE OR DELETE ON community_tontine_role_grants
+FOR EACH ROW EXECUTE FUNCTION community_tontine_guard_role_grant();
