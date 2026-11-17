@@ -32,6 +32,7 @@ export interface ResolvedIdentityRuntimeContext {
 
 const COMMUNITY_PERMISSIONS = new Set<Permission>([
   "community.tontine.read",
+  "community.groups.manage",
   "community.members.manage",
   "community.admission.decide",
   "community.contribution.initiate",
