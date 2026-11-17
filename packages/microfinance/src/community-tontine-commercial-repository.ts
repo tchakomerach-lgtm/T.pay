@@ -158,7 +158,10 @@ export class PostgresCommunityTontineCommercialRepository {
       grantorRole: input.grantorRole, grantorId: input.grantorId, targetId: input.actorId,
       targetRole: input.targetRole, targetPermissions: input.permissions
     });
-    if (Date.parse(input.expiresAt) <= Date.parse(input.validFrom)) throw new Error("TONTINE_ROLE_GRANT_WINDOW_INVALID");
+    const validFrom = Date.parse(input.validFrom), expiresAt = Date.parse(input.expiresAt);
+    if (!Number.isFinite(validFrom) || !Number.isFinite(expiresAt) || expiresAt <= validFrom) {
+      throw new Error("TONTINE_ROLE_GRANT_WINDOW_INVALID");
+    }
     await this.db.query(
       `INSERT INTO community_tontine_role_grants
        (id,organization_id,group_id,actor_id,role,permissions,granted_by,valid_from,expires_at)
