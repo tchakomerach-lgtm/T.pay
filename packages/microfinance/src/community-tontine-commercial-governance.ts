@@ -92,10 +92,26 @@ function canonicalQuote(quote: Omit<CommunityTontineFeeQuote, "quoteHash">): str
   });
 }
 
+export function computeCommunityTontineCommissionPolicyHash(policy: CommunityTontineCommissionPolicy): string {
+  const canonical = JSON.stringify({
+    id: policy.id, organizationId: policy.organizationId, groupId: policy.groupId,
+    version: policy.version, transactionLevel: policy.transactionLevel, currency: policy.currency,
+    payer: policy.payer, memberShareBps: policy.memberShareBps,
+    effectiveFrom: policy.effectiveFrom, effectiveUntil: policy.effectiveUntil ?? null,
+    components: [...policy.components].sort((a,b) => a.recipient.localeCompare(b.recipient)).map(c => ({
+      recipient: c.recipient, rateBps: c.rateBps, enabled: c.enabled,
+      minMinor: c.minMinor?.toString() ?? null, maxMinor: c.maxMinor?.toString() ?? null
+    }))
+  });
+  return createHash("sha256").update(canonical).digest("hex");
+}
+
 export function validateCommunityTontineCommissionPolicy(policy: CommunityTontineCommissionPolicy): void {
   if (!policy.version.trim() || !policy.groupId || !policy.organizationId) throw new Error("TONTINE_COMMISSION_POLICY_IDENTITY_INVALID");
   if (!/^[A-Z]{3}$/.test(policy.currency)) throw new Error("TONTINE_COMMISSION_CURRENCY_INVALID");
-  if (!HASH.test(policy.policyHash)) throw new Error("TONTINE_COMMISSION_POLICY_HASH_INVALID");
+  if (!HASH.test(policy.policyHash) || computeCommunityTontineCommissionPolicyHash(policy) !== policy.policyHash) {
+    throw new Error("TONTINE_COMMISSION_POLICY_HASH_INVALID");
+  }
   if (policy.state === "ACTIVE" && !policy.approvedBy) throw new Error("TONTINE_COMMISSION_APPROVAL_REQUIRED");
   if (policy.approvedBy && policy.approvedBy === policy.createdBy) throw new Error("TONTINE_COMMISSION_MAKER_CHECKER_REQUIRED");
   const from = assertIsoDate(policy.effectiveFrom, "TONTINE_COMMISSION_EFFECTIVE_FROM_INVALID");
@@ -292,7 +308,7 @@ export function assertCommunityTontineRoleGrant(input: {
   if (input.targetRole === "FOUNDER" || input.targetRole === "PAYOUT_APPROVER") {
     throw new Error("TONTINE_ROLE_REQUIRES_SEPARATE_GOVERNANCE_APPROVAL");
   }
-  if (input.targetPermissions.some(p => p === "payout.approve" || p === "finance.reconcile" && input.grantorRole !== "FOUNDER")) {
+  if (input.targetPermissions.some(p => p === "payout.approve" || !ROLE_PERMISSIONS[input.grantorRole].includes(p))) {
     throw new Error("TONTINE_ROLE_PRIVILEGE_ESCALATION");
   }
 }
@@ -331,6 +347,7 @@ export interface CommunityTontineReferralEvidence {
 export function assertPromotionCampaignValid(c: CommunityTontinePromotionCampaign): void {
   if (!c.code.trim() || !c.title.trim() || !/^[A-Z]{3}$/.test(c.currency)) throw new Error("TONTINE_PROMOTION_IDENTITY_INVALID");
   if (c.state === "ACTIVE" && (!c.approvedBy || c.approvedBy === c.createdBy)) throw new Error("TONTINE_PROMOTION_APPROVAL_REQUIRED");
+  if (c.approvedBy && c.approvedBy === c.createdBy) throw new Error("TONTINE_PROMOTION_MAKER_CHECKER_REQUIRED");
   if (Date.parse(c.endsAt) <= Date.parse(c.startsAt)) throw new Error("TONTINE_PROMOTION_WINDOW_INVALID");
   if (!Number.isInteger(c.maxRedemptions) || c.maxRedemptions < 1 || c.acceptedRedemptions < 0 ||
       c.acceptedRedemptions > c.maxRedemptions) throw new Error("TONTINE_PROMOTION_QUOTA_INVALID");
