@@ -38,6 +38,10 @@ test("global identity RLS isolates two tenants under a non-owner non-BYPASSRLS r
   const apiSessionB = randomUUID();
   const identitySessionA = randomUUID();
   const identitySessionB = randomUUID();
+  const groupA = randomUUID();
+  const groupB = randomUUID();
+  const groupMemberA = randomUUID();
+  const groupMemberB = randomUUID();
   let roleCreated = false;
   let transactionOpen = false;
 
@@ -52,7 +56,7 @@ test("global identity RLS isolates two tenants under a non-owner non-BYPASSRLS r
     await owner.query(`CREATE ROLE "${role}" NOLOGIN NOSUPERUSER NOBYPASSRLS`);
     roleCreated = true;
     await owner.query(`GRANT USAGE ON SCHEMA public TO "${role}"`);
-    await owner.query(`GRANT SELECT ON tpay_tenants,tpay_organization_tenants,identity_subjects,identity_actor_links,identity_tenant_memberships,identity_organization_memberships,identity_permission_grants,identity_sessions,identity_audit TO "${role}"`);
+    await owner.query(`GRANT SELECT ON tpay_tenants,tpay_organization_tenants,identity_subjects,identity_actor_links,identity_tenant_memberships,identity_organization_memberships,identity_permission_grants,identity_sessions,identity_audit,tontine_groups,tontine_memberships TO "${role}"`);
 
     const now = new Date(Date.now() - 60_000).toISOString();
     const later = new Date(Date.now() + 60 * 60_000).toISOString();
@@ -96,6 +100,17 @@ test("global identity RLS isolates two tenants under a non-owner non-BYPASSRLS r
       [identitySessionA, apiSessionA, subjectA, actorLinkA, tenantA, orgA, now, later,
        identitySessionB, apiSessionB, subjectB, actorLinkB, tenantB, orgB]
     );
+    await owner.query(
+      `INSERT INTO tontine_groups(id,organization_id,name,country_code,currency,frequency,contribution_mode,minimum_amount_minor,cycle_number,governance,status,created_by,created_at)
+       VALUES ($1,$2,'Tontine A','TG','XOF','weekly','fixed',500,1,'member_vote','draft',$3,$4),
+              ($5,$6,'Tontine B','TG','XOF','weekly','fixed',500,1,'member_vote','draft',$7,$4)`,
+      [groupA, orgA, subjectA, now, groupB, orgB, subjectB]
+    );
+    await owner.query(
+      `INSERT INTO tontine_memberships(id,organization_id,group_id,client_id,role,status,joined_at)
+       VALUES ($1,$2,$3,$4,'founder','active',$5),($6,$7,$8,$9,'founder','active',$5)`,
+      [groupMemberA, orgA, groupA, subjectA, now, groupMemberB, orgB, groupB, subjectB]
+    );
 
     await owner.query(`SET LOCAL ROLE "${role}"`);
 
@@ -109,7 +124,7 @@ test("global identity RLS isolates two tenants under a non-owner non-BYPASSRLS r
         ["identity_subjects", "id"], ["identity_actor_links", "id"],
         ["identity_tenant_memberships", "id"], ["identity_organization_memberships", "id"],
         ["identity_permission_grants", "id"], ["identity_sessions", "id"],
-        ["identity_audit", "id"]
+        ["identity_audit", "id"], ["tontine_groups", "id"], ["tontine_memberships", "id"]
       ];
       for (const [table, column] of tables) {
         assert.deepEqual(await visible(table, column), [], `${table} must deny reads without a tenant and organization context`);
@@ -121,7 +136,7 @@ test("global identity RLS isolates two tenants under a non-owner non-BYPASSRLS r
     };
     const assertTenantScope = async (tenantId: string, organizationId: string, subjectId: string,
       actorLinkId: string, tenantMembershipId: string, organizationMembershipId: string,
-      grantId: string) => {
+      grantId: string, groupId: string, membershipId: string) => {
       assert.deepEqual(await visible("tpay_tenants"), [tenantId]);
       assert.deepEqual(await visible("tpay_organization_tenants", "organization_id"), [organizationId]);
       assert.deepEqual(await visible("identity_subjects"), [subjectId]);
@@ -130,6 +145,8 @@ test("global identity RLS isolates two tenants under a non-owner non-BYPASSRLS r
       assert.deepEqual(await visible("identity_organization_memberships"), [organizationMembershipId]);
       assert.deepEqual(await visible("identity_permission_grants"), [grantId]);
       assert.equal((await visible("identity_audit", "id")).length, 1);
+      assert.deepEqual(await visible("tontine_groups"), [groupId]);
+      assert.deepEqual(await visible("tontine_memberships"), [membershipId]);
     };
 
     await assertNoIdentityRows();
@@ -139,11 +156,11 @@ test("global identity RLS isolates two tenants under a non-owner non-BYPASSRLS r
     assert.deepEqual(await visible("identity_subjects"), [],
       "bootstrap session lookup must not reveal subject rows before tenant/org scope is set");
     await setScope(tenantA, orgA);
-    await assertTenantScope(tenantA, orgA, subjectA, actorLinkA, tenantMembershipA, orgMembershipA, grantA);
+    await assertTenantScope(tenantA, orgA, subjectA, actorLinkA, tenantMembershipA, orgMembershipA, grantA, groupA, groupMemberA);
     await owner.query("SELECT set_config('tpay.api_session_id',$1,true)", [apiSessionB]);
     await setScope(tenantB, orgB);
     assert.deepEqual(await visible("identity_sessions"), [identitySessionB]);
-    await assertTenantScope(tenantB, orgB, subjectB, actorLinkB, tenantMembershipB, orgMembershipB, grantB);
+    await assertTenantScope(tenantB, orgB, subjectB, actorLinkB, tenantMembershipB, orgMembershipB, grantB, groupB, groupMemberB);
     await owner.query("ROLLBACK");
     transactionOpen = false;
   } finally {
