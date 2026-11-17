@@ -58,7 +58,7 @@ function fakePool(options: { noBootstrap?: boolean; grants?: Record<string, unkn
       if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK" || sql.includes("set_config")) {
         return { rows: [], rowCount: 0 };
       }
-      if (sql.includes("FROM identity_sessions") && sql.includes("api_session_id")) {
+      if (sql.includes("SELECT id, subject_id, tenant_id, organization_id, actor_link_id")) {
         return { rows: options.noBootstrap ? [] : [bootstrapRow] };
       }
       if (sql.includes("FROM identity_sessions s")) return { rows: [resolvedRow] };
