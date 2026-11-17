@@ -269,9 +269,9 @@ export class PostgresDurableTontineSettlementRepository
             "INSERT INTO tontine_fee_snapshots " +
             "(contribution_id, organization_id, microfinance_fee_minor, tpay_fee_minor, total_fee_minor, currency, rule_version, calculated_at, " +
             "policy_id, transaction_level, payer_mode, member_fee_minor, beneficiary_fee_minor, agent_fee_minor, reserve_fee_minor, tax_fee_minor, " +
-            "optional_service_fee_minor, component_snapshot, snapshot_hash, accepted_at) " +
+            "optional_service_fee_minor, component_snapshot, quote_hash, snapshot_hash, accepted_at) " +
             "VALUES ($1, $2, $3::numeric, $4::numeric, $5::numeric, $6, $7, $8::timestamptz, $9, $10, $11, $12::numeric, $13::numeric, " +
-            "$14::numeric, $15::numeric, $16::numeric, $17::numeric, $18::jsonb, $19, $20::timestamptz) " +
+            "$14::numeric, $15::numeric, $16::numeric, $17::numeric, $18::jsonb, $19, $20, $21::timestamptz) " +
             "ON CONFLICT (contribution_id) DO NOTHING",
             [
               snapshot.contributionId,
@@ -292,6 +292,7 @@ export class PostgresDurableTontineSettlementRepository
               (snapshot.taxFeeMinor ?? 0n).toString(),
               (snapshot.optionalServiceFeeMinor ?? 0n).toString(),
               snapshot.componentSnapshot ?? null,
+              snapshot.quoteHash ?? null,
               snapshot.snapshotHash ?? null,
               snapshot.acceptedAt ?? null
             ]
