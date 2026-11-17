@@ -258,6 +258,9 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    }else if(r[0]==="tontine-groups"&&method==="POST"){
     const input=body as Record<string,unknown>;
     if(!input||typeof input!=="object"||Array.isArray(input))throw new Error("TONTINE_GROUP_PAYLOAD_INVALID");
+    if(!["daily","weekly","monthly"].includes(String(input.frequency)))throw new Error("TONTINE_FREQUENCY_INVALID");
+    if(!["fixed","variable","goal"].includes(String(input.contributionMode)))throw new Error("TONTINE_CONTRIBUTION_MODE_INVALID");
+    if(!["founder_managed","member_vote"].includes(String(input.governance??"member_vote")))throw new Error("TONTINE_GOVERNANCE_INVALID");
     const now=(deps.now??(()=>new Date()))().toISOString();
     const group:CommunityTontineGroup={
      id:randomUUID() as UUID,
