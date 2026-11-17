@@ -162,23 +162,42 @@ export class PostgresCommunityTontineCommercialRepository {
     if (!Number.isFinite(validFrom) || !Number.isFinite(expiresAt) || expiresAt <= validFrom) {
       throw new Error("TONTINE_ROLE_GRANT_WINDOW_INVALID");
     }
-    await this.db.query(
-      `INSERT INTO community_tontine_role_grants
-       (id,organization_id,group_id,actor_id,role,permissions,granted_by,valid_from,expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::timestamptz,$9::timestamptz)`,
-      [input.id,input.organizationId,input.groupId,input.actorId,input.targetRole,[...input.permissions],
-       input.grantorId,input.validFrom,input.expiresAt]
-    );
+    await this.db.transaction(async tx => {
+      await tx.query(
+        `INSERT INTO community_tontine_role_grants
+         (id,organization_id,group_id,actor_id,role,permissions,granted_by,valid_from,expires_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8::timestamptz,$9::timestamptz)`,
+        [input.id,input.organizationId,input.groupId,input.actorId,input.targetRole,[...input.permissions],
+         input.grantorId,input.validFrom,input.expiresAt]
+      );
+      await tx.query(
+        `INSERT INTO community_tontine_commercial_audit
+         (id,organization_id,group_id,object_type,object_id,action,actor_id,reason,payload,occurred_at)
+         VALUES ($1,$2,$3,'ROLE_GRANT',$4,'GRANTED',$5,'Temporary role grant created',$6::jsonb,now())`,
+        [randomUUID(),input.organizationId,input.groupId,input.id,input.grantorId,
+         JSON.stringify({actorId:input.actorId,role:input.targetRole,permissions:[...input.permissions],
+           validFrom:input.validFrom,expiresAt:input.expiresAt})]
+      );
+    });
   }
 
-  async revokeRole(input: { organizationId: UUID; groupId: UUID; grantId: UUID; revokedAt: string }): Promise<void> {
-    const result = await this.db.query(
-      `UPDATE community_tontine_role_grants SET revoked_at=$4::timestamptz
-       WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND revoked_at IS NULL AND expires_at>$4::timestamptz
-       RETURNING id`,
-      [input.organizationId,input.groupId,input.grantId,input.revokedAt]
-    );
-    if (result.rows.length !== 1) throw new Error("TONTINE_ROLE_GRANT_NOT_REVOCABLE");
+  async revokeRole(input: { organizationId: UUID; groupId: UUID; grantId: UUID; actorId: UUID; revokedAt: string }): Promise<void> {
+    await this.db.transaction(async tx => {
+      const result = await tx.query(
+        `UPDATE community_tontine_role_grants SET revoked_at=$4::timestamptz
+         WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND revoked_at IS NULL AND expires_at>$4::timestamptz
+         RETURNING id`,
+        [input.organizationId,input.groupId,input.grantId,input.revokedAt]
+      );
+      if (result.rows.length !== 1) throw new Error("TONTINE_ROLE_GRANT_NOT_REVOCABLE");
+      await tx.query(
+        `INSERT INTO community_tontine_commercial_audit
+         (id,organization_id,group_id,object_type,object_id,action,actor_id,reason,payload,occurred_at)
+         VALUES ($1,$2,$3,'ROLE_GRANT',$4,'REVOKED',$5,'Temporary role grant revoked',$6::jsonb,$7::timestamptz)`,
+        [randomUUID(),input.organizationId,input.groupId,input.grantId,input.actorId,
+         JSON.stringify({revokedAt:input.revokedAt}),input.revokedAt]
+      );
+    });
   }
 
   async getPromotionCampaign(input: {
@@ -213,44 +232,70 @@ export class PostgresCommunityTontineCommercialRepository {
   async createPromotionCampaign(campaign: CommunityTontinePromotionCampaign): Promise<void> {
     assertPromotionCampaignValid(campaign);
     if (campaign.state !== "DRAFT") throw new Error("TONTINE_PROMOTION_MUST_START_DRAFT");
-    await this.db.query(
-      `INSERT INTO community_tontine_promotion_campaigns
-       (id,organization_id,group_id,code,title,state,starts_at,ends_at,currency,reward_minor,max_redemptions,
-        accepted_redemptions,max_budget_minor,committed_budget_minor,allowed_channels,created_by,approved_by)
-       VALUES ($1,$2,$3,$4,$5,'DRAFT',$6::timestamptz,$7::timestamptz,$8,$9::numeric,$10,0,
-               $11::numeric,0,$12,$13,NULL)`,
-      [campaign.id,campaign.organizationId,campaign.groupId,campaign.code,campaign.title,campaign.startsAt,
-       campaign.endsAt,campaign.currency,campaign.rewardMinor.toString(),campaign.maxRedemptions,
-       campaign.maxBudgetMinor.toString(),[...campaign.allowedChannels],campaign.createdBy]
-    );
+    await this.db.transaction(async tx => {
+      await tx.query(
+        `INSERT INTO community_tontine_promotion_campaigns
+         (id,organization_id,group_id,code,title,state,starts_at,ends_at,currency,reward_minor,max_redemptions,
+          accepted_redemptions,max_budget_minor,committed_budget_minor,allowed_channels,created_by,approved_by)
+         VALUES ($1,$2,$3,$4,$5,'DRAFT',$6::timestamptz,$7::timestamptz,$8,$9::numeric,$10,0,
+                 $11::numeric,0,$12,$13,NULL)`,
+        [campaign.id,campaign.organizationId,campaign.groupId,campaign.code,campaign.title,campaign.startsAt,
+         campaign.endsAt,campaign.currency,campaign.rewardMinor.toString(),campaign.maxRedemptions,
+         campaign.maxBudgetMinor.toString(),[...campaign.allowedChannels],campaign.createdBy]
+      );
+      await tx.query(
+        `INSERT INTO community_tontine_commercial_audit
+         (id,organization_id,group_id,object_type,object_id,action,actor_id,reason,payload,occurred_at)
+         VALUES ($1,$2,$3,'PROMOTION_CAMPAIGN',$4,'CREATED',$5,'Promotion campaign created as draft',$6::jsonb,now())`,
+        [randomUUID(),campaign.organizationId,campaign.groupId,campaign.id,campaign.createdBy,
+         JSON.stringify({code:campaign.code,currency:campaign.currency,rewardMinor:campaign.rewardMinor.toString(),
+           maxRedemptions:campaign.maxRedemptions,maxBudgetMinor:campaign.maxBudgetMinor.toString()})]
+      );
+    });
   }
 
   async approvePromotionCampaign(input: {
     organizationId: UUID; groupId: UUID; campaignId: UUID; approverId: UUID;
   }): Promise<void> {
-    const result = await this.db.query(
-      `UPDATE community_tontine_promotion_campaigns
-       SET state='APPROVED',approved_by=$4
-       WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND state='DRAFT' AND created_by<>$4
-       RETURNING id`,
-      [input.organizationId,input.groupId,input.campaignId,input.approverId]
-    );
-    if (result.rows.length !== 1) throw new Error("TONTINE_PROMOTION_APPROVAL_REJECTED");
+    await this.db.transaction(async tx => {
+      const result = await tx.query(
+        `UPDATE community_tontine_promotion_campaigns
+         SET state='APPROVED',approved_by=$4
+         WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND state='DRAFT' AND created_by<>$4
+         RETURNING id`,
+        [input.organizationId,input.groupId,input.campaignId,input.approverId]
+      );
+      if (result.rows.length !== 1) throw new Error("TONTINE_PROMOTION_APPROVAL_REJECTED");
+      await tx.query(
+        `INSERT INTO community_tontine_commercial_audit
+         (id,organization_id,group_id,object_type,object_id,action,actor_id,reason,payload,occurred_at)
+         VALUES ($1,$2,$3,'PROMOTION_CAMPAIGN',$4,'APPROVED',$5,'Promotion campaign approved by independent approver','{}'::jsonb,now())`,
+        [randomUUID(),input.organizationId,input.groupId,input.campaignId,input.approverId]
+      );
+    });
   }
 
   async activatePromotionCampaign(input: {
     organizationId: UUID; groupId: UUID; campaignId: UUID; actorId: UUID;
   }): Promise<void> {
-    const result = await this.db.query(
-      `UPDATE community_tontine_promotion_campaigns
-       SET state='ACTIVE'
-       WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND state='APPROVED'
-         AND approved_by IS NOT NULL AND approved_by<>$4
-         AND starts_at<=now() AND ends_at>now()
-       RETURNING id`,
-      [input.organizationId,input.groupId,input.campaignId,input.actorId]
-    );
-    if (result.rows.length !== 1) throw new Error("TONTINE_PROMOTION_ACTIVATION_REJECTED");
+    await this.db.transaction(async tx => {
+      const result = await tx.query(
+        `UPDATE community_tontine_promotion_campaigns
+         SET state='ACTIVE'
+         WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND state='APPROVED'
+           AND approved_by IS NOT NULL AND approved_by<>$4
+           AND starts_at<=now() AND ends_at>now()
+         RETURNING id`,
+        [input.organizationId,input.groupId,input.campaignId,input.actorId]
+      );
+      if (result.rows.length !== 1) throw new Error("TONTINE_PROMOTION_ACTIVATION_REJECTED");
+      await tx.query(
+        `INSERT INTO community_tontine_commercial_audit
+         (id,organization_id,group_id,object_type,object_id,action,actor_id,reason,payload,occurred_at)
+         VALUES ($1,$2,$3,'PROMOTION_CAMPAIGN',$4,'ACTIVATED',$5,'Promotion campaign activated','{}'::jsonb,now())`,
+        [randomUUID(),input.organizationId,input.groupId,input.campaignId,input.actorId]
+      );
+    });
   }
 
   async reservePromotionRedemption(input: {
@@ -285,6 +330,14 @@ export class PostgresCommunityTontineCommercialRepository {
          redemption.ambassadorId ?? null,redemption.channel,redemption.rewardMinor.toString(),
          redemption.currency,redemption.idempotencyKey]
       );
+      await tx.query(
+        `INSERT INTO community_tontine_commercial_audit
+         (id,organization_id,group_id,object_type,object_id,action,actor_id,reason,payload,occurred_at)
+         VALUES ($1,$2,$3,'PROMOTION_REDEMPTION',$4,'RESERVED',$5,'Promotion redemption reserved atomically',$6::jsonb,$7::timestamptz)`,
+        [randomUUID(),campaign.organizationId,campaign.groupId,redemption.id,redemption.candidateId,
+         JSON.stringify({campaignId:campaign.id,rewardMinor:redemption.rewardMinor.toString(),
+           idempotencyKey:redemption.idempotencyKey}),now]
+      );
     });
   }
 
@@ -297,7 +350,7 @@ export class PostgresCommunityTontineCommercialRepository {
     }
     await this.db.transaction(async tx => {
       const settled = await tx.query(
-        `SELECT c.id FROM tontine_contributions c
+        `SELECT c.id,r.candidate_id FROM tontine_contributions c
          JOIN tontine_memberships m
            ON m.organization_id=c.organization_id AND m.group_id=c.group_id AND m.id=c.membership_id
          JOIN community_tontine_promotion_redemptions r
@@ -317,6 +370,14 @@ export class PostgresCommunityTontineCommercialRepository {
         [input.organizationId,input.groupId,input.redemptionId,input.firstContributionId]
       );
       if (updated.rows.length !== 1) throw new Error("TONTINE_PROMOTION_REDEMPTION_STATE_CONFLICT");
+      await tx.query(
+        `INSERT INTO community_tontine_commercial_audit
+         (id,organization_id,group_id,object_type,object_id,action,actor_id,reason,payload,occurred_at)
+         VALUES ($1,$2,$3,'PROMOTION_REDEMPTION',$4,'PENDING_APPROVAL',$5,'First settled contribution verified; reward awaits approval',$6::jsonb,$7::timestamptz)`,
+        [randomUUID(),input.organizationId,input.groupId,input.redemptionId,
+         settled.rows[0]?.candidate_id ?? input.redemptionId,
+         JSON.stringify({firstContributionId:input.firstContributionId}),input.now]
+      );
     });
   }
 }
