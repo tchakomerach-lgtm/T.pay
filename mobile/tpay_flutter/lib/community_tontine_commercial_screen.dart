@@ -165,6 +165,7 @@ class _CommunityTontineCommercialScreenState
     String level = 'CONTRIBUTION';
     String payer = 'MEMBER';
     String share = '10000';
+    final shareController = TextEditingController(text: share);
     final enabled = <String>{'TPAY'};
     final form = GlobalKey<FormState>();
     final accepted = await showDialog<bool>(context: context, builder: (dialogContext) =>
@@ -174,18 +175,18 @@ class _CommunityTontineCommercialScreenState
           key: form,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             TextFormField(controller: version, decoration: const InputDecoration(labelText: 'Version'), validator: (v) => v == null || v.trim().isEmpty ? 'Version obligatoire' : null),
-            DropdownButtonFormField<String>(value: level, decoration: const InputDecoration(labelText: 'Niveau'), items: const [
+            DropdownButtonFormField<String>(initialValue: level, decoration: const InputDecoration(labelText: 'Niveau'), items: const [
               DropdownMenuItem(value:'CONTRIBUTION',child:Text('Cotisation')),
               DropdownMenuItem(value:'BENEFICIARY_PAYOUT',child:Text('Décaissement bénéficiaire')),
               DropdownMenuItem(value:'TRANSFER',child:Text('Transfert')),
               DropdownMenuItem(value:'OPTIONAL_SERVICE',child:Text('Service optionnel')),
             ], onChanged: (v) => setDialog(() => level = v ?? level)),
-            DropdownButtonFormField<String>(value: payer, decoration: const InputDecoration(labelText: 'Payeur'), items: const [
+            DropdownButtonFormField<String>(initialValue: payer, decoration: const InputDecoration(labelText: 'Payeur'), items: const [
               DropdownMenuItem(value:'MEMBER',child:Text('Membre')),
               DropdownMenuItem(value:'BENEFICIARY',child:Text('Bénéficiaire')),
               DropdownMenuItem(value:'SPLIT',child:Text('Partagé')),
-            ], onChanged: (v) => setDialog(() { payer = v ?? payer; share = payer == 'MEMBER' ? '10000' : payer == 'BENEFICIARY' ? '0' : '5000'; })),
-            TextFormField(initialValue: share, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Part membre (bps)'), onChanged: (v) => share = v, enabled: payer == 'SPLIT'),
+            ], onChanged: (v) => setDialog(() { payer = v ?? payer; share = payer == 'MEMBER' ? '10000' : payer == 'BENEFICIARY' ? '0' : '5000'; shareController.text = share; })),
+            TextFormField(controller: shareController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Part membre (bps)'), onChanged: (v) => share = v, enabled: payer == 'SPLIT'),
             const SizedBox(height: 8),
             for (final entry in rates.entries) Row(children: [
               Expanded(child: CheckboxListTile(dense:true,contentPadding:EdgeInsets.zero,title:Text(entry.key,style:const TextStyle(fontSize:12)),value:enabled.contains(entry.key),onChanged:(v)=>setDialog(()=>v==true?enabled.add(entry.key):enabled.remove(entry.key)))),
@@ -211,12 +212,13 @@ class _CommunityTontineCommercialScreenState
     if (accepted == true && valid && mounted) {
       await _command('policy-create','$_base/commission-policies',{
         'version':version.text.trim(),'transactionLevel':level,'currency':'XOF',
-        'payer':payer,'memberShareBps':int.tryParse(share)??0,
+        'payer':payer,'memberShareBps':int.tryParse(shareController.text)??0,
         'effectiveFrom':DateTime.now().add(const Duration(minutes:1)).toUtc().toIso8601String(),
         'components':components,
       });
     }
     version.dispose();
+    shareController.dispose();
     for(final c in rates.values){c.dispose();}
   }
 
