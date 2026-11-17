@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import type { UUID } from "../../domain/src/types.js";
-import type { TontineFeeSnapshot } from "./community-tontine.js";
+import { calculateCommission } from "../../finance/src/commission.js";
+import { money } from "../../finance/src/ledger.js";
+import type { TontineContribution, TontineFeeSnapshot } from "./community-tontine.js";
+import type { TontinePaymentIntent } from "./tontine-settlement.js";
 
 export type CommunityTontineTransactionLevel =
   | "CONTRIBUTION" | "BENEFICIARY_PAYOUT" | "TRANSFER" | "OPTIONAL_SERVICE";
@@ -142,9 +145,14 @@ export function quoteCommunityTontineCommission(input: {
     throw new Error("TONTINE_COMMISSION_QUOTE_EXPIRY_INVALID");
   }
   const components = policy.components.filter(x => x.enabled).map(rule => {
-    let amountMinor = input.grossAmountMinor * BigInt(rule.rateBps) / BigInt(BPS);
-    if (rule.minMinor !== undefined && amountMinor < rule.minMinor) amountMinor = rule.minMinor;
-    if (rule.maxMinor !== undefined && amountMinor > rule.maxMinor) amountMinor = rule.maxMinor;
+    const amountMinor = calculateCommission(money(input.currency, input.grossAmountMinor), {
+      id: policy.id + ":" + rule.recipient,
+      name: rule.recipient,
+      rateBps: rule.rateBps,
+      ...(rule.minMinor !== undefined ? { minMinor: rule.minMinor } : {}),
+      ...(rule.maxMinor !== undefined ? { maxMinor: rule.maxMinor } : {}),
+      active: true
+    }).minor;
     return { recipient: rule.recipient, rateBps: rule.rateBps, amountMinor };
   });
   const totalFeeMinor = components.reduce((sum, x) => sum + x.amountMinor, 0n);
@@ -206,6 +214,42 @@ export function toTontineFeeSnapshot(
     }))),
     snapshotHash: snapshot.snapshotHash, acceptedAt: snapshot.acceptedAt
   };
+}
+
+/** Validate that the accepted quote was bound before provider initiation. */
+export function assertCommunityTontineFeeSnapshotForSettlement(
+  snapshot: TontineFeeSnapshot,
+  contribution: TontineContribution,
+  paymentIntent: TontinePaymentIntent
+): void {
+  if (snapshot.contributionId !== contribution.id || paymentIntent.contributionId !== contribution.id) {
+    throw new Error("TONTINE_COMMISSION_CONTRIBUTION_BINDING_MISMATCH");
+  }
+  if (snapshot.currency !== contribution.currency || paymentIntent.currency !== contribution.currency ||
+      snapshot.totalFeeMinor < 0n || snapshot.totalFeeMinor > contribution.amountMinor) {
+    throw new Error("TONTINE_COMMISSION_SETTLEMENT_CONTEXT_INVALID");
+  }
+  if (!snapshot.policyId || snapshot.transactionLevel !== "CONTRIBUTION" ||
+      !snapshot.acceptedAt || !snapshot.snapshotHash || !HASH.test(snapshot.snapshotHash)) {
+    throw new Error("TONTINE_COMMISSION_ACCEPTED_SNAPSHOT_REQUIRED");
+  }
+  if (Date.parse(snapshot.acceptedAt) > Date.parse(paymentIntent.createdAt)) {
+    throw new Error("TONTINE_COMMISSION_ACCEPTANCE_AFTER_PAYMENT_INITIATION");
+  }
+  if (snapshot.componentSnapshot) {
+    let components: unknown;
+    try { components = JSON.parse(snapshot.componentSnapshot); } catch { throw new Error("TONTINE_COMMISSION_COMPONENT_SNAPSHOT_INVALID"); }
+    if (!Array.isArray(components)) throw new Error("TONTINE_COMMISSION_COMPONENT_SNAPSHOT_INVALID");
+    const total = components.reduce((sum: bigint, item: unknown) => {
+      if (!item || typeof item !== "object" || !("amountMinor" in item) ||
+          typeof (item as {amountMinor?:unknown}).amountMinor !== "string" ||
+          !/^[0-9]{1,38}$/.test((item as {amountMinor:string}).amountMinor)) {
+        throw new Error("TONTINE_COMMISSION_COMPONENT_SNAPSHOT_INVALID");
+      }
+      return sum + BigInt((item as {amountMinor:string}).amountMinor);
+    }, 0n);
+    if (total !== snapshot.totalFeeMinor) throw new Error("TONTINE_COMMISSION_COMPONENT_TOTAL_MISMATCH");
+  }
 }
 
 export type CommunityTontineAdminRole =
