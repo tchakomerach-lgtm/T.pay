@@ -79,8 +79,10 @@ export async function resolveCommunityTontineIdentity(
           AND revoked_at IS NULL
           AND issued_at <= $3::timestamptz
           AND expires_at > $3::timestamptz
+          AND issued_at >= $4::timestamptz
+          AND expires_at <= $5::timestamptz
         LIMIT 1`,
-      [apiSession.sessionId, apiSession.organizationId, nowIso]
+      [apiSession.sessionId, apiSession.organizationId, nowIso, apiSession.issuedAt, apiSession.expiresAt]
     );
     const session = bootstrap.rows[0];
     if (!session) throw new Error("IDENTITY_SESSION_NOT_PROVISIONED");
