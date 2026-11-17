@@ -101,19 +101,48 @@ test("Community Tontine commercial migration enforces policy immutability and at
     );
     assert.equal(Number(final.rows[0]?.accepted_redemptions),1);
     assert.equal(String(final.rows[0]?.committed_budget_minor),"100");
+
+    // Promotion redemption replay is blocked by database uniqueness, independently
+    // of client-side idempotency handling.
+    const redemptionId = randomUUID();
+    const candidateId = randomUUID();
+    await a.query(
+      `INSERT INTO community_tontine_promotion_redemptions
+       (id,organization_id,group_id,campaign_id,candidate_id,channel,state,reward_minor,currency,idempotency_key,created_at)
+       VALUES ($1,$2,$3,$4,$5,'QR','ATTRIBUTED',100,'XOF',$6,now())`,
+      [redemptionId,organizationId,groupId,campaignId,candidateId,"replay-"+redemptionId]
+    );
+    await assert.rejects(
+      b.query(
+        `INSERT INTO community_tontine_promotion_redemptions
+         (id,organization_id,group_id,campaign_id,candidate_id,channel,state,reward_minor,currency,idempotency_key,created_at)
+         VALUES ($1,$2,$3,$4,$5,'QR','ATTRIBUTED',100,'XOF',$6,now())`,
+        [randomUUID(),organizationId,groupId,campaignId,randomUUID(),"replay-"+redemptionId]
+      ),
+      (error: unknown) => Boolean(error && typeof error === "object" && "code" in error && (error as {code:string}).code === "23505")
+    );
+
+    const scoped = await a.query<{relrowsecurity:boolean;relforcerowsecurity:boolean}>(
+      `SELECT relrowsecurity,relforcerowsecurity FROM pg_class
+       WHERE oid='community_tontine_promotion_redemptions'::regclass`
+    );
+    assert.equal(scoped.rows[0]?.relrowsecurity,true);
+    assert.equal(scoped.rows[0]?.relforcerowsecurity,true);
+    const rlsPolicy = await a.query<{qual:string|null;with_check:string|null}>(
+      `SELECT qual,with_check FROM pg_policies
+       WHERE schemaname='public' AND tablename='community_tontine_promotion_redemptions'
+         AND policyname='community_tontine_promotion_redemptions_organization_scope'`
+    );
+    assert.equal(rlsPolicy.rowCount,1);
+    assert.match(rlsPolicy.rows[0]?.qual??"",/tpay_current_organization_id/);
+    assert.match(rlsPolicy.rows[0]?.with_check??"",/tpay_current_organization_id/);
   } finally {
     await b.query("ROLLBACK").catch(() => undefined);
     await a.query("ROLLBACK").catch(() => undefined);
-    for (const table of [
-      "community_tontine_commission_policy_audit",
-      "community_tontine_commission_policies",
-      "community_tontine_promotion_campaigns"
-    ]) await a.query(`ALTER TABLE ${table} DISABLE TRIGGER ALL`).catch(() => undefined);
-    await a.query("DELETE FROM community_tontine_commission_policy_audit WHERE organization_id=$1",[organizationId]).catch(() => undefined);
-    await a.query("DELETE FROM community_tontine_commission_policies WHERE organization_id=$1",[organizationId]).catch(() => undefined);
+    // Append-only commission policy/audit fixtures are intentionally retained.
+    // Never disable triggers globally: that could weaken concurrent test sessions.
+    await a.query("DELETE FROM community_tontine_promotion_redemptions WHERE organization_id=$1",[organizationId]).catch(() => undefined);
     await a.query("DELETE FROM community_tontine_promotion_campaigns WHERE organization_id=$1",[organizationId]).catch(() => undefined);
-    await a.query("DELETE FROM tontine_groups WHERE organization_id=$1",[organizationId]).catch(() => undefined);
-    await a.query("DELETE FROM organizations WHERE id=$1",[organizationId]).catch(() => undefined);
     await a.end().catch(() => undefined);
     await b.end().catch(() => undefined);
   }
