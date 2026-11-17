@@ -84,7 +84,7 @@ test("global identity RLS isolates two tenants under a non-owner non-BYPASSRLS r
     );
     await owner.query(
       "INSERT INTO api_devices(id,organization_id,actor_id,device_key_hash,device_label,status,trust_epoch,created_at,updated_at) VALUES ($1,$2,$3,$4,'identity RLS device A','active',1,$5,$5),($6,$7,$8,$9,'identity RLS device B','active',1,$5,$5)",
-      [deviceA, orgA, actorA, "a".repeat(64), deviceB, orgB, actorB, "b".repeat(64), now]
+      [deviceA, orgA, actorA, "a".repeat(64), now, deviceB, orgB, actorB, "b".repeat(64)]
     );
     await owner.query(
       "INSERT INTO api_sessions(id,organization_id,actor_id,device_id,session_hash,status,trust_epoch,issued_at,expires_at) VALUES ($1,$2,$3,$4,$5,'active',1,$6,$7),($8,$9,$10,$11,$12,'active',1,$6,$7)",
