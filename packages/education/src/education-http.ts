@@ -538,7 +538,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     const now=(deps.now??(()=>new Date()))().toISOString();
     data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
      await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
-     await commercialRepository(client).revokeRole({organizationId:organizationId as UUID,groupId:groupId as UUID,grantId:grantId as UUID,revokedAt:now});
+     await commercialRepository(client).revokeRole({organizationId:organizationId as UUID,groupId:groupId as UUID,grantId:grantId as UUID,actorId:auth.principal.userId as UUID,revokedAt:now});
      return {grantId,state:"REVOKED"};
     });
    }else if(r[0]==="tontine-promotions"){
