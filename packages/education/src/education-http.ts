@@ -617,7 +617,9 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       campaign,candidateId:candidateId as UUID,ambassadorId:auth.principal.userId as UUID,
       channel:channel as CommunityTontinePromotionRedemption["channel"],now,redemptionId:randomUUID() as UUID
      });
-     await repository.reservePromotionRedemption({campaign,redemption,now});
+     await repository.reservePromotionRedemption({
+      campaign,redemption,actorId:auth.principal.userId as UUID,now
+     });
      return {redemption};
     });
    }else if(r[0]==="actor"){
