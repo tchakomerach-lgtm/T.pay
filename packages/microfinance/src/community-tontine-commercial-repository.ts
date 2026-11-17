@@ -178,6 +178,35 @@ export class PostgresCommunityTontineCommercialRepository {
     if (result.rows.length !== 1) throw new Error("TONTINE_ROLE_GRANT_NOT_REVOCABLE");
   }
 
+  async getPromotionCampaign(input: {
+    organizationId: UUID; groupId: UUID; campaignId: UUID;
+  }): Promise<CommunityTontinePromotionCampaign | null> {
+    const result = await this.db.query<Record<string, unknown>>(
+      `SELECT id,organization_id,group_id,code,title,state,starts_at,ends_at,currency,reward_minor,
+              max_redemptions,accepted_redemptions,max_budget_minor,committed_budget_minor,
+              allowed_channels,created_by,approved_by
+       FROM community_tontine_promotion_campaigns
+       WHERE organization_id=$1 AND group_id=$2 AND id=$3
+       FOR SHARE`,
+      [input.organizationId,input.groupId,input.campaignId]
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    const channels = Array.isArray(row.allowed_channels) ? row.allowed_channels : [];
+    return {
+      id: String(row.id) as UUID, organizationId: String(row.organization_id) as UUID,
+      groupId: String(row.group_id) as UUID, code: String(row.code), title: String(row.title),
+      state: row.state as CommunityTontinePromotionCampaign["state"],
+      startsAt: new Date(String(row.starts_at)).toISOString(), endsAt: new Date(String(row.ends_at)).toISOString(),
+      currency: String(row.currency), rewardMinor: BigInt(String(row.reward_minor)),
+      maxRedemptions: Number(row.max_redemptions), acceptedRedemptions: Number(row.accepted_redemptions),
+      maxBudgetMinor: BigInt(String(row.max_budget_minor)), committedBudgetMinor: BigInt(String(row.committed_budget_minor)),
+      allowedChannels: channels as CommunityTontinePromotionCampaign["allowedChannels"],
+      createdBy: String(row.created_by) as UUID,
+      ...(row.approved_by ? { approvedBy: String(row.approved_by) as UUID } : {})
+    };
+  }
+
   async createPromotionCampaign(campaign: CommunityTontinePromotionCampaign): Promise<void> {
     assertPromotionCampaignValid(campaign);
     if (campaign.state !== "DRAFT") throw new Error("TONTINE_PROMOTION_MUST_START_DRAFT");
