@@ -90,6 +90,7 @@ export interface TontineFeeSnapshot {
   policyId?: UUID;
   transactionLevel?: "CONTRIBUTION" | "BENEFICIARY_PAYOUT" | "TRANSFER" | "OPTIONAL_SERVICE";
   componentSnapshot?: string;
+  quoteHash?: string;
   snapshotHash?: string;
   acceptedAt?: string;
 }
