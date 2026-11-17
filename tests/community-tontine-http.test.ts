@@ -38,6 +38,9 @@ function fixture() {
       if (sql.startsWith("SELECT role FROM community_tontine_role_grants")) {
         return { rows: [{ role: "FOUNDER" }], rowCount: 1 };
       }
+      if (sql.startsWith("SELECT id FROM tontine_memberships WHERE organization_id=$1 AND group_id=$2 AND client_id=$3 AND status='active' LIMIT 1")) {
+        return { rows: [{ id: "77777777-7777-4777-8777-777777777777" }], rowCount: 1 };
+      }
       if (sql.startsWith("INSERT INTO tontine_groups")) {
         const row = {
           id: values?.[0], organization_id: values?.[1], name: values?.[2],
