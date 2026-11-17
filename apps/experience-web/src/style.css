@@ -393,3 +393,50 @@ header{box-shadow:0 5px 22px #102b2008;backdrop-filter:blur(18px)}
 @media(max-width:760px){.tontine-finance-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.tontine-finance-heading{display:grid}.tontine-finance-sample{justify-self:start}}
 @media(max-width:420px){.tontine-finance-kpis{grid-template-columns:1fr 1fr}.tontine-finance-kpis article{padding:10px}}
 @media(prefers-reduced-motion:reduce){.tontine-finance-dashboard{animation:none;transform:none}.tontine-finance-kpis article,.tontine-finance-kpis article:hover{transition:none;transform:none}}
+
+
+/* Community Tontine · commercial governance workspace */
+.tontine-commercial{display:grid;gap:16px;margin:18px 0;animation:surface-enter .34s var(--ease-out) both}
+.tontine-commercial-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:20px 22px;border:1px solid #cfe5d7;border-radius:18px;background:radial-gradient(ellipse at 92% 0%,#d9f4e4 0,transparent 45%),linear-gradient(135deg,#f8fcf9,#edf7f0);box-shadow:0 16px 38px #174b3510}
+.tontine-commercial-header small,.tontine-commercial .tontine-feature-card>small{font-size:8px;letter-spacing:.15em;font-weight:900;color:#07835c}
+.tontine-commercial-header h3{margin:7px 0;font-size:clamp(19px,2.5vw,25px);color:#174b35}
+.tontine-commercial-header p{max-width:760px;margin:0;color:#5d7567;font-size:10px;line-height:1.65}
+.tontine-commercial-header>button,.tontine-commercial button{border:1px solid #b9d9c6;border-radius:10px;padding:9px 12px;background:linear-gradient(145deg,#fff,#edf7f0);color:#176044;font-size:10px;font-weight:850;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease}
+.tontine-commercial button:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 18px #175c3b1c}
+.tontine-commercial button:disabled{opacity:.48;cursor:not-allowed}
+.tontine-commercial-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.tontine-commercial .tontine-feature-card{min-width:0;display:flex;flex-direction:column;gap:10px;padding:18px;border:1px solid #d5e8db;border-radius:16px;background:linear-gradient(145deg,#fff,#f5faf6);box-shadow:0 12px 28px #154d3410;transform:perspective(1200px) rotateX(.2deg);transition:transform .22s ease,box-shadow .22s ease}
+.tontine-commercial .tontine-feature-card:hover{transform:perspective(1200px) translateY(-2px) rotateX(1deg);box-shadow:0 18px 32px #154d3418}
+.tontine-commercial .tontine-feature-card h4{margin:0;color:#1b4833;font-size:15px}
+.tontine-commercial .tontine-feature-card h5{margin:12px 0 0;color:#315b45;font-size:11px}
+.tontine-commercial .tontine-feature-card p{margin:0;color:#60766a;font-size:9px;line-height:1.6}
+.tontine-commercial-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tontine-commercial-form>label,.tontine-commercial-reason{display:grid;gap:5px;color:#536e5f;font-size:9px;font-weight:800}
+.tontine-commercial input:not([type=checkbox]),.tontine-commercial select{width:100%;min-width:0;padding:9px 10px;border:1px solid #cbded1;border-radius:9px;background:#fff;color:#183e2c;font:inherit;font-size:10px;outline:none}
+.tontine-commercial input:focus,.tontine-commercial select:focus{border-color:#159b70;box-shadow:0 0 0 3px #159b701a}
+.tontine-commercial-form>button{grid-column:1/-1;justify-self:start;margin-top:4px}
+.tontine-commercial-rates{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.tontine-commercial-rates>div{display:grid;grid-template-columns:minmax(0,1fr) 100px;align-items:center;gap:8px;padding:7px 9px;border:1px solid #dcebe1;border-radius:9px;background:#ffffffb8}
+.tontine-commercial-rates label,.tontine-commercial-channels label{display:flex;align-items:center;gap:6px;color:#496555;font-size:9px;font-weight:800}
+.tontine-commercial input[type=checkbox]{accent-color:#12845e}
+.tontine-commercial-reason{margin:6px 0 10px}
+.tontine-commercial-record{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid #deebe2}
+.tontine-commercial-record>div:first-child{display:grid;gap:4px;min-width:0}
+.tontine-commercial-record b{color:#214a35;font-size:10px;overflow-wrap:anywhere}
+.tontine-commercial-record span{color:#687e70;font-size:8px;overflow-wrap:anywhere}
+.tontine-commercial-actions{display:flex;gap:6px;flex:0 0 auto}
+.tontine-commercial-actions button,.tontine-commercial-record>button{padding:7px 9px;font-size:8px}
+.tontine-commercial-channels{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:12px;padding:9px;border:1px solid #dcebe1;border-radius:9px}
+.tontine-commercial-notice{margin:0;padding:10px 12px;border:1px solid #c9e7d4;border-radius:10px;background:#effaf2;color:#286346;font-size:10px}
+.tontine-commercial-foot{padding:12px 14px;border:1px solid #d4e7da;border-radius:12px;background:#f2f8f3;color:#557063;font-size:9px;line-height:1.65}
+.dark .tontine-commercial-header,.dark .tontine-commercial .tontine-feature-card{background:linear-gradient(145deg,#20382b,#1b2e24);border-color:#41634d}
+.dark .tontine-commercial-header h3,.dark .tontine-commercial .tontine-feature-card h4,.dark .tontine-commercial-record b{color:#e1f3e7}
+.dark .tontine-commercial-header p,.dark .tontine-commercial .tontine-feature-card p,.dark .tontine-commercial-form>label,.dark .tontine-commercial-reason,.dark .tontine-commercial-record span,.dark .tontine-commercial-foot{color:#a9beb0}
+.dark .tontine-commercial input:not([type=checkbox]),.dark .tontine-commercial select{background:#1c2c22;border-color:#46634e;color:#e2f1e6}
+.dark .tontine-commercial-rates>div,.dark .tontine-commercial-channels,.dark .tontine-commercial-foot{background:#24372a;border-color:#405e49}
+.dark .tontine-commercial-rates label,.dark .tontine-commercial-channels label{color:#bed2c4}
+.dark .tontine-commercial button,.dark .tontine-commercial-header>button{background:linear-gradient(145deg,#284a35,#213d2d);border-color:#4b7659;color:#bde8ca}
+.dark .tontine-commercial-record{border-color:#405b48}
+@media(max-width:760px){.tontine-commercial-grid{grid-template-columns:1fr}.tontine-commercial-header{display:grid}.tontine-commercial-header>button{justify-self:start}}
+@media(max-width:440px){.tontine-commercial-form,.tontine-commercial-rates{grid-template-columns:1fr}.tontine-commercial-rates>div{grid-template-columns:minmax(0,1fr) 90px}.tontine-commercial-record{align-items:flex-start;flex-direction:column}.tontine-commercial-actions{flex-wrap:wrap}}
+@media(prefers-reduced-motion:reduce){.tontine-commercial,.tontine-commercial .tontine-feature-card,.tontine-commercial .tontine-feature-card:hover,.tontine-commercial button:hover:not(:disabled){animation:none;transform:none;transition:none}}
