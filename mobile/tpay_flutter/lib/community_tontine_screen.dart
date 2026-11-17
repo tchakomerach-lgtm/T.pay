@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'api/tpay_api_client.dart';
 import 'api/pending_idempotency_keys.dart';
 import 'community_tontine_finance_summary.dart';
+import 'community_tontine_commercial_screen.dart';
 
 const _tontineGreen=Color(0xff0f8f68);
 const _tontineMuted=Color(0xff718078);
@@ -265,28 +266,32 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
         _action('Actualiser',Icons.sync,_load),
       ]),
       const SizedBox(height:12),
-      SegmentedButton<String>(segments:const [ButtonSegment(value:'members',label:Text('Membres')),ButtonSegment(value:'cycles',label:Text('Cycles')),ButtonSegment(value:'contributions',label:Text('Cotisations')),ButtonSegment(value:'governance',label:Text('Votes')),ButtonSegment(value:'cases',label:Text('Incidents'))],selected:{_panel},onSelectionChanged:(v)async{setState(()=>_panel=v.first);await _loadPanel();}),
+      SegmentedButton<String>(segments:const [ButtonSegment(value:'members',label:Text('Membres')),ButtonSegment(value:'cycles',label:Text('Cycles')),ButtonSegment(value:'contributions',label:Text('Cotisations')),ButtonSegment(value:'governance',label:Text('Votes')),ButtonSegment(value:'cases',label:Text('Incidents')),ButtonSegment(value:'commercial',label:Text('Commissions & admin'))],selected:{_panel},onSelectionChanged:(v)async{setState(()=>_panel=v.first);if(_panel!='commercial')await _loadPanel();}),
       const SizedBox(height:10),
-      if(_panel=='contributions')_contributionFinanceSummary(),
-      if(_records.isEmpty)const Card(child:Padding(padding:EdgeInsets.all(16),child:Text('Aucun enregistrement pour ce groupe.'))),
-      for(final record in _records)Card(child:ListTile(
-        title:Text((record['name']??record['summary']??record['type']??record['id']??'Enregistrement').toString()),
-        subtitle:Text(record.entries.where((e)=>e.value!=null).take(4).map((e)=>'${e.key}: ${e.value}').join(' · ')),
-        leading:const Icon(Icons.layers_outlined,color:_tontineGreen),
-        trailing:_panel=='cases'?Wrap(spacing:2,children:[
-          if(_caseNextStates.containsKey(record['state']?.toString()))IconButton(
-            tooltip:'Passer au statut suivant',
-            onPressed:_busy?null:()=>_transitionCase(record['id'].toString(),_caseNextStates[record['state']]!),
-            icon:const Icon(Icons.arrow_forward_rounded,color:_tontineGreen),
-          ),
-          IconButton(tooltip:'Consulter les preuves',onPressed:_busy?null:()=>_showEvidence(record['id'].toString()),icon:const Icon(Icons.attach_file_rounded)),
-        ]):_panel=='governance'&&record['status']=='open'?Wrap(spacing:2,children:[
-          IconButton(tooltip:'Approuver',onPressed:_busy?null:()=>_vote(record['id'].toString(),'approve'),icon:const Icon(Icons.check_circle_outline,color:_tontineGreen)),
-          IconButton(tooltip:'Rejeter',onPressed:_busy?null:()=>_vote(record['id'].toString(),'reject'),icon:const Icon(Icons.cancel_outlined,color:Colors.redAccent)),
-          if(record['allow_abstention_snapshot']==true)IconButton(tooltip:'Abstention',onPressed:_busy?null:()=>_vote(record['id'].toString(),'abstain'),icon:const Icon(Icons.horizontal_rule)),
-          if(DateTime.tryParse(record['closes_at']?.toString()??'')?.isBefore(DateTime.now())??false)IconButton(tooltip:'Finaliser',onPressed:_busy?null:()=>_finalizeProposal(record['id'].toString()),icon:const Icon(Icons.task_alt)),
-        ]):null,
-      )),
+      if(_panel=='commercial')
+        CommunityTontineCommercialScreen(apiClient:widget.apiClient,groupId:_selectedGroup??''),
+      if(_panel!='commercial')...[
+        if(_panel=='contributions')_contributionFinanceSummary(),
+        if(_records.isEmpty)const Card(child:Padding(padding:EdgeInsets.all(16),child:Text('Aucun enregistrement pour ce groupe.'))),
+        for(final record in _records)Card(child:ListTile(
+          title:Text((record['name']??record['summary']??record['type']??record['id']??'Enregistrement').toString()),
+          subtitle:Text(record.entries.where((e)=>e.value!=null).take(4).map((e)=>'${e.key}: ${e.value}').join(' · ')),
+          leading:const Icon(Icons.layers_outlined,color:_tontineGreen),
+          trailing:_panel=='cases'?Wrap(spacing:2,children:[
+            if(_caseNextStates.containsKey(record['state']?.toString()))IconButton(
+              tooltip:'Passer au statut suivant',
+              onPressed:_busy?null:()=>_transitionCase(record['id'].toString(),_caseNextStates[record['state']]!),
+              icon:const Icon(Icons.arrow_forward_rounded,color:_tontineGreen),
+            ),
+            IconButton(tooltip:'Consulter les preuves',onPressed:_busy?null:()=>_showEvidence(record['id'].toString()),icon:const Icon(Icons.attach_file_rounded)),
+          ]):_panel=='governance'&&record['status']=='open'?Wrap(spacing:2,children:[
+            IconButton(tooltip:'Approuver',onPressed:_busy?null:()=>_vote(record['id'].toString(),'approve'),icon:const Icon(Icons.check_circle_outline,color:_tontineGreen)),
+            IconButton(tooltip:'Rejeter',onPressed:_busy?null:()=>_vote(record['id'].toString(),'reject'),icon:const Icon(Icons.cancel_outlined,color:Colors.redAccent)),
+            if(record['allow_abstention_snapshot']==true)IconButton(tooltip:'Abstention',onPressed:_busy?null:()=>_vote(record['id'].toString(),'abstain'),icon:const Icon(Icons.horizontal_rule)),
+            if(DateTime.tryParse(record['closes_at']?.toString()??'')?.isBefore(DateTime.now())??false)IconButton(tooltip:'Finaliser',onPressed:_busy?null:()=>_finalizeProposal(record['id'].toString()),icon:const Icon(Icons.task_alt)),
+          ]):null,
+        )),
+      ],
       const SizedBox(height:8),
       Text('Une intention n’est pas un paiement confirmé. Le Financial Core reste seul autorisé à comptabiliser les fonds.',style:Theme.of(context).textTheme.bodySmall?.copyWith(color:_tontineMuted)),
     ]));
