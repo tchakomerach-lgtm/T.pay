@@ -267,17 +267,33 @@ export class PostgresDurableTontineSettlementRepository
         insertImmutable: async (snapshot: TontineFeeSnapshot) => {
           const result = await this.client.query(
             "INSERT INTO tontine_fee_snapshots " +
-            "(contribution_id, microfinance_fee_minor, tpay_fee_minor, total_fee_minor, currency, rule_version, calculated_at) " +
-            "VALUES ($1, $2::numeric, $3::numeric, $4::numeric, $5, $6, $7::timestamptz) " +
+            "(contribution_id, organization_id, microfinance_fee_minor, tpay_fee_minor, total_fee_minor, currency, rule_version, calculated_at, " +
+            "policy_id, transaction_level, payer_mode, member_fee_minor, beneficiary_fee_minor, agent_fee_minor, reserve_fee_minor, tax_fee_minor, " +
+            "optional_service_fee_minor, component_snapshot, snapshot_hash, accepted_at) " +
+            "VALUES ($1, $2, $3::numeric, $4::numeric, $5::numeric, $6, $7, $8::timestamptz, $9, $10, $11, $12::numeric, $13::numeric, " +
+            "$14::numeric, $15::numeric, $16::numeric, $17::numeric, $18::jsonb, $19, $20::timestamptz) " +
             "ON CONFLICT (contribution_id) DO NOTHING",
             [
               snapshot.contributionId,
+              organizationId,
               snapshot.microfinanceFeeMinor.toString(),
               snapshot.tpayFeeMinor.toString(),
               snapshot.totalFeeMinor.toString(),
               snapshot.currency,
               snapshot.ruleVersion,
-              snapshot.calculatedAt
+              snapshot.calculatedAt,
+              snapshot.policyId ?? null,
+              snapshot.transactionLevel ?? null,
+              snapshot.payerMode ?? null,
+              (snapshot.memberFeeMinor ?? 0n).toString(),
+              (snapshot.beneficiaryFeeMinor ?? 0n).toString(),
+              (snapshot.agentFeeMinor ?? 0n).toString(),
+              (snapshot.reserveFeeMinor ?? 0n).toString(),
+              (snapshot.taxFeeMinor ?? 0n).toString(),
+              (snapshot.optionalServiceFeeMinor ?? 0n).toString(),
+              snapshot.componentSnapshot ?? null,
+              snapshot.snapshotHash ?? null,
+              snapshot.acceptedAt ?? null
             ]
           );
           if (result.rowCount !== 1) throw new Error("FEE_SNAPSHOT_ALREADY_EXISTS");
