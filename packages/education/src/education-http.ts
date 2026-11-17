@@ -13,6 +13,8 @@ import { PostgresSchoolRealtimeStore } from "./postgres-realtime-store.js";
 import type { SchoolRealtimeMessage } from "./school-realtime.js";
 import { reconcileAttendance, claimWorkItem, resolveWorkItem, type AttendanceRecord, type WorkItem } from "./school-operations.js";
 import { assignService, transitionService, type ActorRef, type ServiceRequest } from "./actor-services.js";
+import { validateCommunityTontine, type CommunityTontineGroup } from "../../microfinance/src/community-tontine.js";
+import type { UUID } from "../../domain/src/types.js";
 
 export interface SchoolAuthContext { principal: Principal; session: OrganizationSession; tenantId: string; }
 export interface SchoolApiDependencies {
@@ -76,7 +78,12 @@ async function readBody(req:IncomingMessage):Promise<string>{
 const parse=(s:string)=>s?JSON.parse(s):{};
 function route(path:string){
  const parts=path.split("/").filter(Boolean);
- if(parts[0]!=="v1"||parts[1]!=="education")return null;
+ if(parts[0]!=="v1")return null;
+ if(parts[1]==="tontine"){
+  if(parts[2]==="groups"&&parts.length===3)return ["tontine-groups"] as const;
+  return null;
+ }
+ if(parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
  if(parts[2]==="sync"&&parts[3]==="events"&&parts.length===4)return ["sync"] as const;
  if(parts[2]==="attendance"&&parts.length===3)return ["attendance"] as const;
@@ -87,8 +94,37 @@ function route(path:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="actor"?"org.read":"member.manage";}
+function permissionFor(kind:string,method:string):Permission{if(kind==="tontine-groups")return method==="GET"?"community.tontine.read":"community.groups.manage";return kind==="actor"?"org.read":"member.manage";}
 export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
+type SchoolSyncClient = Awaited<ReturnType<SchoolApiDependencies["syncClient"]>>;
+async function withTontineOrganizationScope<T>(
+ deps:SchoolApiDependencies,
+ tenantId:string,
+ organizationId:string,
+ work:(client:SchoolSyncClient)=>Promise<T>
+):Promise<T>{
+ const client=await deps.syncClient();
+ try{
+  await client.query("BEGIN");
+  await client.query("SELECT set_config('tpay.tenant_id',$1,true)",[tenantId]);
+  await client.query("SELECT set_config('tpay.organization_id',$1,true)",[organizationId]);
+  const result=await work(client);
+  await client.query("COMMIT");
+  return result;
+ }catch(error){
+  await client.query("ROLLBACK").catch(()=>undefined);
+  throw error;
+ }finally{
+  client.release?.();
+ }
+}
+function tontineAmount(value:unknown,field:string):bigint{
+ const raw=typeof value==="number"||typeof value==="string"?String(value):"";
+ if(!/^\\d{1,38}$/.test(raw))throw new Error("TONTINE_AMOUNT_INVALID:"+field);
+ const amount=BigInt(raw);
+ if(amount<=0n)throw new Error("TONTINE_AMOUNT_INVALID:"+field);
+ return amount;
+}
 
 export function createSchoolApiServer(deps:SchoolApiDependencies, options:SchoolApiServerOptions={}){
  const serverFactory=options.serverFactory??((handler)=>(createServer(handler)));
@@ -125,7 +161,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(!routeAuth.allowed)throw new Error(routeAuth.reason);
    const organizationId=auth.principal.organizationId; if(!auth.tenantId)throw new Error("TENANT_CONTEXT_REQUIRED");
    if(!organizationId)throw new Error("ORGANIZATION_CONTEXT_REQUIRED");
-   assertAuthorized(auth.principal,{organizationId,requestedPermission:permissionFor(r[0])});
+   assertAuthorized(auth.principal,{organizationId,requestedPermission:permissionFor(r[0],method)});
    if(r[0]==="stream"){
     if(method!=="GET")throw new Error("REALTIME_METHOD_NOT_ALLOWED");
     if(!deps.realtime)throw new Error("REALTIME_NOT_CONFIGURED");
@@ -181,9 +217,93 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    const gateway=new ApiGatewayRepository(deps.db);
    const dedupe=method==="GET"?null:await gateway.reserveOrReplay({organizationId,key:idem,requestHash,route:path,expiresAt:new Date(Date.now()+86400000).toISOString()});
    if(dedupe?.status==="conflict")throw new Error("API_IDEMPOTENCY_CONFLICT");
-   if(dedupe?.status==="replay"){res.statusCode=dedupe.statusCode??200;json(res,res.statusCode,{ok:true,replayed:true,requestId:dedupe.requestId},correlationId);return;}
+   if(dedupe?.status==="replay"){
+    if(r[0]==="tontine-groups"&&method==="POST"){
+     const replayedGroup=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
+      const found=await client.query("SELECT * FROM tontine_groups WHERE organization_id=$1 AND idempotency_key=$2 LIMIT 1",[organizationId,idem]);
+      return found.rows[0]??null;
+     });
+     if(!replayedGroup)throw new Error("TONTINE_IDEMPOTENCY_RESOURCE_NOT_FOUND");
+     const replayResponse=buildApiSuccess("v1",correlationId,{group:replayedGroup,replayed:true});
+     json(res,200,replayResponse,correlationId);return;
+    }
+    res.statusCode=dedupe.statusCode??200;json(res,res.statusCode,{ok:true,replayed:true,requestId:dedupe.requestId},correlationId);return;
+   }
    let data:unknown;
-   if(r[0]==="actor"){
+   if(r[0]==="tontine-groups"&&method==="GET"){
+    const query=new URL(rawUrl,"https://tpay.invalid").searchParams;
+    const requestedStatus=query.get("status");
+    const allowedStatuses=new Set(["draft","pending_review","active","paused","completed","cancelled"]);
+    if(requestedStatus&&!allowedStatuses.has(requestedStatus))throw new Error("TONTINE_GROUP_STATUS_FILTER_INVALID");
+    const limitRaw=Number(query.get("limit")??"100");
+    if(!Number.isInteger(limitRaw)||limitRaw<1||limitRaw>100)throw new Error("TONTINE_GROUP_LIMIT_INVALID");
+    data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
+     const result=await client.query(
+      `SELECT g.*,
+        (SELECT count(*)::int FROM tontine_memberships m WHERE m.organization_id=g.organization_id AND m.group_id=g.id AND m.status='active') AS active_member_count,
+        (SELECT count(*)::int FROM tontine_memberships m WHERE m.organization_id=g.organization_id AND m.group_id=g.id AND m.status='pending') AS pending_member_count,
+        (SELECT jsonb_build_object('id',c.id,'cycleNumber',c.cycle_number,'startsOn',c.starts_on,'endsOn',c.ends_on,'status',c.status)
+           FROM tontine_cycles c WHERE c.organization_id=g.organization_id AND c.group_id=g.id
+           ORDER BY c.cycle_number DESC LIMIT 1) AS latest_cycle,
+        (SELECT count(*)::int FROM tontine_contributions tc WHERE tc.organization_id=g.organization_id AND tc.group_id=g.id AND tc.status='confirmed') AS confirmed_contribution_count,
+        COALESCE((SELECT sum(tc.amount_minor) FROM tontine_contributions tc WHERE tc.organization_id=g.organization_id AND tc.group_id=g.id AND tc.status='confirmed'),0)::text AS confirmed_contribution_minor
+       FROM tontine_groups g
+       WHERE g.organization_id=$1 AND ($2::text IS NULL OR g.status=$2)
+       ORDER BY g.created_at DESC,g.id
+       LIMIT $3`,
+      [organizationId,requestedStatus,limitRaw]
+     );
+     return {items:result.rows};
+    });
+   }else if(r[0]==="tontine-groups"&&method==="POST"){
+    const input=body as Record<string,unknown>;
+    if(!input||typeof input!=="object"||Array.isArray(input))throw new Error("TONTINE_GROUP_PAYLOAD_INVALID");
+    const now=(deps.now??(()=>new Date()))().toISOString();
+    const group:CommunityTontineGroup={
+     id:randomUUID() as UUID,
+     organizationId:organizationId as UUID,
+     name:typeof input.name==="string"?input.name.trim():"",
+     countryCode:typeof input.countryCode==="string"?input.countryCode.toUpperCase():"TG",
+     currency:typeof input.currency==="string"?input.currency.toUpperCase():"XOF",
+     frequency:input.frequency as CommunityTontineGroup["frequency"],
+     contributionMode:input.contributionMode as CommunityTontineGroup["contributionMode"],
+     minimumAmountMinor:tontineAmount(input.minimumAmountMinor,"minimumAmountMinor"),
+     cycleNumber:1,
+     governance:(input.governance??"member_vote") as CommunityTontineGroup["governance"],
+     status:"draft",
+     createdBy:auth.principal.userId as UUID,
+     createdAt:now
+    };
+    if(input.contributionMode==="fixed")group.fixedAmountMinor=tontineAmount(input.fixedAmountMinor,"fixedAmountMinor");
+    if(input.contributionMode==="goal")group.targetMinor=tontineAmount(input.targetMinor,"targetMinor");
+    if(input.maxMembers!==undefined&&input.maxMembers!==null&&input.maxMembers!==""){
+     const maxMembers=Number(input.maxMembers);
+     if(!Number.isInteger(maxMembers)||maxMembers<2||maxMembers>100000)throw new Error("TONTINE_MAX_MEMBERS_INVALID");
+     group.maxMembers=maxMembers;
+    }
+    validateCommunityTontine(group);
+    const membershipId=randomUUID() as UUID;
+    const created=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
+     const saved=await client.query(
+      `INSERT INTO tontine_groups
+       (id,organization_id,name,country_code,currency,frequency,contribution_mode,target_minor,fixed_amount_minor,
+        minimum_amount_minor,cycle_number,max_members,governance,status,created_by,created_at,idempotency_key)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,1,$11,$12,'draft',$13,$14,$15)
+       RETURNING *`,
+      [group.id,organizationId,group.name,group.countryCode,group.currency,group.frequency,group.contributionMode,
+       group.targetMinor?.toString()??null,group.fixedAmountMinor?.toString()??null,group.minimumAmountMinor.toString(),
+       group.maxMembers??null,group.governance,group.createdBy,group.createdAt,idem]
+     );
+     if(!saved.rows[0])throw new Error("TONTINE_GROUP_CREATE_FAILED");
+     await client.query(
+      `INSERT INTO tontine_memberships(id,organization_id,group_id,client_id,role,status,joined_at)
+       VALUES($1,$2,$3,$4,'founder','active',$5)`,
+      [membershipId,organizationId,group.id,auth.principal.userId,now]
+     );
+     return saved.rows[0];
+    });
+    data={group:{...created,active_member_count:1,pending_member_count:0,latest_cycle:null,confirmed_contribution_count:0,confirmed_contribution_minor:"0"},founderMembershipId:membershipId};
+   }else if(r[0]==="actor"){
     const q=await deps.db.query("SELECT actor_id,organization_id,kind,active,data,version,updated_at FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,r[1]]);
     if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("ACTOR_NOT_FOUND"),correlationId),correlationId);return;}
     data=q.rows[0];
