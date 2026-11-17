@@ -157,7 +157,7 @@ class _CommunityTontineCommercialScreenState
     String share = '10000';
     final enabled = <String>{'TPAY'};
     final form = GlobalKey<FormState>();
-    await showDialog<void>(context: context, builder: (dialogContext) =>
+    final accepted = await showDialog<bool>(context: context, builder: (dialogContext) =>
       StatefulBuilder(builder: (context, setDialog) => AlertDialog(
         title: const Text('Nouvelle politique de commission'),
         content: SizedBox(width: 480, child: SingleChildScrollView(child: Form(
@@ -198,7 +198,7 @@ class _CommunityTontineCommercialScreenState
       'recipient':e.key,'rateBps':int.tryParse(e.value.text)??0,'enabled':enabled.contains(e.key)
     }).toList();
     final valid = version.text.trim().isNotEmpty && rates.values.every((c)=>int.tryParse(c.text)!=null);
-    if (valid && mounted) {
+    if (accepted == true && valid && mounted) {
       await _command('policy-create','$_base/commission-policies',{
         'version':version.text.trim(),'transactionLevel':level,'currency':'XOF',
         'payer':payer,'memberShareBps':int.tryParse(share)??0,
