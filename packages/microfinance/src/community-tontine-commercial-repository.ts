@@ -3,6 +3,7 @@ import type { TontineSqlExecutor } from "./tontine-repositories.js";
 import {
   assertCommunityTontineRoleGrant,
   assertPromotionCampaignValid,
+  validateCommunityTontineCommissionPolicy,
   type CommunityTontineCommissionPolicy,
   type CommunityTontinePromotionCampaign,
   type CommunityTontinePromotionRedemption,
@@ -23,6 +24,7 @@ export class PostgresCommunityTontineCommercialRepository {
   constructor(private readonly db: TontineSqlExecutor) {}
 
   async createCommissionPolicy(policy: CommunityTontineCommissionPolicy, auditId: UUID, now: string): Promise<void> {
+    validateCommunityTontineCommissionPolicy(policy);
     if (policy.state !== "DRAFT") throw new Error("TONTINE_COMMISSION_POLICY_MUST_START_DRAFT");
     await this.db.transaction(async tx => {
       await tx.query(
@@ -142,11 +144,9 @@ export class PostgresCommunityTontineCommercialRepository {
     const { campaign, redemption, now } = input;
     assertPromotionCampaignValid(campaign);
     if (redemption.campaignId !== campaign.id || redemption.groupId !== campaign.groupId ||
-        redemption.organizationId !== undefined) {
-      // organization scope is supplied by the campaign and checked again in SQL.
-      if (redemption.campaignId !== campaign.id || redemption.groupId !== campaign.groupId) {
-        throw new Error("TONTINE_PROMOTION_REDEMPTION_SCOPE_MISMATCH");
-      }
+        redemption.currency !== campaign.currency || redemption.rewardMinor !== campaign.rewardMinor ||
+        redemption.state !== "ATTRIBUTED" || !campaign.allowedChannels.includes(redemption.channel)) {
+      throw new Error("TONTINE_PROMOTION_REDEMPTION_SCOPE_MISMATCH");
     }
     await this.db.transaction(async tx => {
       const reserved = await tx.query(
@@ -183,9 +183,15 @@ export class PostgresCommunityTontineCommercialRepository {
     await this.db.transaction(async tx => {
       const settled = await tx.query(
         `SELECT c.id FROM tontine_contributions c
-         WHERE c.organization_id=$1 AND c.group_id=$2 AND c.id=$3 AND c.status='confirmed'
-         FOR UPDATE`,
-        [input.organizationId,input.groupId,input.firstContributionId]
+         JOIN tontine_memberships m
+           ON m.organization_id=c.organization_id AND m.group_id=c.group_id AND m.id=c.membership_id
+         JOIN community_tontine_promotion_redemptions r
+           ON r.organization_id=c.organization_id AND r.group_id=c.group_id
+          AND r.candidate_id=m.client_id
+         WHERE c.organization_id=$1 AND c.group_id=$2 AND c.id=$3
+           AND r.id=$4 AND c.status='confirmed' AND m.status='active'
+         FOR UPDATE OF c,m`,
+        [input.organizationId,input.groupId,input.firstContributionId,input.redemptionId]
       );
       if (settled.rows.length !== 1) throw new Error("TONTINE_PROMOTION_FIRST_CONTRIBUTION_NOT_SETTLED");
       const updated = await tx.query(
