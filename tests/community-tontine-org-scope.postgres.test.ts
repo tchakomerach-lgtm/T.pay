@@ -15,14 +15,14 @@ test("Community Tontine commercial foreign keys reject cross-organization group 
   const groupA = randomUUID(), groupB = randomUUID();
   const actor = randomUUID(), policyId = randomUUID(), campaignId = randomUUID();
 
-  const expectForeignKeyViolation = async (label:string, query:string, values:unknown[]) => {
+  const expectSqlError = async (label:string, query:string, values:unknown[], expectedCode="23503") => {
     await client.query("SAVEPOINT " + label);
     let caught:unknown;
     try { await client.query(query, values); } catch (error) { caught = error; }
     await client.query("ROLLBACK TO SAVEPOINT " + label);
     await client.query("RELEASE SAVEPOINT " + label);
     assert.ok(caught && typeof caught==="object" && "code" in caught &&
-      (caught as {code:string}).code==="23503", "Expected PostgreSQL foreign-key violation for " + label);
+      (caught as {code:string}).code===expectedCode, "Expected PostgreSQL error " + expectedCode + " for " + label);
   };
 
   let transactionOpen = false;
@@ -52,7 +52,7 @@ test("Community Tontine commercial foreign keys reject cross-organization group 
       [policyId,orgA,groupA,components,"a".repeat(64),actor]
     );
 
-    await expectForeignKeyViolation("bad_policy_group",
+    await expectSqlError("bad_policy_group",
       `INSERT INTO community_tontine_commission_policies
        (id,organization_id,group_id,version,transaction_level,currency,state,payer_mode,member_share_bps,
         effective_from,components,policy_hash,created_by)
@@ -69,19 +69,30 @@ test("Community Tontine commercial foreign keys reject cross-organization group 
       [campaignId,orgA,groupA,actor]
     );
 
-    await expectForeignKeyViolation("bad_redemption_group",
+    await expectSqlError("bad_redemption_group",
       `INSERT INTO community_tontine_promotion_redemptions
        (id,organization_id,group_id,campaign_id,candidate_id,channel,state,reward_minor,currency,idempotency_key)
        VALUES ($1,$2,$3,$4,$5,'QR','ATTRIBUTED',100,'XOF',$6)`,
       [randomUUID(),orgA,groupB,campaignId,randomUUID(),"scope-"+randomUUID()]
     );
 
-    await expectForeignKeyViolation("bad_role_group",
+    await expectSqlError("bad_role_group",
       `INSERT INTO community_tontine_role_grants
        (id,organization_id,group_id,actor_id,role,permissions,granted_by,valid_from,expires_at)
        VALUES ($1,$2,$3,$4,'TREASURER',ARRAY['contribution.read'],$5,now(),now()+interval '1 day')`,
       [randomUUID(),orgA,groupB,randomUUID(),actor]
     );
+    const auditId = randomUUID();
+    await client.query(
+      `INSERT INTO community_tontine_commercial_audit
+       (id,organization_id,group_id,object_type,object_id,action,actor_id,reason,payload,occurred_at)
+       VALUES ($1,$2,$3,'ROLE_GRANT',$4,'GRANTED',$5,'scope audit immutability test','{}'::jsonb,now())`,
+      [auditId,orgA,groupA,randomUUID(),actor]
+    );
+    await expectSqlError("commercial_audit_immutable",
+      "UPDATE community_tontine_commercial_audit SET reason='tampered' WHERE id=$1",
+      [auditId],"P0001");
+
   } finally {
     if (transactionOpen) await client.query("ROLLBACK").catch(()=>undefined);
     await client.end().catch(()=>undefined);
