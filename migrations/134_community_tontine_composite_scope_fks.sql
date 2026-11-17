@@ -3,6 +3,9 @@
 CREATE UNIQUE INDEX IF NOT EXISTS uq_tontine_groups_org_id
   ON tontine_groups(organization_id, id);
 
+CREATE UNIQUE INDEX IF NOT EXISTS uq_community_tontine_commission_policies_org_id
+  ON community_tontine_commission_policies(organization_id, id);
+
 CREATE UNIQUE INDEX IF NOT EXISTS uq_community_tontine_commission_policies_scope_id
   ON community_tontine_commission_policies(organization_id, group_id, id);
 
