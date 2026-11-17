@@ -233,7 +233,7 @@ class _CommunityTontineCommercialScreenState
       title:const Text('Délégation temporaire'),
       content:Form(key:form,child:Column(mainAxisSize:MainAxisSize.min,children:[
         TextFormField(controller:actor,decoration:const InputDecoration(labelText:'UUID du membre'),validator:(v)=>RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(v??'')?null:'UUID invalide'),
-        DropdownButtonFormField<String>(value:role,decoration:const InputDecoration(labelText:'Rôle'),items:const ['PRESIDENT','TREASURER','SECRETARY','COLLECTOR','CONTROLLER','MEDIATOR','MEMBER'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>setDialog(()=>role=v??role)),
+        DropdownButtonFormField<String>(initialValue:role,decoration:const InputDecoration(labelText:'Rôle'),items:const ['PRESIDENT','TREASURER','SECRETARY','COLLECTOR','CONTROLLER','MEDIATOR','MEMBER'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>setDialog(()=>role=v??role)),
         TextFormField(controller:permissions,decoration:const InputDecoration(labelText:'Permissions séparées par virgules')),
         ListTile(title:const Text('Expiration'),subtitle:Text(until.toLocal().toString()),trailing:IconButton(icon:const Icon(Icons.edit_calendar),onPressed:()async{final d=await showDatePicker(context:ctx,firstDate:DateTime.now(),lastDate:DateTime.now().add(const Duration(days:365)),initialDate:until);if(d!=null)setDialog(()=>until=DateTime(d.year,d.month,d.day,23,59));})),
       ])),
@@ -327,13 +327,13 @@ class _CommunityTontineCommercialScreenState
       ),child:Container(
         width:double.infinity,padding:const EdgeInsets.all(19),
         decoration:BoxDecoration(gradient:const LinearGradient(colors:[Color(0xff102f2a),Color(0xff176448),Color(0xff27855f)]),borderRadius:BorderRadius.circular(22),boxShadow:const [BoxShadow(color:Color(0x30216d50),blurRadius:22,offset:Offset(0,10))]),
-        child:Row(children:[
-          const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        child:const Row(children:[
+          Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Text('COMMUNITY TONTINE · GAIN',style:TextStyle(fontSize:9,letterSpacing:1.2,color:_commercialMint,fontWeight:FontWeight.w900)),
             SizedBox(height:7),Text('Gouvernance commerciale',style:TextStyle(color:Colors.white,fontSize:20,fontWeight:FontWeight.w900)),
             SizedBox(height:5),Text('Commissions versionnées · délégations · promotions',style:TextStyle(color:Colors.white70,fontSize:11)),
           ])),
-          const Icon(Icons.account_balance_wallet_rounded,color:_commercialMint,size:38),
+          Icon(Icons.account_balance_wallet_rounded,color:_commercialMint,size:38),
         ]),
       )),
       const SizedBox(height:12),
