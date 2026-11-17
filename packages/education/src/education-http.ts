@@ -473,10 +473,21 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      return {policyId,state:"ACTIVE"};
     });
    }else if(r[0]==="tontine-roles"){
-    if(method!=="POST")throw new Error("TONTINE_ROLE_METHOD_NOT_ALLOWED");
     const groupId=r[1] as string,input=body as Record<string,unknown>;
     const now=(deps.now??(()=>new Date()))().toISOString();
     data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
+     await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
+     if(method==="GET"){
+      const result=await client.query(
+       `SELECT id,actor_id,role,permissions,granted_by,valid_from,expires_at,revoked_at
+        FROM community_tontine_role_grants
+        WHERE organization_id=$1 AND group_id=$2
+        ORDER BY created_at DESC,id DESC LIMIT 100`,
+       [organizationId,groupId]
+      );
+      return {items:result.rows};
+     }
+     if(method!=="POST")throw new Error("TONTINE_ROLE_METHOD_NOT_ALLOWED");
      const grantorRole=await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
      const targetRole=String(input.role??"");
      const permissions=input.permissions;
@@ -509,6 +520,18 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
      await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
      const repository=commercialRepository(client);
+     if(method==="GET"){
+      const result=await client.query(
+       `SELECT id,code,title,state,starts_at,ends_at,currency,reward_minor,max_redemptions,
+               accepted_redemptions,max_budget_minor,committed_budget_minor,allowed_channels,
+               created_by,approved_by,created_at
+        FROM community_tontine_promotion_campaigns
+        WHERE organization_id=$1 AND group_id=$2
+        ORDER BY created_at DESC,id DESC LIMIT 100`,
+       [organizationId,groupId]
+      );
+      return {items:result.rows};
+     }
      if(method!=="POST")throw new Error("TONTINE_PROMOTION_METHOD_NOT_ALLOWED");
      const input=body as Record<string,unknown>;
      const allowedChannels=new Set(["LINK","QR","USSD","AGENT","SOCIAL"]);
