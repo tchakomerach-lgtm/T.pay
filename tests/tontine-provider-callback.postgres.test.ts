@@ -8,6 +8,7 @@ import { applyMigrations } from "../packages/finance/src/postgres-migrations.js"
 import { processVerifiedTontinePayoutCallback } from "../packages/microfinance/src/tontine-provider-callback.js";
 import type { TontineSqlExecutor } from "../packages/microfinance/src/tontine-repositories.js";
 import type { TontinePayoutContext } from "../packages/microfinance/src/tontine-payout.js";
+import type { UUID } from "../packages/domain/src/types.js";
 
 const databaseUrl = process.env.TPAY_DATABASE_URL;
 
@@ -16,8 +17,8 @@ test("tontine callback payload substitution persists a rejected receipt in Postg
 }, async () => {
   if (!databaseUrl) return;
   const client = new pg.Client({ connectionString: databaseUrl });
-  const organizationId = randomUUID();
-  const payoutId = randomUUID();
+  const organizationId = randomUUID() as UUID;
+  const payoutId = randomUUID() as UUID;
   const receiptId = randomUUID();
   const provider = "postgres-callback-security-test";
   const providerEventId = "evt-" + randomUUID();
@@ -40,7 +41,7 @@ test("tontine callback payload substitution persists a rejected receipt in Postg
     const db: TontineSqlExecutor = {
       async query<Row = Record<string, unknown>>(sql: string, values?: readonly unknown[]) {
         const result = await client.query(sql, values as unknown[] | undefined);
-        return { rows: result.rows as Row[], rowCount: result.rowCount ?? undefined };
+        return { rows: result.rows as Row[], rowCount: result.rowCount ?? 0 };
       },
       async transaction<T>(work: (tx: TontineSqlExecutor) => Promise<T>): Promise<T> {
         await client.query("BEGIN");
@@ -69,17 +70,25 @@ test("tontine callback payload substitution persists a rejected receipt in Postg
         };
       }
     };
-    const payout = {
-      payoutId, organizationId, cycleId: randomUUID(), beneficiaryMembershipId: randomUUID(),
-      beneficiaryClientId: randomUUID(), microfinanceId: randomUUID(), destinationRef: "mf:beneficiary",
-      amountMinor: 1000n, currency: "XOF", state: "initiated" as const, idempotencyKey: "callback-security",
-      kycVerified: true, unresolvedFinancialException: false, humanApprovalRequired: true, now
-    } as TontinePayoutContext;
+    const payout: TontinePayoutContext = {
+      organizationId,
+      cycleId: randomUUID(),
+      beneficiaryMembershipId: randomUUID() as UUID,
+      beneficiaryClientId: randomUUID() as UUID,
+      microfinanceId: randomUUID() as UUID,
+      destinationRef: "mf:beneficiary",
+      amountMinor: 1000n,
+      currency: "XOF",
+      kycVerified: true,
+      unresolvedFinancialException: false,
+      humanApprovalRequired: true,
+      now
+    };
     const result = await processVerifiedTontinePayoutCallback(
       db,
       verifier,
       { provider, rawBody: "substituted-payload", signature: "verified-signature", receivedAt: now },
-      payoutId as never,
+      payoutId,
       payout,
       { tontineClearingAccountId: "clearing", microfinanceSettlementAccountId: "settlement" },
       randomUUID(),
