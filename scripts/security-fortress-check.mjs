@@ -17,8 +17,8 @@ const files=[
 ];
 
 const forbidden=[
-  [/console\\.(log|info|warn|error)\\([^\\n]*(?:plaintext|secret|accessToken|refreshToken|privateKey|password)/i,"SECRET_LOGGING"],
-  [/JSON\\.stringify\\([^\\n]*(?:plaintext|accessToken|refreshToken|privateKey|password)/i,"SECRET_SERIALIZATION"],
+  [/console\.(log|info|warn|error)\([^\n]*(?:plaintext|secret|accessToken|refreshToken|privateKey|password)/i,"SECRET_LOGGING"],
+  [/JSON\.stringify\([^\n]*(?:plaintext|accessToken|refreshToken|privateKey|password)/i,"SECRET_SERIALIZATION"],
   [/insecureHTTPParser\s*:\s*true/,"NODE_INSECURE_HTTP_PARSER"],
   [/rejectUnauthorized\s*:\s*false/,"TLS_CERTIFICATE_VALIDATION_DISABLED"],
   [/MIXED_CONTENT_ALWAYS_ALLOW/,"ANDROID_MIXED_CONTENT_ALLOWED"],
@@ -26,6 +26,12 @@ const forbidden=[
   [/allowContentAccess\s*=\s*true/,"ANDROID_CONTENT_ACCESS_ENABLED"],
   [/access-control-allow-origin["']?\s*[,:]\s*["']\*["']/,"CORS_WILDCARD"],
   [/X-XSS-Protection/i,"DEPRECATED_XSS_HEADER"]
+];
+
+// Guard the guard: fail closed if either secret-leak detector stops matching its intended syntax.
+const forbiddenPatternSelfTests=[
+  [forbidden[0][0],'console.error("plaintext accessToken", value)',"SECRET_LOGGING_PATTERN_SELF_TEST"],
+  [forbidden[1][0],"JSON.stringify({refreshToken})","SECRET_SERIALIZATION_PATTERN_SELF_TEST"]
 ];
 
 const required=[
@@ -50,6 +56,7 @@ const required=[
 ];
 
 const problems=[];
+for(const [pattern,sample,code] of forbiddenPatternSelfTests)if(!pattern.test(sample))problems.push(code);
 for(const rel of files){
   const text=await readFile(resolve(root,rel),"utf8");
   for(const [pattern,code] of forbidden)if(pattern.test(text))problems.push(code+":"+rel);
