@@ -7,9 +7,9 @@ import 'api/pending_idempotency_keys.dart';
 const _protectionGreen=Color(0xff0f8f68);
 const _protectionInk=Color(0xff16352c);
 const _protectionTiers=<Map<String,Object>>[
-  {'tier':'ESSENTIEL','rate':1,'covered':1,'grace':7,'waiting':14,'cap':'100000'},
-  {'tier':'EQUILIBRE','rate':2,'covered':2,'grace':14,'waiting':14,'cap':'250000'},
-  {'tier':'RENFORCE','rate':3,'covered':3,'grace':21,'waiting':30,'cap':'500000'},
+  {'tier':'ESSENTIEL','rate':1,'covered':1,'grace':7,'waiting':14,'cap':'10000000'},
+  {'tier':'EQUILIBRE','rate':2,'covered':2,'grace':14,'waiting':14,'cap':'20000000'},
+  {'tier':'RENFORCE','rate':3,'covered':3,'grace':21,'waiting':30,'cap':'30000000'},
 ];
 
 class CommunityTontineProtectionScreen extends StatefulWidget {
