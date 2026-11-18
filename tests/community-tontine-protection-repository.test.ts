@@ -55,7 +55,7 @@ test("policy creation persists the immutable hash and append-only proposal event
   await repo.createPolicy(makePolicy(),now);
   assert.match(calls[0]!.sql,/INSERT INTO community_tontine_protection_policies/);
   assert.match(calls[1]!.sql,/INSERT INTO community_tontine_protection_events/);
-  assert.equal(calls[0]!.values?.[15],makePolicy().policyHash);
+  assert.equal(calls[0]!.values?.[14],makePolicy().policyHash);
   assert.equal(calls.some(call=>/INSERT INTO .*ledger|UPDATE .*ledger/i.test(call.sql)),false);
 });
 
