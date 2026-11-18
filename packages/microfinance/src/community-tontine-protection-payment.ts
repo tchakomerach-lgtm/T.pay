@@ -91,7 +91,7 @@ export async function createProtectionPremiumPaymentIntent(
     accounts.payeeAccountId
   ].join("|")).digest("hex");
 
-  if (premium.state === "PAYMENT_PENDING" && premium.paymentIntentReference) {
+  if (premium.state === "PAYMENT_PENDING" && !premium.paymentIntentReference) {\n    throw new Error("TONTINE_PROTECTION_PAYMENT_INTENT_REFERENCE_MISSING");\n  }\n  if (premium.state === "PAYMENT_PENDING" && premium.paymentIntentReference) {
     const existing = await dependencies.paymentIntents.findByIdempotency(input.organizationId, input.idempotencyKey);
     if (!existing || existing.id !== premium.paymentIntentReference || existing.payloadHash !== payloadHash) {
       throw new Error("TONTINE_PROTECTION_PAYMENT_INTENT_REPLAY_CONFLICT");
