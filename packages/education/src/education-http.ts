@@ -481,13 +481,11 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
      await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
      const repository=protectionRepository(client);
-     const amount=tontineNonNegativeAmount(input.installmentMinor,"installmentMinor");
-     if(amount<=0n)throw new Error("TONTINE_PROTECTION_INSTALLMENT_INVALID");
+     const installmentReference=String(input.installmentReference??"");
+     if(!installmentReference)throw new Error("TONTINE_PROTECTION_INSTALLMENT_REFERENCE_REQUIRED");
      const quote=await repository.createPremiumSchedule({
       organizationId:organizationId as UUID,groupId:groupId as UUID,enrollmentId:enrollmentId as UUID,
-      installmentReference:String(input.installmentReference) as UUID,installmentMinor:amount,
-      currency:typeof input.currency==="string"?input.currency.toUpperCase():"XOF",
-      dueAt:typeof input.dueAt==="string"?input.dueAt:now,actorId:auth.principal.userId as UUID,now
+      installmentReference:installmentReference as UUID,actorId:auth.principal.userId as UUID,now
      });
      return {...quote,premiumMinor:quote.premiumMinor.toString(),coverageLimitMinor:quote.coverageLimitMinor.toString(),state:"DUE"};
     });
