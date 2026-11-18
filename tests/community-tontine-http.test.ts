@@ -35,6 +35,10 @@ function fixture() {
         const row = [...groups.values()].find(x => x.id === values?.[1]);
         return { rows: row ? [{ id: row.id }] : [], rowCount: row ? 1 : 0 };
       }
+      if (sql.startsWith("SELECT id,currency FROM tontine_groups WHERE organization_id=$1 AND id=$2")) {
+        const row = [...groups.values()].find(x => x.id === values?.[1]);
+        return { rows: row ? [{ id: row.id, currency: row.currency }] : [], rowCount: row ? 1 : 0 };
+      }
       if (sql.startsWith("SELECT role FROM community_tontine_role_grants")) {
         return { rows: [{ role: "FOUNDER" }], rowCount: 1 };
       }
@@ -227,6 +231,47 @@ test("Community Tontine commission policy, temporal roles and promotion draft us
     assert.equal(promotion.status, 200, JSON.stringify(promotionBody));
     assert.equal(promotionBody.data.state, "DRAFT");
     assert.ok(sqlCalls.some(x => x.sql.startsWith("INSERT INTO community_tontine_promotion_campaigns")));
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  }
+});
+
+test("CT-042 policy proposal is tenant-scoped, draft-only and never writes a ledger entry", async () => {
+  const { server, sqlCalls } = fixture();
+  await new Promise<void>(resolve => server.listen(0, resolve));
+  const port = (server.address() as any).port;
+  try {
+    const groupResponse = await fetch(`http://127.0.0.1:${port}/v1/tontine/groups`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-idempotency-key": "ct042-group-create-01" },
+      body: JSON.stringify({
+        name: "Protection Test", countryCode: "TG", currency: "XOF", frequency: "weekly",
+        contributionMode: "fixed", minimumAmountMinor: "1000", fixedAmountMinor: "1000"
+      })
+    });
+    const groupBody = await groupResponse.json() as any;
+    assert.equal(groupResponse.status, 200, JSON.stringify(groupBody));
+    const groupId = groupBody.data.group.id as string;
+
+    const response = await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${groupId}/protection-policies`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-idempotency-key": "ct042-policy-create-01" },
+      body: JSON.stringify({
+        version: "ct042-v1", currency: "XOF",
+        insurerPartnerId: "88888888-8888-4888-8888-888888888888",
+        insurerLicenseReference: "CIMA-REF-TO-VERIFY",
+        insurerContractReference: "CONTRACT-REF-TO-VERIFY",
+        effectiveFrom: "2026-11-18T08:00:00.000Z"
+      })
+    });
+    const body = await response.json() as any;
+    assert.equal(response.status, 200, JSON.stringify(body));
+    assert.equal(body.data.state, "DRAFT");
+    assert.equal(body.data.insurerVerificationRequired, true);
+    assert.ok(sqlCalls.some(x => x.sql.startsWith("INSERT INTO community_tontine_protection_policies")));
+    assert.ok(sqlCalls.some(x => x.sql.startsWith("INSERT INTO community_tontine_protection_events")));
+    assert.equal(sqlCalls.some(x => /INSERT INTO .*ledger|UPDATE .*ledger/i.test(x.sql)), false);
   } finally {
     server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve()));
