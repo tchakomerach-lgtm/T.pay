@@ -29,8 +29,7 @@ export interface TontineProtectionEnrollment {
   consentReference: string; state: "PENDING" | "ACTIVE" | "SUSPENDED" | "CANCELLED";
 }
 export interface TontineProtectionClaimEvidence {
-  scheduledInstallmentMinor: bigint; dueAt: string; now: string;
-  gracePeriodElapsed: boolean; waitingPeriodElapsed: boolean;
+  scheduledInstallmentMinor: bigint; dueAt: string; coverageStartsAt: string; now: string;
   memberWasCoveredAtDueDate: boolean; premiumSettledForInstallment: boolean;
   memberContactAttempts: number; independentReviews: number;
   confirmedAbandonment: boolean; fraudFlag: boolean;
