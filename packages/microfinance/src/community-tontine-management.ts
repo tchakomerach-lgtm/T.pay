@@ -22,7 +22,7 @@ const ROLE_CAPABILITIES: Record<CommunityTontineMfRole, readonly CommunityTontin
 };
 
 export interface CommunityTontineMfAccess {
-  id: UUID; organizationId: UUID; tontineGroupId: UUID; microfinanceId: UUID;
+  id: UUID; organizationId: UUID; tontineGroupId: UUID; microfinanceId: UUID; actorId?: UUID;
   role: CommunityTontineMfRole; status: CommunityTontineMfStatus; grantedBy: UUID;
   createdAt: string; expiresAt?: string;
 }

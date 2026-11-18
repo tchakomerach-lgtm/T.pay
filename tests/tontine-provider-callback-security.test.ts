@@ -13,19 +13,27 @@ const payout = {
 };
 
 test("community tontine rejects same provider event replay with substituted payload", async () => {
-  let receipt: { hash: string; payoutId: UUID } | undefined;
+  let receipt: { hash: string; payoutId: UUID; state: string; failureCode?: string } | undefined;
   const db = {
     async query<Row = Record<string, unknown>>(sql: string, values?: readonly unknown[]) {
       if (sql.includes("SELECT provider_event_id")) {
         if (!receipt) return { rows: [] as Row[], rowCount: 0 };
-        return { rows: [{ provider_event_id: "evt-1", payout_id: receipt.payoutId, payload_sha256: receipt.hash, state: "processed" }] as Row[], rowCount: 1 };
+        return { rows: [{ provider_event_id: "evt-1", payout_id: receipt.payoutId, payload_sha256: receipt.hash, state: receipt.state }] as Row[], rowCount: 1 };
       }
       if (sql.includes("SELECT payout_id,organization_id,state,idempotency_key")) {
         return { rows: [{ payout_id: id, organization_id: id, state: "initiated", idempotency_key: "payout-1" }] as Row[], rowCount: 1 };
       }
       if (sql.includes("INSERT INTO tontine_provider_callback_receipts")) {
-        receipt = { hash: String(values?.[4]), payoutId: values?.[6] as UUID };
+        receipt = { hash: String(values?.[4]), payoutId: values?.[6] as UUID, state: "received" };
         return { rows: [], rowCount: 1 };
+      }
+      if (sql.includes("SET state='rejected'")) {
+        if (receipt) { receipt.state = "rejected"; receipt.failureCode = "CALLBACK_PAYLOAD_MISMATCH"; }
+        return { rows: [] as Row[], rowCount: 1 };
+      }
+      if (sql.includes("SET state='processed'")) {
+        if (receipt) receipt.state = "processed";
+        return { rows: [] as Row[], rowCount: 1 };
       }
       return { rows: [] as Row[], rowCount: 1 };
     },
@@ -40,8 +48,14 @@ test("community tontine rejects same provider event replay with substituted payl
   };
   const bridge = { async settle() { return undefined; } };
   await processVerifiedTontinePayoutCallback(db, verifier, { provider:"mf", rawBody:"body-A", signature:"sig", receivedAt:"2026-10-05T10:00:00Z" }, id, payout, { tontineClearingAccountId:"a", microfinanceSettlementAccountId:"b" }, "tx-1", bridge);
-  await assert.rejects(
-    () => processVerifiedTontinePayoutCallback(db, verifier, { provider:"mf", rawBody:"body-B", signature:"sig", receivedAt:"2026-10-05T10:01:00Z" }, id, payout, { tontineClearingAccountId:"a", microfinanceSettlementAccountId:"b" }, "tx-2", bridge),
-    /TONTINE_CALLBACK_REPLAY_PAYLOAD_MISMATCH/
+  const rejected = await processVerifiedTontinePayoutCallback(
+    db, verifier,
+    { provider:"mf", rawBody:"body-B", signature:"sig", receivedAt:"2026-10-05T10:01:00Z" },
+    id, payout,
+    { tontineClearingAccountId:"a", microfinanceSettlementAccountId:"b" },
+    "tx-2", bridge
   );
+  assert.deepEqual(rejected, { state:"rejected", providerEventId:"evt-1", payoutId:id });
+  assert.equal(receipt?.state, "rejected");
+  assert.equal(receipt?.failureCode, "CALLBACK_PAYLOAD_MISMATCH");
 });

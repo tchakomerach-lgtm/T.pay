@@ -61,9 +61,19 @@ export function assertSettlementAccounting(input: DurableSettlementInput): void 
   if (feeSnapshot.currency !== contribution.currency || feeSnapshot.currency !== paymentIntent.currency || feeSnapshot.currency !== providerEvent.currency) {
     throw new Error("SETTLEMENT_FEE_CURRENCY_MISMATCH");
   }
-  if (feeSnapshot.microfinanceFeeMinor < 0n || feeSnapshot.tpayFeeMinor < 0n || feeSnapshot.totalFeeMinor < 0n ||
-      feeSnapshot.totalFeeMinor !== feeSnapshot.microfinanceFeeMinor + feeSnapshot.tpayFeeMinor) {
+  const additionalFees = (feeSnapshot.agentFeeMinor ?? 0n) + (feeSnapshot.reserveFeeMinor ?? 0n) +
+    (feeSnapshot.taxFeeMinor ?? 0n) + (feeSnapshot.optionalServiceFeeMinor ?? 0n);
+  if (feeSnapshot.microfinanceFeeMinor < 0n || feeSnapshot.tpayFeeMinor < 0n || additionalFees < 0n ||
+      feeSnapshot.totalFeeMinor < 0n ||
+      feeSnapshot.totalFeeMinor !== feeSnapshot.microfinanceFeeMinor + feeSnapshot.tpayFeeMinor + additionalFees) {
     throw new Error("SETTLEMENT_FEE_TOTAL_INVALID");
+  }
+  if (feeSnapshot.payerMode &&
+      (feeSnapshot.memberFeeMinor ?? 0n) + (feeSnapshot.beneficiaryFeeMinor ?? 0n) !== feeSnapshot.totalFeeMinor) {
+    throw new Error("SETTLEMENT_FEE_PAYER_SPLIT_INVALID");
+  }
+  if (feeSnapshot.snapshotHash && !/^[a-f0-9]{64}$/i.test(feeSnapshot.snapshotHash)) {
+    throw new Error("SETTLEMENT_FEE_SNAPSHOT_HASH_INVALID");
   }
   if (feeSnapshot.totalFeeMinor > contribution.amountMinor) throw new Error("SETTLEMENT_FEE_EXCEEDS_CONTRIBUTION");
   assertBalanced(ledgerTransaction.lines);

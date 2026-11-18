@@ -14,7 +14,7 @@ export interface CommunityTontineMfReconciliationRepository {
 function accessFromRow(row: Record<string, unknown>): CommunityTontineMfAccess {
   const access: CommunityTontineMfAccess = {
     id: row.id as UUID, organizationId: row.organization_id as UUID, tontineGroupId: row.tontine_group_id as UUID,
-    microfinanceId: row.microfinance_id as UUID, role: row.role as CommunityTontineMfAccess["role"],
+    microfinanceId: row.microfinance_id as UUID, ...(row.actor_id != null ? { actorId: row.actor_id as UUID } : {}), role: row.role as CommunityTontineMfAccess["role"],
     status: row.status as CommunityTontineMfAccess["status"], grantedBy: row.granted_by as UUID,
     createdAt: new Date(String(row.created_at)).toISOString()
   };
@@ -45,16 +45,16 @@ export class PostgresCommunityTontineMfAccessRepository implements CommunityTont
   async save(access: CommunityTontineMfAccess): Promise<void> {
     const result = await this.db.query(
       `INSERT INTO community_tontine_mf_access
-       (id,organization_id,tontine_group_id,microfinance_id,role,status,granted_by,created_at,expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-       ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,expires_at=EXCLUDED.expires_at,last_modified_at=now(),access_version=community_tontine_mf_access.access_version+1
+       (id,organization_id,tontine_group_id,microfinance_id,role,status,granted_by,created_at,expires_at,actor_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,expires_at=EXCLUDED.expires_at,actor_id=EXCLUDED.actor_id,last_modified_at=now(),access_version=community_tontine_mf_access.access_version+1
        WHERE community_tontine_mf_access.organization_id=EXCLUDED.organization_id
          AND community_tontine_mf_access.tontine_group_id=EXCLUDED.tontine_group_id
          AND community_tontine_mf_access.microfinance_id=EXCLUDED.microfinance_id
          AND community_tontine_mf_access.role=EXCLUDED.role
          AND community_tontine_mf_access.granted_by=EXCLUDED.granted_by
        RETURNING id`,
-      [access.id, access.organizationId, access.tontineGroupId, access.microfinanceId, access.role, access.status, access.grantedBy, access.createdAt, access.expiresAt ?? null]
+      [access.id, access.organizationId, access.tontineGroupId, access.microfinanceId, access.role, access.status, access.grantedBy, access.createdAt, access.expiresAt ?? null, access.actorId ?? null]
     );
     if ((result.rowCount ?? 0) !== 1 && !result.rows?.length) throw new Error("COMMUNITY_TONTINE_MF_ACCESS_SCOPE_CONFLICT");
   }

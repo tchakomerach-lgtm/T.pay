@@ -25,7 +25,7 @@ test("settlement preparation requires a persisted, scoped grant and durable stor
   assert.equal(prepared.preparedBy,other);
   await assert.rejects(() => service.prepareSettlement(
     {...access, microfinanceId:other}, id, instruction, other
-  ), /ACCESS_NOT_ACTIVE/);
+  ), /ORGANIZATION_SCOPE_DENIED|GROUP_SCOPE_DENIED|PARTNER_SCOPE_DENIED/);
   await assert.rejects(() => service.prepareSettlement(access,id,instruction,"" as any), /PREPARER_REQUIRED/);
 });
 
@@ -42,6 +42,6 @@ test("reconciliation persistence query is scoped to organization, group, and par
   const db = { query: async (sql:string, values:unknown[]) => { calls.push({sql,values}); return {rows:[]}; } } as any;
   const repository = new PostgresCommunityTontineMfReconciliationRepository(db);
   await repository.listOpen(id, other, id);
-  assert.match(calls[0].sql,/organization_id=\$1 AND tontine_group_id=\$2 AND microfinance_id=\$3/);
-  assert.deepEqual(calls[0].values,[id,other,id]);
+  assert.match(calls[0]!.sql,/organization_id=\$1 AND tontine_group_id=\$2 AND microfinance_id=\$3/);
+  assert.deepEqual(calls[0]!.values,[id,other,id]);
 });

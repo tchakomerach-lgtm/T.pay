@@ -8,6 +8,9 @@ function assertSession(session:SchoolWebSession){if(!session.accessToken)throw n
 export function createSchoolWebClient(config:SchoolWebConfig){
   const base=assertHttps(config.apiBaseUrl).toString().replace(/\/$/,"");
   return {
+    async health():Promise<Response>{
+      return fetch(assertHttps(base+"/health/ready"),{method:"GET",headers:{accept:"application/json"},cache:"no-store",redirect:"error"});
+    },
     async request(path:string,init:RequestInit={}):Promise<Response>{
       assertSession(config.session);
       const headers=new Headers(init.headers);
@@ -21,13 +24,14 @@ export function createSchoolWebClient(config:SchoolWebConfig){
   };
 }
 
-export async function consumeSchoolSse(config:SchoolWebConfig,onEvent:(event:SchoolWebEvent)=>void,signal:AbortSignal):Promise<void>{
+export async function consumeSchoolSse(config:SchoolWebConfig,onEvent:(event:SchoolWebEvent)=>void,signal:AbortSignal,onOpen?:()=>void):Promise<void>{
   const client=createSchoolWebClient(config);
   const lastEventId=sessionStorage.getItem("tpay-school-last-event-id");
   const headers=new Headers({accept:"text/event-stream"});
   if(lastEventId)headers.set("last-event-id",lastEventId);
   const response=await client.request("/v1/education/events/stream",{headers,signal});
   if(!response.ok||!response.body)throw new Error(`WEB_REALTIME_HTTP_${response.status}`);
+  onOpen?.();
   const reader=response.body.getReader();const decoder=new TextDecoder();let buffer="";
   while(true){
     const {done,value}=await reader.read();if(done)break;
