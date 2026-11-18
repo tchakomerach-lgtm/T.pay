@@ -88,3 +88,6 @@ Un statut fournisseur « completed » n'est pas une preuve de règlement. Aucun 
 - Le workflow Flutter vérifie la présence du projet `mobile/tpay_flutter/pubspec.yaml` dans l'arbre de fusion avant `flutter pub get`; une absence est traitée comme un défaut d'intégration, jamais comme un test réussi.
 - Aucun taux, prélèvement, contrat ou sinistre n'est activable sans validation indépendante de l'assureur agréé et des autorités compétentes.
 - Les exécutions déclenchées avant le rattachement au socle communautaire ne sont pas réutilisables comme preuve pour le nouvel arbre de fusion; chaque validation doit référencer le SHA courant de la PR empilée.
+
+## Intégration de validation
+- Cette branche d'intégration est construite au-dessus du SHA `23c221f1a81a965cca59cf5fb28061056012a274` de `main` et réunit le socle communautaire et CT-042 pour que les contrôles s'exécutent sur un seul arbre de code.
