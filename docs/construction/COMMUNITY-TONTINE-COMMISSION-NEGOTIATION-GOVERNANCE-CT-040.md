@@ -25,7 +25,7 @@ T.Pay owns the non-bypassable pricing guardrails. A negotiable proposal must rem
 - product and transaction-level minimum/maximum;
 - risk-tier minimum/maximum.
 
-The effective minimum is the highest applicable minimum. The effective maximum is the lowest applicable maximum. A proposal is rejected if the resulting interval is empty or the proposed rate falls outside it. The guardrail configuration is versioned and auditable; a negotiation cannot override it.
+The effective minimum is the highest applicable minimum. The effective maximum is the lowest applicable maximum. A proposal is rejected if the resulting interval is empty or the proposed rate falls outside it. The guardrail configuration is versioned and auditable; a negotiation cannot override it. The historical Bible also records an absolute 6% floor; its exact assessment base and transaction-level applicability must be mapped explicitly before enforcement, rather than guessed or confused with the separate microfinance-school rate.
 
 The commercial terms are negotiable between the three authorized proposer classes. Negotiation is represented by immutable rounds and counteroffers, not by editing an existing policy in place. Each event records actor, proposer class, round, exact terms, reason, timestamp and SHA-256 hash.
 
@@ -57,7 +57,7 @@ The historical 5–10% microfinance-school partnership commission remains a sepa
 
 Implemented in the current branch:
 - Identity permission vocabulary for T.Pay, microfinance and community-admin commission proposers.
-- Server-side derivation of proposal origin; microfinance proposal requires an active group relationship.
+- Server-side derivation of proposal origin; microfinance proposal requires an active, unexpired staff-to-institution access row and an active group member selected to that institution (migrations 137 and the scoped MF access repository).
 - proposal_origin, negotiation state and round metadata on commission policies.
 - Append-only, tenant-scoped negotiation-event table with immutable terms and RLS.
 - Database guard that blocks retroactive mutation/deletion of commission policy terms while allowing the explicit DRAFT → APPROVED → ACTIVE → RETIRED lifecycle.
