@@ -29,6 +29,8 @@ jobs:
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
           flutter --version
           flutter doctor -v
+      - name: Verify Flutter application is present in the stacked PR tree
+        run: test -f mobile/tpay_flutter/pubspec.yaml
       - name: Resolve dependencies
         working-directory: mobile/tpay_flutter
         run: flutter pub get
