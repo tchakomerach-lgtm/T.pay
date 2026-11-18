@@ -248,19 +248,41 @@ export class PostgresCommunityTontineProtectionRepository {
     return result;
   }
 
-  async markPremiumPaymentPending(input: { organizationId: UUID; groupId: UUID; premiumId: UUID }): Promise<void> {
-    const result = await this.db.query(
-      `UPDATE community_tontine_protection_premiums SET state='PAYMENT_PENDING'
-       WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND state='DUE'`,
-      [input.organizationId, input.groupId, input.premiumId]
-    );
-    if ((result.rowCount ?? 0) !== 1) throw new Error("TONTINE_PROTECTION_PREMIUM_STATE_CONFLICT");
+  async markPremiumPaymentPending(input: { organizationId: UUID; groupId: UUID; premiumId: UUID; paymentIntentReference: UUID; actorId: UUID; now: string }): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const result = await tx.query(
+        `UPDATE community_tontine_protection_premiums
+         SET state='PAYMENT_PENDING',payment_intent_reference=$4
+         WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND state='DUE'
+         RETURNING enrollment_id`,
+        [input.organizationId, input.groupId, input.premiumId, input.paymentIntentReference]
+      );
+      if ((result.rowCount ?? 0) !== 1) throw new Error("TONTINE_PROTECTION_PREMIUM_STATE_CONFLICT");
+      const row = result.rows[0] as ProtectionRow | undefined;
+      await appendEvent(tx, {
+        organizationId: input.organizationId, groupId: input.groupId, actorId: input.actorId,
+        enrollmentId: row?.enrollment_id as UUID | undefined, eventType: "PREMIUM_PAYMENT_PENDING",
+        payload: { premiumId: input.premiumId, paymentIntentReference: input.paymentIntentReference }, now: input.now
+      });
+    });
   }
 
   async settlePremium(input: {
     organizationId: UUID; groupId: UUID; premiumId: UUID; financialCoreReference: UUID; actorId: UUID; settledAt: string;
     verifier: (reference: UUID, amountMinor: bigint, currency: string) => Promise<boolean>;
   }): Promise<void> {
+    const snapshot = await this.db.query<ProtectionRow>(
+      `SELECT premium_minor,currency,state,financial_core_reference
+       FROM community_tontine_protection_premiums
+       WHERE organization_id=$1 AND group_id=$2 AND id=$3`,
+      [input.organizationId, input.groupId, input.premiumId]
+    );
+    const source = snapshot.rows[0];
+    if (!source) throw new Error("TONTINE_PROTECTION_PREMIUM_NOT_FOUND");
+    if (source.state === "SETTLED" && source.financial_core_reference === input.financialCoreReference) return;
+    if (source.state !== "PAYMENT_PENDING") throw new Error("TONTINE_PROTECTION_PREMIUM_NOT_PAYABLE");
+    const verified = await input.verifier(input.financialCoreReference, big(source.premium_minor), String(source.currency));
+    if (!verified) throw new Error("TONTINE_PROTECTION_FINANCIAL_CORE_SETTLEMENT_UNVERIFIED");
     await this.db.transaction(async (tx) => {
       const result = await tx.query<ProtectionRow>(
         `SELECT id,premium_minor,currency,state,financial_core_reference
@@ -271,9 +293,7 @@ export class PostgresCommunityTontineProtectionRepository {
       const row = result.rows[0];
       if (!row) throw new Error("TONTINE_PROTECTION_PREMIUM_NOT_FOUND");
       if (row.state === "SETTLED" && row.financial_core_reference === input.financialCoreReference) return;
-      if (row.state !== "PAYMENT_PENDING") throw new Error("TONTINE_PROTECTION_PREMIUM_NOT_PAYABLE");
-      const verified = await input.verifier(input.financialCoreReference, big(row.premium_minor), String(row.currency));
-      if (!verified) throw new Error("TONTINE_PROTECTION_FINANCIAL_CORE_SETTLEMENT_UNVERIFIED");
+      if (row.state !== "PAYMENT_PENDING" || big(row.premium_minor) !== big(source.premium_minor) || String(row.currency) !== String(source.currency)) throw new Error("TONTINE_PROTECTION_PREMIUM_NOT_PAYABLE");
       const updated = await tx.query(
         `UPDATE community_tontine_protection_premiums
          SET state='SETTLED',financial_core_reference=$4,settled_at=$5
@@ -296,12 +316,12 @@ export class PostgresCommunityTontineProtectionRepository {
 
   async evaluateAndSubmitClaim(input: {
     organizationId: UUID; groupId: UUID; enrollmentId: UUID; installmentReference: UUID;
-    actorId: UUID; evidence: TontineProtectionClaimEvidence; now: string;
+    actorId: UUID; evidence: Pick<TontineProtectionClaimEvidence, "memberContactAttempts" | "independentReviews" | "confirmedAbandonment" | "fraudFlag">; now: string;
   }): Promise<{ claimId: UUID; eligible: boolean; code: string; maximumPayableMinor: bigint }> {
     return this.db.transaction(async (tx) => {
       const result = await tx.query<ProtectionRow>(
         `SELECT c.id AS premium_id,c.premium_minor,c.state AS premium_state,c.installment_minor,
-                c.installment_reference,e.id AS enrollment_id,e.tier,e.coverage_starts_at,e.state AS enrollment_state,
+                c.installment_reference,c.due_at,e.id AS enrollment_id,e.tier,e.coverage_starts_at,e.state AS enrollment_state,
                 p.id AS policy_id,p.version,p.currency,p.state,p.state AS policy_state,p.proposal_origin,p.risk_bearer,p.insurer_partner_id,
                 p.insurer_license_reference,p.insurer_contract_reference,p.insurer_license_verified,
                 p.insurer_contract_verified,p.effective_from,p.effective_until,p.tiers,p.policy_hash,
@@ -322,7 +342,7 @@ export class PostgresCommunityTontineProtectionRepository {
       const policy = policyFromRow(row);
       const decision = evaluateTontineProtectionClaim({
         policy, tier: row.tier as TontineProtectionTier,
-        evidence: { ...input.evidence, coverageStartsAt: iso(row.coverage_starts_at), premiumSettledForInstallment: true }
+        evidence: { ...input.evidence, scheduledInstallmentMinor: big(row.installment_minor), dueAt: iso(row.due_at), coverageStartsAt: iso(row.coverage_starts_at), now: input.now, memberWasCoveredAtDueDate: Date.parse(iso(row.coverage_starts_at)) <= Date.parse(iso(row.due_at)), premiumSettledForInstallment: true }
       });
       if (!decision.eligible) throw new Error(decision.code);
       const claimId = randomUUID() as UUID;
@@ -333,7 +353,7 @@ export class PostgresCommunityTontineProtectionRepository {
          VALUES ($1,$2,$3,$4,$5,$6,'SUBMITTED',$7,$8,$9::jsonb,$10,$11)`,
         [claimId, input.organizationId, input.groupId, input.enrollmentId, input.installmentReference,
           row.premium_id, decision.maximumPayableMinor.toString(), row.currency,
-          JSON.stringify({ ...input.evidence, coverageStartsAt: iso(row.coverage_starts_at), premiumSettledForInstallment: true }),
+          JSON.stringify({ ...input.evidence, scheduledInstallmentMinor: big(row.installment_minor).toString(), dueAt: iso(row.due_at), coverageStartsAt: iso(row.coverage_starts_at), now: input.now, memberWasCoveredAtDueDate: Date.parse(iso(row.coverage_starts_at)) <= Date.parse(iso(row.due_at)), premiumSettledForInstallment: true }),
           input.actorId, input.now]
       );
       await appendEvent(tx, {
