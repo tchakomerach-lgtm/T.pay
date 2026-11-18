@@ -404,9 +404,9 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      const currency=String(input.currency??group.rows[0].currency).toUpperCase();
      if(currency!==String(group.rows[0].currency))throw new Error("TONTINE_PROTECTION_CURRENCY_MISMATCH");
      const tiersInput=Array.isArray(input.tiers)?input.tiers as Array<Record<string,unknown>>:[
-      {tier:"ESSENTIEL",premiumRateBps:100,coveredInstallments:1,gracePeriodDays:7,waitingPeriodDays:14,maxClaimMinor:"100000"},
-      {tier:"EQUILIBRE",premiumRateBps:200,coveredInstallments:2,gracePeriodDays:14,waitingPeriodDays:14,maxClaimMinor:"250000"},
-      {tier:"RENFORCE",premiumRateBps:300,coveredInstallments:3,gracePeriodDays:21,waitingPeriodDays:30,maxClaimMinor:"500000"}
+      {tier:"ESSENTIEL",premiumRateBps:100,coveredInstallments:1,gracePeriodDays:7,waitingPeriodDays:14,maxClaimMinor:"10000000"},
+      {tier:"EQUILIBRE",premiumRateBps:200,coveredInstallments:2,gracePeriodDays:14,waitingPeriodDays:14,maxClaimMinor:"20000000"},
+      {tier:"RENFORCE",premiumRateBps:300,coveredInstallments:3,gracePeriodDays:21,waitingPeriodDays:30,maxClaimMinor:"30000000"}
      ];
      const tiers:TontineProtectionTierTerms[]=tiersInput.map(t=>({
       tier:String(t.tier) as TontineProtectionTier,premiumRateBps:Number(t.premiumRateBps),
