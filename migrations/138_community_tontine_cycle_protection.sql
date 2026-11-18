@@ -134,6 +134,68 @@ CREATE TABLE IF NOT EXISTS community_tontine_protection_events (
 CREATE INDEX IF NOT EXISTS idx_community_tontine_protection_events_scope
   ON community_tontine_protection_events(organization_id,group_id,occurred_at);
 
+-- Enforce group and member identity at the database boundary, not only in API filters.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_tontine_groups_org_id
+  ON tontine_groups(organization_id,id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_tontine_memberships_org_group_id
+  ON tontine_memberships(organization_id,group_id,id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_community_tontine_protection_premiums_full_scope
+  ON community_tontine_protection_premiums(organization_id,group_id,enrollment_id,installment_reference,id);
+
+DO $
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='tontine_protection_policies_group_scope_fk' AND conrelid='community_tontine_protection_policies'::regclass) THEN
+    ALTER TABLE community_tontine_protection_policies
+      ADD CONSTRAINT tontine_protection_policies_group_scope_fk
+      FOREIGN KEY (organization_id,group_id) REFERENCES tontine_groups(organization_id,id) ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='tontine_protection_enrollments_group_scope_fk' AND conrelid='community_tontine_protection_enrollments'::regclass) THEN
+    ALTER TABLE community_tontine_protection_enrollments
+      ADD CONSTRAINT tontine_protection_enrollments_group_scope_fk
+      FOREIGN KEY (organization_id,group_id) REFERENCES tontine_groups(organization_id,id) ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='tontine_protection_enrollments_member_scope_fk' AND conrelid='community_tontine_protection_enrollments'::regclass) THEN
+    ALTER TABLE community_tontine_protection_enrollments
+      ADD CONSTRAINT tontine_protection_enrollments_member_scope_fk
+      FOREIGN KEY (organization_id,group_id,member_id)
+      REFERENCES tontine_memberships(organization_id,group_id,id) ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='tontine_protection_premiums_group_scope_fk' AND conrelid='community_tontine_protection_premiums'::regclass) THEN
+    ALTER TABLE community_tontine_protection_premiums
+      ADD CONSTRAINT tontine_protection_premiums_group_scope_fk
+      FOREIGN KEY (organization_id,group_id) REFERENCES tontine_groups(organization_id,id) ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='tontine_protection_claims_group_scope_fk' AND conrelid='community_tontine_protection_claims'::regclass) THEN
+    ALTER TABLE community_tontine_protection_claims
+      ADD CONSTRAINT tontine_protection_claims_group_scope_fk
+      FOREIGN KEY (organization_id,group_id) REFERENCES tontine_groups(organization_id,id) ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='tontine_protection_events_group_scope_fk' AND conrelid='community_tontine_protection_events'::regclass) THEN
+    ALTER TABLE community_tontine_protection_events
+      ADD CONSTRAINT tontine_protection_events_group_scope_fk
+      FOREIGN KEY (organization_id,group_id) REFERENCES tontine_groups(organization_id,id) ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='tontine_protection_claims_exact_premium_fk' AND conrelid='community_tontine_protection_claims'::regclass) THEN
+    ALTER TABLE community_tontine_protection_claims
+      ADD CONSTRAINT tontine_protection_claims_exact_premium_fk
+      FOREIGN KEY (organization_id,group_id,enrollment_id,installment_reference,premium_id)
+      REFERENCES community_tontine_protection_premiums(organization_id,group_id,enrollment_id,installment_reference,id)
+      ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='tontine_protection_claims_approved_amount_check' AND conrelid='community_tontine_protection_claims'::regclass) THEN
+    ALTER TABLE community_tontine_protection_claims
+      ADD CONSTRAINT tontine_protection_claims_approved_amount_check
+      CHECK (approved_minor IS NULL OR approved_minor <= claimed_minor);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='tontine_protection_claims_insurer_decision_check' AND conrelid='community_tontine_protection_claims'::regclass) THEN
+    ALTER TABLE community_tontine_protection_claims
+      ADD CONSTRAINT tontine_protection_claims_insurer_decision_check
+      CHECK (state NOT IN ('APPROVED_BY_INSURER','PAID') OR
+        (insurer_claim_reference IS NOT NULL AND reviewed_by IS NOT NULL));
+  END IF;
+END;
+$;
+
 DO $$
 DECLARE t text;
 BEGIN
