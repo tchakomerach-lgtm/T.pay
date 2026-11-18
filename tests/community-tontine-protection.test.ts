@@ -18,7 +18,7 @@ function policy(overrides: Partial<CommunityTontineProtectionPolicy> = {}): Comm
     id:"10000000-0000-4000-8000-000000000010" as never, organizationId:org, groupId:group,
     version:"v1",currency:"XOF",state:"ACTIVE",proposalOrigin:"TPAY",riskBearer:"LICENSED_INSURER",
     insurerPartnerId:insurer,insurerLicenseReference:"CIMA-LICENSE-TO-BE-VERIFIED",
-    insurerContractReference:"CONTRACT-TO-BE-EXECUTED",effectiveFrom:"2026-11-01T00:00:00.000Z",
+    insurerContractReference:"CONTRACT-TO-BE-EXECUTED",insurerLicenseVerified:true,insurerContractVerified:true,effectiveFrom:"2026-11-01T00:00:00.000Z",
     createdBy:maker,approvedBy:checker,policyHash:"0".repeat(64),
     tiers:[
       {tier:"ESSENTIEL",premiumRateBps:100,coveredInstallments:1,gracePeriodDays:7,waitingPeriodDays:14,maxClaimMinor:100_000n},
@@ -48,6 +48,8 @@ test("protection policy requires a licensed insurer contract and independent app
     /TONTINE_PROTECTION_LICENSED_INSURER_CONTRACT_REQUIRED/);
   assert.throws(()=>validateTontineProtectionPolicy(policy({approvedBy:maker})),
     /TONTINE_PROTECTION_MAKER_CHECKER_REQUIRED/);
+  assert.throws(()=>validateTontineProtectionPolicy(policy({insurerContractVerified:false})),
+    /TONTINE_PROTECTION_PARTNER_VERIFICATION_REQUIRED/);
   const missingApproval=policy();
   delete missingApproval.approvedBy;
   missingApproval.policyHash=computeTontineProtectionPolicyHash(missingApproval);
@@ -58,8 +60,8 @@ test("protection policy requires a licensed insurer contract and independent app
 test("claim is blocked until coverage, premium, waiting period, grace and independent abandonment evidence exist",()=>{
   const p=policy();
   const evidence={
-    scheduledInstallmentMinor:1_000_000n,dueAt:now,now,
-    gracePeriodElapsed:true,waitingPeriodElapsed:true,memberWasCoveredAtDueDate:true,
+    scheduledInstallmentMinor:1_000_000n,dueAt:"2026-10-01T00:00:00.000Z",coverageStartsAt:"2026-10-01T00:00:00.000Z",now,
+    memberWasCoveredAtDueDate:true,
     premiumSettledForInstallment:true,memberContactAttempts:2,independentReviews:2,
     confirmedAbandonment:true,fraudFlag:false
   };
@@ -75,8 +77,8 @@ test("claim is blocked until coverage, premium, waiting period, grace and indepe
 test("fraud flag or lack of independent reviews blocks a cycle protection claim",()=>{
   const p=policy();
   const base={
-    scheduledInstallmentMinor:100_000n,dueAt:now,now,gracePeriodElapsed:true,
-    waitingPeriodElapsed:true,memberWasCoveredAtDueDate:true,premiumSettledForInstallment:true,
+    scheduledInstallmentMinor:100_000n,dueAt:"2026-10-01T00:00:00.000Z",coverageStartsAt:"2026-10-01T00:00:00.000Z",now,
+    memberWasCoveredAtDueDate:true,premiumSettledForInstallment:true,
     memberContactAttempts:2,independentReviews:1,confirmedAbandonment:true,fraudFlag:false
   };
   assert.equal(evaluateTontineProtectionClaim({policy:p,tier:"ESSENTIEL",evidence:base}).code,
