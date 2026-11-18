@@ -397,7 +397,6 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       return {items:items.map(serializeProtectionPolicy)};
      }
      if(method!=="POST")throw new Error("TONTINE_PROTECTION_POLICY_METHOD_NOT_ALLOWED");
-     await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
      const input=body as Record<string,unknown>;
      if(!input||typeof input!=="object"||Array.isArray(input))throw new Error("TONTINE_PROTECTION_POLICY_PAYLOAD_INVALID");
      const origin=await assertCommunityTontineCommissionProposer(client,organizationId,groupId,auth.principal.userId,auth.principal.permissions,now);
