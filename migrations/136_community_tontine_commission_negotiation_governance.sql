@@ -99,6 +99,10 @@ BEGIN
        AND NEW.approved_by IS NOT NULL AND NEW.approved_by<>OLD.created_by) THEN
     RAISE EXCEPTION 'COMMUNITY_TONTINE_COMMISSION_MAKER_CHECKER_REQUIRED';
   END IF;
+  IF NEW.activated_at IS DISTINCT FROM OLD.activated_at
+     AND NOT (OLD.state='APPROVED' AND NEW.state='ACTIVE' AND NEW.activated_at IS NOT NULL) THEN
+    RAISE EXCEPTION 'COMMUNITY_TONTINE_COMMISSION_ACTIVATION_TIMESTAMP_IMMUTABLE';
+  END IF;
   RETURN NEW;
 END;
 $$;
@@ -109,8 +113,20 @@ CREATE TRIGGER community_tontine_commission_policy_guard
 BEFORE UPDATE OR DELETE ON community_tontine_commission_policies
 FOR EACH ROW EXECUTE FUNCTION community_tontine_commission_policy_guard();
 
+CREATE OR REPLACE FUNCTION community_tontine_commission_policy_truncate_guard()
+RETURNS trigger LANGUAGE plpgsql AS $
+BEGIN
+  RAISE EXCEPTION 'COMMUNITY_TONTINE_COMMISSION_POLICY_TRUNCATE_FORBIDDEN';
+END;
+$;
+DROP TRIGGER IF EXISTS community_tontine_commission_policy_no_truncate
+  ON community_tontine_commission_policies;
+CREATE TRIGGER community_tontine_commission_policy_no_truncate
+BEFORE TRUNCATE ON community_tontine_commission_policies
+FOR EACH STATEMENT EXECUTE FUNCTION community_tontine_commission_policy_truncate_guard();
+
 CREATE OR REPLACE FUNCTION community_tontine_commission_negotiation_immutable()
-RETURNS trigger LANGUAGE plpgsql AS $$
+RETURNS trigger LANGUAGE plpgsql AS $
 BEGIN
   RAISE EXCEPTION 'COMMUNITY_TONTINE_COMMISSION_NEGOTIATION_IMMUTABLE';
 END;
