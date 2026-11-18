@@ -43,11 +43,15 @@ class InMemoryPaymentIntents implements PaymentIntentRepository {
 function dependencies(snapshot: ProtectionPremiumPaymentSnapshot = due) {
   const paymentIntents = new InMemoryPaymentIntents();
   const marked: Array<{ premiumId: string; paymentIntentReference: string }> = [];
+  let current = { ...snapshot };
   const deps: CommunityTontineProtectionPaymentDependencies = {
     paymentIntents,
-    async loadPremium() { return snapshot; },
+    async loadPremium() { return current; },
     async resolveAccounts() { return { payerAccountId: "member-wallet", payeeAccountId: "insurer-collection" }; },
-    async markPaymentPending(input) { marked.push({ premiumId: input.premiumId, paymentIntentReference: input.paymentIntentReference }); }
+    async markPaymentPending(input) {
+      marked.push({ premiumId: input.premiumId, paymentIntentReference: input.paymentIntentReference });
+      current = { ...current, state: "PAYMENT_PENDING", paymentIntentReference: input.paymentIntentReference };
+    }
   };
   return { deps, paymentIntents, marked };
 }
@@ -65,13 +69,13 @@ test("creates a canonical XOF Payment Intent and links the premium without posti
   assert.equal(paymentIntents.rows.size, 1);
 });
 
-test("replays the same Payment Intent without creating a second premium link", async () => {
+test("replays the same linked Payment Intent without re-linking the premium", async () => {
   const { deps, marked } = dependencies();
   const first = await createProtectionPremiumPaymentIntent(deps, base);
   const second = await createProtectionPremiumPaymentIntent(deps, base);
   assert.equal(second.intent.id, first.intent.id);
   assert.equal(second.replayed, true);
-  assert.equal(marked.length, 2);
+  assert.equal(marked.length, 1);
 });
 
 test("rejects a settled premium before creating a Payment Intent", async () => {
