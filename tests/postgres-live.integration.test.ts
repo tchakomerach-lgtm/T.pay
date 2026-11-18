@@ -225,12 +225,24 @@ test("S-03.6 live PostgreSQL claims outbox exactly once per lease and enforces w
   const client = new pg.Client({ connectionString: databaseUrl });
   await client.connect();
   const organizationId = randomUUID();
+  const otherOrganizationId = randomUUID();
   const outboxId = randomUUID();
+  const otherOutboxId = randomUUID();
   const aggregateId = randomUUID();
+  const otherAggregateId = randomUUID();
   const occurredAt = "2026-10-03T22:10:00.000Z";
+  const otherOccurredAt = "2026-10-03T22:09:00.000Z";
   try {
     await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
-    await client.query("INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',$3)", [organizationId, "S-03.6 live", occurredAt]);
+    await client.query(
+      "INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',$3),($4,$5,'active',$6)",
+      [organizationId, "S-03.6 live", occurredAt, otherOrganizationId, "S-03.6 other tenant", otherOccurredAt]
+    );
+    // An older pending event in another organization must not be claimed by an organization-scoped worker.
+    await client.query(
+      "INSERT INTO outbox_events (id,organization_id,event_type,aggregate_id,occurred_at,payload) VALUES ($1,$2,$3,$4,$5::timestamptz,$6::jsonb)",
+      [otherOutboxId, otherOrganizationId, "tontine.contribution_settled", otherAggregateId, otherOccurredAt, JSON.stringify({ aggregateId: otherAggregateId })]
+    );
     await client.query(
       "INSERT INTO outbox_events (id,organization_id,event_type,aggregate_id,occurred_at,payload) VALUES ($1,$2,$3,$4,$5::timestamptz,$6::jsonb)",
       [outboxId, organizationId, "tontine.contribution_settled", aggregateId, occurredAt, JSON.stringify({ aggregateId })]
@@ -238,9 +250,11 @@ test("S-03.6 live PostgreSQL claims outbox exactly once per lease and enforces w
 
     const { TransactionalPostgresOutboxStore } = await import("../packages/finance/src/postgres-settlement-uow.js");
     const store = new TransactionalPostgresOutboxStore(client);
-    const claimed = await store.claimNext("worker-a", occurredAt, "2026-10-03T22:20:00.000Z");
+    const claimed = await store.claimNext("worker-a", occurredAt, "2026-10-03T22:20:00.000Z", organizationId as never);
     assert.equal(claimed?.id, outboxId);
     assert.equal(claimed?.attempts, 1);
+    const otherTenantEvent = await client.query("SELECT claimed_by FROM outbox_events WHERE id=$1", [otherOutboxId]);
+    assert.equal(otherTenantEvent.rows[0]?.claimed_by, null);
 
     await assert.rejects(
       () => store.markPublished(outboxId, "worker-b", "2026-10-03T22:11:00.000Z"),
@@ -248,7 +262,7 @@ test("S-03.6 live PostgreSQL claims outbox exactly once per lease and enforces w
     );
 
     await store.markAttemptFailed(outboxId, "worker-a", "2026-10-03T22:12:00.000Z");
-    const reclaimed = await store.claimNext("worker-b", "2026-10-03T22:13:00.000Z", "2026-10-03T22:23:00.000Z");
+    const reclaimed = await store.claimNext("worker-b", "2026-10-03T22:13:00.000Z", "2026-10-03T22:23:00.000Z", organizationId as never);
     assert.equal(reclaimed?.id, outboxId);
     assert.equal(reclaimed?.attempts, 2);
 
@@ -259,8 +273,8 @@ test("S-03.6 live PostgreSQL claims outbox exactly once per lease and enforces w
     assert.equal(after.rows[0]?.claimed_at, null);
     assert.equal(after.rows[0]?.attempts, 2);
   } finally {
-    await client.query("DELETE FROM outbox_events WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM organizations WHERE id=$1", [organizationId]);
+    await client.query("DELETE FROM outbox_events WHERE organization_id IN ($1,$2)", [organizationId, otherOrganizationId]);
+    await client.query("DELETE FROM organizations WHERE id IN ($1,$2)", [organizationId, otherOrganizationId]);
     await client.end();
   }
 });
