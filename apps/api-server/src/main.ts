@@ -19,7 +19,8 @@ const permissionSet=new Set<Permission>([
   "finance.approve","ledger.read","ledger.post","audit.read","security.manage",
   "community.tontine.read","community.groups.manage","community.members.manage","community.admission.decide",
   "community.contribution.initiate","community.governance.propose","community.governance.vote",
-  "community.payout.approve","community.dispute.manage"
+  "community.payout.approve","community.dispute.manage",
+  "community.commission.propose.tpay","community.commission.propose.microfinance","community.commission.propose.admin"
 ]);
 
 function env(name:string):string{
