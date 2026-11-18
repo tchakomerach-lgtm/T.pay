@@ -76,5 +76,7 @@ test("identical prepared settlement replay returns the durable row without rewri
   assert.equal(replayed.state,"prepared");
   assert.equal(replayed.amountMinor,1000n);
   assert.equal(calls.length,2);
-  assert.match(calls[1],/FOR UPDATE/);
+  const replaySql = calls[1];
+  assert.ok(replaySql, "replay SELECT must be recorded");
+  assert.match(replaySql,/FOR UPDATE/);
 });
