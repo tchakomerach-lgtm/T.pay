@@ -124,6 +124,33 @@ export class PostgresCommunityTontineProtectionRepository {
     });
   }
 
+  async verifyInsurerDocuments(input: {
+    organizationId: UUID; groupId: UUID; policyId: UUID; actorId: UUID;
+    verificationReference: string; now: string;
+  }): Promise<void> {
+    if (!input.verificationReference.trim()) throw new Error("TONTINE_PROTECTION_VERIFICATION_REFERENCE_REQUIRED");
+    await this.db.transaction(async (tx) => {
+      const policy = await this.getPolicyForUpdate(tx, input.organizationId, input.groupId, input.policyId);
+      if (policy.state !== "DRAFT") throw new Error("TONTINE_PROTECTION_POLICY_NOT_DRAFT");
+      if (policy.createdBy === input.actorId) throw new Error("TONTINE_PROTECTION_VERIFIER_SEPARATION_REQUIRED");
+      const verified = { ...policy, insurerLicenseVerified: true, insurerContractVerified: true };
+      const policyHash = computeTontineProtectionPolicyHash(verified);
+      const updated = await tx.query(
+        `UPDATE community_tontine_protection_policies
+         SET insurer_license_verified=true,insurer_contract_verified=true,policy_hash=$4
+         WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND state='DRAFT'`,
+        [input.organizationId, input.groupId, input.policyId, policyHash]
+      );
+      if ((updated.rowCount ?? 0) !== 1) throw new Error("TONTINE_PROTECTION_PARTNER_VERIFICATION_CONFLICT");
+      await appendEvent(tx, {
+        organizationId: input.organizationId, groupId: input.groupId, actorId: input.actorId,
+        eventType: "INSURER_PARTNER_VERIFIED",
+        payload: { policyId: input.policyId, verificationReference: input.verificationReference, policyHash },
+        now: input.now
+      });
+    });
+  }
+
   async approvePolicy(input: { organizationId: UUID; groupId: UUID; policyId: UUID; actorId: UUID; now: string }): Promise<void> {
     await this.db.transaction(async (tx) => {
       const policy = await this.getPolicyForUpdate(tx, input.organizationId, input.groupId, input.policyId);
