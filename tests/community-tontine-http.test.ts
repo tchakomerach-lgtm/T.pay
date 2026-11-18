@@ -196,7 +196,8 @@ test("Community Tontine commission policy, temporal roles and promotion draft us
     assert.equal(commission.status, 200, JSON.stringify(commissionBody));
     assert.equal(commissionBody.data.policy.state, "DRAFT");
     assert.equal(commissionBody.data.policy.policyHash.length, 64);
-    assert.ok(sqlCalls.some(x => x.sql.startsWith("INSERT INTO community_tontine_commission_policies")));
+    assert.equal(commissionBody.data.policy.proposalOrigin, "COMMUNITY_ADMIN");
+    assert.ok(sqlCalls.some(x => x.sql.startsWith("INSERT INTO community_tontine_commission_policies") && x.sql.includes("proposal_origin")));
 
     const role = await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${groupId}/roles`, {
       method: "POST",
