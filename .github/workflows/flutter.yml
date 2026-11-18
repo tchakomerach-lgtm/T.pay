@@ -11,7 +11,7 @@ permissions:
   contents: read
 concurrency:
   group: tpay-flutter-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   flutter:
     runs-on: ubuntu-latest
