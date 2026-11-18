@@ -348,7 +348,7 @@ export class PostgresDurableTontineSettlementRepository
 
 
 export interface PostgresOutboxStore {
-  claimNext(workerId: string, now: string, leaseUntil: string): Promise<{
+  claimNext(workerId: string, now: string, leaseUntil: string, organizationId?: UUID): Promise<{
     id: string;
     organizationId: UUID;
     eventType: string;
@@ -364,7 +364,7 @@ export interface PostgresOutboxStore {
 export class TransactionalPostgresOutboxStore implements PostgresOutboxStore {
   constructor(private readonly client: PostgresClient) {}
 
-  async claimNext(workerId: string, now: string, leaseUntil: string) {
+  async claimNext(workerId: string, now: string, leaseUntil: string, organizationId?: UUID) {
     await this.client.query("BEGIN ISOLATION LEVEL READ COMMITTED READ WRITE");
     try {
       const result = await this.client.query<{
@@ -380,12 +380,13 @@ export class TransactionalPostgresOutboxStore implements PostgresOutboxStore {
         "SELECT id FROM outbox_events " +
         "WHERE published_at IS NULL AND (next_attempt_at IS NULL OR next_attempt_at <= $1::timestamptz) " +
         "AND (claimed_at IS NULL OR claimed_at < $1::timestamptz) " +
+        "AND ($4::uuid IS NULL OR organization_id=$4::uuid) " +
         "ORDER BY occurred_at, id FOR UPDATE SKIP LOCKED LIMIT 1" +
         ") " +
         "UPDATE outbox_events o SET claimed_by=$2, claimed_at=$3::timestamptz, attempts=o.attempts+1 " +
         "FROM candidate c WHERE o.id=c.id " +
         "RETURNING o.id,o.organization_id,o.event_type,o.aggregate_id,o.occurred_at,o.payload,o.attempts",
-        [now, workerId, leaseUntil]
+        [now, workerId, leaseUntil, organizationId ?? null]
       );
       await this.client.query("COMMIT");
       const row = result.rows[0];
