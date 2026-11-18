@@ -201,10 +201,20 @@ async function assertCommunityTontineCommissionProposer(
  if(permissions.includes("community.commission.propose.tpay"))return "TPAY";
  if(permissions.includes("community.commission.propose.microfinance")){
   const partner=await client.query(
-   `SELECT id FROM tontine_memberships
-    WHERE organization_id=$1 AND group_id=$2 AND selected_microfinance_id=$3
-      AND status='active' LIMIT 1`,
-   [organizationId,groupId,actorId]
+   `SELECT access.id
+    FROM community_tontine_mf_access access
+    WHERE access.organization_id=$1 AND access.tontine_group_id=$2
+      AND access.actor_id=$3 AND access.status='active'
+      AND (access.expires_at IS NULL OR access.expires_at>$4::timestamptz)
+      AND EXISTS (
+        SELECT 1 FROM tontine_memberships membership
+        WHERE membership.organization_id=access.organization_id
+          AND membership.group_id=access.tontine_group_id
+          AND membership.selected_microfinance_id=access.microfinance_id
+          AND membership.status='active'
+      )
+    LIMIT 1`,
+   [organizationId,groupId,actorId,now]
   );
   if(partner.rows[0])return "MICROFINANCE";
  }
