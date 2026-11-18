@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS community_tontine_protection_claims (
   FOREIGN KEY (organization_id,group_id,premium_id)
     REFERENCES community_tontine_protection_premiums(organization_id,group_id,id) ON DELETE RESTRICT,
   UNIQUE (organization_id,group_id,enrollment_id,installment_reference),
+  UNIQUE (organization_id,group_id,id),
   CHECK (reviewed_by IS NULL OR reviewed_by <> submitted_by),
   CHECK (state <> 'PAID' OR (approved_minor IS NOT NULL AND financial_core_reference IS NOT NULL AND resolved_at IS NOT NULL))
 );
