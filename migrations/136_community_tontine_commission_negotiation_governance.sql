@@ -114,11 +114,11 @@ BEFORE UPDATE OR DELETE ON community_tontine_commission_policies
 FOR EACH ROW EXECUTE FUNCTION community_tontine_commission_policy_guard();
 
 CREATE OR REPLACE FUNCTION community_tontine_commission_policy_truncate_guard()
-RETURNS trigger LANGUAGE plpgsql AS $
+RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   RAISE EXCEPTION 'COMMUNITY_TONTINE_COMMISSION_POLICY_TRUNCATE_FORBIDDEN';
 END;
-$;
+$$;
 DROP TRIGGER IF EXISTS community_tontine_commission_policy_no_truncate
   ON community_tontine_commission_policies;
 CREATE TRIGGER community_tontine_commission_policy_no_truncate
@@ -126,11 +126,11 @@ BEFORE TRUNCATE ON community_tontine_commission_policies
 FOR EACH STATEMENT EXECUTE FUNCTION community_tontine_commission_policy_truncate_guard();
 
 CREATE OR REPLACE FUNCTION community_tontine_commission_negotiation_immutable()
-RETURNS trigger LANGUAGE plpgsql AS $
+RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   RAISE EXCEPTION 'COMMUNITY_TONTINE_COMMISSION_NEGOTIATION_IMMUTABLE';
 END;
-$;
+$$;
 DROP TRIGGER IF EXISTS community_tontine_commission_negotiation_immutable
   ON community_tontine_commission_negotiation_events;
 CREATE TRIGGER community_tontine_commission_negotiation_immutable
