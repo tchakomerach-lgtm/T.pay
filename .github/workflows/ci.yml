@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
       - main
+      - feat/community-tontine-prompt-001-031
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 permissions:
