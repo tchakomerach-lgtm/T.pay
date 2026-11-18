@@ -51,6 +51,58 @@ export function projectVerifiedSkillToProfessionalProfile(
   };
 }
 
+export interface OrganizationEmploymentEvidence {
+  readonly subjectUserId: UUID;
+  readonly organizationId: UUID;
+  readonly employerDisplayName: string;
+  readonly positionTitle: string;
+  readonly startedAt: string;
+  readonly endedAt?: string;
+  readonly employmentStatus: "active" | "former" | "pending" | "terminated";
+  readonly hrVerifiedAt?: string;
+  readonly userConsentAt?: string;
+  readonly consentRevokedAt?: string;
+}
+
+export interface ProfessionalEmploymentEntry {
+  readonly employerDisplayName: string;
+  readonly positionTitle: string;
+  readonly startedAt: string;
+  readonly endedAt?: string;
+}
+
+/** Only the minimal career summary is projected; no contract, pay or review data. */
+export function projectEmploymentToProfessionalProfile(
+  evidence: OrganizationEmploymentEvidence,
+  now: string
+): ProfessionalEmploymentEntry {
+  const current = Date.parse(now);
+  const verified = evidence.hrVerifiedAt ? Date.parse(evidence.hrVerifiedAt) : Number.NaN;
+  const consent = evidence.userConsentAt ? Date.parse(evidence.userConsentAt) : Number.NaN;
+  const started = Date.parse(evidence.startedAt);
+  const ended = evidence.endedAt ? Date.parse(evidence.endedAt) : undefined;
+  if (![current, verified, consent, started].every(Number.isFinite)
+    || (ended !== undefined && !Number.isFinite(ended))) {
+    throw new Error("PEOPLE_EMPLOYMENT_PROJECTION_TIMESTAMP_INVALID");
+  }
+  if (evidence.employmentStatus !== "active" && evidence.employmentStatus !== "former") {
+    throw new Error("PEOPLE_EMPLOYMENT_NOT_PUBLISHABLE");
+  }
+  if (evidence.consentRevokedAt) throw new Error("PEOPLE_EMPLOYMENT_CONSENT_REVOKED");
+  if (verified > current || consent > current || (ended !== undefined && ended < started)) {
+    throw new Error("PEOPLE_EMPLOYMENT_PROJECTION_NOT_ACTIVE");
+  }
+  if (!evidence.employerDisplayName.trim() || !evidence.positionTitle.trim()) {
+    throw new Error("PEOPLE_EMPLOYMENT_PUBLIC_FIELDS_REQUIRED");
+  }
+  return {
+    employerDisplayName: evidence.employerDisplayName.trim(),
+    positionTitle: evidence.positionTitle.trim(),
+    startedAt: new Date(started).toISOString(),
+    ...(ended !== undefined ? { endedAt: new Date(ended).toISOString() } : {})
+  };
+}
+
 export type OpportunityApplicationStatus =
   | "submitted"
   | "screening"
