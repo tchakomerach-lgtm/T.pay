@@ -233,11 +233,11 @@ export class PostgresCommunityTontineProtectionRepository {
 
   async createPremiumSchedule(input: {
     organizationId: UUID; groupId: UUID; enrollmentId: UUID; installmentReference: UUID;
-    installmentMinor: bigint; currency: string; dueAt: string; actorId: UUID; now: string;
+    actorId: UUID; now: string;
   }): Promise<{ id: UUID; premiumMinor: bigint; rateBps: number; coverageLimitMinor: bigint }> {
     const result = await this.db.transaction(async (tx) => {
       const joined = await tx.query<ProtectionRow>(
-        `SELECT e.id AS enrollment_id,e.organization_id,e.group_id,e.policy_id,e.tier,e.state AS enrollment_state,
+        `SELECT e.id AS enrollment_id,e.member_id,e.organization_id,e.group_id,e.policy_id,e.tier,e.state AS enrollment_state,
                 p.id AS policy_id,p.version,p.currency,p.state,p.proposal_origin,p.risk_bearer,p.insurer_partner_id,
                 p.insurer_license_reference,p.insurer_contract_reference,p.insurer_license_verified,
                 p.insurer_contract_verified,p.effective_from,p.effective_until,p.tiers,p.policy_hash,
@@ -250,10 +250,24 @@ export class PostgresCommunityTontineProtectionRepository {
       );
       const row = joined.rows[0];
       if (!row || row.enrollment_state !== "ACTIVE") throw new Error("TONTINE_PROTECTION_ENROLLMENT_NOT_ACTIVE");
+      const installment = await tx.query<ProtectionRow>(
+        `SELECT id,membership_id,amount_minor,currency,scheduled_for,status
+         FROM tontine_contributions
+         WHERE organization_id=$1 AND group_id=$2 AND id=$3
+         FOR SHARE`,
+        [input.organizationId, input.groupId, input.installmentReference]
+      );
+      const scheduled = installment.rows[0];
+      if (!scheduled) throw new Error("TONTINE_PROTECTION_INSTALLMENT_NOT_FOUND");
+      if (String(scheduled.membership_id) !== String(row.member_id)) throw new Error("TONTINE_PROTECTION_INSTALLMENT_MEMBER_MISMATCH");
+      if (scheduled.status !== "scheduled" && scheduled.status !== "pending") throw new Error("TONTINE_PROTECTION_INSTALLMENT_NOT_SCHEDULABLE");
+      const installmentMinor = big(scheduled.amount_minor);
+      const currency = String(scheduled.currency);
+      const dueAt = iso(scheduled.scheduled_for);
       const policy = policyFromRow(row);
       const quote = quoteTontineProtectionPremium({
-        policy, tier: row.tier as TontineProtectionTier, installmentMinor: input.installmentMinor,
-        currency: input.currency, now: input.now
+        policy, tier: row.tier as TontineProtectionTier, installmentMinor,
+        currency, now: input.now
       });
       const id = randomUUID() as UUID;
       await tx.query(
@@ -262,7 +276,7 @@ export class PostgresCommunityTontineProtectionRepository {
           installment_minor,premium_minor,rate_bps,state,due_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'DUE',$10)`,
         [id, input.organizationId, input.groupId, input.enrollmentId, input.installmentReference,
-          input.currency, input.installmentMinor.toString(), quote.premiumMinor.toString(), quote.rateBps, input.dueAt]
+          currency, installmentMinor.toString(), quote.premiumMinor.toString(), quote.rateBps, dueAt]
       );
       await appendEvent(tx, {
         organizationId: input.organizationId, groupId: input.groupId, actorId: input.actorId,
