@@ -5,9 +5,9 @@ type ProtectionTier={tier:string;premiumRateBps:number;coveredInstallments:numbe
 type ProtectionPolicy={id:string;version:string;state:string;currency:string;proposalOrigin:string;insurerPartnerId:string;insurerLicenseReference:string;insurerContractReference:string;insurerLicenseVerified:boolean;insurerContractVerified:boolean;effectiveFrom:string;policyHash:string;tiers:ProtectionTier[]};
 type ApiBody={data?:{items?:ProtectionPolicy[];policyId?:string;state?:string};error?:{code?:string;message?:string}};
 const defaultTiers:ProtectionTier[]=[
- {tier:"ESSENTIEL",premiumRateBps:100,coveredInstallments:1,gracePeriodDays:7,waitingPeriodDays:14,maxClaimMinor:"100000"},
- {tier:"EQUILIBRE",premiumRateBps:200,coveredInstallments:2,gracePeriodDays:14,waitingPeriodDays:14,maxClaimMinor:"250000"},
- {tier:"RENFORCE",premiumRateBps:300,coveredInstallments:3,gracePeriodDays:21,waitingPeriodDays:30,maxClaimMinor:"500000"}
+ {tier:"ESSENTIEL",premiumRateBps:100,coveredInstallments:1,gracePeriodDays:7,waitingPeriodDays:14,maxClaimMinor:"10000000"},
+ {tier:"EQUILIBRE",premiumRateBps:200,coveredInstallments:2,gracePeriodDays:14,waitingPeriodDays:14,maxClaimMinor:"20000000"},
+ {tier:"RENFORCE",premiumRateBps:300,coveredInstallments:3,gracePeriodDays:21,waitingPeriodDays:30,maxClaimMinor:"30000000"}
 ];
 const validUuid=(value:string)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 export function CommunityTontineProtectionPanel({api,groupId}:{api:TPayApi|null;groupId:string}){
