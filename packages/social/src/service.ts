@@ -60,6 +60,13 @@ function assertSurfacePolicy(command: CreateSocialPublicationCommand): void {
     || command.contentClass === "financial") {
     throw new Error("SOCIAL_RESTRICTED_CONTENT_BLOCKED");
   }
+  if (command.contentClass === "personal") {
+    throw new Error("SOCIAL_PERSONAL_CONTENT_BLOCKED");
+  }
+  if (command.contentClass === "organization_internal"
+    && (globalSurface || opportunitySurface)) {
+    throw new Error("SOCIAL_INTERNAL_CONTENT_CANNOT_BE_SYNDICATED");
+  }
 }
 
 function authorizationRequests(command: CreateSocialPublicationCommand): Parameters<SocialAuthorization["assertAllowed"]>[0][] {
@@ -104,11 +111,6 @@ export async function createSocialPublication(
   }
 ): Promise<SocialPublication> {
   const idempotencyKey = normalizeText(command.idempotencyKey, 160, "SOCIAL_IDEMPOTENCY_KEY_REQUIRED");
-  const existing = await deps.repository.findByIdempotencyKey(idempotencyKey);
-  if (existing) {
-    if (existing.authorUserId !== command.actorUserId) throw new Error("SOCIAL_IDEMPOTENCY_OWNER_MISMATCH");
-  }
-
   const title = normalizeText(command.title, 180, "SOCIAL_TITLE_INVALID");
   const body = normalizeText(command.body, 20_000, "SOCIAL_BODY_INVALID");
   assertSurfacePolicy(command);
