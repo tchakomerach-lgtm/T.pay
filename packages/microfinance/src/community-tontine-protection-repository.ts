@@ -144,7 +144,7 @@ export class PostgresCommunityTontineProtectionRepository {
       if ((updated.rowCount ?? 0) !== 1) throw new Error("TONTINE_PROTECTION_PARTNER_VERIFICATION_CONFLICT");
       await appendEvent(tx, {
         organizationId: input.organizationId, groupId: input.groupId, actorId: input.actorId,
-        eventType: "INSURER_PARTNER_VERIFIED",
+        eventType: "POLICY_INSURER_PARTNER_VERIFIED",
         payload: { policyId: input.policyId, verificationReference: input.verificationReference, policyHash },
         now: input.now
       });
