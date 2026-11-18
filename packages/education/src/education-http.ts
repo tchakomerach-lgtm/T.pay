@@ -145,7 +145,7 @@ function permissionFor(kind:string,method:string):Permission{
  if(kind==="tontine-commission-policies")return "community.tontine.read";
  if(kind==="tontine-roles"||kind==="tontine-role-revoke")return "community.members.manage";
  if(kind==="tontine-promotion-redemptions")return "community.tontine.read";
- if(kind==="tontine-protection-policies")return method==="GET"?"community.tontine.read":"community.groups.manage";
+ if(kind==="tontine-protection-policies")return "community.tontine.read";
  if(kind==="tontine-protection-enrollments")return "community.tontine.read";
  if(kind==="tontine-protection-premiums")return "community.groups.manage";
  if(kind==="tontine-protection-policy-verify-insurer")return "community.commission.propose.tpay";
