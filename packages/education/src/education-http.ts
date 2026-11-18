@@ -28,6 +28,8 @@ import {
   type CommunityTontinePromotionRedemption
 } from "../../microfinance/src/community-tontine-commercial-governance.js";
 import { PostgresCommunityTontineCommercialRepository } from "../../microfinance/src/community-tontine-commercial-repository.js";
+import { PostgresCommunityTontineProtectionRepository } from "../../microfinance/src/community-tontine-protection-repository.js";
+import type { CommunityTontineProtectionPolicy, TontineProtectionTier, TontineProtectionTierTerms } from "../../microfinance/src/community-tontine-protection.js";
 import type { TontineSqlExecutor } from "../../microfinance/src/tontine-repositories.js";
 
 export interface SchoolAuthContext { principal: Principal; session: OrganizationSession; tenantId: string; }
@@ -111,6 +113,16 @@ function route(path:string){
     return ["tontine-promotion-approve",parts[3],parts[5]] as const;
   if(parts[2]==="groups"&&parts[3]&&parts[4]==="promotions"&&parts[5]&&parts[6]==="activate"&&parts.length===7)
     return ["tontine-promotion-activate",parts[3],parts[5]] as const;
+  if(parts[2]==="groups"&&parts[3]&&parts[4]==="protection-policies"&&parts.length===5)
+    return ["tontine-protection-policies",parts[3]] as const;
+  if(parts[2]==="groups"&&parts[3]&&parts[4]==="protection-policies"&&parts[5]&&parts[6]==="approve"&&parts.length===7)
+    return ["tontine-protection-policy-approve",parts[3],parts[5]] as const;
+  if(parts[2]==="groups"&&parts[3]&&parts[4]==="protection-policies"&&parts[5]&&parts[6]==="activate"&&parts.length===7)
+    return ["tontine-protection-policy-activate",parts[3],parts[5]] as const;
+  if(parts[2]==="groups"&&parts[3]&&parts[4]==="protection-enrollments"&&parts.length===5)
+    return ["tontine-protection-enrollments",parts[3]] as const;
+  if(parts[2]==="groups"&&parts[3]&&parts[4]==="protection-enrollments"&&parts[5]&&parts[6]==="premiums"&&parts.length===7)
+    return ["tontine-protection-premiums",parts[3],parts[5]] as const;
   if(parts[2]==="groups"&&parts[3]&&parts[4]==="promotions"&&parts[5]&&parts[6]==="redemptions"&&parts.length===7)
     return ["tontine-promotion-redemptions",parts[3],parts[5]] as const;
   return null;
@@ -131,6 +143,10 @@ function permissionFor(kind:string,method:string):Permission{
  if(kind==="tontine-commission-policies")return "community.tontine.read";
  if(kind==="tontine-roles"||kind==="tontine-role-revoke")return "community.members.manage";
  if(kind==="tontine-promotion-redemptions")return "community.tontine.read";
+ if(kind==="tontine-protection-policies")return method==="GET"?"community.tontine.read":"community.groups.manage";
+ if(kind==="tontine-protection-enrollments")return "community.tontine.read";
+ if(kind==="tontine-protection-premiums")return "community.groups.manage";
+ if(kind.startsWith("tontine-protection-policy-"))return "community.groups.manage";
  if(kind.startsWith("tontine-promotion"))return "community.groups.manage";
  if(kind.startsWith("tontine-commission-policy-"))return "community.tontine.read";
  return kind==="actor"?"org.read":"member.manage";
@@ -162,6 +178,18 @@ function tontineNonNegativeAmount(value:unknown,field:string):bigint{
  const raw=typeof value==="number"||typeof value==="string"?String(value):"";
  if(!/^(0|[1-9][0-9]{0,37})$/.test(raw))throw new Error("TONTINE_AMOUNT_INVALID:"+field);
  return BigInt(raw);
+}
+function protectionRepository(client:SchoolSyncClient):PostgresCommunityTontineProtectionRepository{
+ const executor={} as TontineSqlExecutor;
+ executor.query=async <Row=Record<string,unknown>>(sql:string,values?:readonly unknown[])=>{
+  const result=await client.query(sql,values as unknown[]|undefined);
+  return {rows:result.rows as Row[],...(result.rowCount===null?{}:{rowCount:result.rowCount})};
+ };
+ executor.transaction=async <T>(work:(tx:TontineSqlExecutor)=>Promise<T>)=>work(executor);
+ return new PostgresCommunityTontineProtectionRepository(executor);
+}
+function serializeProtectionPolicy(policy:CommunityTontineProtectionPolicy){
+ return {...policy,tiers:policy.tiers.map(tier=>({...tier,maxClaimMinor:tier.maxClaimMinor.toString()}))};
 }
 function commercialRepository(client:SchoolSyncClient):PostgresCommunityTontineCommercialRepository{
  const executor={} as TontineSqlExecutor;
@@ -350,7 +378,105 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     res.statusCode=dedupe.statusCode??200;json(res,res.statusCode,{ok:true,replayed:true,requestId:dedupe.requestId},correlationId);return;
    }
    let data:unknown;
-   if(r[0]==="tontine-groups"&&method==="GET"){
+   if(r[0]==="tontine-protection-policies"){
+    const groupId=r[1] as string;
+    const now=(deps.now??(()=>new Date()))().toISOString();
+    data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
+     const group=await client.query("SELECT id,currency FROM tontine_groups WHERE organization_id=$1 AND id=$2",[organizationId,groupId]);
+     if(!group.rows[0])throw new Error("TONTINE_GROUP_NOT_FOUND");
+     const repository=protectionRepository(client);
+     if(method==="GET"){
+      const query=new URL(rawUrl,"https://tpay.invalid").searchParams;
+      const stateRaw=query.get("state");
+      const allowed=new Set(["DRAFT","APPROVED","ACTIVE","RETIRED"]);
+      if(stateRaw&&!allowed.has(stateRaw))throw new Error("TONTINE_PROTECTION_POLICY_STATE_INVALID");
+      const items=await repository.listPolicies({organizationId:organizationId as UUID,groupId:groupId as UUID,...(stateRaw?{state:stateRaw as CommunityTontineProtectionPolicy["state"]}:{})});
+      return {items:items.map(serializeProtectionPolicy)};
+     }
+     if(method!=="POST")throw new Error("TONTINE_PROTECTION_POLICY_METHOD_NOT_ALLOWED");
+     await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
+     const input=body as Record<string,unknown>;
+     if(!input||typeof input!=="object"||Array.isArray(input))throw new Error("TONTINE_PROTECTION_POLICY_PAYLOAD_INVALID");
+     const origin=await assertCommunityTontineCommissionProposer(client,organizationId,groupId,auth.principal.userId,auth.principal.permissions,now);
+     const currency=String(input.currency??group.rows[0].currency).toUpperCase();
+     if(currency!==String(group.rows[0].currency))throw new Error("TONTINE_PROTECTION_CURRENCY_MISMATCH");
+     const tiersInput=Array.isArray(input.tiers)?input.tiers as Array<Record<string,unknown>>:[
+      {tier:"ESSENTIEL",premiumRateBps:100,coveredInstallments:1,gracePeriodDays:7,waitingPeriodDays:14,maxClaimMinor:"100000"},
+      {tier:"EQUILIBRE",premiumRateBps:200,coveredInstallments:2,gracePeriodDays:14,waitingPeriodDays:14,maxClaimMinor:"250000"},
+      {tier:"RENFORCE",premiumRateBps:300,coveredInstallments:3,gracePeriodDays:21,waitingPeriodDays:30,maxClaimMinor:"500000"}
+     ];
+     const tiers:TontineProtectionTierTerms[]=tiersInput.map(t=>({
+      tier:String(t.tier) as TontineProtectionTier,premiumRateBps:Number(t.premiumRateBps),
+      coveredInstallments:Number(t.coveredInstallments),gracePeriodDays:Number(t.gracePeriodDays),
+      waitingPeriodDays:Number(t.waitingPeriodDays),maxClaimMinor:BigInt(String(t.maxClaimMinor))
+     }));
+     const policy:CommunityTontineProtectionPolicy={
+      id:randomUUID() as UUID,organizationId:organizationId as UUID,groupId:groupId as UUID,
+      version:typeof input.version==="string"?input.version.trim():"",currency,state:"DRAFT",
+      proposalOrigin:origin,riskBearer:"LICENSED_INSURER",
+      insurerPartnerId:String(input.insurerPartnerId) as UUID,
+      insurerLicenseReference:typeof input.insurerLicenseReference==="string"?input.insurerLicenseReference.trim():"",
+      insurerContractReference:typeof input.insurerContractReference==="string"?input.insurerContractReference.trim():"",
+      insurerLicenseVerified:false,insurerContractVerified:false,
+      effectiveFrom:typeof input.effectiveFrom==="string"?input.effectiveFrom:now,
+      ...(typeof input.effectiveUntil==="string"?{effectiveUntil:input.effectiveUntil}:{}),
+      tiers,createdBy:auth.principal.userId as UUID,policyHash:""
+     };
+     await repository.createPolicy(policy,now);
+     return {policyId:policy.id,state:"DRAFT",insurerVerificationRequired:true};
+    });
+   }else if(r[0]==="tontine-protection-policy-approve"||r[0]==="tontine-protection-policy-activate"){
+    if(method!=="POST")throw new Error("TONTINE_PROTECTION_POLICY_METHOD_NOT_ALLOWED");
+    const groupId=r[1] as string,policyId=r[2] as string;
+    const now=(deps.now??(()=>new Date()))().toISOString();
+    data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
+     await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
+     const repository=protectionRepository(client);
+     if(r[0]==="tontine-protection-policy-approve"){
+      await repository.approvePolicy({organizationId:organizationId as UUID,groupId:groupId as UUID,policyId:policyId as UUID,actorId:auth.principal.userId as UUID,now});
+      return {policyId,state:"APPROVED"};
+     }
+     await repository.activatePolicy({organizationId:organizationId as UUID,groupId:groupId as UUID,policyId:policyId as UUID,actorId:auth.principal.userId as UUID,now});
+     return {policyId,state:"ACTIVE"};
+    });
+   }else if(r[0]==="tontine-protection-enrollments"&&method==="POST"){
+    const groupId=r[1] as string, input=body as Record<string,unknown>;
+    const now=(deps.now??(()=>new Date()))().toISOString();
+    data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
+     const membershipId=String(input.membershipId??"");
+     const member=await client.query(
+      "SELECT id FROM tontine_memberships WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND client_id=$4 AND status='active'",
+      [organizationId,groupId,membershipId,auth.principal.userId]
+     );
+     if(!member.rows[0])throw new Error("TONTINE_PROTECTION_SELF_ENROLLMENT_REQUIRED");
+     const repository=protectionRepository(client);
+     const enrollmentId=await repository.enrollMember({
+      organizationId:organizationId as UUID,groupId:groupId as UUID,membershipId:membershipId as UUID,
+      policyId:String(input.policyId) as UUID,tier:String(input.tier) as TontineProtectionTier,
+      actorId:auth.principal.userId as UUID,acceptedAt:now,
+      coverageStartsAt:typeof input.coverageStartsAt==="string"?input.coverageStartsAt:now,
+      consentReference:typeof input.consentReference==="string"?input.consentReference:"",
+      now
+     });
+     return {enrollmentId,state:"ACTIVE",consentRecorded:true};
+    });
+   }else if(r[0]==="tontine-protection-premiums"&&method==="POST"){
+    const groupId=r[1] as string,enrollmentId=r[2] as string,input=body as Record<string,unknown>;
+    const now=(deps.now??(()=>new Date()))().toISOString();
+    data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
+     await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
+     const repository=protectionRepository(client);
+     const amount=tontineNonNegativeAmount(input.installmentMinor,"installmentMinor");
+     if(amount<=0n)throw new Error("TONTINE_PROTECTION_INSTALLMENT_INVALID");
+     const quote=await repository.createPremiumSchedule({
+      organizationId:organizationId as UUID,groupId:groupId as UUID,enrollmentId:enrollmentId as UUID,
+      installmentReference:String(input.installmentReference) as UUID,installmentMinor:amount,
+      currency:typeof input.currency==="string"?input.currency.toUpperCase():"XOF",
+      dueAt:typeof input.dueAt==="string"?input.dueAt:now,actorId:auth.principal.userId as UUID,now
+     });
+     return {...quote,premiumMinor:quote.premiumMinor.toString(),coverageLimitMinor:quote.coverageLimitMinor.toString(),state:"DUE"};
+    });
+   }else if(r[0]==="tontine-groups"&&method==="GET"){
     const query=new URL(rawUrl,"https://tpay.invalid").searchParams;
     const requestedStatus=query.get("status");
     const allowedStatuses=new Set(["draft","pending_review","active","paused","completed","cancelled"]);
