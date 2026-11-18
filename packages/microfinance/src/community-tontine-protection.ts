@@ -18,6 +18,7 @@ export interface CommunityTontineProtectionPolicy {
   state: TontineProtectionState; proposalOrigin: TontineProtectionProposalOrigin;
   riskBearer: TontineProtectionRiskBearer; insurerPartnerId: UUID;
   insurerLicenseReference: string; insurerContractReference: string;
+  insurerLicenseVerified: boolean; insurerContractVerified: boolean;
   effectiveFrom: string; effectiveUntil?: string;
   tiers: readonly TontineProtectionTierTerms[]; createdBy: UUID; approvedBy?: UUID;
   policyHash: string;
@@ -51,6 +52,7 @@ function canonical(policy: Omit<CommunityTontineProtectionPolicy, "policyHash">)
     riskBearer: policy.riskBearer, insurerPartnerId: policy.insurerPartnerId,
     insurerLicenseReference: policy.insurerLicenseReference,
     insurerContractReference: policy.insurerContractReference,
+    insurerLicenseVerified: policy.insurerLicenseVerified, insurerContractVerified: policy.insurerContractVerified,
     effectiveFrom: new Date(policy.effectiveFrom).toISOString(),
     effectiveUntil: policy.effectiveUntil ? new Date(policy.effectiveUntil).toISOString() : null,
     tiers: [...policy.tiers].sort((a,b) => a.tier.localeCompare(b.tier)).map(t => ({
@@ -76,6 +78,9 @@ export function validateTontineProtectionPolicy(policy: CommunityTontineProtecti
   }
   if (policy.approvedBy && policy.approvedBy === policy.createdBy) throw new Error("TONTINE_PROTECTION_MAKER_CHECKER_REQUIRED");
   if (policy.state === "ACTIVE" && !policy.approvedBy) throw new Error("TONTINE_PROTECTION_APPROVAL_REQUIRED");
+  if (policy.state === "ACTIVE" && (!policy.insurerLicenseVerified || !policy.insurerContractVerified)) {
+    throw new Error("TONTINE_PROTECTION_PARTNER_VERIFICATION_REQUIRED");
+  }
   if (policy.tiers.length !== 3 || new Set(policy.tiers.map(t => t.tier)).size !== 3) {
     throw new Error("TONTINE_PROTECTION_TIERS_INCOMPLETE");
   }
@@ -118,12 +123,16 @@ export function evaluateTontineProtectionClaim(input: {
   const terms = input.policy.tiers.find(t => t.tier === input.tier);
   if (!terms) return { eligible:false, code:"TONTINE_PROTECTION_TIER_NOT_FOUND", maximumPayableMinor:0n };
   if (evidence.scheduledInstallmentMinor <= 0n) return { eligible:false, code:"TONTINE_PROTECTION_INSTALLMENT_INVALID", maximumPayableMinor:0n };
-  validDate(evidence.dueAt); validDate(evidence.now);
+  const dueAt = validDate(evidence.dueAt);
+  const coverageStartsAt = validDate(evidence.coverageStartsAt);
+  const now = validDate(evidence.now);
+  const gracePeriodElapsed = now >= dueAt + terms.gracePeriodDays * 86_400_000;
+  const waitingPeriodElapsed = now >= coverageStartsAt + terms.waitingPeriodDays * 86_400_000;
   const checks: Array<[boolean,string]> = [
     [evidence.memberWasCoveredAtDueDate,"NOT_COVERED_AT_DUE_DATE"],
     [evidence.premiumSettledForInstallment,"PREMIUM_NOT_SETTLED"],
-    [evidence.waitingPeriodElapsed,"WAITING_PERIOD_NOT_ELAPSED"],
-    [evidence.gracePeriodElapsed,"GRACE_PERIOD_NOT_ELAPSED"],
+    [waitingPeriodElapsed,"WAITING_PERIOD_NOT_ELAPSED"],
+    [gracePeriodElapsed,"GRACE_PERIOD_NOT_ELAPSED"],
     [evidence.memberContactAttempts >= 2,"INSUFFICIENT_CONTACT_ATTEMPTS"],
     [evidence.independentReviews >= 2,"INDEPENDENT_REVIEW_REQUIRED"],
     [evidence.confirmedAbandonment,"ABANDONMENT_NOT_CONFIRMED"],
