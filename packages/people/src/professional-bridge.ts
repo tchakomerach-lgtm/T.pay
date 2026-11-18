@@ -91,9 +91,11 @@ export function transitionOpportunityApplication(
   }
   if (actor === "candidate") {
     if (evidence.candidateOwnsApplication !== true) throw new Error("OPPORTUNITY_CANDIDATE_SCOPE_REQUIRED");
-    if (next !== "withdrawn" && next !== "declined") {
+    if (next !== "withdrawn" && next !== "declined" && next !== "accepted") {
       throw new Error("OPPORTUNITY_CANDIDATE_ACTION_NOT_ALLOWED");
     }
+  } else if (next === "accepted" || next === "declined" || next === "withdrawn") {
+    throw new Error("OPPORTUNITY_CANDIDATE_DECISION_REQUIRED");
   } else if (evidence.recruiterAuthorized !== true) {
     throw new Error("OPPORTUNITY_RECRUITER_PERMISSION_REQUIRED");
   }
