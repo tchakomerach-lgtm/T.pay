@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS community_tontine_protection_enrollments (
   FOREIGN KEY (organization_id,group_id,policy_id)
     REFERENCES community_tontine_protection_policies(organization_id,group_id,id) ON DELETE RESTRICT,
   UNIQUE (organization_id,group_id,member_id,policy_id),
+  UNIQUE (organization_id,group_id,id),
   CHECK (coverage_starts_at >= accepted_at)
 );
 CREATE INDEX IF NOT EXISTS idx_community_tontine_protection_enrollment_member
@@ -55,7 +56,7 @@ CREATE TABLE IF NOT EXISTS community_tontine_protection_premiums (
   id uuid PRIMARY KEY,
   organization_id uuid NOT NULL REFERENCES organizations(id),
   group_id uuid NOT NULL,
-  enrollment_id uuid NOT NULL REFERENCES community_tontine_protection_enrollments(id) ON DELETE RESTRICT,
+  enrollment_id uuid NOT NULL,
   installment_reference uuid NOT NULL,
   currency char(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
   installment_minor numeric(38,0) NOT NULL CHECK (installment_minor > 0),
@@ -66,7 +67,10 @@ CREATE TABLE IF NOT EXISTS community_tontine_protection_premiums (
   due_at timestamptz NOT NULL,
   settled_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
+  FOREIGN KEY (organization_id,group_id,enrollment_id)
+    REFERENCES community_tontine_protection_enrollments(organization_id,group_id,id) ON DELETE RESTRICT,
   UNIQUE (organization_id,group_id,enrollment_id,installment_reference),
+  UNIQUE (organization_id,group_id,id),
   UNIQUE (financial_core_reference),
   CHECK ((state='SETTLED' AND financial_core_reference IS NOT NULL AND settled_at IS NOT NULL) OR state<>'SETTLED')
 );
@@ -77,9 +81,9 @@ CREATE TABLE IF NOT EXISTS community_tontine_protection_claims (
   id uuid PRIMARY KEY,
   organization_id uuid NOT NULL REFERENCES organizations(id),
   group_id uuid NOT NULL,
-  enrollment_id uuid NOT NULL REFERENCES community_tontine_protection_enrollments(id) ON DELETE RESTRICT,
+  enrollment_id uuid NOT NULL,
   installment_reference uuid NOT NULL,
-  premium_id uuid NOT NULL REFERENCES community_tontine_protection_premiums(id) ON DELETE RESTRICT,
+  premium_id uuid NOT NULL,
   state text NOT NULL CHECK (state IN ('SUBMITTED','UNDER_REVIEW','APPROVED_BY_INSURER','REJECTED','PAID','CLOSED')),
   claimed_minor numeric(38,0) NOT NULL CHECK (claimed_minor > 0),
   approved_minor numeric(38,0) CHECK (approved_minor >= 0),
@@ -92,6 +96,10 @@ CREATE TABLE IF NOT EXISTS community_tontine_protection_claims (
   submitted_at timestamptz NOT NULL,
   resolved_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
+  FOREIGN KEY (organization_id,group_id,enrollment_id)
+    REFERENCES community_tontine_protection_enrollments(organization_id,group_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY (organization_id,group_id,premium_id)
+    REFERENCES community_tontine_protection_premiums(organization_id,group_id,id) ON DELETE RESTRICT,
   UNIQUE (organization_id,group_id,enrollment_id,installment_reference),
   CHECK (reviewed_by IS NULL OR reviewed_by <> submitted_by),
   CHECK (state <> 'PAID' OR (approved_minor IS NOT NULL AND financial_core_reference IS NOT NULL AND resolved_at IS NOT NULL))
@@ -103,8 +111,8 @@ CREATE TABLE IF NOT EXISTS community_tontine_protection_events (
   id uuid PRIMARY KEY,
   organization_id uuid NOT NULL REFERENCES organizations(id),
   group_id uuid NOT NULL,
-  enrollment_id uuid REFERENCES community_tontine_protection_enrollments(id) ON DELETE RESTRICT,
-  claim_id uuid REFERENCES community_tontine_protection_claims(id) ON DELETE RESTRICT,
+  enrollment_id uuid,
+  claim_id uuid,
   actor_id uuid NOT NULL,
   event_type text NOT NULL CHECK (event_type IN (
     'POLICY_PROPOSED','POLICY_APPROVED','POLICY_ACTIVATED','ENROLLED','CONSENT_RECORDED',
@@ -113,6 +121,10 @@ CREATE TABLE IF NOT EXISTS community_tontine_protection_events (
   )),
   payload jsonb NOT NULL CHECK (jsonb_typeof(payload)='object'),
   occurred_at timestamptz NOT NULL DEFAULT now(),
+  FOREIGN KEY (organization_id,group_id,enrollment_id)
+    REFERENCES community_tontine_protection_enrollments(organization_id,group_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY (organization_id,group_id,claim_id)
+    REFERENCES community_tontine_protection_claims(organization_id,group_id,id) ON DELETE RESTRICT,
   CHECK (enrollment_id IS NOT NULL OR claim_id IS NOT NULL OR event_type LIKE 'POLICY_%')
 );
 CREATE INDEX IF NOT EXISTS idx_community_tontine_protection_events_scope
