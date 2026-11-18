@@ -36,8 +36,8 @@ test("Community Tontine commercial migration enforces policy immutability and at
     await a.query(
       `INSERT INTO community_tontine_commission_policies
        (id,organization_id,group_id,version,transaction_level,currency,state,payer_mode,member_share_bps,
-        effective_from,components,policy_hash,created_by)
-       VALUES ($1,$2,$3,'v1','CONTRIBUTION','XOF','DRAFT','SPLIT',6000,now()-interval '1 minute',$4::jsonb,$5,$6)`,
+        effective_from,components,policy_hash,created_by,proposal_origin)
+       VALUES ($1,$2,$3,'v1','CONTRIBUTION','XOF','DRAFT','SPLIT',6000,now()-interval '1 minute',$4::jsonb,$5,$6,'COMMUNITY_ADMIN')`,
       [policyId,organizationId,groupId,components,"a".repeat(64),creatorId]
     );
     await a.query(
@@ -62,6 +62,18 @@ test("Community Tontine commercial migration enforces policy immutability and at
     await assert.rejects(a.query(
       "UPDATE community_tontine_commission_policy_audit SET reason='tampered' WHERE id=$1",
       [policyAuditId]
+    ));
+
+    const negotiationId = randomUUID();
+    await a.query(
+      `INSERT INTO community_tontine_commission_negotiation_events
+       (id,organization_id,group_id,policy_id,round_no,event_type,proposer_type,actor_id,terms,terms_hash,reason)
+       VALUES ($1,$2,$3,$4,1,'COUNTEROFFER','COMMUNITY_ADMIN',$5,$6::jsonb,$7,'counteroffer test')`,
+      [negotiationId,organizationId,groupId,policyId,creatorId,JSON.stringify({totalRateBps:650}),"c".repeat(64)]
+    );
+    await assert.rejects(a.query(
+      "UPDATE community_tontine_commission_negotiation_events SET reason='tampered' WHERE id=$1",
+      [negotiationId]
     ));
 
     await a.query(
