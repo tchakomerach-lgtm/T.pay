@@ -20,6 +20,7 @@ import {
   computeCommunityTontineCommissionPolicyHash,
   type CommunityTontineAdminRole,
   type CommunityTontineCommissionPolicy,
+  type CommunityTontineCommissionProposalOrigin,
   type CommunityTontineFeeComponentRule,
   type CommunityTontineFeeRecipient,
   type CommunityTontinePermission,
@@ -126,11 +127,12 @@ function route(path:string){
  return null;
 }
 function permissionFor(kind:string,method:string):Permission{
- if(kind==="tontine-groups"||kind==="tontine-commission-policies")return method==="GET"?"community.tontine.read":"community.groups.manage";
+ if(kind==="tontine-groups")return method==="GET"?"community.tontine.read":"community.groups.manage";
+ if(kind==="tontine-commission-policies")return "community.tontine.read";
  if(kind==="tontine-roles"||kind==="tontine-role-revoke")return "community.members.manage";
  if(kind==="tontine-promotion-redemptions")return "community.tontine.read";
  if(kind.startsWith("tontine-promotion"))return "community.groups.manage";
- if(kind.startsWith("tontine-commission-policy-"))return "community.groups.manage";
+ if(kind.startsWith("tontine-commission-policy-"))return "community.tontine.read";
  return kind==="actor"?"org.read":"member.manage";
 }
 export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
@@ -189,6 +191,25 @@ async function assertCommunityTontineAdministrator(
  const role=String((result.rows[0] as {role?:string}|undefined)?.role??"");
  if(role!=="FOUNDER"&&role!=="COMMUNITY_ADMIN")throw new Error("TONTINE_COMMUNITY_ADMIN_REQUIRED");
  return role;
+}
+async function assertCommunityTontineCommissionProposer(
+ client:SchoolSyncClient,organizationId:string,groupId:string,actorId:string,
+ permissions:readonly Permission[],now:string
+):Promise<CommunityTontineCommissionProposalOrigin>{
+ const group=await client.query("SELECT id FROM tontine_groups WHERE organization_id=$1 AND id=$2",[organizationId,groupId]);
+ if(!group.rows[0])throw new Error("TONTINE_GROUP_NOT_FOUND");
+ if(permissions.includes("community.commission.propose.tpay"))return "TPAY";
+ if(permissions.includes("community.commission.propose.microfinance")){
+  const partner=await client.query(
+   `SELECT id FROM tontine_memberships
+    WHERE organization_id=$1 AND group_id=$2 AND selected_microfinance_id=$3
+      AND status='active' LIMIT 1`,
+   [organizationId,groupId,actorId]
+  );
+  if(partner.rows[0])return "MICROFINANCE";
+ }
+ await assertCommunityTontineAdministrator(client,organizationId,groupId,actorId,now);
+ return "COMMUNITY_ADMIN";
 }
 async function assertCommunityTontineMember(
  client:SchoolSyncClient,organizationId:string,groupId:string,actorId:string
@@ -396,8 +417,15 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    }else if(r[0]==="tontine-commission-policies"){
     const groupId=r[1] as string;
     const now=(deps.now??(()=>new Date()))().toISOString();
+    let proposalOrigin:CommunityTontineCommissionProposalOrigin|null=null;
     data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
-     await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
+     if(method==="GET"){
+      await assertCommunityTontineAdministrator(client,organizationId,groupId,auth.principal.userId,now);
+     }else{
+      proposalOrigin=await assertCommunityTontineCommissionProposer(
+       client,organizationId,groupId,auth.principal.userId,auth.principal.permissions,now
+      );
+     }
      const repository=commercialRepository(client);
      if(method==="GET"){
       const query=new URL(rawUrl,"https://tpay.invalid").searchParams;
@@ -459,7 +487,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       state:"DRAFT",payer:payer as CommunityTontineCommissionPolicy["payer"],
       memberShareBps:Number(input.memberShareBps),effectiveFrom:typeof input.effectiveFrom==="string"?input.effectiveFrom:now,
       ...(typeof input.effectiveUntil==="string"?{effectiveUntil:input.effectiveUntil}:{}),
-      components,createdBy:auth.principal.userId as UUID,policyHash:"0".repeat(64)
+      components,createdBy:auth.principal.userId as UUID,proposalOrigin:proposalOrigin??"COMMUNITY_ADMIN",policyHash:"0".repeat(64)
      };
      policy.policyHash=computeCommunityTontineCommissionPolicyHash(policy);
      await repository.createCommissionPolicy(policy,randomUUID() as UUID,now);
