@@ -81,3 +81,9 @@ Un statut fournisseur « completed » n'est pas une preuve de règlement. Aucun 
 - Code CIMA, art. 715 (agrément) : https://cima-afrique.org/wp-content/code-cima/fr/Article715Agrementpourpratiquerd.html
 - Code CIMA, art. 731 (personnes habilitées) : https://cima-afrique.org/wp-content/code-cima/fr/Article731Personneshabiliteespou.html
 - Ministère des Finances du Togo, atelier sur la microassurance (6 mars 2023) : https://finances.gouv.tg/ouverture-dun-atelier-sur-la-micro-assurance/
+
+## Intégration et validation CI — 18 novembre 2026
+- Cette livraison est empilée sur `feat/community-tontine-prompt-001-031` (PR #194), car le shell Flutter communautaire et ses contrats d'API y sont construits.
+- Les workflows CI, Android et Flutter du socle autorisent désormais explicitement la PR CT-042 comme branche cible de validation.
+- Le workflow Flutter vérifie la présence du projet `mobile/tpay_flutter/pubspec.yaml` dans l'arbre de fusion avant `flutter pub get`; une absence est traitée comme un défaut d'intégration, jamais comme un test réussi.
+- Aucun taux, prélèvement, contrat ou sinistre n'est activable sans validation indépendante de l'assureur agréé et des autorités compétentes.
