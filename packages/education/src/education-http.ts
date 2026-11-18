@@ -117,6 +117,8 @@ function route(path:string){
     return ["tontine-protection-policies",parts[3]] as const;
   if(parts[2]==="groups"&&parts[3]&&parts[4]==="protection-policies"&&parts[5]&&parts[6]==="approve"&&parts.length===7)
     return ["tontine-protection-policy-approve",parts[3],parts[5]] as const;
+  if(parts[2]==="groups"&&parts[3]&&parts[4]==="protection-policies"&&parts[5]&&parts[6]==="verify-insurer"&&parts.length===7)
+    return ["tontine-protection-policy-verify-insurer",parts[3],parts[5]] as const;
   if(parts[2]==="groups"&&parts[3]&&parts[4]==="protection-policies"&&parts[5]&&parts[6]==="activate"&&parts.length===7)
     return ["tontine-protection-policy-activate",parts[3],parts[5]] as const;
   if(parts[2]==="groups"&&parts[3]&&parts[4]==="protection-enrollments"&&parts.length===5)
@@ -146,6 +148,7 @@ function permissionFor(kind:string,method:string):Permission{
  if(kind==="tontine-protection-policies")return method==="GET"?"community.tontine.read":"community.groups.manage";
  if(kind==="tontine-protection-enrollments")return "community.tontine.read";
  if(kind==="tontine-protection-premiums")return "community.groups.manage";
+ if(kind==="tontine-protection-policy-verify-insurer")return "community.commission.propose.tpay";
  if(kind.startsWith("tontine-protection-policy-"))return "community.groups.manage";
  if(kind.startsWith("tontine-promotion"))return "community.groups.manage";
  if(kind.startsWith("tontine-commission-policy-"))return "community.tontine.read";
@@ -424,6 +427,18 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      };
      await repository.createPolicy(policy,now);
      return {policyId:policy.id,state:"DRAFT",insurerVerificationRequired:true};
+    });
+   }else if(r[0]==="tontine-protection-policy-verify-insurer"){
+    if(method!=="POST")throw new Error("TONTINE_PROTECTION_POLICY_METHOD_NOT_ALLOWED");
+    const groupId=r[1] as string,policyId=r[2] as string,input=body as Record<string,unknown>;
+    const now=(deps.now??(()=>new Date()))().toISOString();
+    if(!auth.principal.permissions.includes("community.commission.propose.tpay"))throw new Error("TONTINE_PROTECTION_COMPLIANCE_PERMISSION_REQUIRED");
+    data=await withTontineOrganizationScope(deps,auth.tenantId,organizationId,async client=>{
+     await assertCommunityTontineCommissionProposer(client,organizationId,groupId,auth.principal.userId,auth.principal.permissions,now);
+     const reference=typeof input.verificationReference==="string"?input.verificationReference.trim():"";
+     if(!reference)throw new Error("TONTINE_PROTECTION_VERIFICATION_REFERENCE_REQUIRED");
+     await protectionRepository(client).verifyInsurerDocuments({organizationId:organizationId as UUID,groupId:groupId as UUID,policyId:policyId as UUID,actorId:auth.principal.userId as UUID,verificationReference:reference,now});
+     return {policyId,insurerLicenseVerified:true,insurerContractVerified:true,state:"DRAFT"};
     });
    }else if(r[0]==="tontine-protection-policy-approve"||r[0]==="tontine-protection-policy-activate"){
     if(method!=="POST")throw new Error("TONTINE_PROTECTION_POLICY_METHOD_NOT_ALLOWED");
