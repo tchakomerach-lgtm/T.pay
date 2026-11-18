@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { UUID } from "../packages/domain/src/types.js";
 import {
   projectVerifiedSkillToProfessionalProfile,
+  projectEmploymentToProfessionalProfile,
   transitionOpportunityApplication
 } from "../packages/people/src/professional-bridge.js";
 
@@ -38,6 +39,31 @@ test("unverified, revoked or expired skills are never projected", () => {
   assert.throws(
     () => projectVerifiedSkillToProfessionalProfile({ ...evidence, expiresAt: "2026-11-18T08:00:00.000Z" }, "2026-11-18T09:00:00.000Z"),
     /PEOPLE_SKILL_PROJECTION_NOT_ACTIVE/
+  );
+});
+
+test("HR employment is projected only as a minimal, verified and consented career summary", () => {
+  const employment = {
+    subjectUserId: "user-1" as UUID,
+    organizationId: "org-1" as UUID,
+    employerDisplayName: "Pharmacie Centrale",
+    positionTitle: "Pharmacien assistant",
+    startedAt: "2025-01-01T00:00:00.000Z",
+    employmentStatus: "active" as const,
+    hrVerifiedAt: "2026-11-17T09:00:00.000Z",
+    userConsentAt: "2026-11-17T10:00:00.000Z"
+  };
+  const projected = projectEmploymentToProfessionalProfile(employment, "2026-11-18T09:00:00.000Z");
+  assert.equal(projected.positionTitle, "Pharmacien assistant");
+  assert.equal("salary" in projected, false);
+  assert.equal("disciplinaryRecord" in projected, false);
+  assert.throws(
+    () => projectEmploymentToProfessionalProfile({ ...employment, consentRevokedAt: "2026-11-18T08:00:00.000Z" }, "2026-11-18T09:00:00.000Z"),
+    /PEOPLE_EMPLOYMENT_CONSENT_REVOKED/
+  );
+  assert.throws(
+    () => projectEmploymentToProfessionalProfile({ ...employment, employmentStatus: "pending" }, "2026-11-18T09:00:00.000Z"),
+    /PEOPLE_EMPLOYMENT_NOT_PUBLISHABLE/
   );
 });
 
