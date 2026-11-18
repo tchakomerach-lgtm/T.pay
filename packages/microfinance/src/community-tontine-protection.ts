@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { UUID } from "../../domain/src/types.js";
 
 export type TontineProtectionTier = "ESSENTIEL" | "EQUILIBRE" | "RENFORCE";
-export type TontineProtectionProposalOrigin = "TPAY" | "MICROFINANCE";
+export type TontineProtectionProposalOrigin = "TPAY" | "MICROFINANCE" | "COMMUNITY_ADMIN";
 export type TontineProtectionState = "DRAFT" | "APPROVED" | "ACTIVE" | "RETIRED";
 export type TontineProtectionRiskBearer = "LICENSED_INSURER";
 export interface TontineProtectionTierTerms {
