@@ -30,7 +30,7 @@ export class PostgresCommunityTontineCommercialRepository {
   }): Promise<CommunityTontineCommissionPolicy | null> {
     const result = await this.db.query<Record<string, unknown>>(
       `SELECT id,organization_id,group_id,version,transaction_level,currency,state,payer_mode,member_share_bps,
-              effective_from,effective_until,components,policy_hash,created_by,approved_by
+              effective_from,effective_until,components,policy_hash,created_by,approved_by,proposal_origin
        FROM community_tontine_commission_policies
        WHERE organization_id=$1 AND group_id=$2 AND transaction_level=$3 AND currency=$4
          AND state='ACTIVE' AND effective_from<=$5::timestamptz
@@ -59,6 +59,7 @@ export class PostgresCommunityTontineCommercialRepository {
       ...(row.effective_until ? { effectiveUntil: new Date(String(row.effective_until)).toISOString() } : {}),
       components, createdBy: String(row.created_by) as UUID,
       ...(row.approved_by ? { approvedBy: String(row.approved_by) as UUID } : {}),
+      proposalOrigin: row.proposal_origin === "TPAY" || row.proposal_origin === "MICROFINANCE" || row.proposal_origin === "COMMUNITY_ADMIN" ? row.proposal_origin : undefined,
       policyHash: String(row.policy_hash)
     };
     return policy;
@@ -71,11 +72,11 @@ export class PostgresCommunityTontineCommercialRepository {
       await tx.query(
         `INSERT INTO community_tontine_commission_policies
          (id,organization_id,group_id,version,transaction_level,currency,state,payer_mode,member_share_bps,
-          effective_from,effective_until,components,policy_hash,created_by,approved_by,created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,'DRAFT',$7,$8,$9::timestamptz,$10::timestamptz,$11::jsonb,$12,$13,NULL,$14::timestamptz)`,
+          effective_from,effective_until,components,policy_hash,created_by,approved_by,created_at,proposal_origin)
+         VALUES ($1,$2,$3,$4,$5,$6,'DRAFT',$7,$8,$9::timestamptz,$10::timestamptz,$11::jsonb,$12,$13,NULL,$14::timestamptz,$15)`,
         [policy.id,policy.organizationId,policy.groupId,policy.version,policy.transactionLevel,policy.currency,
          policy.payer,policy.memberShareBps,policy.effectiveFrom,policy.effectiveUntil ?? null,
-         policyComponentsJson(policy),policy.policyHash,policy.createdBy,now]
+         policyComponentsJson(policy),policy.policyHash,policy.createdBy,now,policy.proposalOrigin ?? "LEGACY_UNVERIFIED"]
       );
       await tx.query(
         `INSERT INTO community_tontine_commission_policy_audit
