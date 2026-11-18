@@ -24,9 +24,9 @@ function makePolicy(overrides: Partial<CommunityTontineProtectionPolicy> = {}): 
     insurerLicenseVerified:false,insurerContractVerified:false,effectiveFrom:"2026-11-01T00:00:00.000Z",
     createdBy:maker,
     tiers:[
-      {tier:"ESSENTIEL",premiumRateBps:100,coveredInstallments:1,gracePeriodDays:7,waitingPeriodDays:14,maxClaimMinor:100_000n},
-      {tier:"EQUILIBRE",premiumRateBps:200,coveredInstallments:2,gracePeriodDays:14,waitingPeriodDays:14,maxClaimMinor:250_000n},
-      {tier:"RENFORCE",premiumRateBps:300,coveredInstallments:3,gracePeriodDays:21,waitingPeriodDays:30,maxClaimMinor:500_000n}
+      {tier:"ESSENTIEL",premiumRateBps:100,coveredInstallments:1,gracePeriodDays:7,waitingPeriodDays:14,maxClaimMinor:10_000_000n},
+      {tier:"EQUILIBRE",premiumRateBps:200,coveredInstallments:2,gracePeriodDays:14,waitingPeriodDays:14,maxClaimMinor:20_000_000n},
+      {tier:"RENFORCE",premiumRateBps:300,coveredInstallments:3,gracePeriodDays:21,waitingPeriodDays:30,maxClaimMinor:30_000_000n}
     ],
     policyHash:"0".repeat(64),...overrides
   };
@@ -69,7 +69,7 @@ test("premium payment intent is linked before any settlement and creates an audi
     paymentIntentReference:"20000000-0000-4000-8000-000000000031" as UUID,actorId:maker,now
   });
   assert.match(calls[0]!.sql,/payment_intent_reference=\$4/);
-  assert.match(calls[1]!.sql,/PREMIUM_PAYMENT_PENDING/);
+  assert.equal(calls[1]!.values?.[6],"PREMIUM_PAYMENT_PENDING");
 });
 
 test("premium cannot be settled without a verified Financial Core reference",async()=>{
