@@ -59,7 +59,9 @@ export class PostgresCommunityTontineCommercialRepository {
       ...(row.effective_until ? { effectiveUntil: new Date(String(row.effective_until)).toISOString() } : {}),
       components, createdBy: String(row.created_by) as UUID,
       ...(row.approved_by ? { approvedBy: String(row.approved_by) as UUID } : {}),
-      proposalOrigin: row.proposal_origin === "TPAY" || row.proposal_origin === "MICROFINANCE" || row.proposal_origin === "COMMUNITY_ADMIN" ? row.proposal_origin : undefined,
+      ...(row.proposal_origin === "TPAY" || row.proposal_origin === "MICROFINANCE" || row.proposal_origin === "COMMUNITY_ADMIN"
+        ? { proposalOrigin: row.proposal_origin }
+        : {}),
       policyHash: String(row.policy_hash)
     };
     return policy;
