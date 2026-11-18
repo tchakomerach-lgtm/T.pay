@@ -99,11 +99,11 @@ test("organization-only publication is not visible in another organization", asy
     contentClass: "organization_internal"
   }), deps);
   assert.throws(
-    () => assertPublicationCanBeShownToSurface(publication, "organization_social", otherOrganization),
+    () => assertPublicationCanBeShownToSurface(publication, "organization_social", { viewerUserId: "viewer-1" as UUID, viewerOrganizationId: otherOrganization }),
     /SOCIAL_ORGANIZATION_SCOPE_MISMATCH/
   );
   assert.doesNotThrow(
-    () => assertPublicationCanBeShownToSurface(publication, "organization_social", organization)
+    () => assertPublicationCanBeShownToSurface(publication, "organization_social", { viewerUserId: "viewer-1" as UUID, viewerOrganizationId: organization })
   );
 });
 
@@ -115,7 +115,7 @@ test("opportunity publication requires organization context, public-safe content
     visibility: "public",
     approvalRef: "hr-approval-2026-001"
   }), deps);
-  assert.equal(publication.status, "pending_approval");
+  assert.equal(publication.status, "published");
   assert.ok(deps.calls.includes("opportunity.publish"));
   assert.ok(deps.calls.includes("opportunity.publish.approved"));
   await assert.rejects(
@@ -161,7 +161,7 @@ test("a private organization post cannot be rendered on the global feed", async 
     contentClass: "organization_internal"
   }), deps);
   assert.throws(
-    () => assertPublicationCanBeShownToSurface(publication, "global_social"),
+    () => assertPublicationCanBeShownToSurface(publication, "global_social", { viewerUserId: "viewer-1" as UUID }),
     /SOCIAL_PUBLICATION_NOT_AVAILABLE/
   );
 });
