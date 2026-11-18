@@ -306,9 +306,10 @@ export class PostgresCommunityTontineProtectionRepository {
          WHERE organization_id=$1 AND group_id=$2 AND id=$3`,
         [input.organizationId, input.groupId, input.premiumId]
       );
+      const enrollmentId = enrollment.rows[0]?.enrollment_id as UUID | undefined;
       await appendEvent(tx, {
         organizationId: input.organizationId, groupId: input.groupId, actorId: input.actorId,
-        enrollmentId: enrollment.rows[0]?.enrollment_id as UUID | undefined, eventType: "PREMIUM_SETTLED",
+        ...(enrollmentId ? { enrollmentId } : {}), eventType: "PREMIUM_SETTLED",
         payload: { premiumId: input.premiumId, financialCoreReference: input.financialCoreReference }, now: input.settledAt
       });
     });
