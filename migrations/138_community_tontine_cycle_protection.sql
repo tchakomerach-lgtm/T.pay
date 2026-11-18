@@ -142,7 +142,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_tontine_memberships_org_group_id
 CREATE UNIQUE INDEX IF NOT EXISTS uq_community_tontine_protection_premiums_full_scope
   ON community_tontine_protection_premiums(organization_id,group_id,enrollment_id,installment_reference,id);
 
-DO $
+DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='tontine_protection_policies_group_scope_fk' AND conrelid='community_tontine_protection_policies'::regclass) THEN
     ALTER TABLE community_tontine_protection_policies
@@ -194,7 +194,7 @@ BEGIN
         (insurer_claim_reference IS NOT NULL AND reviewed_by IS NOT NULL));
   END IF;
 END;
-$;
+$$;
 
 DO $$
 DECLARE t text;
