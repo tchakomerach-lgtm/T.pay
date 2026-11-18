@@ -16,6 +16,7 @@ export interface OrganizationSkillEvidence {
   readonly expiresAt?: string;
   readonly shareVisibility: SkillShareVisibility;
   readonly userConsentAt?: string;
+  readonly consentRef?: string;
   readonly consentRevokedAt?: string;
 }
 
@@ -36,7 +37,8 @@ export function projectVerifiedSkillToProfessionalProfile(
     || !Number.isFinite(consent) || !Number.isFinite(expires) && expires !== Number.POSITIVE_INFINITY) {
     throw new Error("PEOPLE_SKILL_PROJECTION_TIMESTAMP_INVALID");
   }
-  if (evidence.verificationStatus !== "verified") throw new Error("PEOPLE_SKILL_NOT_VERIFIED");
+  if (evidence.verificationStatus !== "verified" || !evidence.verifiedBy) throw new Error("PEOPLE_SKILL_NOT_VERIFIED");
+  if (!evidence.consentRef?.trim()) throw new Error("PEOPLE_SKILL_CONSENT_EVIDENCE_REQUIRED");
   if (evidence.consentRevokedAt) throw new Error("PEOPLE_SKILL_CONSENT_REVOKED");
   if (consent > current || verified > current || current >= expires) {
     throw new Error("PEOPLE_SKILL_PROJECTION_NOT_ACTIVE");
@@ -60,7 +62,9 @@ export interface OrganizationEmploymentEvidence {
   readonly endedAt?: string;
   readonly employmentStatus: "active" | "former" | "pending" | "terminated";
   readonly hrVerifiedAt?: string;
+  readonly hrVerifiedBy?: UUID;
   readonly userConsentAt?: string;
+  readonly consentRef?: string;
   readonly consentRevokedAt?: string;
 }
 
@@ -88,8 +92,12 @@ export function projectEmploymentToProfessionalProfile(
   if (evidence.employmentStatus !== "active" && evidence.employmentStatus !== "former") {
     throw new Error("PEOPLE_EMPLOYMENT_NOT_PUBLISHABLE");
   }
+  if (!evidence.hrVerifiedBy || !evidence.consentRef?.trim()) {
+    throw new Error("PEOPLE_EMPLOYMENT_VERIFICATION_OR_CONSENT_REQUIRED");
+  }
   if (evidence.consentRevokedAt) throw new Error("PEOPLE_EMPLOYMENT_CONSENT_REVOKED");
-  if (verified > current || consent > current || (ended !== undefined && ended < started)) {
+  if (verified > current || consent > current || started > current
+    || (ended !== undefined && (ended < started || ended > current))) {
     throw new Error("PEOPLE_EMPLOYMENT_PROJECTION_NOT_ACTIVE");
   }
   if (!evidence.employerDisplayName.trim() || !evidence.positionTitle.trim()) {
