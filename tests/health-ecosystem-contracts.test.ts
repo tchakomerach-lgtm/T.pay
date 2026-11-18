@@ -22,6 +22,9 @@ test("every organization receives the same declarative common capability catalog
   assert.deepEqual(hospitalShared, shared);
   assert.ok(shared.includes("org.crm"));
   assert.ok(shared.includes("org.internal_social"));
+  assert.ok(shared.includes("org.hr_internal"));
+  assert.ok(shared.includes("org.social_bridge"));
+  assert.ok(shared.includes("org.opportunities"));
 });
 
 test("catalogue never advertises unimplemented CRM or social runtime as active", () => {
