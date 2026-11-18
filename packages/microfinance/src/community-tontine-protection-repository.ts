@@ -18,12 +18,12 @@ function policyFromRow(row: ProtectionRow): CommunityTontineProtectionPolicy {
   const raw = typeof row.tiers === "string" ? JSON.parse(row.tiers) as Array<Record<string, unknown>> : row.tiers as Array<Record<string, unknown>>;
   if (!Array.isArray(raw)) throw new Error("TONTINE_PROTECTION_TIERS_INVALID");
   const policy: CommunityTontineProtectionPolicy = {
-    id: String(row.id) as UUID,
+    id: String(row.policy_id ?? row.id) as UUID,
     organizationId: String(row.organization_id) as UUID,
     groupId: String(row.group_id) as UUID,
     version: String(row.version),
     currency: String(row.currency),
-    state: row.state as CommunityTontineProtectionPolicy["state"],
+    state: (row.policy_state ?? row.state) as CommunityTontineProtectionPolicy["state"],
     proposalOrigin: row.proposal_origin as CommunityTontineProtectionPolicy["proposalOrigin"],
     riskBearer: "LICENSED_INSURER",
     insurerPartnerId: String(row.insurer_partner_id) as UUID,
@@ -127,6 +127,7 @@ export class PostgresCommunityTontineProtectionRepository {
   async approvePolicy(input: { organizationId: UUID; groupId: UUID; policyId: UUID; actorId: UUID; now: string }): Promise<void> {
     await this.db.transaction(async (tx) => {
       const policy = await this.getPolicyForUpdate(tx, input.organizationId, input.groupId, input.policyId);
+      validateTontineProtectionPolicy(policy);
       if (policy.createdBy === input.actorId) throw new Error("TONTINE_PROTECTION_MAKER_CHECKER_REQUIRED");
       if (policy.state !== "DRAFT") throw new Error("TONTINE_PROTECTION_POLICY_NOT_DRAFT");
       if (!policy.insurerLicenseVerified || !policy.insurerContractVerified) throw new Error("TONTINE_PROTECTION_PARTNER_VERIFICATION_REQUIRED");
@@ -145,6 +146,7 @@ export class PostgresCommunityTontineProtectionRepository {
   async activatePolicy(input: { organizationId: UUID; groupId: UUID; policyId: UUID; actorId: UUID; now: string }): Promise<void> {
     await this.db.transaction(async (tx) => {
       const policy = await this.getPolicyForUpdate(tx, input.organizationId, input.groupId, input.policyId);
+      validateTontineProtectionPolicy(policy);
       if (policy.state !== "APPROVED" || !policy.approvedBy) throw new Error("TONTINE_PROTECTION_APPROVAL_REQUIRED");
       if (policy.approvedBy === input.actorId || policy.createdBy === input.actorId) throw new Error("TONTINE_PROTECTION_ACTIVATION_SEPARATION_REQUIRED");
       if (!policy.insurerLicenseVerified || !policy.insurerContractVerified) throw new Error("TONTINE_PROTECTION_PARTNER_VERIFICATION_REQUIRED");
@@ -204,12 +206,12 @@ export class PostgresCommunityTontineProtectionRepository {
 
   async createPremiumSchedule(input: {
     organizationId: UUID; groupId: UUID; enrollmentId: UUID; installmentReference: UUID;
-    installmentMinor: bigint; currency: string; dueAt: string; now: string;
+    installmentMinor: bigint; currency: string; dueAt: string; actorId: UUID; now: string;
   }): Promise<{ id: UUID; premiumMinor: bigint; rateBps: number; coverageLimitMinor: bigint }> {
     const result = await this.db.transaction(async (tx) => {
       const joined = await tx.query<ProtectionRow>(
-        `SELECT e.id,e.organization_id,e.group_id,e.policy_id,e.tier,e.state AS enrollment_state,
-                p.currency,p.state,p.proposal_origin,p.risk_bearer,p.insurer_partner_id,
+        `SELECT e.id AS enrollment_id,e.organization_id,e.group_id,e.policy_id,e.tier,e.state AS enrollment_state,
+                p.id AS policy_id,p.version,p.currency,p.state,p.proposal_origin,p.risk_bearer,p.insurer_partner_id,
                 p.insurer_license_reference,p.insurer_contract_reference,p.insurer_license_verified,
                 p.insurer_contract_verified,p.effective_from,p.effective_until,p.tiers,p.policy_hash,
                 p.created_by,p.approved_by
@@ -236,7 +238,7 @@ export class PostgresCommunityTontineProtectionRepository {
           input.currency, input.installmentMinor.toString(), quote.premiumMinor.toString(), quote.rateBps, input.dueAt]
       );
       await appendEvent(tx, {
-        organizationId: input.organizationId, groupId: input.groupId, actorId: row.created_by as UUID,
+        organizationId: input.organizationId, groupId: input.groupId, actorId: input.actorId,
         enrollmentId: input.enrollmentId, eventType: "PREMIUM_QUOTED",
         payload: { premiumId: id, installmentReference: input.installmentReference, premiumMinor: quote.premiumMinor.toString(), rateBps: quote.rateBps },
         now: input.now
@@ -256,7 +258,7 @@ export class PostgresCommunityTontineProtectionRepository {
   }
 
   async settlePremium(input: {
-    organizationId: UUID; groupId: UUID; premiumId: UUID; financialCoreReference: UUID; settledAt: string;
+    organizationId: UUID; groupId: UUID; premiumId: UUID; financialCoreReference: UUID; actorId: UUID; settledAt: string;
     verifier: (reference: UUID, amountMinor: bigint, currency: string) => Promise<boolean>;
   }): Promise<void> {
     await this.db.transaction(async (tx) => {
@@ -285,7 +287,7 @@ export class PostgresCommunityTontineProtectionRepository {
         [input.organizationId, input.groupId, input.premiumId]
       );
       await appendEvent(tx, {
-        organizationId: input.organizationId, groupId: input.groupId, actorId: "00000000-0000-4000-8000-000000000000" as UUID,
+        organizationId: input.organizationId, groupId: input.groupId, actorId: input.actorId,
         enrollmentId: enrollment.rows[0]?.enrollment_id as UUID | undefined, eventType: "PREMIUM_SETTLED",
         payload: { premiumId: input.premiumId, financialCoreReference: input.financialCoreReference }, now: input.settledAt
       });
@@ -300,7 +302,7 @@ export class PostgresCommunityTontineProtectionRepository {
       const result = await tx.query<ProtectionRow>(
         `SELECT c.id AS premium_id,c.premium_minor,c.state AS premium_state,c.installment_minor,
                 c.installment_reference,e.id AS enrollment_id,e.tier,e.coverage_starts_at,e.state AS enrollment_state,
-                p.currency,p.state AS policy_state,p.proposal_origin,p.risk_bearer,p.insurer_partner_id,
+                p.id AS policy_id,p.version,p.currency,p.state,p.state AS policy_state,p.proposal_origin,p.risk_bearer,p.insurer_partner_id,
                 p.insurer_license_reference,p.insurer_contract_reference,p.insurer_license_verified,
                 p.insurer_contract_verified,p.effective_from,p.effective_until,p.tiers,p.policy_hash,
                 p.created_by,p.approved_by
