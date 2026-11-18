@@ -1,0 +1,2 @@
+import 'package:flutter_test/flutter_test.dart';import 'package:tpay_mobile/api/tpay_api_client.dart';
+void main(){test('rejects HTTP endpoints',(){expect(()=>TPayApiClient(baseUrl:'http://localhost:8443',accessToken:'x',expiresAt:DateTime.now().add(const Duration(hours:1))),throwsArgumentError);});test('rejects expired sessions',(){expect(()=>TPayApiClient(baseUrl:'https://localhost:8443',accessToken:'x',expiresAt:DateTime.now().subtract(const Duration(minutes:1))),throwsArgumentError);});}
