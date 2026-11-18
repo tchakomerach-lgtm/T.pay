@@ -11,6 +11,7 @@ export type CommunityTontineFeePayer = "MEMBER" | "BENEFICIARY" | "SPLIT";
 export type CommunityTontineFeeRecipient =
   | "TPAY" | "PARTNER" | "AGENT" | "RESERVE" | "TAX" | "OPTIONAL_SERVICE";
 export type CommunityTontineCommissionPolicyState = "DRAFT" | "APPROVED" | "ACTIVE" | "RETIRED";
+export type CommunityTontineCommissionProposalOrigin = "TPAY" | "MICROFINANCE" | "COMMUNITY_ADMIN";
 
 export interface CommunityTontineFeeComponentRule {
   recipient: CommunityTontineFeeRecipient;
@@ -36,6 +37,8 @@ export interface CommunityTontineCommissionPolicy {
   createdBy: UUID;
   approvedBy?: UUID;
   policyHash: string;
+  /** Set by the authenticated API, never accepted from a client payload. */
+  proposalOrigin?: CommunityTontineCommissionProposalOrigin;
 }
 
 export interface CommunityTontineFeeComponentAmount {
@@ -99,6 +102,7 @@ export function computeCommunityTontineCommissionPolicyHash(policy: CommunityTon
     payer: policy.payer, memberShareBps: policy.memberShareBps,
     effectiveFrom: new Date(policy.effectiveFrom).toISOString(),
     effectiveUntil: policy.effectiveUntil ? new Date(policy.effectiveUntil).toISOString() : null,
+    proposalOrigin: policy.proposalOrigin ?? "COMMUNITY_ADMIN",
     components: [...policy.components].sort((a,b) => a.recipient.localeCompare(b.recipient)).map(c => ({
       recipient: c.recipient, rateBps: c.rateBps, enabled: c.enabled,
       minMinor: c.minMinor?.toString() ?? null, maxMinor: c.maxMinor?.toString() ?? null
