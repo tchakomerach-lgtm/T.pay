@@ -16,6 +16,7 @@ const evidence = {
   verificationStatus: "verified" as const,
   verifiedBy: "manager-1" as UUID,
   verifiedAt: "2026-11-17T09:00:00.000Z",
+  consentRef: "consent://profile-skill-001",
   shareVisibility: "public" as const,
   userConsentAt: "2026-11-17T10:00:00.000Z"
 };
@@ -51,7 +52,9 @@ test("HR employment is projected only as a minimal, verified and consented caree
     startedAt: "2025-01-01T00:00:00.000Z",
     employmentStatus: "active" as const,
     hrVerifiedAt: "2026-11-17T09:00:00.000Z",
-    userConsentAt: "2026-11-17T10:00:00.000Z"
+    hrVerifiedBy: "manager-1" as UUID,
+    userConsentAt: "2026-11-17T10:00:00.000Z",
+    consentRef: "consent://employment-001"
   };
   const projected = projectEmploymentToProfessionalProfile(employment, "2026-11-18T09:00:00.000Z");
   assert.equal(projected.positionTitle, "Pharmacien assistant");
