@@ -21,9 +21,9 @@ function policy(overrides: Partial<CommunityTontineProtectionPolicy> = {}): Comm
     insurerContractReference:"CONTRACT-TO-BE-EXECUTED",insurerLicenseVerified:true,insurerContractVerified:true,effectiveFrom:"2026-11-01T00:00:00.000Z",
     createdBy:maker,approvedBy:checker,policyHash:"0".repeat(64),
     tiers:[
-      {tier:"ESSENTIEL",premiumRateBps:100,coveredInstallments:1,gracePeriodDays:7,waitingPeriodDays:14,maxClaimMinor:100_000n},
-      {tier:"EQUILIBRE",premiumRateBps:200,coveredInstallments:2,gracePeriodDays:14,waitingPeriodDays:14,maxClaimMinor:250_000n},
-      {tier:"RENFORCE",premiumRateBps:300,coveredInstallments:3,gracePeriodDays:21,waitingPeriodDays:30,maxClaimMinor:500_000n}
+      {tier:"ESSENTIEL",premiumRateBps:100,coveredInstallments:1,gracePeriodDays:7,waitingPeriodDays:14,maxClaimMinor:10_000_000n},
+      {tier:"EQUILIBRE",premiumRateBps:200,coveredInstallments:2,gracePeriodDays:14,waitingPeriodDays:14,maxClaimMinor:20_000_000n},
+      {tier:"RENFORCE",premiumRateBps:300,coveredInstallments:3,gracePeriodDays:21,waitingPeriodDays:30,maxClaimMinor:30_000_000n}
     ],...overrides
   };
   value.policyHash=computeTontineProtectionPolicyHash(value);
