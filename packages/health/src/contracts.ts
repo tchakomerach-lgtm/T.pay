@@ -56,12 +56,18 @@ export interface HealthDutyListing {
 
 export type DutyPublicLabel = "officially_verified" | "facility_declared" | "not_publishable";
 
-export function classifyDutyListing(\n  listing: HealthDutyListing,\n  now: string,\n  maxConfirmationAgeMs = 2 * 60 * 60 * 1000\n): DutyPublicLabel {
+export function classifyDutyListing(
+  listing: HealthDutyListing,
+  now: string,
+  maxConfirmationAgeMs = 2 * 60 * 60 * 1000
+): DutyPublicLabel {
   const current = Date.parse(now);
   const start = Date.parse(listing.startsAt);
   const end = Date.parse(listing.endsAt);
   const confirmed = Date.parse(listing.lastConfirmedAt);
-  if (![current, start, end, confirmed].every(Number.isFinite) || !Number.isFinite(maxConfirmationAgeMs)\n    || maxConfirmationAgeMs < 0 || start >= end || current < start || current >= end\n    || confirmed > current || current - confirmed > maxConfirmationAgeMs) {
+  if (![current, start, end, confirmed].every(Number.isFinite) || !Number.isFinite(maxConfirmationAgeMs)
+    || maxConfirmationAgeMs < 0 || start >= end || current < start || current >= end
+    || confirmed > current || current - confirmed > maxConfirmationAgeMs) {
     return "not_publishable";
   }
   if (listing.verification !== "verified") return "not_publishable";
