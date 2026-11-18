@@ -260,9 +260,10 @@ export class PostgresCommunityTontineProtectionRepository {
       if ((result.rowCount ?? 0) !== 1) throw new Error("TONTINE_PROTECTION_PREMIUM_STATE_CONFLICT");
       const row = result.rows[0] as ProtectionRow | undefined;
       const enrollmentId = row?.enrollment_id as UUID | undefined;
+      if (!enrollmentId) throw new Error("TONTINE_PROTECTION_PREMIUM_ENROLLMENT_NOT_FOUND");
       await appendEvent(tx, {
         organizationId: input.organizationId, groupId: input.groupId, actorId: input.actorId,
-        ...(enrollmentId ? { enrollmentId } : {}), eventType: "PREMIUM_PAYMENT_PENDING",
+        enrollmentId, eventType: "PREMIUM_PAYMENT_PENDING",
         payload: { premiumId: input.premiumId, paymentIntentReference: input.paymentIntentReference }, now: input.now
       });
     });
@@ -308,9 +309,10 @@ export class PostgresCommunityTontineProtectionRepository {
         [input.organizationId, input.groupId, input.premiumId]
       );
       const enrollmentId = enrollment.rows[0]?.enrollment_id as UUID | undefined;
+      if (!enrollmentId) throw new Error("TONTINE_PROTECTION_PREMIUM_ENROLLMENT_NOT_FOUND");
       await appendEvent(tx, {
         organizationId: input.organizationId, groupId: input.groupId, actorId: input.actorId,
-        ...(enrollmentId ? { enrollmentId } : {}), eventType: "PREMIUM_SETTLED",
+        enrollmentId, eventType: "PREMIUM_SETTLED",
         payload: { premiumId: input.premiumId, financialCoreReference: input.financialCoreReference }, now: input.settledAt
       });
     });
