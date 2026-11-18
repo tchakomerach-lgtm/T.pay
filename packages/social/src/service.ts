@@ -71,19 +71,19 @@ function authorizationRequests(command: CreateSocialPublicationCommand): Paramet
     requests.push({
       actorUserId: command.actorUserId,
       permission: "social.publish.organization",
-      organizationId: command.sourceOrganizationId
+      ...(command.sourceOrganizationId ? { organizationId: command.sourceOrganizationId } : {})
     });
   }
   if (command.surfaces.includes("opportunity")) {
     requests.push({
       actorUserId: command.actorUserId,
       permission: "opportunity.publish",
-      organizationId: command.sourceOrganizationId
+      ...(command.sourceOrganizationId ? { organizationId: command.sourceOrganizationId } : {})
     });
     requests.push({
       actorUserId: command.actorUserId,
       permission: "opportunity.publish.approved",
-      organizationId: command.sourceOrganizationId
+      ...(command.sourceOrganizationId ? { organizationId: command.sourceOrganizationId } : {})
     });
   }
   return requests;
@@ -107,7 +107,6 @@ export async function createSocialPublication(
   const existing = await deps.repository.findByIdempotencyKey(idempotencyKey);
   if (existing) {
     if (existing.authorUserId !== command.actorUserId) throw new Error("SOCIAL_IDEMPOTENCY_OWNER_MISMATCH");
-    return existing;
   }
 
   const title = normalizeText(command.title, 180, "SOCIAL_TITLE_INVALID");
@@ -116,6 +115,12 @@ export async function createSocialPublication(
 
   for (const request of authorizationRequests(command)) {
     await deps.authorization.assertAllowed(request);
+  }
+
+  const existing = await deps.repository.findByIdempotencyKey(idempotencyKey);
+  if (existing) {
+    if (existing.authorUserId !== command.actorUserId) throw new Error("SOCIAL_IDEMPOTENCY_OWNER_MISMATCH");
+    return existing;
   }
 
   const createdAt = deps.clock.now();
@@ -132,10 +137,10 @@ export async function createSocialPublication(
     surfaces: [...command.surfaces],
     title,
     body,
-    status: command.surfaces.includes("opportunity") ? "pending_approval" : "published",
+    status: "published",
     ...(command.approvalRef ? { approvalRef: command.approvalRef } : {}),
     createdAt,
-    ...(!command.surfaces.includes("opportunity") ? { publishedAt: createdAt } : {})
+    publishedAt: createdAt
   };
 
   const outboxEvent: SocialOutboxEvent = {
@@ -162,13 +167,23 @@ export async function createSocialPublication(
 export function assertPublicationCanBeShownToSurface(
   publication: SocialPublication,
   requestedSurface: SocialSurface,
-  viewerOrganizationId?: UUID
+  viewer: { viewerUserId: UUID; viewerOrganizationId?: UUID; isAcceptedConnection?: boolean }
 ): void {
   if (publication.status !== "published" || !publication.surfaces.includes(requestedSurface)) {
     throw new Error("SOCIAL_PUBLICATION_NOT_AVAILABLE");
   }
+  if (publication.visibility === "private" && viewer.viewerUserId !== publication.authorUserId) {
+    throw new Error("SOCIAL_PRIVATE_VISIBILITY_BLOCKED");
+  }
+  if (publication.visibility === "connections"
+    && viewer.viewerUserId !== publication.authorUserId
+    && viewer.isAcceptedConnection !== true) {
+    throw new Error("SOCIAL_CONNECTION_REQUIRED");
+  }
   if (requestedSurface === "organization_social"
-    && (!viewerOrganizationId || viewerOrganizationId !== publication.sourceOrganizationId)) {
+    && (publication.visibility === "organization_only"
+      || publication.surfaces.includes("organization_social"))
+    && (!viewer.viewerOrganizationId || viewer.viewerOrganizationId !== publication.sourceOrganizationId)) {
     throw new Error("SOCIAL_ORGANIZATION_SCOPE_MISMATCH");
   }
   if (requestedSurface === "global_social"
