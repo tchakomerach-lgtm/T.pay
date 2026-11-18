@@ -436,7 +436,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       if(state==="ALL"||state==="DRAFT"||state==="APPROVED"||state==="RETIRED"){
        const result=await client.query(
         `SELECT id,organization_id,group_id,version,transaction_level,currency,state,payer_mode,member_share_bps,
-                effective_from,effective_until,components,policy_hash,created_by,approved_by
+                effective_from,effective_until,components,policy_hash,created_by,approved_by,proposal_origin,negotiation_status,negotiation_round
          FROM community_tontine_commission_policies
          WHERE organization_id=$1 AND group_id=$2 AND transaction_level=$3 AND currency=$4
            AND ($5::text='ALL' OR state=$5)
@@ -448,7 +448,8 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
         return {id:row.id,organizationId:row.organization_id,groupId:row.group_id,version:row.version,
          transactionLevel:row.transaction_level,currency:row.currency,state:row.state,payer:row.payer_mode,
          memberShareBps:row.member_share_bps,effectiveFrom:row.effective_from,effectiveUntil:row.effective_until,
-         components:raw,policyHash:row.policy_hash,createdBy:row.created_by,approvedBy:row.approved_by};
+         components:raw,policyHash:row.policy_hash,createdBy:row.created_by,approvedBy:row.approved_by,
+         proposalOrigin:row.proposal_origin,negotiationStatus:row.negotiation_status,negotiationRound:row.negotiation_round};
        });
        return {items};
       }
