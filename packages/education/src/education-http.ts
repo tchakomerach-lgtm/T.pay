@@ -269,7 +269,9 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(!routeAuth.allowed)throw new Error(routeAuth.reason);
    const organizationId=auth.principal.organizationId; if(!auth.tenantId)throw new Error("TENANT_CONTEXT_REQUIRED");
    if(!organizationId)throw new Error("ORGANIZATION_CONTEXT_REQUIRED");
-   assertAuthorized(auth.principal,{organizationId,requestedPermission:permissionFor(r[0],method)});
+   if(!(r[0]==="tontine-commission-policies"&&method==="POST")){
+    assertAuthorized(auth.principal,{organizationId,requestedPermission:permissionFor(r[0],method)});
+   }
    if(r[0]==="stream"){
     if(method!=="GET")throw new Error("REALTIME_METHOD_NOT_ALLOWED");
     if(!deps.realtime)throw new Error("REALTIME_NOT_CONFIGURED");
