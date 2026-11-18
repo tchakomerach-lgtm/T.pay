@@ -213,18 +213,9 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
     );
     assert.deepEqual(rolled.rows[0], { ledger: 0, event: 0, fee: 0, receipt: 0, outbox: 0, contribution_status: "pending", payment_status: "provider_confirmed" });
   } finally {
-    await client.query("DELETE FROM outbox_events WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM provider_events WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM tontine_receipts WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM tontine_fee_snapshots WHERE contribution_id IN (SELECT id FROM tontine_contributions WHERE organization_id=$1)", [organizationId]);
-    await client.query("DELETE FROM ledger_lines WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM ledger_transactions WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM tontine_payment_intents WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM tontine_contributions WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM tontine_memberships WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM tontine_groups WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM financial_accounts WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM organizations WHERE id=$1", [organizationId]);
+    // Financial snapshots and posted Ledger records are append-only. Retain this
+    // isolated random-UUID fixture graph rather than disabling triggers or
+    // deleting immutable accounting evidence during test teardown.
     await client.end();
   }
 });
