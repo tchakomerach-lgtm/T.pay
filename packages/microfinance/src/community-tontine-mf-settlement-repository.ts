@@ -12,6 +12,12 @@ export interface CommunityTontineMfSettlementRepository {
   ): Promise<CommunityTontineMfSettlementInstruction>;
 }
 
+function requiredRow(rows: readonly Record<string, unknown>[], errorCode: string): Record<string, unknown> {
+  const row = rows[0];
+  if (!row) throw new Error(errorCode);
+  return row;
+}
+
 function fromRow(row: Record<string, unknown>): CommunityTontineMfSettlementInstruction {
   return {
     id: row.id as UUID,
@@ -62,7 +68,7 @@ export class PostgresCommunityTontineMfSettlementRepository implements Community
          instruction.beneficiaryClientId,instruction.amountMinor.toString(),instruction.currency,instruction.destinationRef,
          instruction.requiresHumanApproval,instruction.preparedBy]
       );
-      if (inserted.rows.length === 1) return fromRow(inserted.rows[0]);
+      if (inserted.rows.length === 1) return fromRow(requiredRow(inserted.rows, "COMMUNITY_TONTINE_SETTLEMENT_INSERT_ROW_MISSING"));
 
       // A replay is accepted only when every immutable field matches the existing prepared instruction.
       const existing = await tx.query(
@@ -77,7 +83,7 @@ export class PostgresCommunityTontineMfSettlementRepository implements Community
          instruction.requiresHumanApproval,instruction.preparedBy]
       );
       if (existing.rows.length !== 1) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_PERSISTENCE_CONFLICT");
-      return fromRow(existing.rows[0]);
+      return fromRow(requiredRow(existing.rows, "COMMUNITY_TONTINE_SETTLEMENT_REPLAY_ROW_MISSING"));
     });
   }
 
@@ -123,6 +129,6 @@ export class PostgresCommunityTontineMfSettlementRepository implements Community
       [organizationId,instructionId,approverId,expectedState]
     );
     if (result.rows.length !== 1) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_APPROVAL_CONFLICT");
-    return fromRow(result.rows[0]);
+    return fromRow(requiredRow(result.rows, "COMMUNITY_TONTINE_SETTLEMENT_APPROVAL_ROW_MISSING"));
   }
 }
