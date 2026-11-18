@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS community_tontine_protection_policies (
   insurer_partner_id uuid NOT NULL,
   insurer_license_reference text NOT NULL CHECK (length(btrim(insurer_license_reference)) > 0),
   insurer_contract_reference text NOT NULL CHECK (length(btrim(insurer_contract_reference)) > 0),
+  insurer_license_verified boolean NOT NULL DEFAULT false,
+  insurer_contract_verified boolean NOT NULL DEFAULT false,
   effective_from timestamptz NOT NULL,
   effective_until timestamptz,
   tiers jsonb NOT NULL CHECK (jsonb_typeof(tiers)='array' AND jsonb_array_length(tiers)=3),
@@ -26,7 +28,8 @@ CREATE TABLE IF NOT EXISTS community_tontine_protection_policies (
   UNIQUE (organization_id,group_id,id),
   CHECK (effective_until IS NULL OR effective_until > effective_from),
   CHECK (approved_by IS NULL OR approved_by <> created_by),
-  CHECK (state <> 'ACTIVE' OR (approved_by IS NOT NULL AND activated_at IS NOT NULL))
+  CHECK (state <> 'ACTIVE' OR (approved_by IS NOT NULL AND activated_at IS NOT NULL
+    AND insurer_license_verified AND insurer_contract_verified))
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_community_tontine_active_protection_policy
   ON community_tontine_protection_policies(organization_id,group_id) WHERE state='ACTIVE';
