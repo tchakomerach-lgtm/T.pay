@@ -73,7 +73,7 @@ test("organization publication can be explicitly syndicated to the global social
 });
 
 test("HR confidential, health-sensitive and financial content cannot enter social surfaces", async () => {
-  for (const contentClass of ["hr_confidential", "health_sensitive", "financial"] as const) {
+  for (const contentClass of ["hr_confidential", "health_sensitive", "financial", "personal"] as const) {
     const deps = dependencies();
     await assert.rejects(
       createSocialPublication(command({ contentClass }), deps),
@@ -83,11 +83,20 @@ test("HR confidential, health-sensitive and financial content cannot enter socia
   }
 });
 
-test("organization-internal content cannot be syndicated globally", async () => {
+test("organization-internal content cannot be syndicated globally or to Opportunity", async () => {
   const deps = dependencies();
   await assert.rejects(
     createSocialPublication(command({ contentClass: "organization_internal" }), deps),
     /SOCIAL_GLOBAL_CONTENT_CLASS_BLOCKED/
+  );
+  await assert.rejects(
+    createSocialPublication(command({
+      kind: "job",
+      surfaces: ["opportunity"],
+      contentClass: "organization_internal",
+      approvalRef: "hr-approved"
+    }), dependencies()),
+    /OPPORTUNITY_CONTENT_CLASS_BLOCKED/
   );
 });
 
