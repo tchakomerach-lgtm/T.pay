@@ -4,7 +4,7 @@ on:
     branches:
       - main
   pull_request:
-    branches: [main]
+    branches: [main, feat/community-tontine-prompt-001-031]
   workflow_dispatch:
 permissions:
   contents: read
