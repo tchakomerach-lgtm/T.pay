@@ -259,9 +259,10 @@ export class PostgresCommunityTontineProtectionRepository {
       );
       if ((result.rowCount ?? 0) !== 1) throw new Error("TONTINE_PROTECTION_PREMIUM_STATE_CONFLICT");
       const row = result.rows[0] as ProtectionRow | undefined;
+      const enrollmentId = row?.enrollment_id as UUID | undefined;
       await appendEvent(tx, {
         organizationId: input.organizationId, groupId: input.groupId, actorId: input.actorId,
-        enrollmentId: row?.enrollment_id as UUID | undefined, eventType: "PREMIUM_PAYMENT_PENDING",
+        ...(enrollmentId ? { enrollmentId } : {}), eventType: "PREMIUM_PAYMENT_PENDING",
         payload: { premiumId: input.premiumId, paymentIntentReference: input.paymentIntentReference }, now: input.now
       });
     });
