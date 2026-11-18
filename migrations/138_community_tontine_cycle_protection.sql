@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS community_tontine_protection_policies (
   version text NOT NULL CHECK (length(btrim(version)) BETWEEN 1 AND 80),
   currency char(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
   state text NOT NULL CHECK (state IN ('DRAFT','APPROVED','ACTIVE','RETIRED')),
-  proposal_origin text NOT NULL CHECK (proposal_origin IN ('TPAY','MICROFINANCE')),
+  proposal_origin text NOT NULL CHECK (proposal_origin IN ('TPAY','MICROFINANCE','COMMUNITY_ADMIN')),
   risk_bearer text NOT NULL CHECK (risk_bearer='LICENSED_INSURER'),
   insurer_partner_id uuid NOT NULL,
   insurer_license_reference text NOT NULL CHECK (length(btrim(insurer_license_reference)) > 0),
