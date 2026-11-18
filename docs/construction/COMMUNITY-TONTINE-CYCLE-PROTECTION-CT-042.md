@@ -87,3 +87,4 @@ Un statut fournisseur « completed » n'est pas une preuve de règlement. Aucun 
 - Les workflows CI, Android et Flutter du socle autorisent désormais explicitement la PR CT-042 comme branche cible de validation.
 - Le workflow Flutter vérifie la présence du projet `mobile/tpay_flutter/pubspec.yaml` dans l'arbre de fusion avant `flutter pub get`; une absence est traitée comme un défaut d'intégration, jamais comme un test réussi.
 - Aucun taux, prélèvement, contrat ou sinistre n'est activable sans validation indépendante de l'assureur agréé et des autorités compétentes.
+- Les exécutions déclenchées avant le rattachement au socle communautaire ne sont pas réutilisables comme preuve pour le nouvel arbre de fusion; chaque validation doit référencer le SHA courant de la PR empilée.
