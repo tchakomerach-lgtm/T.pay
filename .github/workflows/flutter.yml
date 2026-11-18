@@ -4,7 +4,7 @@ on:
     branches: [main]
     paths: ["mobile/tpay_flutter/**", ".github/workflows/flutter.yml"]
   pull_request:
-    branches: [main]
+    branches: [main, feat/community-tontine-protection-ct042]
     paths: ["mobile/tpay_flutter/**", ".github/workflows/flutter.yml"]
   workflow_dispatch:
 permissions:
