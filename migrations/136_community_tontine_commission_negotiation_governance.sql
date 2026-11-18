@@ -130,7 +130,7 @@ RETURNS trigger LANGUAGE plpgsql AS $
 BEGIN
   RAISE EXCEPTION 'COMMUNITY_TONTINE_COMMISSION_NEGOTIATION_IMMUTABLE';
 END;
-$$;
+$;
 DROP TRIGGER IF EXISTS community_tontine_commission_negotiation_immutable
   ON community_tontine_commission_negotiation_events;
 CREATE TRIGGER community_tontine_commission_negotiation_immutable
