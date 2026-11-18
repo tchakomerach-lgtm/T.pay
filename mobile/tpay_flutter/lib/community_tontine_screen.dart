@@ -5,6 +5,7 @@ import 'api/tpay_api_client.dart';
 import 'api/pending_idempotency_keys.dart';
 import 'community_tontine_finance_summary.dart';
 import 'community_tontine_commercial_screen.dart';
+import 'community_tontine_protection_screen.dart';
 
 const _tontineGreen=Color(0xff0f8f68);
 const _tontineMuted=Color(0xff718078);
@@ -266,11 +267,13 @@ class _CommunityTontineScreenState extends State<CommunityTontineScreen> with Ti
         _action('Actualiser',Icons.sync,_load),
       ]),
       const SizedBox(height:12),
-      SegmentedButton<String>(segments:const [ButtonSegment(value:'members',label:Text('Membres')),ButtonSegment(value:'cycles',label:Text('Cycles')),ButtonSegment(value:'contributions',label:Text('Cotisations')),ButtonSegment(value:'governance',label:Text('Votes')),ButtonSegment(value:'cases',label:Text('Incidents')),ButtonSegment(value:'commercial',label:Text('Commissions & admin'))],selected:{_panel},onSelectionChanged:(v)async{setState(()=>_panel=v.first);if(_panel!='commercial')await _loadPanel();}),
+      SegmentedButton<String>(segments:const [ButtonSegment(value:'members',label:Text('Membres')),ButtonSegment(value:'cycles',label:Text('Cycles')),ButtonSegment(value:'contributions',label:Text('Cotisations')),ButtonSegment(value:'governance',label:Text('Votes')),ButtonSegment(value:'cases',label:Text('Incidents')),ButtonSegment(value:'commercial',label:Text('Commissions & admin')),ButtonSegment(value:'protection',label:Text('Protection cycle'))],selected:{_panel},onSelectionChanged:(v)async{setState(()=>_panel=v.first);if(_panel!='commercial'&&_panel!='protection')await _loadPanel();}),
       const SizedBox(height:10),
       if(_panel=='commercial')
         CommunityTontineCommercialScreen(apiClient:widget.apiClient,groupId:_selectedGroup??''),
-      if(_panel!='commercial')...[
+      if(_panel=='protection'&&_selectedGroup!=null)
+        CommunityTontineProtectionScreen(apiClient:widget.apiClient!,groupId:_selectedGroup!),
+      if(_panel!='commercial'&&_panel!='protection')...[
         if(_panel=='contributions')_contributionFinanceSummary(),
         if(_records.isEmpty)const Card(child:Padding(padding:EdgeInsets.all(16),child:Text('Aucun enregistrement pour ce groupe.'))),
         for(final record in _records)Card(child:ListTile(
