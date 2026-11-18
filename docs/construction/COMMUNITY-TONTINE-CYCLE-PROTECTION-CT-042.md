@@ -51,7 +51,7 @@ Un statut fournisseur « completed » n'est pas une preuve de règlement. Aucun 
 ## Contrôles de risque et de gouvernance
 - Politiques versionnées et hashées ; proposition possible par T.Pay ou partenaire microfinance authentifié.
 - Maker/checker obligatoire ; auteur et approbateur différents.
-- Vérification du partenaire assureur et de la référence du contrat avant activation.
+- Vérification explicite de l'agrément du partenaire assureur et du contrat signé avant activation ; les deux indicateurs sont obligatoires dans le domaine et en base.
 - Adhésion liée au membre, groupe, organisation, gamme, version de police et échéances.
 - Couverture active à la date d'échéance, période d'attente écoulée et prime de cette échéance réglée.
 - Plafond par sinistre et par cycle ; aucun double remboursement de la même échéance.
@@ -70,7 +70,7 @@ Un statut fournisseur « completed » n'est pas une preuve de règlement. Aucun 
 7. États loading/empty/error/offline, animations réduites sur demande, aucune donnée fictive.
 
 ## État de livraison CT-042
-- Domaine TypeScript de calcul des primes, hash de politique et pré-contrôle de sinistre : ajouté dans cette branche.
+- Domaine TypeScript de calcul des primes, hash de politique, vérification du partenaire et calcul des délais d'attente/de grâce à partir des horodatages : ajouté dans cette branche.
 - Migration PostgreSQL additive 138 : ajoutée ; à exécuter sur PostgreSQL réel et à tester sous rôle non-owner/non-BYPASSRLS.
 - Tests unitaires de domaine : ajoutés ; exécution CI encore requise.
 - API, repositories de persistance, endpoints, intégration Financial Core, outbox, interfaces React/Flutter, tests adversariaux et terrain : non livrés dans ce lot.
