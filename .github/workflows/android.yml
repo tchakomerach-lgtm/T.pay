@@ -4,7 +4,7 @@ on:
     branches:
       - main
   pull_request:
-    branches: [main, feat/community-tontine-prompt-001-031]
+    branches: [main, feat/community-tontine-protection-ct042]
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,7 +21,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
+      - uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3 # v4.4.2
         with:
           gradle-version: "8.11"
       - name: Build Android debug APK
