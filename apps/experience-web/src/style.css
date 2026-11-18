@@ -440,3 +440,40 @@ header{box-shadow:0 5px 22px #102b2008;backdrop-filter:blur(18px)}
 @media(max-width:760px){.tontine-commercial-grid{grid-template-columns:1fr}.tontine-commercial-header{display:grid}.tontine-commercial-header>button{justify-self:start}}
 @media(max-width:440px){.tontine-commercial-form,.tontine-commercial-rates{grid-template-columns:1fr}.tontine-commercial-rates>div{grid-template-columns:minmax(0,1fr) 90px}.tontine-commercial-record{align-items:flex-start;flex-direction:column}.tontine-commercial-actions{flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){.tontine-commercial,.tontine-commercial .tontine-feature-card,.tontine-commercial .tontine-feature-card:hover,.tontine-commercial button:hover:not(:disabled){animation:none;transform:none;transition:none}}
+
+/* CT-042 community cycle protection */
+.tontine-protection{display:grid;gap:14px;min-width:0}
+.tontine-protection>header{padding:20px;border:1px solid #d2e7db;border-radius:18px;background:linear-gradient(145deg,#f2fbf6,#e6f5ed);box-shadow:0 12px 30px #173f2b12}
+.tontine-protection>header small{color:#16845f;font-size:9px;font-weight:900;letter-spacing:1.2px}
+.tontine-protection>header h3{margin:7px 0;color:#183c2e;font-size:19px}
+.tontine-protection>header p{max-width:720px;margin:0;color:#587064;font-size:11px;line-height:1.65}
+.tontine-protection-tiers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.tontine-protection-tiers article{padding:14px;border:1px solid #d9e9de;border-radius:14px;background:#fff;box-shadow:0 8px 22px #173f2b0b}
+.tontine-protection-tiers small{display:block;color:#507262;font-size:9px;font-weight:900}
+.tontine-protection-tiers strong{display:block;margin-top:6px;color:#0f8f68;font-size:25px}
+.tontine-protection-tiers span,.tontine-protection-tiers p{color:#62786b;font-size:9px}
+.tontine-protection-warning{margin:0;padding:11px 13px;border:1px solid #f0d9a9;border-radius:11px;background:#fff7e8;color:#7a5619;font-size:10px;line-height:1.6}
+.tontine-protection-error{padding:10px 12px;border:1px solid #efc4c4;border-radius:10px;background:#fff0f0;color:#a13232;font-size:10px}
+.tontine-protection-notice{padding:10px 12px;border:1px solid #c9e7d4;border-radius:10px;background:#effaf2;color:#286346;font-size:10px}
+.tontine-protection-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:16px;border:1px solid #dcebe1;border-radius:14px;background:#fff}
+.tontine-protection-form h4{grid-column:1/-1;margin:0;color:#183c2e}
+.tontine-protection-form label{display:grid;gap:5px;color:#536c5d;font-size:10px;font-weight:700}
+.tontine-protection-form input{min-width:0;padding:10px;border:1px solid #d6e4da;border-radius:9px;background:#fff;color:#173b2c}
+.tontine-protection-form button{grid-column:1/-1;justify-self:start;padding:10px 14px;border:1px solid #0f8f68;border-radius:10px;background:#0f8f68;color:white;font-weight:800}
+.tontine-protection-register{display:grid;gap:9px}
+.tontine-protection-register>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.tontine-protection-register h4{margin:0;color:#183c2e}
+.tontine-protection-register table{width:100%;border-collapse:collapse;font-size:10px}
+.tontine-protection-register th,.tontine-protection-register td{padding:9px;border-bottom:1px solid #e3ece5;text-align:left;vertical-align:top}
+.tontine-protection-register th{color:#60776a;font-size:9px;text-transform:uppercase}
+.tontine-protection-register button{padding:7px 9px;border:1px solid #b7d9c5;border-radius:8px;background:#eff8f2;color:#166849;font-size:9px;font-weight:800}
+.tontine-protection input{max-width:100%}
+.dark .tontine-protection>header{background:linear-gradient(145deg,#1d392b,#1a3024);border-color:#41634d}
+.dark .tontine-protection>header h3,.dark .tontine-protection-register h4,.dark .tontine-protection-form h4{color:#e1f3e7}
+.dark .tontine-protection>header p,.dark .tontine-protection-tiers span,.dark .tontine-protection-tiers p{color:#a9beb0}
+.dark .tontine-protection-tiers article,.dark .tontine-protection-form{background:#1e3025;border-color:#405e49}
+.dark .tontine-protection-tiers small,.dark .tontine-protection-form label{color:#bed2c4}
+.dark .tontine-protection-form input{background:#1c2c22;border-color:#46634e;color:#e2f1e6}
+.dark .tontine-protection-register th,.dark .tontine-protection-register td{border-color:#405b48;color:#c6d7ca}
+@media(max-width:760px){.tontine-protection-tiers{grid-template-columns:1fr}.tontine-protection-form{grid-template-columns:1fr}.tontine-protection-register{overflow-x:auto}}
+@media(prefers-reduced-motion:reduce){.tontine-protection *{animation:none!important;transition:none!important}}
