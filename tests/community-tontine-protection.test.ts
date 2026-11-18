@@ -48,8 +48,11 @@ test("protection policy requires a licensed insurer contract and independent app
     /TONTINE_PROTECTION_LICENSED_INSURER_CONTRACT_REQUIRED/);
   assert.throws(()=>validateTontineProtectionPolicy(policy({approvedBy:maker})),
     /TONTINE_PROTECTION_MAKER_CHECKER_REQUIRED/);
-  assert.throws(()=>validateTontineProtectionPolicy(policy({state:"DRAFT",approvedBy:undefined})),
-    /TONTINE_PROTECTION_POLICY_HASH_INVALID/);
+  const missingApproval=policy();
+  delete missingApproval.approvedBy;
+  missingApproval.policyHash=computeTontineProtectionPolicyHash(missingApproval);
+  assert.throws(()=>validateTontineProtectionPolicy(missingApproval),
+    /TONTINE_PROTECTION_APPROVAL_REQUIRED/);
 });
 
 test("claim is blocked until coverage, premium, waiting period, grace and independent abandonment evidence exist",()=>{
