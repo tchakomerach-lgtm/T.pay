@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS community_tontine_protection_premiums (
   rate_bps integer NOT NULL CHECK (rate_bps BETWEEN 1 AND 1000),
   state text NOT NULL CHECK (state IN ('DUE','PAYMENT_PENDING','SETTLED','FAILED','WAIVED','REVERSED')),
   financial_core_reference uuid,
+  payment_intent_reference uuid UNIQUE,
   due_at timestamptz NOT NULL,
   settled_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -75,7 +76,7 @@ CREATE TABLE IF NOT EXISTS community_tontine_protection_premiums (
   UNIQUE (organization_id,group_id,enrollment_id,installment_reference),
   UNIQUE (organization_id,group_id,id),
   UNIQUE (financial_core_reference),
-  CHECK ((state='SETTLED' AND financial_core_reference IS NOT NULL AND settled_at IS NOT NULL) OR state<>'SETTLED')
+  CHECK ((state='SETTLED' AND financial_core_reference IS NOT NULL AND payment_intent_reference IS NOT NULL AND settled_at IS NOT NULL) OR state<>'SETTLED')
 );
 CREATE INDEX IF NOT EXISTS idx_community_tontine_protection_premium_due
   ON community_tontine_protection_premiums(organization_id,group_id,state,due_at);
@@ -120,7 +121,7 @@ CREATE TABLE IF NOT EXISTS community_tontine_protection_events (
   actor_id uuid NOT NULL,
   event_type text NOT NULL CHECK (event_type IN (
     'POLICY_PROPOSED','POLICY_APPROVED','POLICY_ACTIVATED','ENROLLED','CONSENT_RECORDED',
-    'PREMIUM_QUOTED','PREMIUM_SETTLED','CLAIM_SUBMITTED','CLAIM_REVIEWED',
+    'PREMIUM_QUOTED','PREMIUM_PAYMENT_PENDING','PREMIUM_SETTLED','CLAIM_SUBMITTED','CLAIM_REVIEWED',
     'INSURER_APPROVED','CLAIM_REJECTED','CLAIM_PAID','ENROLLMENT_SUSPENDED','ENROLLMENT_CANCELLED'
   )),
   payload jsonb NOT NULL CHECK (jsonb_typeof(payload)='object'),
