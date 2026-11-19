@@ -248,3 +248,67 @@ test("CT-042 PostgreSQL enforces organization RLS, composite scope, immutable ev
     }
   }
 });
+
+
+test("migration 139 creates RLS-isolated individual coverage and cycle refund closeout tables", {
+  skip: !databaseUrl && "TPAY_DATABASE_URL is not configured"
+}, async () => {
+  if (!databaseUrl) return;
+  const client = new pg.Client({ connectionString: databaseUrl });
+  const expected = [
+    "community_tontine_protection_products",
+    "community_tontine_individual_coverages",
+    "community_tontine_individual_coverage_installments",
+    "community_tontine_cycle_closeouts",
+    "community_tontine_cycle_refund_allocations",
+    "community_tontine_protection_financial_events"
+  ];
+  await client.connect();
+  try {
+    await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
+    const tables = await client.query<{relname:string;relrowsecurity:boolean;relforcerowsecurity:boolean}>(
+      `SELECT c.relname,c.relrowsecurity,c.relforcerowsecurity
+       FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+       WHERE n.nspname='public' AND c.relname=ANY($1::text[])`,
+      [expected]
+    );
+    assert.equal(tables.rowCount, expected.length);
+    for (const table of tables.rows) {
+      assert.equal(table.relrowsecurity, true, table.relname + " must enable RLS");
+      assert.equal(table.relforcerowsecurity, true, table.relname + " must force RLS");
+    }
+    const policies = await client.query<{tablename:string;qual:string|null;with_check:string|null}>(
+      `SELECT tablename,qual,with_check FROM pg_policies
+       WHERE schemaname='public' AND tablename=ANY($1::text[])`,
+      [expected]
+    );
+    assert.equal(policies.rowCount, expected.length);
+    for (const table of expected) {
+      const policy = policies.rows.find(row => row.tablename === table);
+      assert.ok(policy, "missing organization RLS policy for " + table);
+      assert.match(policy.qual ?? "", /tpay_current_organization_id/);
+      assert.match(policy.with_check ?? "", /tpay_current_organization_id/);
+    }
+    const closeout = await client.query<{definition:string}>(
+      `SELECT pg_get_constraintdef(oid) AS definition
+       FROM pg_constraint WHERE conrelid='community_tontine_cycle_closeouts'::regclass
+         AND contype='c'`
+    );
+    assert.ok(closeout.rows.some(row => row.definition.includes("gross_refundable_minor") &&
+      row.definition.includes("tpay_commission_minor") &&
+      row.definition.includes("microfinance_commission_minor")),
+      "closeout must enforce a bounded refund calculation");
+    assert.ok(closeout.rows.some(row => row.definition.includes("incident_count")),
+      "closeout settlement must be blocked while incidents remain");
+    const refund = await client.query<{definition:string}>(
+      `SELECT pg_get_constraintdef(oid) AS definition
+       FROM pg_constraint WHERE conrelid='community_tontine_cycle_refund_allocations'::regclass
+         AND contype='c'`
+    );
+    assert.ok(refund.rows.some(row => row.definition.includes("net_refund_minor") &&
+      row.definition.includes("gross_share_minor")),
+      "member refund allocation must enforce non-negative net amount");
+  } finally {
+    await client.end();
+  }
+});
