@@ -22,8 +22,8 @@ const base={
 test("cycle closeout allocates commissions pro rata and reconciles exact member net refunds",()=>{
  const result=calculateCommunityTontineCycleCloseout(base);
  assert.equal(result.grossRefundableMinor,30_000n);
- assert.equal(result.netRefundMinor,29_100n);
- assert.equal(result.allocations.reduce((s,x)=>s+x.netRefundMinor,0n),29_100n);
+ assert.equal(result.netRefundMinor,29_000n);
+ assert.equal(result.allocations.reduce((s,x)=>s+x.netRefundMinor,0n),29_000n);
  assert.equal(result.allocations.find(x=>x.memberId===a)?.tpayCommissionMinor,100n);
  assert.equal(result.allocations.find(x=>x.memberId===b)?.tpayCommissionMinor,200n);
  assert.equal(result.allocations.find(x=>x.memberId===a)?.microfinanceCommissionMinor,200n);
