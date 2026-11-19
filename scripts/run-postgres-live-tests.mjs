@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 
 const result = spawnSync(
   process.execPath,
-  ["--test", "dist/tests/postgres-live.integration.test.js"],
+  ["--test", "--test-concurrency=1", "dist/tests/*.test.js"],
   {
     stdio: "inherit",
     env: { ...process.env, TPAY_RUN_POSTGRES_LIVE: "1" }
