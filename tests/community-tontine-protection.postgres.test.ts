@@ -83,8 +83,8 @@ test("CT-042 PostgreSQL enforces organization RLS, composite scope, immutable ev
     const insertEnrollment = async (id: string, org: string, group: string, member: string, policy: string) => owner.query(
       `INSERT INTO community_tontine_protection_enrollments
        (id,organization_id,group_id,member_id,policy_id,tier,state,accepted_at,coverage_starts_at,consent_reference)
-       VALUES ($1,$2,$3,$4,$5,'EQUILIBRE','ACTIVE',now(),now(),'consent-' || $1::text)`,
-      [id, org, group, member, policy]
+       VALUES ($1,$2,$3,$4,$5,'EQUILIBRE','ACTIVE',now(),now(),$6)`,
+      [id, org, group, member, policy, "consent-" + id]
     );
     await insertEnrollment(enrollmentA, orgA, groupA, memberA, policyA);
     await insertEnrollment(enrollmentB, orgB, groupB, memberB, policyB);
