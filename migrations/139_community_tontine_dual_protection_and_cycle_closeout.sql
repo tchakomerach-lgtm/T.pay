@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS community_tontine_cycle_closeouts (
  calculated_at timestamptz NOT NULL, settled_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(),
  FOREIGN KEY(organization_id,group_id) REFERENCES tontine_groups(organization_id,id) ON DELETE RESTRICT,
  UNIQUE(organization_id,group_id,cycle_id), UNIQUE(organization_id,id), UNIQUE(organization_id,group_id,id), UNIQUE(organization_id,idempotency_key),
- CHECK(net_refund_minor=GREATEST(0,gross_refundable_minor-tpay_commission_minor-microfinance_commission_minor-earned_insurance_premium_minor-approved_claims_minor-other_contractual_deductions_minor)),
+ CHECK(net_refund_minor=GREATEST(0,gross_refundable_minor-tpay_commission_minor-microfinance_commission_minor-other_contractual_deductions_minor)),
  CHECK(state NOT IN ('READY_FOR_SETTLEMENT','SETTLEMENT_PENDING','SETTLED') OR (incident_count=0 AND incident_review_reference IS NOT NULL)),
  CHECK(state<>'SETTLED' OR (financial_core_batch_reference IS NOT NULL AND settled_at IS NOT NULL))
 );
