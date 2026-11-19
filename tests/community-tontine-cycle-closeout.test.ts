@@ -7,10 +7,11 @@ const group="10000000-0000-4000-8000-000000000002" as never;
 const cycle="10000000-0000-4000-8000-000000000003" as never;
 const a="10000000-0000-4000-8000-000000000004" as never;
 const b="10000000-0000-4000-8000-000000000005" as never;
+const firstShare={memberId:a,grossRefundableMinor:10_000n,otherContractualDeductionsMinor:100n};
 const base={
  organizationId:org,groupId:group,cycleId:cycle,currency:"XOF",
  shares:[
-  {memberId:a,grossRefundableMinor:10_000n,otherContractualDeductionsMinor:100n},
+  firstShare,
   {memberId:b,grossRefundableMinor:20_000n,otherContractualDeductionsMinor:0n}
  ],
  tpayCommissionMinor:300n,microfinanceCommissionMinor:600n,
@@ -46,7 +47,7 @@ test("closeout blocks on any open incident, dispute, pending callback or unrecon
 test("closeout never deducts more than refundable balance and rejects duplicate members",()=>{
  assert.throws(()=>calculateCommunityTontineCycleCloseout({...base,tpayCommissionMinor:40_000n}),
   /TONTINE_CLOSEOUT_DEDUCTIONS_EXCEED_REFUNDABLE/);
- assert.throws(()=>calculateCommunityTontineCycleCloseout({...base,shares:[base.shares[0],base.shares[0]]}),
+ assert.throws(()=>calculateCommunityTontineCycleCloseout({...base,shares:[firstShare,firstShare]}),
   /TONTINE_CLOSEOUT_DUPLICATE_MEMBER/);
 });
 
