@@ -75,4 +75,4 @@ jobs:
           name: TPay-Flutter-debug
           path: mobile/tpay_flutter/build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7
