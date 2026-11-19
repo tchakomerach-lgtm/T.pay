@@ -108,8 +108,7 @@ export function calculateCommunityTontineCycleCloseout(input: CycleCloseoutInput
 
   const gross = input.shares.reduce((sum, x) => sum + x.grossRefundableMinor, 0n);
   const other = input.shares.reduce((sum, x) => sum + x.otherContractualDeductionsMinor, 0n);
-  const deductions = input.tpayCommissionMinor + input.microfinanceCommissionMinor +
-    input.earnedInsurancePremiumMinor + input.approvedClaimsMinor + other;
+  const deductions = input.tpayCommissionMinor + input.microfinanceCommissionMinor + other;
   if (deductions > gross) throw new Error("TONTINE_CLOSEOUT_DEDUCTIONS_EXCEED_REFUNDABLE");
   const tpay = allocateProRata(input.tpayCommissionMinor, input.shares);
   const mf = allocateProRata(input.microfinanceCommissionMinor, input.shares);
