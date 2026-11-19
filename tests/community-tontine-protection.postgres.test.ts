@@ -148,6 +148,21 @@ test("CT-042 PostgreSQL enforces organization RLS, composite scope, immutable ev
       assert.match(policy.with_check ?? "", /tpay_current_organization_id/);
     }
 
+    const tenantFences = await owner.query<{ tablename: string; permissive: string; qual: string | null; with_check: string | null }>(
+      `SELECT tablename,permissive,qual,with_check FROM pg_policies
+       WHERE schemaname='public' AND policyname=ANY($1::text[])`,
+      [scopedTables.map(table => table + "_tenant_fence")]
+    );
+    assert.equal(tenantFences.rowCount, scopedTables.length,
+      "every protection table must have an explicit restrictive tenant fence");
+    for (const table of scopedTables) {
+      const fence = tenantFences.rows.find(row => row.tablename === table);
+      assert.ok(fence, "missing restrictive tenant fence for " + table);
+      assert.equal(fence.permissive, "RESTRICTIVE", table + " tenant fence must intersect permissive policies");
+      assert.match(fence.qual ?? "", /tpay_current_organization_id/);
+      assert.match(fence.with_check ?? "", /tpay_current_organization_id/);
+    }
+
     const expectSqlCode = async (label: string, sql: string, values: unknown[], code: string) => {
       await owner.query("SAVEPOINT " + label);
       let caught: unknown;
