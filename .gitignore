@@ -6,3 +6,12 @@ dist/
 coverage/
 *.log
 .DS_Store
+
+# Flutter generated local state (reproducible; never commit build caches)
+mobile/tpay_flutter/.dart_tool/
+mobile/tpay_flutter/build/
+mobile/tpay_flutter/.flutter-plugins
+mobile/tpay_flutter/.flutter-plugins-dependencies
+mobile/tpay_flutter/.packages
+mobile/tpay_flutter/android/.gradle/
+mobile/tpay_flutter/android/local.properties
