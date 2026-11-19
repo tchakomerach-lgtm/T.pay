@@ -9,7 +9,7 @@ import { PostgresDurableTontineSettlementRepository } from "../packages/finance/
 import { executeDurableTontineSettlement } from "../packages/microfinance/src/tontine-settlement-uow.js";
 import { PostgresCommunityTontineMfSettlementRepository } from "../packages/microfinance/src/community-tontine-mf-settlement-repository.js";
 
-const databaseUrl = process.env.TPAY_DATABASE_URL;
+const databaseUrl = process.env.TPAY_RUN_POSTGRES_LIVE === "1" ? process.env.TPAY_DATABASE_URL : undefined;
 
 test("S-02.5 live PostgreSQL migration is idempotent and enforces financial invariants", { skip: !databaseUrl && "TPAY_DATABASE_URL is not configured" }, async () => {
   const client = new pg.Client({ connectionString: databaseUrl });
