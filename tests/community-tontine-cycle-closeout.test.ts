@@ -14,7 +14,7 @@ const base={
   {memberId:b,grossRefundableMinor:20_000n,otherContractualDeductionsMinor:0n}
  ],
  tpayCommissionMinor:300n,microfinanceCommissionMinor:600n,
- earnedInsurancePremiumMinor:0n,approvedClaimsMinor:0n,incidentCount:0,
+ earnedInsurancePremiumMinor:500n,approvedClaimsMinor:100n,incidentCount:0,
  allPaymentsReconciled:true,allDisputesResolved:true,allCallbacksFinal:true,
  reservesSufficient:true,contractualHoldExpired:true
 };
