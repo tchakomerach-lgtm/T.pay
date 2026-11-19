@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS community_tontine_cycle_closeouts (
  idempotency_key text NOT NULL CHECK(length(btrim(idempotency_key)) BETWEEN 8 AND 160),
  calculated_at timestamptz NOT NULL, settled_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(),
  FOREIGN KEY(organization_id,group_id) REFERENCES tontine_groups(organization_id,id) ON DELETE RESTRICT,
- UNIQUE(organization_id,group_id,cycle_id), UNIQUE(organization_id,id), UNIQUE(organization_id,idempotency_key),
+ UNIQUE(organization_id,group_id,cycle_id), UNIQUE(organization_id,id), UNIQUE(organization_id,group_id,id), UNIQUE(organization_id,idempotency_key),
  CHECK(net_refund_minor=GREATEST(0,gross_refundable_minor-tpay_commission_minor-microfinance_commission_minor-earned_insurance_premium_minor-approved_claims_minor-other_contractual_deductions_minor)),
  CHECK(state NOT IN ('READY_FOR_SETTLEMENT','SETTLEMENT_PENDING','SETTLED') OR (incident_count=0 AND incident_review_reference IS NOT NULL)),
  CHECK(state<>'SETTLED' OR (financial_core_batch_reference IS NOT NULL AND settled_at IS NOT NULL))
@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS community_tontine_cycle_refund_allocations (
  paid_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(),
  FOREIGN KEY(organization_id,group_id,closeout_id) REFERENCES community_tontine_cycle_closeouts(organization_id,group_id,id) ON DELETE RESTRICT,
  FOREIGN KEY(organization_id,group_id,member_id) REFERENCES tontine_memberships(organization_id,group_id,id) ON DELETE RESTRICT,
- UNIQUE(organization_id,group_id,closeout_id,member_id),
+ UNIQUE(organization_id,group_id,closeout_id,member_id), UNIQUE(organization_id,group_id,id),
  CHECK(net_refund_minor=GREATEST(0,gross_share_minor-tpay_commission_minor-microfinance_commission_minor-other_deductions_minor)),
  CHECK(state<>'PAID' OR (financial_core_reference IS NOT NULL AND paid_at IS NOT NULL))
 );
@@ -107,8 +107,8 @@ CREATE TABLE IF NOT EXISTS community_tontine_protection_financial_events (
  event_type text NOT NULL CHECK(event_type IN ('INDIVIDUAL_COVERAGE_CONSENTED','INDIVIDUAL_PREMIUM_QUOTED','INDIVIDUAL_PREMIUM_SETTLED','CYCLE_CLOSEOUT_CALCULATED','CYCLE_CLOSEOUT_BLOCKED','CYCLE_CLOSEOUT_APPROVED','REFUND_BATCH_REQUESTED','REFUND_PAID','REFUND_FAILED','CYCLE_CLOSEOUT_REVERSED')),
  actor_id uuid NOT NULL, payload jsonb NOT NULL CHECK(jsonb_typeof(payload)='object'), occurred_at timestamptz NOT NULL DEFAULT now(),
  FOREIGN KEY(organization_id,group_id) REFERENCES tontine_groups(organization_id,id) ON DELETE RESTRICT,
- FOREIGN KEY(organization_id,closeout_id) REFERENCES community_tontine_cycle_closeouts(organization_id,id) ON DELETE RESTRICT,
- FOREIGN KEY(allocation_id) REFERENCES community_tontine_cycle_refund_allocations(id) ON DELETE RESTRICT,
+ FOREIGN KEY(organization_id,group_id,closeout_id) REFERENCES community_tontine_cycle_closeouts(organization_id,group_id,id) ON DELETE RESTRICT,
+ FOREIGN KEY(organization_id,group_id,allocation_id) REFERENCES community_tontine_cycle_refund_allocations(organization_id,group_id,id) ON DELETE RESTRICT,
  CHECK(closeout_id IS NOT NULL OR allocation_id IS NOT NULL)
 );
 
