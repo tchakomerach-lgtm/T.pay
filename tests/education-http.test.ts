@@ -86,7 +86,7 @@ test("P049 fortress request envelope rejects oversized URL/header and emits hard
 test("School workspace read routes are tenant and organization scoped",async()=>{
  const calls:Array<{sql:string;values?:unknown[]}>=[];
  const records=[{work_item_id:"work-1",organization_id:"org-1",status:"OPEN",priority:"NORMAL",due_at:null,owner_actor_id:null,version:"1"}];
- const database={async query(sql:string,values?:unknown[]){calls.push({sql,values});if(sql.includes("FROM education_work_items"))return {rows:records,rowCount:1};return {rows:[],rowCount:0};}};
+ const database={async query(sql:string,values?:unknown[]){calls.push(values===undefined?{sql}:{sql,values});if(sql.includes("FROM education_work_items"))return {rows:records,rowCount:1};return {rows:[],rowCount:0};}};
  const server=createSchoolApiServer({db:database as any,authenticate:async()=>auth(),syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any});
  await new Promise<void>(resolve=>server.listen(0,resolve));const port=(server.address() as any).port;
  try{
