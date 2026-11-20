@@ -134,7 +134,7 @@ function subsidy(){
  ["École Lumière","SFD Solidarité",money(8500000),"Écolages + tontine",badge("Étude","warning")],
  ["Institut Horizon","Microfinance Espoir",money(6200000),"Écolages + tontine",badge("Préparation","info")],
  ["Groupe Scolaire Avenir","SFD Solidarité",money(3800000),"Écolages + tontine",badge("Brouillon","neutral")]
- ]))+'<p class="notice-box">Démonstration : aucun prêt, garantie, paiement ou remboursement réel n'est engagé. Le financement et la récupération exigent des contrats, autorisations et écritures Financial Core.</p>';
+ ]))+'<p class="notice-box">Démonstration : aucun prêt, garantie, paiement ou remboursement réel n’est engagé. Le financement et la récupération exigent des contrats, autorisations et écritures Financial Core.</p>';
 }
 function microfinance(){
  const rows=state.data.clients.map(c=>'<tr><td><b>'+esc(c.name)+'</b><small>'+esc(c.ref)+'</small></td><td>'+esc(c.agency)+'</td><td>'+badge(c.status,c.status==="Actif"?"success":"warning")+'</td><td><button class="link-btn" data-action="client-detail">Dossier</button></td></tr>');
