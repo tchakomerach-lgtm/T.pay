@@ -228,7 +228,8 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     data={...item,version:item.version.toString()};
    } else if(r[0]==="work"){
     const q=await deps.db.query("SELECT * FROM education_work_items WHERE tenant_id=$1 AND organization_id=$2 AND work_item_id=$3",[auth.tenantId,organizationId,r[1]]);
-    if(!q.rows[0])throw new Error("WORK_ITEM_NOT_FOUND"); const item={...q.rows[0],version:BigInt(String(q.rows[0].version))} as unknown as WorkItem;
+    const persistedWorkRow=q.rows[0]; if(!persistedWorkRow)throw new Error("WORK_ITEM_NOT_FOUND");
+    const item={...persistedWorkRow,version:BigInt(String(persistedWorkRow.version))} as unknown as WorkItem;
     const next=r[2]==="claim"?claimWorkItem(item,auth.principal.userId):resolveWorkItem(item,auth.principal.userId);
     const updated=await deps.db.query("UPDATE education_work_items SET status=$1,owner_actor_id=$2,version=$3,updated_at=now() WHERE tenant_id=$4 AND organization_id=$5 AND work_item_id=$6 AND version=$7 RETURNING *",[next.status,next.ownerActorId,next.version,auth.tenantId,organizationId,r[1],item.version]);
     if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
@@ -240,10 +241,10 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     await deps.db.query("INSERT INTO education_service_requests(request_id,tenant_id,organization_id,requester_id,service_code,status,priority,assigned_to,created_at,due_at,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",[item.id,auth.tenantId,organizationId,item.requesterId,item.serviceCode,item.status,item.priority,item.assignedTo,item.createdAt,item.dueAt,item.version]); data={...item,version:item.version.toString()};
    } else {
     const q=await deps.db.query("SELECT * FROM education_service_requests WHERE tenant_id=$1 AND organization_id=$2 AND request_id=$3",[auth.tenantId,organizationId,r[1]]);
-    if(!q.rows[0])throw new Error("SERVICE_REQUEST_NOT_FOUND");
+    const persistedServiceRow=q.rows[0]; if(!persistedServiceRow)throw new Error("SERVICE_REQUEST_NOT_FOUND");
     const submitted=body as {to?:unknown;reason?:unknown};
     if(typeof submitted.to!=="string")throw new Error("SERVICE_TRANSITION_TARGET_REQUIRED");
-    const current={...q.rows[0],version:BigInt(String(q.rows[0].version))} as unknown as ServiceRequest;
+    const current={...persistedServiceRow,version:BigInt(String(persistedServiceRow.version))} as unknown as ServiceRequest;
     const next=transitionService(current,{from:current.status,to:submitted.to as ServiceTransition["to"],actorId:auth.principal.userId,at:(deps.now??(()=>new Date()))().toISOString(),...(typeof submitted.reason==="string"?{reason:submitted.reason}:{})});
     const updated=await deps.db.query("UPDATE education_service_requests SET status=$1,version=$2,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND request_id=$5 AND version=$6 RETURNING *",[next.status,next.version,auth.tenantId,organizationId,r[1],Number((q.rows[0] as any).version)]);
     if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
