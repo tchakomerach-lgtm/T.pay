@@ -29,7 +29,7 @@ export function assertHealthConsentActive(
     throw new Error("HEALTH_CONSENT_SCOPE_MISMATCH");
   }
   if (!input.purpose.trim() || !input.scope.trim() || !grant.purpose.trim()
-    || !grant.scopes.includes(input.scope) || grant.expiresAt <= grant.grantedAt) {
+    || !grant.scopes.includes(input.scope) || expiresAt <= grantedAt) {
     throw new Error("HEALTH_CONSENT_PURPOSE_MISMATCH");
   }
   if (grant.purpose !== input.purpose) {
