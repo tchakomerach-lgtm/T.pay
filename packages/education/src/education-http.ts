@@ -202,7 +202,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     try{ data=await new PostgresEducationSyncStore(syncClient).accept(event as any); }
     finally{ syncClient.release?.(); }
    } else if(r[0]==="attendance"){
-    const submitted=body as Partial<AttendanceRecord>;
+    const submitted=body as {studentId?:unknown;classId?:unknown;status?:unknown;source?:unknown;version?:unknown};
     if(typeof submitted.studentId!=="string"||!submitted.studentId.trim()||typeof submitted.classId!=="string"||!submitted.classId.trim())throw new Error("ATTENDANCE_IDENTITY_REQUIRED");
     if(!["PRESENT","ABSENT","LATE","EXCUSED","UNKNOWN"].includes(String(submitted.status)))throw new Error("ATTENDANCE_STATUS_INVALID");
     if(submitted.source==="ADMIN_CORRECTION")throw new Error("ATTENDANCE_CORRECTION_REQUIRES_PRIVILEGED_ROUTE");
@@ -212,7 +212,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       recordedBy:auth.principal.userId,
       occurredAt:(deps.now??(()=>new Date()))().toISOString(),
       source:"TEACHER",
-      version:BigInt(Number.isSafeInteger(submitted.version)&&Number(submitted.version)>0?Number(submitted.version):1)
+      version:BigInt(typeof submitted.version==="number"&&Number.isSafeInteger(submitted.version)&&submitted.version>0?submitted.version:1)
     };
     const q=await deps.db.query("SELECT * FROM education_attendance WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3 AND class_id=$4",[auth.tenantId,organizationId,incoming.studentId,incoming.classId]);
     const existingRow=q.rows[0];\n    const existing=existingRow?{...existingRow,version:BigInt(String(existingRow.version))} as unknown as AttendanceRecord:null;
