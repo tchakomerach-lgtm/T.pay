@@ -131,7 +131,7 @@ export function SchoolApp({config,onDisconnect}:{config:SchoolWebConfig;onDiscon
 
  return h("main",{className:"app-shell"},
   h("aside",{className:"sidebar"},
-   h("div",{className:"brand-lockup"},h("div",{className:"brand-mark"},"T."),h("div",null,h("strong",null,"T.Pay"),h("small",null,"SCHOOL OS"))),
+   h("div",{className:"brand-lockup"},h("img",{className:"brand-mark",src:"/tpay-logo.svg",alt:"T.Pay"}),h("div",null,h("small",null,"SCHOOL OS"))),
    h("div",{className:"workspace-card"},h("span",{className:"workspace-icon"},"EL"),h("div",null,h("strong",null,"Organisation active"),h("small",null,short(actor?.organization_id??"Chargement…")))),
    h("nav",{className:"side-nav"},navItems.map(item=>h("button",{key:item.id,className:"nav-link "+(active===item.id?"active":""),onClick:()=>setActive(item.id)},h("span",{className:"nav-symbol"},item.icon),item.label))),
    h("div",{className:"sidebar-bottom"},h("div",{className:"profile-block"},h("div",{className:"avatar"},actorName.slice(0,1).toUpperCase()),h("div",null,h("strong",null,actorName),h("small",null,actor?.kind??"Acteur authentifié"))),h("button",{className:"disconnect-button",onClick:onDisconnect},"Déconnecter"))
