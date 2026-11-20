@@ -17,7 +17,7 @@ export interface HealthConsentGrant {
 
 export function assertHealthConsentActive(
   grant: HealthConsentGrant,
-  input: { actorId: UUID; organizationId: UUID; purpose: string; scope: string; now: string }
+  input: { subjectId: UUID; actorId: UUID; organizationId: UUID; purpose: string; scope: string; now: string }
 ): void {
   const now = Date.parse(input.now);
   const expiresAt = Date.parse(grant.expiresAt);
@@ -25,10 +25,14 @@ export function assertHealthConsentActive(
   if (!Number.isFinite(now) || !Number.isFinite(expiresAt) || !Number.isFinite(grantedAt)) {
     throw new Error("HEALTH_CONSENT_TIMESTAMP_INVALID");
   }
-  if (grant.actorId !== input.actorId || grant.organizationId !== input.organizationId) {
+  if (grant.subjectId !== input.subjectId || grant.actorId !== input.actorId || grant.organizationId !== input.organizationId) {
     throw new Error("HEALTH_CONSENT_SCOPE_MISMATCH");
   }
-  if (grant.purpose !== input.purpose || !grant.scopes.includes(input.scope)) {
+  if (!input.purpose.trim() || !input.scope.trim() || !grant.purpose.trim()
+    || !grant.scopes.includes(input.scope) || grant.expiresAt <= grant.grantedAt) {
+    throw new Error("HEALTH_CONSENT_PURPOSE_MISMATCH");
+  }
+  if (grant.purpose !== input.purpose) {
     throw new Error("HEALTH_CONSENT_PURPOSE_MISMATCH");
   }
   if (grant.revokedAt || now < grantedAt || now >= expiresAt) {
