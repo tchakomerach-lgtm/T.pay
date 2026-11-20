@@ -8,7 +8,7 @@ button{cursor:pointer}
 .brand-lockup{display:flex;align-items:center;gap:12px;margin-bottom:28px}
 .brand-lockup strong{display:block;font:800 20px Manrope,sans-serif;letter-spacing:-.04em}
 .brand-lockup small{display:block;color:#8096a9;font-size:9px;letter-spacing:.2em;margin-top:3px}
-.brand-mark{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,#4ee0c1,#2d91db);color:#061622;font:800 20px Manrope;box-shadow:0 8px 24px rgba(57,190,190,.25);transform:rotate(-5deg)}
+.brand-mark{display:block;width:142px;height:auto;max-height:42px;object-fit:contain;object-position:left center;filter:drop-shadow(0 5px 14px rgba(22,163,74,.12))}
 .eyebrow{color:#65d8c3;font-size:10px;font-weight:800;letter-spacing:.18em}
 .connect-card h1{font:800 clamp(28px,5vw,38px)/1.12 Manrope,sans-serif;letter-spacing:-.045em;margin:12px 0}
 .muted{color:#9aafc1;line-height:1.65;font-size:14px}
