@@ -1,4 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap");
 :root{font-family:"DM Sans",Inter,system-ui,sans-serif;color:#eaf1f8;background:#08121d;font-synthesis:none;text-rendering:optimizeLegibility}
 *{box-sizing:border-box}
 body{margin:0;min-width:320px;min-height:100vh;background:radial-gradient(ellipse at 12% 0%,rgba(25,104,128,.22),transparent 36%),radial-gradient(ellipse at 90% 80%,rgba(71,66,143,.18),transparent 32%),#08121d}
