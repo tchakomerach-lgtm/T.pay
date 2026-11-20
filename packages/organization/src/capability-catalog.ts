@@ -66,6 +66,13 @@ export const ORGANIZATION_CAPABILITY_CATALOG = [
 
 export type OrganizationCapabilityId = typeof ORGANIZATION_CAPABILITY_CATALOG[number]["id"];
 
+function isEligibleForOrganizationType(
+  eligibleTypes: readonly OrganizationType[] | "all",
+  organizationType: OrganizationType
+): boolean {
+  return eligibleTypes === "all" || (eligibleTypes as readonly OrganizationType[]).includes(organizationType);
+}
+
 export interface OrganizationCapabilityManifestEntry extends OrganizationCapabilityDefinition {
   readonly eligible: boolean;
   readonly activation: "not_eligible" | "pending_implementation" | "requires_approval" | "available_for_configuration";
@@ -79,11 +86,11 @@ export function getOrganizationCapabilityManifest(
   organizationType: OrganizationType
 ): readonly OrganizationCapabilityManifestEntry[] {
   return ORGANIZATION_CAPABILITY_CATALOG.map(capability => {
-    const eligible = capability.eligibleOrganizationTypes === "all"
-      || capability.eligibleOrganizationTypes.includes(organizationType);
+    const eligible = isEligibleForOrganizationType(capability.eligibleOrganizationTypes, organizationType);
+    const implementationState: CapabilityImplementationState = capability.implementationState;
     const activation = !eligible
       ? "not_eligible"
-      : capability.implementationState !== "implemented"
+      : implementationState !== "implemented"
         ? "pending_implementation"
         : capability.requiresRegulatoryApproval || capability.provisioning === "approval_required"
           ? "requires_approval"
@@ -98,8 +105,7 @@ export function assertOrganizationCapabilityEligible(
 ): OrganizationCapabilityDefinition {
   const capability = ORGANIZATION_CAPABILITY_CATALOG.find(item => item.id === capabilityId);
   if (!capability) throw new Error("ORGANIZATION_CAPABILITY_UNKNOWN");
-  const eligible = capability.eligibleOrganizationTypes === "all"
-    || capability.eligibleOrganizationTypes.includes(organizationType);
+  const eligible = isEligibleForOrganizationType(capability.eligibleOrganizationTypes, organizationType);
   if (!eligible) throw new Error("ORGANIZATION_CAPABILITY_NOT_ELIGIBLE");
   return capability;
 }
