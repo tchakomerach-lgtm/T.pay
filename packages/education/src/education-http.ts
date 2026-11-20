@@ -246,7 +246,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     if(typeof submitted.to!=="string")throw new Error("SERVICE_TRANSITION_TARGET_REQUIRED");
     const current={...persistedServiceRow,version:BigInt(String(persistedServiceRow.version))} as unknown as ServiceRequest;
     const next=transitionService(current,{from:current.status,to:submitted.to as ServiceTransition["to"],actorId:auth.principal.userId,at:(deps.now??(()=>new Date()))().toISOString(),...(typeof submitted.reason==="string"?{reason:submitted.reason}:{})});
-    const updated=await deps.db.query("UPDATE education_service_requests SET status=$1,version=$2,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND request_id=$5 AND version=$6 RETURNING *",[next.status,next.version,auth.tenantId,organizationId,r[1],Number((q.rows[0] as any).version)]);
+    const updated=await deps.db.query("UPDATE education_service_requests SET status=$1,version=$2,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND request_id=$5 AND version=$6 RETURNING *",[next.status,next.version,auth.tenantId,organizationId,r[1],current.version]);
     if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
    }
    if(deps.realtime && deps.realtimeStore && r[0]!=="actor"){
