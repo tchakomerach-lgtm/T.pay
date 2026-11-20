@@ -131,8 +131,7 @@ test("opportunity publication requires organization context, public-safe content
     createSocialPublication(command({
       kind: "job",
       surfaces: ["opportunity"],
-      visibility: "public",
-      approvalRef: undefined
+      visibility: "public"
     }), dependencies()),
     /OPPORTUNITY_HR_APPROVAL_REQUIRED/
   );
