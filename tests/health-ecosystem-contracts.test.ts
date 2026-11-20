@@ -56,10 +56,9 @@ test("clinic receives hospital care capabilities without becoming a pharmacy", (
   assert.equal(clinic.find(item => item.id === "pharmacy.orders")?.eligible, false);
 });
 
-test("patient consent is scoped to actor, organization, purpose and expiry", () => {
+test("patient consent is scoped to patient, actor, organization, purpose and expiry", () => {
   const grant = {
     id: "consent-1" as never,
-    subjectId: "patient-1" as never,
     subjectId: "patient-1" as never,
     actorId: "actor-1" as never,
     organizationId: "hospital-1" as never,
