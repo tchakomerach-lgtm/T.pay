@@ -42,3 +42,35 @@ test("school API exposes liveness and database readiness without authentication"
     await new Promise<void>(resolve=>server.close(()=>resolve()));
   }
 });
+
+import { PooledTransactionClient } from "../apps/api-server/src/main.js";
+
+test("pooled transaction client releases its connection after COMMIT and ROLLBACK",async()=>{
+  let released=0;
+  const statements:string[]=[];
+  const client={
+    query:async(sql:string)=>{statements.push(sql);return {rows:[],rowCount:0};},
+    release:()=>{released++;}
+  };
+  const pool={connect:async()=>client} as any;
+  const tx=new PooledTransactionClient(pool);
+  await tx.query("BEGIN");
+  assert.equal(released,0);
+  await tx.query("COMMIT");
+  assert.equal(released,1);
+  await tx.query("BEGIN");
+  await tx.query("ROLLBACK");
+  assert.equal(released,2);
+  assert.deepEqual(statements,["BEGIN","COMMIT","BEGIN","ROLLBACK"]);
+});
+
+test("pooled transaction client releases a broken connection after query failure",async()=>{
+  let released=0;
+  const client={
+    query:async()=>{throw new Error("DB_QUERY_FAILED");},
+    release:()=>{released++;}
+  };
+  const tx=new PooledTransactionClient({connect:async()=>client} as any);
+  await assert.rejects(()=>tx.query("SELECT 1"),/DB_QUERY_FAILED/);
+  assert.equal(released,1);
+});
