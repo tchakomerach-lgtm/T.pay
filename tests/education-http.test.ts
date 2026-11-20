@@ -81,3 +81,39 @@ test("P049 fortress request envelope rejects oversized URL/header and emits hard
   sse.body?.cancel();
  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
+
+
+test("School workspace read routes are tenant and organization scoped",async()=>{
+ const calls:Array<{sql:string;values?:unknown[]}>=[];
+ const records=[{work_item_id:"work-1",organization_id:"org-1",status:"OPEN",priority:"NORMAL",due_at:null,owner_actor_id:null,version:"1"}];
+ const database={async query(sql:string,values?:unknown[]){calls.push(values===undefined?{sql}:{sql,values});if(sql.includes("FROM education_work_items"))return {rows:records,rowCount:1};return {rows:[],rowCount:0};}};
+ const server=createSchoolApiServer({db:database as any,authenticate:async()=>auth(),syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any});
+ await new Promise<void>(resolve=>server.listen(0,resolve));const port=(server.address() as any).port;
+ try{
+  const response=await fetch(`http://127.0.0.1:${port}/v1/education/work-items`);
+  const body=await response.json() as any;
+  assert.equal(response.status,200);
+  assert.equal(body.ok,true);
+  assert.equal(body.data[0].work_item_id,"work-1");
+  const read=calls.find(call=>call.sql.includes("FROM education_work_items"));
+  assert.ok(read);
+  assert.match(read.sql,/tenant_id=\$1 AND organization_id=\$2/);
+  assert.deepEqual(read.values,["tenant-1","org-1"]);
+ }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});
+
+test("attendance mutations bind recorder identity and source to the authenticated server principal",async()=>{
+ const calls:Array<{sql:string;values?:unknown[]}>=[];
+ const database={async query(sql:string,values?:unknown[]){calls.push(values===undefined?{sql}:{sql,values});if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:"request-1"}],rowCount:1};if(sql.includes("SELECT * FROM education_attendance"))return {rows:[],rowCount:0};return {rows:[],rowCount:1};}};
+ const server=createSchoolApiServer({db:database as any,authenticate:async()=>auth(),syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any});
+ await new Promise<void>(resolve=>server.listen(0,resolve));const port=(server.address() as any).port;
+ try{
+  const response=await fetch(`http://127.0.0.1:${port}/v1/education/attendance`,{method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"attendance-forged-actor-001"},body:JSON.stringify({studentId:"student-1",classId:"class-1",status:"PRESENT",recordedBy:"attacker",source:"AUTHORIZED_DEVICE",version:1})});
+  const body=await response.json() as any;
+  assert.equal(response.status,200,JSON.stringify(body));
+  const insert=calls.find(call=>call.sql.includes("INSERT INTO education_attendance"));
+  assert.ok(insert);
+  assert.equal(insert.values?.[5],"teacher-1");
+  assert.equal(insert.values?.[7],"TEACHER");
+ }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});

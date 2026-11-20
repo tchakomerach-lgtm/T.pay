@@ -1,9 +1,9 @@
 export type SchoolWebSession={accessToken:string;expiresAt:string};
-export type SchoolWebConfig={apiBaseUrl:string;session:SchoolWebSession;demo?:boolean};
+export type SchoolWebConfig={apiBaseUrl:string;actorId:string;session:SchoolWebSession};
 export type SchoolWebEvent={id:string;event:string;data:unknown};
 
 function assertHttps(url:string):URL{const parsed=new URL(url);if(parsed.protocol!=="https:")throw new Error("WEB_HTTPS_REQUIRED");return parsed;}
-function assertSession(session:SchoolWebSession){if(!session.accessToken)throw new Error("WEB_SESSION_REQUIRED");if(Date.parse(session.expiresAt)<=Date.now())throw new Error("WEB_SESSION_EXPIRED");}
+function assertSession(session:SchoolWebSession){if(!session.accessToken)throw new Error("WEB_SESSION_REQUIRED");if(!Number.isFinite(Date.parse(session.expiresAt))||Date.parse(session.expiresAt)<=Date.now())throw new Error("WEB_SESSION_EXPIRED");}
 
 export function createSchoolWebClient(config:SchoolWebConfig){
   const base=assertHttps(config.apiBaseUrl).toString().replace(/\/$/,"");

@@ -4,31 +4,35 @@ import {SchoolApp} from "./app.js";
 import type {SchoolWebConfig} from "./school-web.js";
 import "./style.css";
 
-declare global{interface Window{__TPAY_SCHOOL_CONFIG__?:{apiBaseUrl:string;accessToken:string;expiresAt:string}}}
+declare global{interface Window{__TPAY_SCHOOL_CONFIG__?:{apiBaseUrl:string;actorId:string;accessToken:string;expiresAt:string}}}
 
 const STORAGE_KEY="tpay-school-test-config";
 const root=document.getElementById("root");if(!root)throw new Error("WEB_ROOT_REQUIRED");
 
 function readConfig():SchoolWebConfig|null{
   const raw=window.__TPAY_SCHOOL_CONFIG__??(()=>{try{const value=sessionStorage.getItem(STORAGE_KEY);return value?JSON.parse(value):undefined}catch{return undefined}})();
-  if(raw?.apiBaseUrl&&raw?.accessToken&&raw?.expiresAt)return {apiBaseUrl:raw.apiBaseUrl,session:{accessToken:raw.accessToken,expiresAt:raw.expiresAt}};
+  if(raw?.apiBaseUrl&&raw?.actorId&&raw?.accessToken&&raw?.expiresAt)return {apiBaseUrl:raw.apiBaseUrl,actorId:raw.actorId,session:{accessToken:raw.accessToken,expiresAt:raw.expiresAt}};
   return null;
 }
 
 function Setup(){const [,refresh]=useState(0);
-  const submit=(event:React.FormEvent<HTMLFormElement>)=>{event.preventDefault();const form=new FormData(event.currentTarget);const apiBaseUrl=String(form.get("apiBaseUrl")??"").trim();const accessToken=String(form.get("accessToken")??"").trim();if(!apiBaseUrl||!accessToken)return;sessionStorage.setItem(STORAGE_KEY,JSON.stringify({apiBaseUrl,accessToken,expiresAt:new Date(Date.now()+86400000).toISOString()}));refresh(v=>v+1);};
-  const demo=()=>{sessionStorage.setItem(STORAGE_KEY,JSON.stringify({apiBaseUrl:"https://demo.invalid",accessToken:"demo-session",expiresAt:new Date(Date.now()+86400000).toISOString(),demo:true}));refresh(v=>v+1);};
+  const submit=(event:React.FormEvent<HTMLFormElement>)=>{event.preventDefault();const form=new FormData(event.currentTarget);const apiBaseUrl=String(form.get("apiBaseUrl")??"").trim().replace(/\/$/,"");const actorId=String(form.get("actorId")??"").trim();const accessToken=String(form.get("accessToken")??"").trim();const expiresAt=String(form.get("expiresAt")??"").trim();if(!apiBaseUrl||!actorId||!accessToken)return;try{const parsed=new URL(apiBaseUrl);if(parsed.protocol!=="https:"||parsed.origin!==apiBaseUrl)throw new Error("HTTPS_REQUIRED");}catch{alert("L'API doit être une URL HTTPS valide, sans chemin.");return;}const expiry=expiresAt?new Date(expiresAt):new Date(Date.now()+86400000);if(!Number.isFinite(expiry.getTime())||expiry.getTime()<=Date.now()){alert("La date d'expiration doit être valide et dans le futur.");return;}const config={apiBaseUrl,actorId,accessToken,expiresAt:expiry.toISOString()};sessionStorage.setItem(STORAGE_KEY,JSON.stringify(config));refresh(v=>v+1);};
   const config=readConfig();
-  if(config)return React.createElement(SchoolApp,{config:{...config,demo:config.apiBaseUrl==="https://demo.invalid"}});
-  return React.createElement("main",{className:"school-shell"},
-    React.createElement("section",{className:"setup-panel"},React.createElement("p",{className:"eyebrow"},"T.PAY • TEST BOOTSTRAP"),React.createElement("h1",null,"Connexion de test"),React.createElement("p",null,"La version précédente plantait lorsque la configuration de session n'était pas injectée. Configure ici un endpoint HTTPS et un jeton de test. Les valeurs sont conservées uniquement dans sessionStorage."),
-      React.createElement("form",{onSubmit:submit,className:"setup-form"},
-        React.createElement("label",null,"API HTTPS",React.createElement("input",{name:"apiBaseUrl",placeholder:"https://127.0.0.1:8443",required:true})),
-        React.createElement("label",null,"Jeton de test",React.createElement("input",{name:"accessToken",type:"password",autoComplete:"off",required:true})),
-        React.createElement("button",{type:"submit"},"Lancer T.Pay")
+  if(config)return React.createElement(SchoolApp,{config,onDisconnect:()=>{sessionStorage.removeItem(STORAGE_KEY);sessionStorage.removeItem("tpay-school-last-event-id");refresh(v=>v+1);}});
+  return React.createElement("main",{className:"connect-shell"},
+    React.createElement("section",{className:"connect-card"},
+      React.createElement("div",{className:"brand-lockup"},React.createElement("img",{className:"brand-mark",src:"/tpay-logo.svg",alt:"T.Pay"}),React.createElement("div",null,React.createElement("strong",null,"T.Pay"),React.createElement("small",null,"OPERATING SYSTEM"))),
+      React.createElement("p",{className:"eyebrow"},"ESPACE DE TEST UTILISATEUR"),
+      React.createElement("h1",null,"Connectez votre espace T.Pay"),
+      React.createElement("p",{className:"muted"}, "Cette interface se connecte au serveur HTTPS et à PostgreSQL. Elle n'utilise pas de données fictives. Il vous faut une session de test émise par l'administrateur de l'environnement."),
+      React.createElement("form",{onSubmit:submit,className:"connect-form"},
+        React.createElement("label",null,"URL de l'API HTTPS",React.createElement("input",{name:"apiBaseUrl",type:"url",placeholder:"https://api.votre-domaine.tld",required:true,autoComplete:"url"})),
+        React.createElement("label",null,"Identifiant de l'acteur",React.createElement("input",{name:"actorId",placeholder:"Identifiant fourni avec la session",required:true,autoComplete:"off"})),
+        React.createElement("label",null,"Jeton de session",React.createElement("input",{name:"accessToken",type:"password",placeholder:"Jeton sécurisé",required:true,autoComplete:"off"})),
+        React.createElement("label",null,"Expiration de la session (facultatif)",React.createElement("input",{name:"expiresAt",placeholder:"ISO 8601, sinon 24 h",autoComplete:"off"})),
+        React.createElement("button",{type:"submit",className:"primary-button"},"Se connecter à T.Pay")
       ),
-      React.createElement("button",{type:"button",onClick:demo,className:"secondary"},"Ouvrir en mode démonstration"),
-      React.createElement("p",{className:"notice"},"Le mode démonstration vérifie le lancement du frontend sans prétendre fournir une API financière réelle.")
+      React.createElement("p",{className:"security-note"},"Le jeton est conservé uniquement dans la session du navigateur. Aucun mot de passe ou secret n'est envoyé à un service tiers.")
     )
   );
 }

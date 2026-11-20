@@ -12,7 +12,7 @@ import { SchoolRealtimeHub, toSseMessage, type SchoolRealtimeEvent } from "./sch
 import { PostgresSchoolRealtimeStore } from "./postgres-realtime-store.js";
 import type { SchoolRealtimeMessage } from "./school-realtime.js";
 import { reconcileAttendance, claimWorkItem, resolveWorkItem, type AttendanceRecord, type WorkItem } from "./school-operations.js";
-import { assignService, transitionService, type ActorRef, type ServiceRequest } from "./actor-services.js";
+import { assignService, transitionService, type ActorRef, type ServiceRequest, type ServiceTransition } from "./actor-services.js";
 
 export interface SchoolAuthContext { principal: Principal; session: OrganizationSession; tenantId: string; }
 export interface SchoolApiDependencies {
@@ -74,20 +74,20 @@ async function readBody(req:IncomingMessage):Promise<string>{
   return out;
 }
 const parse=(s:string)=>s?JSON.parse(s):{};
-function route(path:string){
+function route(path:string,method:string){
  const parts=path.split("/").filter(Boolean);
  if(parts[0]!=="v1"||parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
  if(parts[2]==="sync"&&parts[3]==="events"&&parts.length===4)return ["sync"] as const;
- if(parts[2]==="attendance"&&parts.length===3)return ["attendance"] as const;
- if(parts[2]==="work-items"&&parts.length===3)return ["work-create"] as const;
+ if(parts[2]==="attendance"&&parts.length===3)return [method==="GET"?"attendance-list":"attendance"] as const;
+ if(parts[2]==="work-items"&&parts.length===3)return [method==="GET"?"work-list":"work-create"] as const;
  if(parts[2]==="work-items"&&parts.length===5&&parts[3]&&(parts[4]==="claim"||parts[4]==="resolve"))return ["work",parts[3],parts[4]] as const;
- if(parts[2]==="service-requests"&&parts.length===3)return ["service-create"] as const;
+ if(parts[2]==="service-requests"&&parts.length===3)return [method==="GET"?"service-list":"service-create"] as const;
  if(parts[2]==="service-requests"&&parts.length===5&&parts[3]&&parts[4]==="transition")return ["service-transition",parts[3]] as const;
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string):Permission{return kind==="actor"?"org.read":"member.manage";}
+function permissionFor(kind:string):Permission{return kind==="actor"||kind.endsWith("-list")?"org.read":"member.manage";}
 export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
 
 export function createSchoolApiServer(deps:SchoolApiDependencies, options:SchoolApiServerOptions={}){
@@ -103,7 +103,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      const values=Array.isArray(value)?value:value===undefined?[]:[value];
      for(const item of values)if(String(item).length>MAX_HEADER_VALUE_LENGTH)throw new Error("API_HEADER_TOO_LARGE:"+name);
    }
-   const method=(req.method??"GET").toUpperCase(), path=(rawUrl.split("?")[0]??"/"), r=route(path);
+   const method=(req.method??"GET").toUpperCase(), path=(rawUrl.split("?")[0]??"/"), r=route(path,method);
    const origin=String(req.headers.origin??"").trim();
    if(origin){
      if(!(deps.corsOrigins??[]).includes(origin)){
@@ -171,7 +171,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    }
    const bodyText=await readBody(req);
    if(method!=="GET"){
-     const contentType=String(req.headers["content-type"]??"").split(";")[0].trim().toLowerCase();
+     const contentType=(String(req.headers["content-type"]??"").split(";")[0] ?? "").trim().toLowerCase();
      if(contentType!=="application/json")throw new Error("API_JSON_CONTENT_TYPE_REQUIRED");
    }
    const body=parse(bodyText);
@@ -183,7 +183,16 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(dedupe?.status==="conflict")throw new Error("API_IDEMPOTENCY_CONFLICT");
    if(dedupe?.status==="replay"){res.statusCode=dedupe.statusCode??200;json(res,res.statusCode,{ok:true,replayed:true,requestId:dedupe.requestId},correlationId);return;}
    let data:unknown;
-   if(r[0]==="actor"){
+   if(r[0]==="work-list"){
+    const q=await deps.db.query("SELECT work_item_id,organization_id,status,priority,due_at,owner_actor_id,version,updated_at FROM education_work_items WHERE tenant_id=$1 AND organization_id=$2 ORDER BY updated_at DESC LIMIT 100",[auth.tenantId,organizationId]);
+    data=q.rows;
+   } else if(r[0]==="attendance-list"){
+    const q=await deps.db.query("SELECT student_id,class_id,organization_id,status,recorded_by,occurred_at,source,correction_reason,version,updated_at FROM education_attendance WHERE tenant_id=$1 AND organization_id=$2 ORDER BY occurred_at DESC LIMIT 100",[auth.tenantId,organizationId]);
+    data=q.rows;
+   } else if(r[0]==="service-list"){
+    const q=await deps.db.query("SELECT request_id,organization_id,requester_id,service_code,status,priority,assigned_to,created_at,due_at,version,updated_at FROM education_service_requests WHERE tenant_id=$1 AND organization_id=$2 ORDER BY created_at DESC LIMIT 100",[auth.tenantId,organizationId]);
+    data=q.rows;
+   } else if(r[0]==="actor"){
     const q=await deps.db.query("SELECT actor_id,organization_id,kind,active,data,version,updated_at FROM education_actors WHERE tenant_id=$1 AND organization_id=$2 AND actor_id=$3",[auth.tenantId,organizationId,r[1]]);
     if(!q.rows[0]){res.statusCode=404;json(res,404,buildApiError(new Error("ACTOR_NOT_FOUND"),correlationId),correlationId);return;}
     data=q.rows[0];
@@ -193,30 +202,52 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
     try{ data=await new PostgresEducationSyncStore(syncClient).accept(event as any); }
     finally{ syncClient.release?.(); }
    } else if(r[0]==="attendance"){
-    const incoming=body as AttendanceRecord; incoming.organizationId=organizationId;
+    const submitted=body as {studentId?:unknown;classId?:unknown;status?:unknown;source?:unknown;version?:unknown};
+    if(typeof submitted.studentId!=="string"||!submitted.studentId.trim()||typeof submitted.classId!=="string"||!submitted.classId.trim())throw new Error("ATTENDANCE_IDENTITY_REQUIRED");
+    if(!["PRESENT","ABSENT","LATE","EXCUSED","UNKNOWN"].includes(String(submitted.status)))throw new Error("ATTENDANCE_STATUS_INVALID");
+    if(submitted.source==="ADMIN_CORRECTION")throw new Error("ATTENDANCE_CORRECTION_REQUIRES_PRIVILEGED_ROUTE");
+    const incoming:AttendanceRecord={
+      studentId:submitted.studentId, classId:submitted.classId, organizationId,
+      status:submitted.status as AttendanceRecord["status"],
+      recordedBy:auth.principal.userId,
+      occurredAt:(deps.now??(()=>new Date()))().toISOString(),
+      source:"TEACHER",
+      version:BigInt(typeof submitted.version==="number"&&Number.isSafeInteger(submitted.version)&&submitted.version>0?submitted.version:1)
+    };
     const q=await deps.db.query("SELECT * FROM education_attendance WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3 AND class_id=$4",[auth.tenantId,organizationId,incoming.studentId,incoming.classId]);
-    const existing=(q.rows[0]??null) as AttendanceRecord|null;
+    const existingRow=q.rows[0];
+    const existing=existingRow?{...existingRow,version:BigInt(String(existingRow.version))} as unknown as AttendanceRecord:null;
     const accepted=reconcileAttendance(existing,incoming);
     await deps.db.query(`INSERT INTO education_attendance(student_id,class_id,tenant_id,organization_id,status,recorded_by,occurred_at,source,correction_reason,version,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now()) ON CONFLICT(tenant_id,organization_id,student_id,class_id) DO UPDATE SET status=EXCLUDED.status,recorded_by=EXCLUDED.recorded_by,occurred_at=EXCLUDED.occurred_at,source=EXCLUDED.source,correction_reason=EXCLUDED.correction_reason,version=EXCLUDED.version,updated_at=now() WHERE education_attendance.version < EXCLUDED.version`,[accepted.studentId,accepted.classId,auth.tenantId,organizationId,accepted.status,accepted.recordedBy,accepted.occurredAt,accepted.source,accepted.correctionReason??null,accepted.version]);
-    data=accepted;
+    data={...accepted,version:accepted.version.toString()};
    } else if(r[0]==="work-create"){
-    const item=body as WorkItem; if(item.organizationId!==organizationId)throw new Error("RESOURCE_ORGANIZATION_MISMATCH");
+    const submitted=body as Partial<WorkItem>;
+    if(typeof submitted.id!=="string"||!submitted.id.trim())throw new Error("WORK_ITEM_ID_REQUIRED");
+    if(!["LOW","NORMAL","HIGH","CRITICAL"].includes(String(submitted.priority)))throw new Error("WORK_ITEM_PRIORITY_INVALID");
+    const item:WorkItem={id:submitted.id,organizationId,status:"OPEN",priority:submitted.priority as WorkItem["priority"],dueAt:submitted.dueAt??null,ownerActorId:null,version:1n};
     await deps.db.query("INSERT INTO education_work_items(work_item_id,tenant_id,organization_id,status,priority,due_at,owner_actor_id,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",[item.id,auth.tenantId,organizationId,item.status,item.priority,item.dueAt,item.ownerActorId,item.version]);
-    data=item;
+    data={...item,version:item.version.toString()};
    } else if(r[0]==="work"){
     const q=await deps.db.query("SELECT * FROM education_work_items WHERE tenant_id=$1 AND organization_id=$2 AND work_item_id=$3",[auth.tenantId,organizationId,r[1]]);
-    if(!q.rows[0])throw new Error("WORK_ITEM_NOT_FOUND"); const item=q.rows[0] as unknown as WorkItem;
+    const persistedWorkRow=q.rows[0]; if(!persistedWorkRow)throw new Error("WORK_ITEM_NOT_FOUND");
+    const item={...persistedWorkRow,version:BigInt(String(persistedWorkRow.version))} as unknown as WorkItem;
     const next=r[2]==="claim"?claimWorkItem(item,auth.principal.userId):resolveWorkItem(item,auth.principal.userId);
     const updated=await deps.db.query("UPDATE education_work_items SET status=$1,owner_actor_id=$2,version=$3,updated_at=now() WHERE tenant_id=$4 AND organization_id=$5 AND work_item_id=$6 AND version=$7 RETURNING *",[next.status,next.ownerActorId,next.version,auth.tenantId,organizationId,r[1],item.version]);
     if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
    } else if(r[0]==="service-create"){
-    const item={...(body as ServiceRequest),organizationId,requesterId:auth.principal.userId};
-    await deps.db.query("INSERT INTO education_service_requests(request_id,tenant_id,organization_id,requester_id,service_code,status,priority,assigned_to,created_at,due_at,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",[item.id,auth.tenantId,organizationId,item.requesterId,item.serviceCode,item.status,item.priority,item.assignedTo,item.createdAt,item.dueAt,item.version]); data=item;
+    const submitted=body as Partial<ServiceRequest>;
+    if(typeof submitted.id!=="string"||!submitted.id.trim()||typeof submitted.serviceCode!=="string"||!submitted.serviceCode.trim())throw new Error("SERVICE_REQUEST_FIELDS_REQUIRED");
+    if(!["LOW","NORMAL","HIGH","CRITICAL"].includes(String(submitted.priority)))throw new Error("SERVICE_REQUEST_PRIORITY_INVALID");
+    const item:ServiceRequest={id:submitted.id,organizationId,requesterId:auth.principal.userId,serviceCode:submitted.serviceCode,status:"SUBMITTED",priority:submitted.priority as ServiceRequest["priority"],assignedTo:null,createdAt:(deps.now??(()=>new Date()))().toISOString(),dueAt:null,version:1n};
+    await deps.db.query("INSERT INTO education_service_requests(request_id,tenant_id,organization_id,requester_id,service_code,status,priority,assigned_to,created_at,due_at,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",[item.id,auth.tenantId,organizationId,item.requesterId,item.serviceCode,item.status,item.priority,item.assignedTo,item.createdAt,item.dueAt,item.version]); data={...item,version:item.version.toString()};
    } else {
     const q=await deps.db.query("SELECT * FROM education_service_requests WHERE tenant_id=$1 AND organization_id=$2 AND request_id=$3",[auth.tenantId,organizationId,r[1]]);
-    if(!q.rows[0])throw new Error("SERVICE_REQUEST_NOT_FOUND");
-    const next=transitionService(q.rows[0] as unknown as ServiceRequest,body as any);
-    const updated=await deps.db.query("UPDATE education_service_requests SET status=$1,version=$2,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND request_id=$5 AND version=$6 RETURNING *",[next.status,next.version,auth.tenantId,organizationId,r[1],Number((q.rows[0] as any).version)]);
+    const persistedServiceRow=q.rows[0]; if(!persistedServiceRow)throw new Error("SERVICE_REQUEST_NOT_FOUND");
+    const submitted=body as {to?:unknown;reason?:unknown};
+    if(typeof submitted.to!=="string")throw new Error("SERVICE_TRANSITION_TARGET_REQUIRED");
+    const current={...persistedServiceRow,version:BigInt(String(persistedServiceRow.version))} as unknown as ServiceRequest;
+    const next=transitionService(current,{from:current.status,to:submitted.to as ServiceTransition["to"],actorId:auth.principal.userId,at:(deps.now??(()=>new Date()))().toISOString(),...(typeof submitted.reason==="string"?{reason:submitted.reason}:{})});
+    const updated=await deps.db.query("UPDATE education_service_requests SET status=$1,version=$2,updated_at=now() WHERE tenant_id=$3 AND organization_id=$4 AND request_id=$5 AND version=$6 RETURNING *",[next.status,next.version,auth.tenantId,organizationId,r[1],current.version]);
     if(!updated.rows[0])throw new Error("CONCURRENT_MODIFICATION"); data=updated.rows[0];
    }
    if(deps.realtime && deps.realtimeStore && r[0]!=="actor"){
