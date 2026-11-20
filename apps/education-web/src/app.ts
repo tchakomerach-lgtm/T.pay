@@ -34,8 +34,8 @@ export function SchoolApp({config,onDisconnect}:{config:SchoolWebConfig;onDiscon
  const [workPriority,setWorkPriority]=useState("NORMAL");
  const [serviceForm,setServiceForm]=useState({serviceCode:"",priority:"NORMAL"});
 
- const refresh=useCallback(async()=>{
-  setConnection("CONNECTING");
+ const refresh=useCallback(async(silent=false)=>{
+  if(!silent)setConnection("CONNECTING");
   const health=await client.request("/health/ready");
   await responseData(health);
   const [actorResponse,workResponse,attendanceResponse,serviceResponse]=await Promise.all([
@@ -58,14 +58,14 @@ export function SchoolApp({config,onDisconnect}:{config:SchoolWebConfig;onDiscon
  useEffect(()=>{
   if(connection!=="CONNECTED")return;
   const controller=new AbortController();setRealtime("Flux sécurisé connecté");
-  consumeSchoolSse(config,event=>{setEvents(previous=>[event,...previous].slice(0,30));void refresh().catch(()=>{});},controller.signal)
+  consumeSchoolSse(config,event=>{setEvents(previous=>[event,...previous].slice(0,30));void refresh(true).catch(()=>{});},controller.signal)
    .catch(error=>{if(!controller.signal.aborted)setRealtime("Flux indisponible · "+messageOf(error));});
   return()=>controller.abort();
  },[config,connection,refresh]);
 
  const run=async(action:()=>Promise<unknown>,success:string)=>{
   setBusy(true);setNotice(null);
-  try{await action();await refresh();setNotice({kind:"success",text:success});}
+  try{await action();await refresh(true);setNotice({kind:"success",text:success});}
   catch(error){setNotice({kind:"error",text:messageOf(error)});}
   finally{setBusy(false);}
  };
