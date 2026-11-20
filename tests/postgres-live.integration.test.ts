@@ -75,6 +75,9 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
   const microfinanceFeeAccount = randomUUID();
   const tpayFeeAccount = randomUUID();
   const contributionId = randomUUID();
+  const tontineGroupId = randomUUID();
+  const membershipId = randomUUID();
+  const memberClientId = randomUUID();
   const paymentId = randomUUID();
   const ledgerId = randomUUID();
   const receiptId = randomUUID();
@@ -90,8 +93,16 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
       [cashAccount, organizationId, tontineAccount, microfinanceFeeAccount, now, tpayFeeAccount]
     );
     await client.query(
+      "INSERT INTO tontine_groups (id,organization_id,name,country_code,currency,frequency,contribution_mode,minimum_amount_minor,cycle_number,governance,status,created_by,created_at) VALUES ($1,$2,'S-03.4 settlement test','TG','XOF','daily','fixed',1000,1,'member_vote','active',$3,$4)",
+      [tontineGroupId, organizationId, randomUUID(), now]
+    );
+    await client.query(
+      "INSERT INTO tontine_memberships (id,organization_id,group_id,client_id,role,status,joined_at) VALUES ($1,$2,$3,$4,'member','active',$5)",
+      [membershipId, organizationId, tontineGroupId, memberClientId, now]
+    );
+    await client.query(
       "INSERT INTO tontine_contributions (id,organization_id,group_id,membership_id,amount_minor,currency,idempotency_key,status,channel,scheduled_for,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF',$5,'pending','mobile_money',$6,$6)",
-      [contributionId, organizationId, randomUUID(), randomUUID(), idempotencyKey, now]
+      [contributionId, organizationId, tontineGroupId, membershipId, idempotencyKey, now]
     );
     await client.query(
       "INSERT INTO tontine_payment_intents (id,organization_id,contribution_id,idempotency_key,amount_minor,currency,provider,provider_reference,status,created_at,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF','tmoney','TM-LIVE','provider_confirmed',$5,$5)",
@@ -107,7 +118,7 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
         status: "provider_confirmed" as const, createdAt: now, updatedAt: now
       },
       contribution: {
-        id: contributionId as never, groupId: randomUUID() as never, membershipId: randomUUID() as never,
+        id: contributionId as never, groupId: tontineGroupId as never, membershipId: membershipId as never,
         scheduledFor: now, amountMinor: 1000n, currency: "XOF", status: "pending" as const,
         channel: "mobile_money" as const, idempotencyKey
       },
@@ -165,7 +176,7 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
     const rollbackKey = "live-s03.4-rollback-" + randomUUID();
     await client.query(
       "INSERT INTO tontine_contributions (id,organization_id,group_id,membership_id,amount_minor,currency,idempotency_key,status,channel,scheduled_for,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF',$5,'pending','mobile_money',$6,$6)",
-      [rollbackContribution, organizationId, randomUUID(), randomUUID(), rollbackKey, now]
+      [rollbackContribution, organizationId, tontineGroupId, membershipId, rollbackKey, now]
     );
     await client.query(
       "INSERT INTO tontine_payment_intents (id,organization_id,contribution_id,idempotency_key,amount_minor,currency,provider,provider_reference,status,created_at,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF','tmoney','TM-ROLLBACK','provider_confirmed',$5,$5)",
@@ -205,6 +216,8 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
     await client.query("DELETE FROM ledger_transactions WHERE organization_id=$1", [organizationId]);
     await client.query("DELETE FROM tontine_payment_intents WHERE organization_id=$1", [organizationId]);
     await client.query("DELETE FROM tontine_contributions WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM tontine_memberships WHERE organization_id=$1", [organizationId]);
+    await client.query("DELETE FROM tontine_groups WHERE organization_id=$1", [organizationId]);
     await client.query("DELETE FROM financial_accounts WHERE organization_id=$1", [organizationId]);
     await client.query("DELETE FROM organizations WHERE id=$1", [organizationId]);
     await client.end();
