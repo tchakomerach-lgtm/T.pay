@@ -104,7 +104,7 @@ test("School workspace read routes are tenant and organization scoped",async()=>
 
 test("attendance mutations bind recorder identity and source to the authenticated server principal",async()=>{
  const calls:Array<{sql:string;values?:unknown[]}>=[];
- const database={async query(sql:string,values?:unknown[]){calls.push({sql,values});if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:"request-1"}],rowCount:1};if(sql.includes("SELECT * FROM education_attendance"))return {rows:[],rowCount:0};return {rows:[],rowCount:1};}};
+ const database={async query(sql:string,values?:unknown[]){calls.push(values===undefined?{sql}:{sql,values});if(sql.includes("INSERT INTO api_request_deduplication"))return {rows:[{id:"request-1"}],rowCount:1};if(sql.includes("SELECT * FROM education_attendance"))return {rows:[],rowCount:0};return {rows:[],rowCount:1};}};
  const server=createSchoolApiServer({db:database as any,authenticate:async()=>auth(),syncClient:()=>({query:async()=>({rows:[],rowCount:0})}) as any});
  await new Promise<void>(resolve=>server.listen(0,resolve));const port=(server.address() as any).port;
  try{
