@@ -73,6 +73,17 @@ function isEligibleForOrganizationType(
   return eligibleTypes === "all" || (eligibleTypes as readonly OrganizationType[]).includes(organizationType);
 }
 
+function isCapabilityImplemented(state: CapabilityImplementationState): boolean {
+  return state === "implemented";
+}
+
+function requiresCapabilityApproval(
+  regulatoryApproval: boolean,
+  provisioning: CapabilityProvisioning
+): boolean {
+  return regulatoryApproval || provisioning === "approval_required";
+}
+
 export interface OrganizationCapabilityManifestEntry extends OrganizationCapabilityDefinition {
   readonly eligible: boolean;
   readonly activation: "not_eligible" | "pending_implementation" | "requires_approval" | "available_for_configuration";
@@ -87,12 +98,11 @@ export function getOrganizationCapabilityManifest(
 ): readonly OrganizationCapabilityManifestEntry[] {
   return ORGANIZATION_CAPABILITY_CATALOG.map(capability => {
     const eligible = isEligibleForOrganizationType(capability.eligibleOrganizationTypes, organizationType);
-    const implementationState: CapabilityImplementationState = capability.implementationState;
     const activation = !eligible
       ? "not_eligible"
-      : implementationState !== "implemented"
+      : !isCapabilityImplemented(capability.implementationState)
         ? "pending_implementation"
-        : capability.requiresRegulatoryApproval || capability.provisioning === "approval_required"
+        : requiresCapabilityApproval(capability.requiresRegulatoryApproval, capability.provisioning)
           ? "requires_approval"
           : "available_for_configuration";
     return { ...capability, eligible, activation };
