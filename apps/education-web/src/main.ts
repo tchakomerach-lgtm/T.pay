@@ -21,7 +21,7 @@ function Setup(){const [,refresh]=useState(0);
   if(config)return React.createElement(SchoolApp,{config,onDisconnect:()=>{sessionStorage.removeItem(STORAGE_KEY);sessionStorage.removeItem("tpay-school-last-event-id");refresh(v=>v+1);}});
   return React.createElement("main",{className:"connect-shell"},
     React.createElement("section",{className:"connect-card"},
-      React.createElement("div",{className:"brand-lockup"},React.createElement("div",{className:"brand-mark"},"T."),React.createElement("div",null,React.createElement("strong",null,"T.Pay"),React.createElement("small",null,"OPERATING SYSTEM"))),
+      React.createElement("div",{className:"brand-lockup"},React.createElement("img",{className:"brand-mark",src:"/tpay-logo.svg",alt:"T.Pay"}),React.createElement("div",null,React.createElement("strong",null,"T.Pay"),React.createElement("small",null,"OPERATING SYSTEM"))),
       React.createElement("p",{className:"eyebrow"},"ESPACE DE TEST UTILISATEUR"),
       React.createElement("h1",null,"Connectez votre espace T.Pay"),
       React.createElement("p",{className:"muted"}, "Cette interface se connecte au serveur HTTPS et à PostgreSQL. Elle n'utilise pas de données fictives. Il vous faut une session de test émise par l'administrateur de l'environnement."),
