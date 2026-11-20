@@ -129,6 +129,8 @@ export class PostgresCommunityTontineMfSettlementRepository implements Community
       [organizationId,instructionId,approverId,expectedState]
     );
     if (result.rows.length !== 1) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_APPROVAL_CONFLICT");
-    return fromRow(result.rows[0]);
+    const approvedRow = result.rows[0];
+    if (!approvedRow) throw new Error("COMMUNITY_TONTINE_SETTLEMENT_APPROVAL_ROW_MISSING");
+    return fromRow(approvedRow);
   }
 }
