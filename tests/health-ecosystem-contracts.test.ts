@@ -60,6 +60,7 @@ test("patient consent is scoped to actor, organization, purpose and expiry", () 
   const grant = {
     id: "consent-1" as never,
     subjectId: "patient-1" as never,
+    subjectId: "patient-1" as never,
     actorId: "actor-1" as never,
     organizationId: "hospital-1" as never,
     purpose: "care_coordination",
@@ -68,6 +69,7 @@ test("patient consent is scoped to actor, organization, purpose and expiry", () 
     expiresAt: "2026-11-19T08:00:00.000Z"
   };
   assert.doesNotThrow(() => assertHealthConsentActive(grant, {
+    subjectId: "patient-1" as never,
     actorId: "actor-1" as never,
     organizationId: "hospital-1" as never,
     purpose: "care_coordination",
@@ -75,6 +77,15 @@ test("patient consent is scoped to actor, organization, purpose and expiry", () 
     now: "2026-11-18T09:00:00.000Z"
   }));
   assert.throws(() => assertHealthConsentActive(grant, {
+    subjectId: "patient-2" as never,
+    actorId: "actor-1" as never,
+    organizationId: "hospital-1" as never,
+    purpose: "care_coordination",
+    scope: "appointment.read",
+    now: "2026-11-18T09:00:00.000Z"
+  }), /HEALTH_CONSENT_SCOPE_MISMATCH/);
+  assert.throws(() => assertHealthConsentActive(grant, {
+    subjectId: "patient-1" as never,
     actorId: "actor-2" as never,
     organizationId: "hospital-1" as never,
     purpose: "care_coordination",
@@ -82,6 +93,7 @@ test("patient consent is scoped to actor, organization, purpose and expiry", () 
     now: "2026-11-18T09:00:00.000Z"
   }), /HEALTH_CONSENT_SCOPE_MISMATCH/);
   assert.throws(() => assertHealthConsentActive(grant, {
+    subjectId: "patient-1" as never,
     actorId: "actor-1" as never,
     organizationId: "hospital-1" as never,
     purpose: "marketing",
