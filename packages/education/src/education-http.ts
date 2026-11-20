@@ -215,7 +215,8 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       version:BigInt(typeof submitted.version==="number"&&Number.isSafeInteger(submitted.version)&&submitted.version>0?submitted.version:1)
     };
     const q=await deps.db.query("SELECT * FROM education_attendance WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3 AND class_id=$4",[auth.tenantId,organizationId,incoming.studentId,incoming.classId]);
-    const existingRow=q.rows[0];\n    const existing=existingRow?{...existingRow,version:BigInt(String(existingRow.version))} as unknown as AttendanceRecord:null;
+    const existingRow=q.rows[0];
+    const existing=existingRow?{...existingRow,version:BigInt(String(existingRow.version))} as unknown as AttendanceRecord:null;
     const accepted=reconcileAttendance(existing,incoming);
     await deps.db.query(`INSERT INTO education_attendance(student_id,class_id,tenant_id,organization_id,status,recorded_by,occurred_at,source,correction_reason,version,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now()) ON CONFLICT(tenant_id,organization_id,student_id,class_id) DO UPDATE SET status=EXCLUDED.status,recorded_by=EXCLUDED.recorded_by,occurred_at=EXCLUDED.occurred_at,source=EXCLUDED.source,correction_reason=EXCLUDED.correction_reason,version=EXCLUDED.version,updated_at=now() WHERE education_attendance.version < EXCLUDED.version`,[accepted.studentId,accepted.classId,auth.tenantId,organizationId,accepted.status,accepted.recordedBy,accepted.occurredAt,accepted.source,accepted.correctionReason??null,accepted.version]);
     data={...accepted,version:accepted.version.toString()};
