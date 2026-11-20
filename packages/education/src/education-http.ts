@@ -12,7 +12,7 @@ import { SchoolRealtimeHub, toSseMessage, type SchoolRealtimeEvent } from "./sch
 import { PostgresSchoolRealtimeStore } from "./postgres-realtime-store.js";
 import type { SchoolRealtimeMessage } from "./school-realtime.js";
 import { reconcileAttendance, claimWorkItem, resolveWorkItem, type AttendanceRecord, type WorkItem } from "./school-operations.js";
-import { assignService, transitionService, type ActorRef, type ServiceRequest } from "./actor-services.js";
+import { assignService, transitionService, type ActorRef, type ServiceRequest, type ServiceTransition } from "./actor-services.js";
 
 export interface SchoolAuthContext { principal: Principal; session: OrganizationSession; tenantId: string; }
 export interface SchoolApiDependencies {
@@ -74,7 +74,7 @@ async function readBody(req:IncomingMessage):Promise<string>{
   return out;
 }
 const parse=(s:string)=>s?JSON.parse(s):{};
-function route(path:string){
+function route(path:string,method:string){
  const parts=path.split("/").filter(Boolean);
  if(parts[0]!=="v1"||parts[1]!=="education")return null;
  if(parts[2]==="actors"&&parts.length===4&&parts[3])return ["actor",parts[3]] as const;
@@ -103,7 +103,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
      const values=Array.isArray(value)?value:value===undefined?[]:[value];
      for(const item of values)if(String(item).length>MAX_HEADER_VALUE_LENGTH)throw new Error("API_HEADER_TOO_LARGE:"+name);
    }
-   const method=(req.method??"GET").toUpperCase(), path=(rawUrl.split("?")[0]??"/"), r=route(path);
+   const method=(req.method??"GET").toUpperCase(), path=(rawUrl.split("?")[0]??"/"), r=route(path,method);
    const origin=String(req.headers.origin??"").trim();
    if(origin){
      if(!(deps.corsOrigins??[]).includes(origin)){
@@ -212,13 +212,13 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
       recordedBy:auth.principal.userId,
       occurredAt:(deps.now??(()=>new Date()))().toISOString(),
       source:"TEACHER",
-      version:Number.isSafeInteger(submitted.version)&&Number(submitted.version)>0?Number(submitted.version):1
+      version:BigInt(Number.isSafeInteger(submitted.version)&&Number(submitted.version)>0?Number(submitted.version):1)
     };
     const q=await deps.db.query("SELECT * FROM education_attendance WHERE tenant_id=$1 AND organization_id=$2 AND student_id=$3 AND class_id=$4",[auth.tenantId,organizationId,incoming.studentId,incoming.classId]);
-    const existing=(q.rows[0]??null) as AttendanceRecord|null;
+    const existingRow=q.rows[0];\n    const existing=existingRow?{...existingRow,version:BigInt(String(existingRow.version))} as unknown as AttendanceRecord:null;
     const accepted=reconcileAttendance(existing,incoming);
     await deps.db.query(`INSERT INTO education_attendance(student_id,class_id,tenant_id,organization_id,status,recorded_by,occurred_at,source,correction_reason,version,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now()) ON CONFLICT(tenant_id,organization_id,student_id,class_id) DO UPDATE SET status=EXCLUDED.status,recorded_by=EXCLUDED.recorded_by,occurred_at=EXCLUDED.occurred_at,source=EXCLUDED.source,correction_reason=EXCLUDED.correction_reason,version=EXCLUDED.version,updated_at=now() WHERE education_attendance.version < EXCLUDED.version`,[accepted.studentId,accepted.classId,auth.tenantId,organizationId,accepted.status,accepted.recordedBy,accepted.occurredAt,accepted.source,accepted.correctionReason??null,accepted.version]);
-    data=accepted;
+    data={...accepted,version:accepted.version.toString()};
    } else if(r[0]==="work-create"){
     const submitted=body as Partial<WorkItem>;
     if(typeof submitted.id!=="string"||!submitted.id.trim())throw new Error("WORK_ITEM_ID_REQUIRED");
