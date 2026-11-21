@@ -102,7 +102,11 @@ test("Financial Core Payment Intents enforce FORCE RLS and deny cross-organizati
       "organization A must not insert an intent for organization B");
   } finally {
     if (transactionOpen) await owner.query("ROLLBACK").catch(() => undefined);
-    if (roleCreated) await owner.query(`DROP ROLE IF EXISTS "${role}"`).catch(() => undefined);
+    if (roleCreated) {
+      await owner.query(`REVOKE ALL PRIVILEGES ON payment_intents FROM "${role}"`).catch(() => undefined);
+      await owner.query(`REVOKE USAGE ON SCHEMA public FROM "${role}"`).catch(() => undefined);
+      await owner.query(`DROP ROLE IF EXISTS "${role}"`).catch(() => undefined);
+    }
     await owner.end().catch(() => undefined);
   }
 });
