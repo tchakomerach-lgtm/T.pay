@@ -25,7 +25,7 @@ ALTER TABLE fortress_vaults ENABLE ROW LEVEL SECURITY;
 
 -- Context accessors deliberately read transaction-local/session settings only.
 -- They do not grant access; RLS policies and the authenticated DB role remain authoritative.
-CREATE OR REPLACE FUNCTION public.tpay_current_organization_id()
+CREATE OR REPLACE FUNCTION public.tpay_current_organization_id_text()
 RETURNS text
 LANGUAGE sql
 STABLE
@@ -47,7 +47,7 @@ $function$;
 
 COMMENT ON TABLE fortress_vaults IS
   'Fortress vault metadata only. Encryption keys and plaintext payloads are managed outside PostgreSQL.';
-COMMENT ON FUNCTION public.tpay_current_organization_id() IS
+COMMENT ON FUNCTION public.tpay_current_organization_id_text() IS
   'Returns the transaction-scoped organization context; grants no authorization by itself.';
 COMMENT ON FUNCTION public.tpay_current_actor_id() IS
   'Returns the transaction-scoped actor context; grants no authorization by itself.';
