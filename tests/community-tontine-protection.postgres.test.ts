@@ -204,7 +204,7 @@ test("CT-042 PostgreSQL enforces organization RLS, composite scope, immutable ev
         $5,$6,$7,now())`,
       [randomUUID(), orgA, groupA, randomUUID(), "c".repeat(64), actorA, actorB], "23505");
 
-    await owner.query(`SET LOCAL ROLE "${role}"`);
+    await owner.query(`SET LOCAL SESSION AUTHORIZATION "${role}"`);
     const effectiveRole = await owner.query<{
       current_user: string;
       session_user: string;
@@ -215,7 +215,9 @@ test("CT-042 PostgreSQL enforces organization RLS, composite scope, immutable ev
        FROM pg_roles r WHERE r.rolname=current_user`
     );
     assert.equal(effectiveRole.rows[0]?.current_user, role,
-      "RLS assertions must execute as the constrained test role");
+      "RLS assertions must execute as the constrained current user");
+    assert.equal(effectiveRole.rows[0]?.session_user, role,
+      "RLS assertions must execute with the constrained session identity, not only SET ROLE");
     assert.equal(effectiveRole.rows[0]?.rolsuper, false,
       "RLS test role must not be a superuser");
     assert.equal(effectiveRole.rows[0]?.rolbypassrls, false,
@@ -315,33 +317,32 @@ test("migration 139 creates RLS-isolated individual coverage and cycle refund cl
     }
     const policies = await client.query<{tablename:string;policyname:string;permissive:string;qual:string|null;with_check:string|null}>(
       `SELECT tablename,policyname,permissive,qual,with_check FROM pg_policies
-       WHERE schemaname='public' AND tablename=ANY($1::text[])
-         AND policyname=tablename || '_organization_scope'`,
+       WHERE schemaname='public' AND tablename=ANY($1::text[])`,
       [expected]
     );
-    assert.equal(policies.rowCount, expected.length,
-      "every dual-protection table must retain its named permissive organization scope policy");
     for (const table of expected) {
-      const policy = policies.rows.find(row => row.tablename === table);
-      assert.ok(policy, "missing organization RLS policy for " + table);
-      assert.equal(policy.permissive, "PERMISSIVE", table + " organization scope must remain permissive");
-      assert.match(policy.qual ?? "", /tpay_current_organization_id/);
-      assert.match(policy.with_check ?? "", /tpay_current_organization_id/);
-    }
-    const fences = await client.query<{tablename:string;policyname:string;permissive:string;qual:string|null;with_check:string|null}>(
-      `SELECT tablename,policyname,permissive,qual,with_check FROM pg_policies
-       WHERE schemaname='public' AND tablename=ANY($1::text[])
-         AND policyname=tablename || '_tenant_fence'`,
-      [expected]
-    );
-    assert.equal(fences.rowCount, expected.length,
-      "every dual-protection table must also have one restrictive tenant fence");
-    for (const table of expected) {
-      const fence = fences.rows.find(row => row.tablename === table);
-      assert.ok(fence, "missing restrictive tenant fence for " + table);
-      assert.equal(fence.permissive, "RESTRICTIVE", table + " tenant fence must intersect permissive policies");
-      assert.match(fence.qual ?? "", /tpay_current_organization_id/);
-      assert.match(fence.with_check ?? "", /tpay_current_organization_id/);
+      const organizationPolicies = policies.rows.filter(row =>
+        row.tablename === table &&
+        row.permissive === "PERMISSIVE" &&
+        (row.qual ?? "").includes("tpay_current_organization_id") &&
+        (row.with_check ?? "").includes("tpay_current_organization_id")
+      );
+      assert.equal(organizationPolicies.length, 1,
+        table + " must have exactly one permissive organization fence; observed policies: " +
+        JSON.stringify(policies.rows.filter(row => row.tablename === table).map(row => ({
+          name: row.policyname, mode: row.permissive, using: row.qual, check: row.with_check
+        }))));
+      const tenantFences = policies.rows.filter(row =>
+        row.tablename === table &&
+        row.permissive === "RESTRICTIVE" &&
+        (row.qual ?? "").includes("tpay_current_organization_id") &&
+        (row.with_check ?? "").includes("tpay_current_organization_id")
+      );
+      assert.equal(tenantFences.length, 1,
+        table + " must have exactly one restrictive tenant fence; observed policies: " +
+        JSON.stringify(policies.rows.filter(row => row.tablename === table).map(row => ({
+          name: row.policyname, mode: row.permissive, using: row.qual, check: row.with_check
+        }))));
     }
     const closeout = await client.query<{definition:string}>(
       `SELECT pg_get_constraintdef(oid) AS definition
