@@ -292,17 +292,35 @@ test("migration 139 creates RLS-isolated individual coverage and cycle refund cl
       assert.equal(table.relrowsecurity, true, table.relname + " must enable RLS");
       assert.equal(table.relforcerowsecurity, true, table.relname + " must force RLS");
     }
-    const policies = await client.query<{tablename:string;qual:string|null;with_check:string|null}>(
-      `SELECT tablename,qual,with_check FROM pg_policies
-       WHERE schemaname='public' AND tablename=ANY($1::text[])`,
+    const policies = await client.query<{tablename:string;policyname:string;permissive:string;qual:string|null;with_check:string|null}>(
+      `SELECT tablename,policyname,permissive,qual,with_check FROM pg_policies
+       WHERE schemaname='public' AND tablename=ANY($1::text[])
+         AND policyname=tablename || '_organization_scope'`,
       [expected]
     );
-    assert.equal(policies.rowCount, expected.length);
+    assert.equal(policies.rowCount, expected.length,
+      "every dual-protection table must retain its named permissive organization scope policy");
     for (const table of expected) {
       const policy = policies.rows.find(row => row.tablename === table);
       assert.ok(policy, "missing organization RLS policy for " + table);
+      assert.equal(policy.permissive, "PERMISSIVE", table + " organization scope must remain permissive");
       assert.match(policy.qual ?? "", /tpay_current_organization_id/);
       assert.match(policy.with_check ?? "", /tpay_current_organization_id/);
+    }
+    const fences = await client.query<{tablename:string;policyname:string;permissive:string;qual:string|null;with_check:string|null}>(
+      `SELECT tablename,policyname,permissive,qual,with_check FROM pg_policies
+       WHERE schemaname='public' AND tablename=ANY($1::text[])
+         AND policyname=tablename || '_tenant_fence'`,
+      [expected]
+    );
+    assert.equal(fences.rowCount, expected.length,
+      "every dual-protection table must also have one restrictive tenant fence");
+    for (const table of expected) {
+      const fence = fences.rows.find(row => row.tablename === table);
+      assert.ok(fence, "missing restrictive tenant fence for " + table);
+      assert.equal(fence.permissive, "RESTRICTIVE", table + " tenant fence must intersect permissive policies");
+      assert.match(fence.qual ?? "", /tpay_current_organization_id/);
+      assert.match(fence.with_check ?? "", /tpay_current_organization_id/);
     }
     const closeout = await client.query<{definition:string}>(
       `SELECT pg_get_constraintdef(oid) AS definition
