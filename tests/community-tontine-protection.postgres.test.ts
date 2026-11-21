@@ -205,6 +205,22 @@ test("CT-042 PostgreSQL enforces organization RLS, composite scope, immutable ev
       [randomUUID(), orgA, groupA, randomUUID(), "c".repeat(64), actorA, actorB], "23505");
 
     await owner.query(`SET LOCAL ROLE "${role}"`);
+    const effectiveRole = await owner.query<{
+      current_user: string;
+      session_user: string;
+      rolsuper: boolean;
+      rolbypassrls: boolean;
+    }>(
+      `SELECT current_user,session_user,r.rolsuper,r.rolbypassrls
+       FROM pg_roles r WHERE r.rolname=current_user`
+    );
+    assert.equal(effectiveRole.rows[0]?.current_user, role,
+      "RLS assertions must execute as the constrained test role");
+    assert.equal(effectiveRole.rows[0]?.rolsuper, false,
+      "RLS test role must not be a superuser");
+    assert.equal(effectiveRole.rows[0]?.rolbypassrls, false,
+      "RLS test role must not have BYPASSRLS");
+
     const visible = async (table: string) => {
       const result = await owner.query<{ id: string }>(`SELECT id::text AS id FROM public.${table} ORDER BY id`);
       return result.rows.map(row => row.id);
@@ -216,6 +232,11 @@ test("CT-042 PostgreSQL enforces organization RLS, composite scope, immutable ev
       await owner.query("SELECT set_config('tpay.organization_id',$1,true)", [organizationId]);
     };
     await setOrganization(orgA);
+    const effectiveOrganization = await owner.query<{organization_id:string|null}>(
+      "SELECT public.tpay_current_organization_id()::text AS organization_id"
+    );
+    assert.equal(effectiveOrganization.rows[0]?.organization_id, orgA,
+      "RLS test must observe the exact transaction-local organization context");
     for (const [table, expected] of [
       [scopedTables[0]!, [policyA]],
       [scopedTables[1]!, [enrollmentA]],
