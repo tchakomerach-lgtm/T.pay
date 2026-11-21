@@ -18,11 +18,11 @@ DROP POLICY IF EXISTS fortress_vaults_user_scope_policy ON fortress_vaults;
 CREATE POLICY fortress_vaults_user_isolation ON fortress_vaults
  USING (
    (vault_scope='system' AND (
-      (organization_id IS NOT NULL AND organization_id = tpay_current_organization_id())
+      (organization_id IS NOT NULL AND organization_id = public.tpay_current_organization_id_text())
       OR (organization_id IS NULL AND current_user='tpay_fortress_operator' AND current_setting('tpay.fortress_global_access', true)='true')
    ))
    OR (vault_scope='tenant-user'
-       AND organization_id=tpay_current_organization_id()
+       AND organization_id=public.tpay_current_organization_id_text()
        AND owner_user_id=tpay_current_actor_id())
    OR (vault_scope='global-admin-user'
        AND current_user='tpay_fortress_operator'
@@ -31,11 +31,11 @@ CREATE POLICY fortress_vaults_user_isolation ON fortress_vaults
  )
  WITH CHECK (
    (vault_scope='system' AND (
-      (organization_id IS NOT NULL AND organization_id = tpay_current_organization_id())
+      (organization_id IS NOT NULL AND organization_id = public.tpay_current_organization_id_text())
       OR (organization_id IS NULL AND current_user='tpay_fortress_operator' AND current_setting('tpay.fortress_global_access', true)='true')
    ))
    OR (vault_scope='tenant-user'
-       AND organization_id=tpay_current_organization_id()
+       AND organization_id=public.tpay_current_organization_id_text()
        AND owner_user_id=tpay_current_actor_id())
    OR (vault_scope='global-admin-user'
        AND current_user='tpay_fortress_operator'
