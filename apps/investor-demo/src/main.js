@@ -133,7 +133,7 @@ function microfinance(){
  const rows=state.data.clients.map(c=>'<tr><td><b>'+esc(c.name)+'</b><small>'+esc(c.ref)+'</small></td><td>'+esc(c.agency)+'</td><td>'+badge(c.status,c.status==="Actif"?"success":"warning")+'</td><td><button class="link-btn" data-action="client-detail">Ouvrir</button></td></tr>');
  return pageHead("MICROFINANCE OS","Le portefeuille, <em>du terrain à l'agence.</em>","Clients, agents, superviseurs, SFD, KYC, crédit, épargne et tontines.",button("＋ Nouveau client","add-client"))+
  '<div class="metric-grid">'+metric("Clients actifs","4 820","Illustratif","♙")+metric("Agents terrain","86","Réseau démo","⌖")+metric("Encours fictif",money(98500000),"XOF · non réel","₣")+metric("Dossiers KYC","94 %","Complétude simulée","✓")+'</div>'+
- '<div class="two-col">'+panel("Portefeuille clients",table(["Client","Agence","Statut",""],rows))+panel("Chaîne opérationnelle",'<div class="value-flow">'+["Client","Agent","Superviseur","Agence","SFD","T.Pay"].map((x,i)=>'<div class="flow-step"><span>'+(i+1)+'</span><b>'+x+'</b></div>').join("")+'</div><p class="hint">La microfinance conserve ses décisions de crédit ; T.Pay fournit l'infrastructure et la traçabilité.</p>')+'</div>';
+ '<div class="two-col">'+panel("Portefeuille clients",table(["Client","Agence","Statut",""],rows))+panel("Chaîne opérationnelle",'<div class="value-flow">'+["Client","Agent","Superviseur","Agence","SFD","T.Pay"].map((x,i)=>'<div class="flow-step"><span>'+(i+1)+'</span><b>'+x+'</b></div>').join("")+'</div><p class="hint">La microfinance conserve ses décisions de crédit ; T.Pay fournit l&#39;infrastructure et la traçabilité.</p>')+'</div>';
 }
 function tontine(){
  return pageHead("TONTINE OS","La solidarité devient <em>organisée et traçable.</em>","Cycles, cotisations, bénéficiaires, médiation et rapprochement.",button("＋ Créer un groupe","create-group"))+
@@ -171,14 +171,14 @@ function social(){
 function investment(){
  return pageHead("INVESTMENT CORE","Décider avec des <em>scénarios documentés.</em>","Éducation financière, analyse des risques et projections non garanties.",button("＋ Nouveau scénario","investment-scenario"))+
  '<div class="metric-grid">'+metric("Scénarios","24","Données fictives","▥")+metric("Capital analysé",money(12500000),"XOF · illustratif","₣")+metric("Risques ouverts","3","À examiner","!")+metric("Décisions tracées","18","Démo","✓")+'</div>'+
- '<div class="notice-box">Les simulations ne constituent ni un conseil d'investissement, ni une promesse de rendement, ni un ordre de transaction.</div>'+
+ '<div class="notice-box">Les simulations ne constituent ni un conseil d&#39;investissement, ni une promesse de rendement, ni un ordre de transaction.</div>'+
  panel("Cycle de décision",'<div class="value-flow">'+["Objectif","Hypothèses","Scénario prudent","Stress test","Revue humaine","Décision documentée"].map((x,i)=>'<div class="flow-step"><span>'+(i+1)+'</span><b>'+x+'</b></div>').join("")+'</div>');
 }
 function aiCore(){
  return pageHead("AI CORE","L'intelligence artificielle, <em>sous gouvernance.</em>","Super Orchestrator, agents spécialisés, outils, permissions et validation humaine.",button("＋ Préparer une analyse","ask-agent"))+
  '<div class="metric-grid">'+metric("Agents spécialisés","18","Catalogue illustratif","✳")+metric("Workflows IA","42","Configurés en démo","⇢")+metric("Actions en attente","6","Validation humaine","◷")+metric("Échecs bloqués","0","Simulation","✓")+'</div>'+
  '<div class="two-col">'+panel("Chaîne d'exécution",'<div class="value-flow">'+["OpenAI API","T.Pay API Gateway","Super Orchestrator","Agent spécialisé","Policy & permissions","Approbation / step-up","Exécution autorisée","Trace & audit"].map((x,i)=>'<div class="flow-step"><span>'+(i+1)+'</span><b>'+x+'</b></div>').join("")+'</div>')+panel("Agents préparés",'<div class="check-list">'+["Agent école et pédagogie","Agent microfinance et KYC","Agent tontine et médiation","Agent RH et opportunités","Agent marketplace","Agent santé et pharmacie","Agent conformité et audit","Agent support vocal"].map(x=>'<div>✓ <span>'+x+'</span></div>').join("")+'</div>')+'</div>'+
- '<p class="notice-box">L'IA ne contourne jamais les permissions, ne valide pas un paiement et ne modifie pas directement le ledger. Toute action à impact suit une politique et une autorisation humaine adaptée.</p>';
+ '<p class="notice-box">L&#39;IA ne contourne jamais les permissions, ne valide pas un paiement et ne modifie pas directement le ledger. Toute action à impact suit une politique et une autorisation humaine adaptée.</p>';
 }
 function documents(){
  return pageHead("DOCUMENT OS","Les documents suivent <em>l'identité de l'organisation.</em>","Modèles versionnés, filigranes, approbations et historique.",button("＋ Créer un modèle","new-document"))+
