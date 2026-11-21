@@ -4,6 +4,7 @@ import { money, type LedgerLine } from "../../finance/src/ledger.js";
 import { assertProviderPaymentMatches, type PaymentProviderResult } from "../../finance/src/provider.js";
 import { signWebhook, verifyWebhookSignature, type WebhookEnvelope } from "../../security/src/webhook.js";
 import type { TontineContribution, CommunityTontineGroup, TontineFeeSnapshot } from "./community-tontine.js";
+import { assertCommunityTontineFeeSnapshotForSettlement } from "./community-tontine-commercial-governance.js";
 
 export type TontinePaymentIntentStatus = "initiated" | "pending" | "provider_confirmed" | "settled" | "failed" | "reversed";
 
@@ -221,6 +222,8 @@ export async function settleVerifiedProviderEvent(
     paymentIntent: TontinePaymentIntent;
     contribution: TontineContribution;
     feePolicy: TontineFeePolicy;
+    /** Accepted, immutable quote captured before provider initiation; legacy feePolicy remains supported during migration. */
+    lockedFeeSnapshot?: TontineFeeSnapshot;
     ledgerFactory: TontineLedgerFactory;
     receiptId: UUID;
     now: string;
@@ -258,13 +261,18 @@ export async function settleVerifiedProviderEvent(
     }
   );
 
-  const feeSnapshot = snapshotTontineFees(
-    input.contribution.amountMinor,
-    input.contribution.currency,
-    input.feePolicy,
-    input.now,
-    input.contribution.id
-  );
+  const feeSnapshot = input.lockedFeeSnapshot
+    ? (() => {
+        assertCommunityTontineFeeSnapshotForSettlement(input.lockedFeeSnapshot!, input.contribution, input.paymentIntent);
+        return input.lockedFeeSnapshot!;
+      })()
+    : snapshotTontineFees(
+        input.contribution.amountMinor,
+        input.contribution.currency,
+        input.feePolicy,
+        input.now,
+        input.contribution.id
+      );
 
   const ledgerTransaction = input.ledgerFactory.createContributionTransaction({
     contribution: input.contribution,

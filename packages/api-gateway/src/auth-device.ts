@@ -42,9 +42,9 @@ export class DeviceTrustRepository{
  }
  async validateSession(input:{sessionCredential:string;now:string}):Promise<{valid:boolean;sessionId?:string;organizationId?:string;actorId?:string;deviceId?:string;issuedAt?:string;expiresAt?:string}>{
   const sessionHash=hashCredential(input.sessionCredential);
-  const r=await this.db.query("SELECT s.id,s.organization_id,s.actor_id,s.device_id,s.status,s.issued_at,s.expires_at,s.trust_epoch,d.status AS device_status,d.trust_epoch AS device_epoch FROM api_sessions s JOIN api_devices d ON d.id=s.device_id WHERE s.session_hash=$1",[sessionHash]);
+  const r=await this.db.query("SELECT s.id,s.organization_id,s.actor_id,s.device_id,s.status,s.issued_at,s.expires_at,s.trust_epoch,d.actor_id AS device_actor_id,d.organization_id AS device_organization_id,d.status AS device_status,d.trust_epoch AS device_epoch FROM api_sessions s JOIN api_devices d ON d.id=s.device_id WHERE s.session_hash=$1",[sessionHash]);
   const row=r.rows[0];if(!row)return {valid:false};
-  if(String(row.status)!=="active"||String(row.device_status)!=="active"||Date.parse(String(row.expires_at))<=Date.parse(input.now)||Number(row.trust_epoch)!==Number(row.device_epoch))return {valid:false};
+  if(String(row.status)!=="active"||String(row.device_status)!=="active"||String(row.actor_id)!==String(row.device_actor_id)||String(row.organization_id??"")!==String(row.device_organization_id??"")||Date.parse(String(row.issued_at))>Date.parse(input.now)||Date.parse(String(row.expires_at))<=Date.parse(input.now)||Number(row.trust_epoch)!==Number(row.device_epoch))return {valid:false};
   await this.db.query("UPDATE api_sessions SET last_seen_at=$2::timestamptz WHERE id=$1 AND status='active'",[row.id,input.now]);
   const out:{valid:true;sessionId?:string;organizationId?:string;actorId?:string;deviceId?:string;issuedAt?:string;expiresAt?:string}={valid:true,sessionId:String(row.id),actorId:String(row.actor_id),deviceId:String(row.device_id),issuedAt:String(row.issued_at),expiresAt:String(row.expires_at)};
   if(row.organization_id!=null)out.organizationId=String(row.organization_id);return out;

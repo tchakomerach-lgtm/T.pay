@@ -267,17 +267,34 @@ export class PostgresDurableTontineSettlementRepository
         insertImmutable: async (snapshot: TontineFeeSnapshot) => {
           const result = await this.client.query(
             "INSERT INTO tontine_fee_snapshots " +
-            "(contribution_id, microfinance_fee_minor, tpay_fee_minor, total_fee_minor, currency, rule_version, calculated_at) " +
-            "VALUES ($1, $2::numeric, $3::numeric, $4::numeric, $5, $6, $7::timestamptz) " +
+            "(contribution_id, organization_id, microfinance_fee_minor, tpay_fee_minor, total_fee_minor, currency, rule_version, calculated_at, " +
+            "policy_id, transaction_level, payer_mode, member_fee_minor, beneficiary_fee_minor, agent_fee_minor, reserve_fee_minor, tax_fee_minor, " +
+            "optional_service_fee_minor, component_snapshot, quote_hash, snapshot_hash, accepted_at) " +
+            "VALUES ($1, $2, $3::numeric, $4::numeric, $5::numeric, $6, $7, $8::timestamptz, $9, $10, $11, $12::numeric, $13::numeric, " +
+            "$14::numeric, $15::numeric, $16::numeric, $17::numeric, $18::jsonb, $19, $20, $21::timestamptz) " +
             "ON CONFLICT (contribution_id) DO NOTHING",
             [
               snapshot.contributionId,
+              organizationId,
               snapshot.microfinanceFeeMinor.toString(),
               snapshot.tpayFeeMinor.toString(),
               snapshot.totalFeeMinor.toString(),
               snapshot.currency,
               snapshot.ruleVersion,
-              snapshot.calculatedAt
+              snapshot.calculatedAt,
+              snapshot.policyId ?? null,
+              snapshot.transactionLevel ?? null,
+              snapshot.payerMode ?? null,
+              (snapshot.memberFeeMinor ?? 0n).toString(),
+              (snapshot.beneficiaryFeeMinor ?? 0n).toString(),
+              (snapshot.agentFeeMinor ?? 0n).toString(),
+              (snapshot.reserveFeeMinor ?? 0n).toString(),
+              (snapshot.taxFeeMinor ?? 0n).toString(),
+              (snapshot.optionalServiceFeeMinor ?? 0n).toString(),
+              snapshot.componentSnapshot ?? null,
+              snapshot.quoteHash ?? null,
+              snapshot.snapshotHash ?? null,
+              snapshot.acceptedAt ?? null
             ]
           );
           if (result.rowCount !== 1) throw new Error("FEE_SNAPSHOT_ALREADY_EXISTS");
@@ -331,7 +348,7 @@ export class PostgresDurableTontineSettlementRepository
 
 
 export interface PostgresOutboxStore {
-  claimNext(workerId: string, now: string, leaseUntil: string): Promise<{
+  claimNext(workerId: string, now: string, leaseUntil: string, organizationId?: UUID): Promise<{
     id: string;
     organizationId: UUID;
     eventType: string;
@@ -347,7 +364,7 @@ export interface PostgresOutboxStore {
 export class TransactionalPostgresOutboxStore implements PostgresOutboxStore {
   constructor(private readonly client: PostgresClient) {}
 
-  async claimNext(workerId: string, now: string, leaseUntil: string) {
+  async claimNext(workerId: string, now: string, leaseUntil: string, organizationId?: UUID) {
     await this.client.query("BEGIN ISOLATION LEVEL READ COMMITTED READ WRITE");
     try {
       const result = await this.client.query<{
@@ -363,12 +380,13 @@ export class TransactionalPostgresOutboxStore implements PostgresOutboxStore {
         "SELECT id FROM outbox_events " +
         "WHERE published_at IS NULL AND (next_attempt_at IS NULL OR next_attempt_at <= $1::timestamptz) " +
         "AND (claimed_at IS NULL OR claimed_at < $1::timestamptz) " +
+        "AND ($4::uuid IS NULL OR organization_id=$4::uuid) " +
         "ORDER BY occurred_at, id FOR UPDATE SKIP LOCKED LIMIT 1" +
         ") " +
         "UPDATE outbox_events o SET claimed_by=$2, claimed_at=$3::timestamptz, attempts=o.attempts+1 " +
         "FROM candidate c WHERE o.id=c.id " +
         "RETURNING o.id,o.organization_id,o.event_type,o.aggregate_id,o.occurred_at,o.payload,o.attempts",
-        [now, workerId, leaseUntil]
+        [now, workerId, leaseUntil, organizationId ?? null]
       );
       await this.client.query("COMMIT");
       const row = result.rows[0];

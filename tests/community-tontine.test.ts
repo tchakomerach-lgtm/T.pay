@@ -95,3 +95,20 @@ test("provider/ledger mismatches never self-heal silently", () => {
     {contributionId:"c" as never,groupId:group.id,amountMinor:700n,currency:"XOF",status:"confirmed"}
   ),"mismatch");
 });
+
+test("provider-reported completion remains pending until verified Financial Core settlement", async () => {
+  const notifications: string[] = [];
+  const membership = {id:"m" as never,groupId:group.id,clientId:"client-1" as never,role:"member" as const,status:"active" as const,joinedAt:"2026-10-01"};
+  const result = await initiateContributionPayment(
+    {id:"c10" as never,groupId:group.id,membershipId:membership.id,scheduledFor:"2026-10-03",amountMinor:500n,currency:"XOF",status:"pending",channel:"wallet",idempotencyKey:"idem-provider-completed-123"},
+    {
+      provider:{initiate:async()=>({providerReference:"provider-completed-1",status:"completed" as const})},
+      repository:{findMembership:async()=>membership},
+      notifications:{notify:async(input)=>{notifications.push(input.type)}}
+    }
+  );
+  assert.equal(result.status,"pending");
+  assert.equal(result.providerReportedStatus,"completed");
+  assert.deepEqual(notifications,["tontine.contribution.provider_reported_completed"]);
+  assert.equal(notifications.includes("tontine.contribution.confirmed"),false);
+});
