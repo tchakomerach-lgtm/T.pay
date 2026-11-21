@@ -249,7 +249,9 @@ test("CT-042 PostgreSQL enforces organization RLS, composite scope, immutable ev
                  'name',policyname,'mode',permissive,'command',cmd,'roles',roles,
                  'using',qual,'check',with_check
                )) FROM pg_policies
-               WHERE schemaname='public' AND tablename='community_tontine_protection_policies') AS policies`
+               WHERE schemaname='public' AND tablename='community_tontine_protection_policies') AS policies,
+              (SELECT json_agg(json_build_object('id',id::text,'organization_id',organization_id::text))
+               FROM public.community_tontine_protection_policies) AS visible_policy_rows`
     );
     for (const [table, expected] of [
       [scopedTables[0]!, [policyA]],
