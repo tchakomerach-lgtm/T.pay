@@ -93,7 +93,7 @@ test("Financial Core Payment Intents enforce FORCE RLS and deny cross-organizati
         `INSERT INTO payment_intents
          (id,organization_id,idempotency_key,payload_hash,payer_account_id,payee_account_id,
           amount_minor,currency,state,requires_human_approval,created_at,updated_at)
-         VALUES ($1,$2,'cross-tenant-key-0001,$3,$4,$5,2500,'XOF','pending_approval',true,now(),now())`,
+         VALUES ($1,$2,'cross-tenant-key-0001',$3,$4,$5,2500,'XOF','pending_approval',true,now(),now())`,
         [randomUUID(), orgB, "b".repeat(64), randomUUID(), randomUUID()]
       );
     } catch (error) { crossTenantError = error; }
