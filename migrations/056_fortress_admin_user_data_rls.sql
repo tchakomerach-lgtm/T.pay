@@ -3,12 +3,12 @@ CREATE POLICY fortress_user_data_insert ON fortress_user_data_objects
  FOR INSERT
  WITH CHECK (
    (
-     organization_id = tpay_current_organization_id()
+     organization_id = public.tpay_current_organization_id_text()
      AND EXISTS (
        SELECT 1 FROM fortress_vaults v
        WHERE v.vault_id=fortress_user_data_objects.vault_id
          AND v.vault_scope='tenant-user'
-         AND v.organization_id=tpay_current_organization_id()
+         AND v.organization_id=public.tpay_current_organization_id_text()
          AND v.owner_user_id=tpay_current_actor_id()
      )
    )
