@@ -22,6 +22,7 @@ test("CT-042 PostgreSQL enforces organization RLS, composite scope, immutable ev
   const enrollmentA = randomUUID(), enrollmentB = randomUUID();
   const premiumA = randomUUID(), premiumB = randomUUID();
   const claimA = randomUUID(), claimB = randomUUID();
+  const activePolicyA = randomUUID();
   const eventA = randomUUID(), eventB = randomUUID();
   let roleCreated = false;
   let transactionOpen = false;
@@ -191,7 +192,7 @@ test("CT-042 PostgreSQL enforces organization RLS, composite scope, immutable ev
         $6,$7,$8,now())`,
       [id, orgA, groupA, version, randomUUID(), "b".repeat(64), actorA, actorB]
     );
-    await activePolicy(randomUUID(), "active-v1");
+    await activePolicy(activePolicyA, "active-v1");
     await expectSqlCode("ct042_second_active_policy",
       `INSERT INTO community_tontine_protection_policies
        (id,organization_id,group_id,version,currency,state,proposal_origin,risk_bearer,
@@ -257,7 +258,7 @@ test("CT-042 PostgreSQL enforces organization RLS, composite scope, immutable ev
       [orgA,orgB,policyA,policyB]
     );
     for (const [table, expected] of [
-      [scopedTables[0]!, [policyA]],
+      [scopedTables[0]!, [policyA, activePolicyA].sort()],
       [scopedTables[1]!, [enrollmentA]],
       [scopedTables[2]!, [premiumA]],
       [scopedTables[3]!, [claimA]],
