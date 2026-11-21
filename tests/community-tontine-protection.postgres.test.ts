@@ -205,6 +205,22 @@ test("CT-042 PostgreSQL enforces organization RLS, composite scope, immutable ev
       [randomUUID(), orgA, groupA, randomUUID(), "c".repeat(64), actorA, actorB], "23505");
 
     await owner.query(`SET LOCAL ROLE "${role}"`);
+    const effectiveRole = await owner.query<{
+      current_user: string;
+      session_user: string;
+      rolsuper: boolean;
+      rolbypassrls: boolean;
+    }>(
+      `SELECT current_user,session_user,r.rolsuper,r.rolbypassrls
+       FROM pg_roles r WHERE r.rolname=current_user`
+    );
+    assert.equal(effectiveRole.rows[0]?.current_user, role,
+      "RLS assertions must execute as the constrained test role");
+    assert.equal(effectiveRole.rows[0]?.rolsuper, false,
+      "RLS test role must not be a superuser");
+    assert.equal(effectiveRole.rows[0]?.rolbypassrls, false,
+      "RLS test role must not have BYPASSRLS");
+
     const visible = async (table: string) => {
       const result = await owner.query<{ id: string }>(`SELECT id::text AS id FROM public.${table} ORDER BY id`);
       return result.rows.map(row => row.id);
@@ -216,6 +232,11 @@ test("CT-042 PostgreSQL enforces organization RLS, composite scope, immutable ev
       await owner.query("SELECT set_config('tpay.organization_id',$1,true)", [organizationId]);
     };
     await setOrganization(orgA);
+    const effectiveOrganization = await owner.query<{organization_id:string|null}>(
+      "SELECT public.tpay_current_organization_id()::text AS organization_id"
+    );
+    assert.equal(effectiveOrganization.rows[0]?.organization_id, orgA,
+      "RLS test must observe the exact transaction-local organization context");
     for (const [table, expected] of [
       [scopedTables[0]!, [policyA]],
       [scopedTables[1]!, [enrollmentA]],
@@ -292,17 +313,35 @@ test("migration 139 creates RLS-isolated individual coverage and cycle refund cl
       assert.equal(table.relrowsecurity, true, table.relname + " must enable RLS");
       assert.equal(table.relforcerowsecurity, true, table.relname + " must force RLS");
     }
-    const policies = await client.query<{tablename:string;qual:string|null;with_check:string|null}>(
-      `SELECT tablename,qual,with_check FROM pg_policies
-       WHERE schemaname='public' AND tablename=ANY($1::text[])`,
+    const policies = await client.query<{tablename:string;policyname:string;permissive:string;qual:string|null;with_check:string|null}>(
+      `SELECT tablename,policyname,permissive,qual,with_check FROM pg_policies
+       WHERE schemaname='public' AND tablename=ANY($1::text[])
+         AND policyname=tablename || '_organization_scope'`,
       [expected]
     );
-    assert.equal(policies.rowCount, expected.length);
+    assert.equal(policies.rowCount, expected.length,
+      "every dual-protection table must retain its named permissive organization scope policy");
     for (const table of expected) {
       const policy = policies.rows.find(row => row.tablename === table);
       assert.ok(policy, "missing organization RLS policy for " + table);
+      assert.equal(policy.permissive, "PERMISSIVE", table + " organization scope must remain permissive");
       assert.match(policy.qual ?? "", /tpay_current_organization_id/);
       assert.match(policy.with_check ?? "", /tpay_current_organization_id/);
+    }
+    const fences = await client.query<{tablename:string;policyname:string;permissive:string;qual:string|null;with_check:string|null}>(
+      `SELECT tablename,policyname,permissive,qual,with_check FROM pg_policies
+       WHERE schemaname='public' AND tablename=ANY($1::text[])
+         AND policyname=tablename || '_tenant_fence'`,
+      [expected]
+    );
+    assert.equal(fences.rowCount, expected.length,
+      "every dual-protection table must also have one restrictive tenant fence");
+    for (const table of expected) {
+      const fence = fences.rows.find(row => row.tablename === table);
+      assert.ok(fence, "missing restrictive tenant fence for " + table);
+      assert.equal(fence.permissive, "RESTRICTIVE", table + " tenant fence must intersect permissive policies");
+      assert.match(fence.qual ?? "", /tpay_current_organization_id/);
+      assert.match(fence.with_check ?? "", /tpay_current_organization_id/);
     }
     const closeout = await client.query<{definition:string}>(
       `SELECT pg_get_constraintdef(oid) AS definition
