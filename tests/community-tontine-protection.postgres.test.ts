@@ -240,7 +240,9 @@ test("CT-042 PostgreSQL enforces organization RLS, composite scope, immutable ev
     assert.equal(effectiveOrganization.rows[0]?.organization_id, orgA,
       "RLS test must observe the exact transaction-local organization context");
     const rlsDiagnostics = await owner.query(
-      `SELECT current_user,session_user,
+      `SELECT $1::text AS expected_org_a,$2::text AS expected_org_b,
+              $3::text AS expected_policy_a,$4::text AS expected_policy_b,
+              current_user,session_user,
               row_security_active('public.community_tontine_protection_policies'::regclass) AS row_security_active,
               (SELECT relowner::regrole::text FROM pg_class WHERE oid='public.community_tontine_protection_policies'::regclass) AS table_owner,
               current_setting('tpay.organization_id',true) AS configured_organization,
@@ -251,7 +253,8 @@ test("CT-042 PostgreSQL enforces organization RLS, composite scope, immutable ev
                )) FROM pg_policies
                WHERE schemaname='public' AND tablename='community_tontine_protection_policies') AS policies,
               (SELECT json_agg(json_build_object('id',id::text,'organization_id',organization_id::text))
-               FROM public.community_tontine_protection_policies) AS visible_policy_rows`
+               FROM public.community_tontine_protection_policies) AS visible_policy_rows`,
+      [orgA,orgB,policyA,policyB]
     );
     for (const [table, expected] of [
       [scopedTables[0]!, [policyA]],
