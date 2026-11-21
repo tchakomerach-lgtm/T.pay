@@ -5,6 +5,8 @@ import pg from "pg";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { applyMigrations } from "../packages/finance/src/postgres-migrations.js";
+import { PostgresPaymentIntentRepository } from "../packages/finance/src/postgres-payment-intent-repository.js";
+import type { PaymentIntent } from "../packages/finance/src/payment-intent.js";
 
 const databaseUrl = process.env.TPAY_DATABASE_URL;
 
@@ -86,6 +88,30 @@ test("Financial Core Payment Intents enforce FORCE RLS and deny cross-organizati
     const visibleA = await owner.query<{ id: string }>("SELECT id::text AS id FROM payment_intents ORDER BY id");
     assert.deepEqual(visibleA.rows.map(row => row.id), [intentA],
       "organization A must not read organization B Payment Intents");
+
+    const repository = new PostgresPaymentIntentRepository({
+      query: async <Row = Record<string, unknown>>(sql: string, values?: readonly unknown[]) => {
+        const result = await owner.query(sql, values as unknown[] | undefined);
+        return { rows: result.rows as Row[], rowCount: result.rowCount };
+      }
+    });
+    const existing = await repository.findByIdempotency(orgA, "ct042-premium-a-0001");
+    assert.equal(existing?.id, intentA, "repository must read the organization-scoped intent");
+    assert.equal(await repository.findByIdempotency(orgB, "ct042-premium-b-0001"), undefined,
+      "repository must not read another organization's intent under the current RLS context");
+
+    const newIntent: PaymentIntent = {
+      id: randomUUID(), organizationId: orgA, idempotencyKey: "ct042-repository-intent-0001",
+      payloadHash: "c".repeat(64), payerAccountId: randomUUID(), payeeAccountId: randomUUID(),
+      amountMinor: 1234n, currency: "XOF", state: "pending_approval",
+      requiresHumanApproval: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+    };
+    const inserted = await repository.insert(newIntent);
+    assert.equal(inserted.id, newIntent.id);
+    const replay = await repository.insert({ ...newIntent, id: randomUUID() });
+    assert.equal(replay.id, newIntent.id, "concurrent-safe duplicate intent insert must return the exact replay");
+    const approved = await repository.approve(orgA, newIntent.id, randomUUID(), new Date().toISOString());
+    assert.equal(approved?.state, "approved", "approval must be an atomic pending_approval transition");
 
     let crossTenantError: unknown;
     try {
