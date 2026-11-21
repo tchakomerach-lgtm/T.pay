@@ -239,13 +239,28 @@ test("CT-042 PostgreSQL enforces organization RLS, composite scope, immutable ev
     );
     assert.equal(effectiveOrganization.rows[0]?.organization_id, orgA,
       "RLS test must observe the exact transaction-local organization context");
+    const rlsDiagnostics = await owner.query(
+      `SELECT current_user,session_user,
+              row_security_active('public.community_tontine_protection_policies'::regclass) AS row_security_active,
+              (SELECT relowner::regrole::text FROM pg_class WHERE oid='public.community_tontine_protection_policies'::regclass) AS table_owner,
+              current_setting('tpay.organization_id',true) AS configured_organization,
+              public.tpay_current_organization_id()::text AS resolved_organization,
+              (SELECT json_agg(json_build_object(
+                 'name',policyname,'mode',permissive,'command',cmd,'roles',roles,
+                 'using',qual,'check',with_check
+               )) FROM pg_policies
+               WHERE schemaname='public' AND tablename='community_tontine_protection_policies') AS policies`
+    );
     for (const [table, expected] of [
       [scopedTables[0]!, [policyA]],
       [scopedTables[1]!, [enrollmentA]],
       [scopedTables[2]!, [premiumA]],
       [scopedTables[3]!, [claimA]],
       [scopedTables[4]!, [eventA]]
-    ] as const) assert.deepEqual(await visible(table), expected, table + " must expose only organization A");
+    ] as const) assert.deepEqual(
+      await visible(table), expected,
+      table + " must expose only organization A; RLS diagnostics: " + JSON.stringify(rlsDiagnostics.rows[0])
+    );
     await expectSqlCode("ct042_cross_org_insert",
       `INSERT INTO community_tontine_protection_events
        (id,organization_id,group_id,actor_id,event_type,payload,occurred_at)
