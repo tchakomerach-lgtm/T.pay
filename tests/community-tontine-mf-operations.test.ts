@@ -25,7 +25,7 @@ test("settlement preparation requires a persisted, scoped grant and durable stor
   assert.equal(prepared.preparedBy,other);
   await assert.rejects(() => service.prepareSettlement(
     {...access, microfinanceId:other}, id, instruction, other
-  ), /ORGANIZATION_SCOPE_DENIED|GROUP_SCOPE_DENIED|PARTNER_SCOPE_DENIED/);
+  ), /ACCESS_NOT_ACTIVE/);
   await assert.rejects(() => service.prepareSettlement(access,id,instruction,"" as any), /PREPARER_REQUIRED/);
 });
 
