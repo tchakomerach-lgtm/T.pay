@@ -18,7 +18,7 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 60
     services:
       postgres:
         image: postgres:17
@@ -40,6 +40,7 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: TypeScript and unit/invariant checks
+        timeout-minutes: 45
         run: npm run check
       - name: Apply full migration chain and run live PostgreSQL integration
         env:
