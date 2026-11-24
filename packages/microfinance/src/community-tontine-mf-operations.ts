@@ -35,6 +35,7 @@ export class CommunityTontineMfOperationsService implements CommunityTontineMfOp
   ) {}
 
   private async resolveAccess(supplied: CommunityTontineMfAccess, organizationId: UUID, groupId: UUID, microfinanceId: UUID): Promise<CommunityTontineMfAccess> {
+    assertMfScope(supplied, organizationId, groupId, microfinanceId, new Date().toISOString());
     const persisted = await this.accessRepository.getActive(organizationId, groupId, microfinanceId, supplied.role);
     if (!persisted || persisted.id !== supplied.id) throw new Error("COMMUNITY_TONTINE_MF_ACCESS_NOT_ACTIVE");
     return persisted;
