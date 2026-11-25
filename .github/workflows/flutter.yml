@@ -48,19 +48,18 @@ jobs:
           cp assets/android/tpay_launcher_icon.xml android/app/src/main/res/drawable/tpay_launcher_icon.xml
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
           manifest = Path("android/app/src/main/AndroidManifest.xml")
           source = manifest.read_text(encoding="utf-8")
           if 'android:icon="@drawable/tpay_launcher_icon"' not in source:
-              source, count = re.subn(
-                  r"<application\\b",
-                  '<application android:icon="@drawable/tpay_launcher_icon" android:roundIcon="@drawable/tpay_launcher_icon"',
-                  source,
-                  count=1,
-              )
-              if count != 1:
+              marker = "<application"
+              if marker not in source:
                   raise SystemExit("Flutter Android application manifest was not found")
+              source = source.replace(
+                  marker,
+                  '<application android:icon="@drawable/tpay_launcher_icon" android:roundIcon="@drawable/tpay_launcher_icon"',
+                  1,
+              )
               manifest.write_text(source, encoding="utf-8")
           print("Verified official T.Pay Family 02 launcher icon")
           PY
