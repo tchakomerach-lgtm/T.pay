@@ -48,20 +48,23 @@ jobs:
           cp assets/android/tpay_launcher_icon.xml android/app/src/main/res/drawable/tpay_launcher_icon.xml
           python3 - <<'PY'
           from pathlib import Path
+          import xml.etree.ElementTree as ET
 
           manifest = Path("android/app/src/main/AndroidManifest.xml")
-          source = manifest.read_text(encoding="utf-8")
-          if 'android:icon="@drawable/tpay_launcher_icon"' not in source:
-              marker = "<application"
-              if marker not in source:
-                  raise SystemExit("Flutter Android application manifest was not found")
-              source = source.replace(
-                  marker,
-                  '<application android:icon="@drawable/tpay_launcher_icon" android:roundIcon="@drawable/tpay_launcher_icon"',
-                  1,
-              )
-              manifest.write_text(source, encoding="utf-8")
-          print("Verified official T.Pay Family 02 launcher icon")
+          tree = ET.parse(manifest)
+          root = tree.getroot()
+          android_ns = "http://schemas.android.com/apk/res/android"
+          ET.register_namespace("android", android_ns)
+          application = root.find("application")
+          if application is None:
+              raise SystemExit("Flutter Android application manifest was not found")
+          # Replace Flutter's default mipmap icon; do not append duplicate XML attributes.
+          application.set(f"{{{android_ns}}}icon", "@drawable/tpay_launcher_icon")
+          application.set(f"{{{android_ns}}}roundIcon", "@drawable/tpay_launcher_icon")
+          tree.write(manifest, encoding="utf-8", xml_declaration=True)
+          # Parse again so malformed XML fails before Gradle starts.
+          ET.parse(manifest)
+          print("Verified official T.Pay Family 02 launcher icon and valid AndroidManifest.xml")
           PY
       - name: Ensure Android plugin repositories include Maven Central
         working-directory: mobile/tpay_flutter
