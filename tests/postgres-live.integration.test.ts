@@ -89,9 +89,25 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
       "($1,$2,'CASH','Cash','asset','XOF','active',$5),($3,$2,'TONTINE','Tontine liability','liability','XOF','active',$5),($4,$2,'MF-FEE','Microfinance fees payable','liability','XOF','active',$5),($6,$2,'TPAY-FEE','T.Pay fee income','income','XOF','active',$5)",
       [cashAccount, organizationId, tontineAccount, microfinanceFeeAccount, now, tpayFeeAccount]
     );
+    const groupId = randomUUID();
+    const membershipId = randomUUID();
+    const memberClientId = randomUUID();
+    await client.query(
+      `INSERT INTO tontine_groups
+       (id,organization_id,name,country_code,currency,frequency,contribution_mode,fixed_amount_minor,minimum_amount_minor,
+        cycle_number,governance,status,created_by,created_at)
+       VALUES ($1,$2,'S-03.4 settlement group','TG','XOF','daily','fixed',1000,1000,1,'founder_managed','active',$3,$4)`,
+      [groupId,organizationId,memberClientId,now]
+    );
+    await client.query(
+      `INSERT INTO tontine_memberships
+       (id,organization_id,group_id,client_id,role,status,joined_at)
+       VALUES ($1,$2,$3,$4,'member','active',$5)`,
+      [membershipId,organizationId,groupId,memberClientId,now]
+    );
     await client.query(
       "INSERT INTO tontine_contributions (id,organization_id,group_id,membership_id,amount_minor,currency,idempotency_key,status,channel,scheduled_for,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF',$5,'pending','mobile_money',$6,$6)",
-      [contributionId, organizationId, randomUUID(), randomUUID(), idempotencyKey, now]
+      [contributionId, organizationId, groupId, membershipId, idempotencyKey, now]
     );
     await client.query(
       "INSERT INTO tontine_payment_intents (id,organization_id,contribution_id,idempotency_key,amount_minor,currency,provider,provider_reference,status,created_at,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF','tmoney','TM-LIVE','provider_confirmed',$5,$5)",
@@ -107,7 +123,7 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
         status: "provider_confirmed" as const, createdAt: now, updatedAt: now
       },
       contribution: {
-        id: contributionId as never, groupId: randomUUID() as never, membershipId: randomUUID() as never,
+        id: contributionId as never, groupId: groupId as never, membershipId: membershipId as never,
         scheduledFor: now, amountMinor: 1000n, currency: "XOF", status: "pending" as const,
         channel: "mobile_money" as const, idempotencyKey
       },
@@ -165,7 +181,7 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
     const rollbackKey = "live-s03.4-rollback-" + randomUUID();
     await client.query(
       "INSERT INTO tontine_contributions (id,organization_id,group_id,membership_id,amount_minor,currency,idempotency_key,status,channel,scheduled_for,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF',$5,'pending','mobile_money',$6,$6)",
-      [rollbackContribution, organizationId, randomUUID(), randomUUID(), rollbackKey, now]
+      [rollbackContribution, organizationId, groupId, membershipId, rollbackKey, now]
     );
     await client.query(
       "INSERT INTO tontine_payment_intents (id,organization_id,contribution_id,idempotency_key,amount_minor,currency,provider,provider_reference,status,created_at,updated_at) VALUES ($1,$2,$3,$4,1000,'XOF','tmoney','TM-ROLLBACK','provider_confirmed',$5,$5)",
@@ -197,16 +213,9 @@ test("S-03.4 live PostgreSQL atomically settles Ledger, fees, contribution, paym
     );
     assert.deepEqual(rolled.rows[0], { ledger: 0, event: 0, fee: 0, receipt: 0, outbox: 0, contribution_status: "pending", payment_status: "provider_confirmed" });
   } finally {
-    await client.query("DELETE FROM outbox_events WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM provider_events WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM tontine_receipts WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM tontine_fee_snapshots WHERE contribution_id IN (SELECT id FROM tontine_contributions WHERE organization_id=$1)", [organizationId]);
-    await client.query("DELETE FROM ledger_lines WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM ledger_transactions WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM tontine_payment_intents WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM tontine_contributions WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM financial_accounts WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM organizations WHERE id=$1", [organizationId]);
+    // Financial snapshots and posted Ledger records are append-only. Retain this
+    // isolated random-UUID fixture graph rather than disabling triggers or
+    // deleting immutable accounting evidence during test teardown.
     await client.end();
   }
 });
@@ -216,12 +225,24 @@ test("S-03.6 live PostgreSQL claims outbox exactly once per lease and enforces w
   const client = new pg.Client({ connectionString: databaseUrl });
   await client.connect();
   const organizationId = randomUUID();
+  const otherOrganizationId = randomUUID();
   const outboxId = randomUUID();
+  const otherOutboxId = randomUUID();
   const aggregateId = randomUUID();
+  const otherAggregateId = randomUUID();
   const occurredAt = "2026-10-03T22:10:00.000Z";
+  const otherOccurredAt = "2026-10-03T22:09:00.000Z";
   try {
     await applyMigrations(client, pathToFileURL(join(process.cwd(), "migrations") + "/"));
-    await client.query("INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',$3)", [organizationId, "S-03.6 live", occurredAt]);
+    await client.query(
+      "INSERT INTO organizations (id,name,status,created_at) VALUES ($1,$2,'active',$3),($4,$5,'active',$6)",
+      [organizationId, "S-03.6 live", occurredAt, otherOrganizationId, "S-03.6 other tenant", otherOccurredAt]
+    );
+    // An older pending event in another organization must not be claimed by an organization-scoped worker.
+    await client.query(
+      "INSERT INTO outbox_events (id,organization_id,event_type,aggregate_id,occurred_at,payload) VALUES ($1,$2,$3,$4,$5::timestamptz,$6::jsonb)",
+      [otherOutboxId, otherOrganizationId, "tontine.contribution_settled", otherAggregateId, otherOccurredAt, JSON.stringify({ aggregateId: otherAggregateId })]
+    );
     await client.query(
       "INSERT INTO outbox_events (id,organization_id,event_type,aggregate_id,occurred_at,payload) VALUES ($1,$2,$3,$4,$5::timestamptz,$6::jsonb)",
       [outboxId, organizationId, "tontine.contribution_settled", aggregateId, occurredAt, JSON.stringify({ aggregateId })]
@@ -229,9 +250,11 @@ test("S-03.6 live PostgreSQL claims outbox exactly once per lease and enforces w
 
     const { TransactionalPostgresOutboxStore } = await import("../packages/finance/src/postgres-settlement-uow.js");
     const store = new TransactionalPostgresOutboxStore(client);
-    const claimed = await store.claimNext("worker-a", occurredAt, "2026-10-03T22:20:00.000Z");
+    const claimed = await store.claimNext("worker-a", occurredAt, "2026-10-03T22:20:00.000Z", organizationId as never);
     assert.equal(claimed?.id, outboxId);
     assert.equal(claimed?.attempts, 1);
+    const otherTenantEvent = await client.query("SELECT claimed_by FROM outbox_events WHERE id=$1", [otherOutboxId]);
+    assert.equal(otherTenantEvent.rows[0]?.claimed_by, null);
 
     await assert.rejects(
       () => store.markPublished(outboxId, "worker-b", "2026-10-03T22:11:00.000Z"),
@@ -239,7 +262,7 @@ test("S-03.6 live PostgreSQL claims outbox exactly once per lease and enforces w
     );
 
     await store.markAttemptFailed(outboxId, "worker-a", "2026-10-03T22:12:00.000Z");
-    const reclaimed = await store.claimNext("worker-b", "2026-10-03T22:13:00.000Z", "2026-10-03T22:23:00.000Z");
+    const reclaimed = await store.claimNext("worker-b", "2026-10-03T22:13:00.000Z", "2026-10-03T22:23:00.000Z", organizationId as never);
     assert.equal(reclaimed?.id, outboxId);
     assert.equal(reclaimed?.attempts, 2);
 
@@ -250,8 +273,8 @@ test("S-03.6 live PostgreSQL claims outbox exactly once per lease and enforces w
     assert.equal(after.rows[0]?.claimed_at, null);
     assert.equal(after.rows[0]?.attempts, 2);
   } finally {
-    await client.query("DELETE FROM outbox_events WHERE organization_id=$1", [organizationId]);
-    await client.query("DELETE FROM organizations WHERE id=$1", [organizationId]);
+    await client.query("DELETE FROM outbox_events WHERE organization_id IN ($1,$2)", [organizationId, otherOrganizationId]);
+    await client.query("DELETE FROM organizations WHERE id IN ($1,$2)", [organizationId, otherOrganizationId]);
     await client.end();
   }
 });

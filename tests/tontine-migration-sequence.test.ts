@@ -22,6 +22,13 @@ test("SQL migration numeric versions are unique and stable", async () => {
     "111_community_tontine_mf_maker_checker_constraints.sql",
     "112_community_tontine_mf_transition_guards.sql",
     "113_community_tontine_mf_settlement_actor_audit.sql",
-    "114_tontine_composite_tenant_isolation.sql"
+    "114_tontine_composite_tenant_isolation.sql",
+    "127_community_tontine_admission_consent_launch.sql",
+    "128_community_tontine_evidence_immutability.sql",
+    "129_community_tontine_admission_organization_rls.sql",
+    "130_global_identity_multiorganization.sql",
+    "138_community_tontine_cycle_protection.sql",
+    "139_community_tontine_dual_protection_and_cycle_closeout.sql",
+    "140_community_tontine_protection_restrictive_tenant_fences.sql"
   ]) assert.ok(files.includes(file), "missing ordered tontine migration: " + file);
 });

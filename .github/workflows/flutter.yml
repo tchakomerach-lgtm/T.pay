@@ -1,0 +1,103 @@
+name: T.Pay Flutter Mobile
+on:
+  push:
+    branches: [main]
+    paths: ["mobile/tpay_flutter/**", ".github/workflows/flutter.yml"]
+  pull_request:
+    branches: [main, feat/community-tontine-protection-ct042]
+    paths: ["mobile/tpay_flutter/**", ".github/workflows/flutter.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tpay-flutter-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install pinned Flutter SDK without unpinned nested actions
+        run: |
+          git clone --depth 1 --branch 3.35.7 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          export PATH="$RUNNER_TEMP/flutter/bin:$PATH"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          flutter --version
+          flutter doctor -v
+      - name: Resolve dependencies
+        working-directory: mobile/tpay_flutter
+        run: flutter pub get
+      - name: Analyze
+        working-directory: mobile/tpay_flutter
+        run: flutter analyze --fatal-infos
+      - name: Test
+        working-directory: mobile/tpay_flutter
+        run: flutter test --reporter expanded
+      - name: Generate official Android Gradle host project
+        working-directory: mobile/tpay_flutter
+        run: flutter create --platforms=android --org com.tpay --project-name tpay_mobile .
+      - name: Apply official T.Pay Family 02 Android launcher icon
+        working-directory: mobile/tpay_flutter
+        run: |
+          mkdir -p android/app/src/main/res/drawable
+          cp assets/android/tpay_launcher_icon.xml android/app/src/main/res/drawable/tpay_launcher_icon.xml
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          tree = ET.parse(manifest)
+          root = tree.getroot()
+          android_ns = "http://schemas.android.com/apk/res/android"
+          ET.register_namespace("android", android_ns)
+          application = root.find("application")
+          if application is None:
+              raise SystemExit("Flutter Android application manifest was not found")
+          # Replace Flutter's default mipmap icon; do not append duplicate XML attributes.
+          application.set(f"{{{android_ns}}}icon", "@drawable/tpay_launcher_icon")
+          application.set(f"{{{android_ns}}}roundIcon", "@drawable/tpay_launcher_icon")
+          tree.write(manifest, encoding="utf-8", xml_declaration=True)
+          # Parse again so malformed XML fails before Gradle starts.
+          ET.parse(manifest)
+          print("Verified official T.Pay Family 02 launcher icon and valid AndroidManifest.xml")
+          PY
+      - name: Ensure Android plugin repositories include Maven Central
+        working-directory: mobile/tpay_flutter
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          settings = Path("android/settings.gradle.kts")
+          source = settings.read_text(encoding="utf-8")
+          match = re.search(r"pluginManagement\s*\{[\s\S]*?repositories\s*\{", source)
+          if match is None:
+              raise SystemExit("Flutter Android settings has no pluginManagement.repositories block")
+          block_start = match.end()
+          plugin_end = source.find("\n}", match.start())
+          if plugin_end < 0:
+              raise SystemExit("Unterminated pluginManagement block")
+          plugin_block = source[match.start():plugin_end]
+          additions = []
+          for repository in ("google()", "mavenCentral()", "gradlePluginPortal()"):
+              if repository not in plugin_block:
+                  additions.append("          " + repository)
+          if additions:
+              source = source[:block_start] + "\n" + "\n".join(additions) + source[block_start:]
+              settings.write_text(source, encoding="utf-8")
+          print("Verified plugin repositories: google, mavenCentral, gradlePluginPortal")
+          PY
+      - name: Build Android debug APK
+        working-directory: mobile/tpay_flutter
+        run: flutter build apk --debug
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: TPay-Flutter-debug
+          path: mobile/tpay_flutter/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
