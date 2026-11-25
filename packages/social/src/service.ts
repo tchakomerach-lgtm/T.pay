@@ -36,6 +36,17 @@ function assertSurfacePolicy(command: CreateSocialPublicationCommand): void {
   const globalSurface = command.surfaces.includes("global_social");
   const opportunitySurface = command.surfaces.includes("opportunity");
 
+  // Classify and reject sensitive data before surface-specific checks so that
+  // callers receive the strongest privacy boundary, not a weaker routing error.
+  if (command.contentClass === "hr_confidential"
+    || command.contentClass === "health_sensitive"
+    || command.contentClass === "financial") {
+    throw new Error("SOCIAL_RESTRICTED_CONTENT_BLOCKED");
+  }
+  if (command.contentClass === "personal") {
+    throw new Error("SOCIAL_PERSONAL_CONTENT_BLOCKED");
+  }
+
   if (organizationSurface && !command.sourceOrganizationId) {
     throw new Error("SOCIAL_ORGANIZATION_CONTEXT_REQUIRED");
   }
@@ -54,14 +65,6 @@ function assertSurfacePolicy(command: CreateSocialPublicationCommand): void {
       throw new Error("OPPORTUNITY_CONTENT_CLASS_BLOCKED");
     }
     if (!command.approvalRef?.trim()) throw new Error("OPPORTUNITY_HR_APPROVAL_REQUIRED");
-  }
-  if (command.contentClass === "hr_confidential"
-    || command.contentClass === "health_sensitive"
-    || command.contentClass === "financial") {
-    throw new Error("SOCIAL_RESTRICTED_CONTENT_BLOCKED");
-  }
-  if (command.contentClass === "personal") {
-    throw new Error("SOCIAL_PERSONAL_CONTENT_BLOCKED");
   }
   if (command.contentClass === "organization_internal"
     && (globalSurface || opportunitySurface)) {
