@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'api/tpay_api_client.dart';
 import 'community_tontine_screen.dart';
 
@@ -189,6 +190,14 @@ class _TPayHomePageState extends State<TPayHomePage> {
     final wide = MediaQuery.sizeOf(context).width >= 900;
     return Scaffold(
       appBar: AppBar(
+        leading: Padding(
+          padding: const EdgeInsets.all(7),
+          child: SvgPicture.asset(
+            'assets/brand/tpay-family-02-mobile.svg',
+            semanticsLabel: 'Logo officiel T.Pay',
+            fit: BoxFit.contain,
+          ),
+        ),
         title: const Text('T.Pay OS', style: TextStyle(fontWeight: FontWeight.w800)),
         surfaceTintColor: Colors.transparent,
       ),
