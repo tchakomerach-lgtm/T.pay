@@ -230,9 +230,9 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
          if(!name||name.length>120||!/^[A-Z]{2}$/.test(countryCode)||!/^[A-Z]{3}$/.test(currency)||
            !["daily","weekly","biweekly","monthly"].includes(frequency)||
            !["fixed","flexible","target"].includes(contributionMode)||
-           !/^\\d+$/.test(minimum)||BigInt(minimum)<=0n||
-           (fixed!==null&&(!/^\\d+$/.test(fixed)||BigInt(fixed)<=0n))||
-           (target!==null&&(!/^\\d+$/.test(target)||BigInt(target)<=0n))||
+           !/^[0-9]+$/.test(minimum)||BigInt(minimum)<=0n||
+           (fixed!==null&&(!/^[0-9]+$/.test(fixed)||BigInt(fixed)<=0n))||
+           (target!==null&&(!/^[0-9]+$/.test(target)||BigInt(target)<=0n))||
            (maxMembers!==null&&(!Number.isInteger(maxMembers)||maxMembers<2||maxMembers>10000))||
            !["member_vote","founder","committee"].includes(governance))throw new Error("TONTINE_GROUP_INPUT_INVALID");
          const groupIdNew=randomUUID();
@@ -240,13 +240,13 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
            `INSERT INTO tontine_groups
             (id,organization_id,name,country_code,currency,frequency,contribution_mode,target_minor,
              fixed_amount_minor,minimum_amount_minor,max_members,governance,created_by,created_at,idempotency_key)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`.trim(),
            [groupIdNew,organizationId,name,countryCode,currency,frequency,contributionMode,target,fixed,minimum,maxMembers,governance,auth.principal.userId,now,idem]
          );
          if(!created.rows[0])throw new Error("TONTINE_GROUP_CREATE_FAILED");
          await client.query(
            `INSERT INTO tontine_memberships (id,organization_id,group_id,client_id,role,status,joined_at)
-            VALUES ($1,$2,$3,$4,'founder','active',$5)`,
+            VALUES ($1,$2,$3,$4,'founder','active',$5)`.trim(),
            [randomUUID(),organizationId,groupIdNew,auth.principal.userId,now]
          );
          data={group:created.rows[0],replayed:false};
@@ -282,12 +282,12 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
            await client.query(
              `INSERT INTO community_tontine_commission_policies
               (id,organization_id,group_id,version,transaction_level,currency,state,payer_mode,member_share_bps,effective_from,effective_until,components,policy_hash,created_by,approved_by,created_at,proposal_origin)
-              VALUES ($1,$2,$3,$4,$5,$6,'DRAFT',$7,$8,$9::timestamptz,$10::timestamptz,$11::jsonb,$12,$13,NULL,$14::timestamptz,'COMMUNITY_ADMIN')`,
+              VALUES ($1,$2,$3,$4,$5,$6,'DRAFT',$7,$8,$9::timestamptz,$10::timestamptz,$11::jsonb,$12,$13,NULL,$14::timestamptz,'COMMUNITY_ADMIN')`.trim(),
              [policyId,organizationId,groupId,version,transactionLevel,currency,payer,memberShareBps,effectiveFrom,payload.effectiveUntil??null,JSON.stringify(components.map((x:any)=>({...x,minMinor:x.minMinor?.toString(),maxMinor:x.maxMinor?.toString()}))),policy.policyHash,auth.principal.userId,now]
            );
            await client.query(
              `INSERT INTO community_tontine_commission_policy_audit (id,organization_id,group_id,policy_id,actor_id,action,reason,occurred_at)
-              VALUES ($1,$2,$3,$4,$5,'CREATED','Commission policy created as draft',$6::timestamptz)`,
+              VALUES ($1,$2,$3,$4,$5,'CREATED','Commission policy created as draft',$6::timestamptz)`.trim(),
              [randomUUID(),organizationId,groupId,policyId,auth.principal.userId,now]
            );
            data={policy};
@@ -304,12 +304,12 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
            if(String(payload.actorId)===auth.principal.userId)throw new Error("TONTINE_ROLE_GRANT_SELF_FORBIDDEN");
            await client.query(
              `INSERT INTO community_tontine_role_grants (id,organization_id,group_id,actor_id,role,permissions,granted_by,valid_from,expires_at)
-              VALUES ($1,$2,$3,$4,$5,$6,$7,$8::timestamptz,$9::timestamptz)`,
+              VALUES ($1,$2,$3,$4,$5,$6,$7,$8::timestamptz,$9::timestamptz)`.trim(),
              [randomUUID(),organizationId,groupId,payload.actorId,targetRole,permissions,auth.principal.userId,validFrom,expiresAt]
            );
            await client.query(
              `INSERT INTO community_tontine_commercial_audit (id,organization_id,group_id,object_type,object_id,action,actor_id,reason,payload,occurred_at)
-              VALUES ($1,$2,$3,'ROLE_GRANT',$4,'GRANTED',$5,'Temporary role grant created',$6::jsonb,$7::timestamptz)`,
+              VALUES ($1,$2,$3,'ROLE_GRANT',$4,'GRANTED',$5,'Temporary role grant created',$6::jsonb,$7::timestamptz)`.trim(),
              [randomUUID(),organizationId,groupId,randomUUID(),auth.principal.userId,JSON.stringify({actorId:payload.actorId,role:targetRole,permissions,validFrom,expiresAt}),now]
            );
            data={role:targetRole,actorId:payload.actorId,permissions,validFrom,expiresAt};
@@ -319,18 +319,18 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
            const currency=String(payload.currency??"").toUpperCase(),reward=String(payload.rewardMinor??""),budget=String(payload.maxBudgetMinor??"");
            const maxRedemptions=Number(payload.maxRedemptions),channels=Array.isArray(payload.allowedChannels)?payload.allowedChannels.map(String):[];
            if(!code||!title||!Number.isFinite(Date.parse(startsAt))||!Number.isFinite(Date.parse(endsAt))||Date.parse(endsAt)<=Date.parse(startsAt)||
-             currency!==String(group.rows[0].currency)||!/^\\d+$/.test(reward)||!/^\\d+$/.test(budget)||!Number.isInteger(maxRedemptions)||maxRedemptions<1||
+             currency!==String(group.rows[0].currency)||!/^[0-9]+$/.test(reward)||!/^[0-9]+$/.test(budget)||!Number.isInteger(maxRedemptions)||maxRedemptions<1||
              BigInt(reward)*BigInt(maxRedemptions)>BigInt(budget)||channels.length===0||!channels.every((x:string)=>["LINK","QR","USSD","AGENT","SOCIAL"].includes(x)))throw new Error("TONTINE_PROMOTION_INPUT_INVALID");
            const campaignId=randomUUID();
            await client.query(
              `INSERT INTO community_tontine_promotion_campaigns
               (id,organization_id,group_id,code,title,state,starts_at,ends_at,currency,reward_minor,max_redemptions,accepted_redemptions,max_budget_minor,committed_budget_minor,allowed_channels,created_by,approved_by)
-              VALUES ($1,$2,$3,$4,$5,'DRAFT',$6::timestamptz,$7::timestamptz,$8,$9::numeric,$10,0,$11::numeric,0,$12,$13,NULL)`,
+              VALUES ($1,$2,$3,$4,$5,'DRAFT',$6::timestamptz,$7::timestamptz,$8,$9::numeric,$10,0,$11::numeric,0,$12,$13,NULL)`.trim(),
              [campaignId,organizationId,groupId,code,title,startsAt,endsAt,currency,reward,maxRedemptions,budget,channels,auth.principal.userId]
            );
            await client.query(
              `INSERT INTO community_tontine_commercial_audit (id,organization_id,group_id,object_type,object_id,action,actor_id,reason,payload,occurred_at)
-              VALUES ($1,$2,$3,'PROMOTION_CAMPAIGN',$4,'CREATED',$5,'Promotion campaign created as draft',$6::jsonb,$7::timestamptz)`,
+              VALUES ($1,$2,$3,'PROMOTION_CAMPAIGN',$4,'CREATED',$5,'Promotion campaign created as draft',$6::jsonb,$7::timestamptz)`.trim(),
              [randomUUID(),organizationId,groupId,campaignId,auth.principal.userId,JSON.stringify({code,currency,rewardMinor:reward,maxRedemptions,maxBudgetMinor:budget,allowedChannels:channels}),now]
            );
            data={id:campaignId,state:"DRAFT",code,title};
@@ -345,12 +345,12 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
            await client.query(
              `INSERT INTO community_tontine_protection_policies
               (id,organization_id,group_id,version,currency,state,proposal_origin,risk_bearer,insurer_partner_id,insurer_license_reference,insurer_contract_reference,insurer_license_verified,insurer_contract_verified,effective_from,effective_until,tiers,policy_hash,created_by,created_at)
-              VALUES ($1,$2,$3,$4,$5,'DRAFT','COMMUNITY_ADMIN','LICENSED_INSURER',$6,$7,$8,false,false,$9::timestamptz,$10::timestamptz,$11::jsonb,$12,$13,$14::timestamptz)`,
+              VALUES ($1,$2,$3,$4,$5,'DRAFT','COMMUNITY_ADMIN','LICENSED_INSURER',$6,$7,$8,false,false,$9::timestamptz,$10::timestamptz,$11::jsonb,$12,$13,$14::timestamptz)`.trim(),
              [policyId,organizationId,groupId,policy.version,policy.currency,policy.insurerPartnerId,policy.insurerLicenseReference,policy.insurerContractReference,policy.effectiveFrom,policy.effectiveUntil??null,JSON.stringify(policy.tiers.map((x:any)=>({...x,maxClaimMinor:x.maxClaimMinor.toString()}))),policy.policyHash,auth.principal.userId,now]
            );
            await client.query(
              `INSERT INTO community_tontine_protection_events (id,organization_id,group_id,actor_id,event_type,payload,occurred_at)
-              VALUES ($1,$2,$3,$4,'POLICY_PROPOSED',$5::jsonb,$6::timestamptz)`,
+              VALUES ($1,$2,$3,$4,'POLICY_PROPOSED',$5::jsonb,$6::timestamptz)`.trim(),
              [randomUUID(),organizationId,groupId,auth.principal.userId,JSON.stringify({policyId,version:policy.version,policyHash:policy.policyHash}),now]
            );
            data={...policy,insurerVerificationRequired:true};
