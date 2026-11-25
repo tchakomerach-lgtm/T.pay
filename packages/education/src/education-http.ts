@@ -97,8 +97,11 @@ function route(path:string){
 }
 function permissionFor(kind:string,method="POST"):Permission{
  if(kind==="actor")return "org.read";
- if(kind==="tontine-groups"&&method==="GET")return "community.tontine.read";
- if(kind.startsWith("tontine-"))return "community.groups.manage";
+ if(kind.startsWith("tontine-")&&method==="GET")return "community.tontine.read";
+ if(kind==="tontine-groups")return "community.groups.manage";
+ if(kind==="tontine-commission")return "community.commission.propose.admin";
+ if(kind==="tontine-role")return "community.members.manage";
+ if(kind==="tontine-promotion"||kind==="tontine-protection")return "community.governance.propose";
  return "member.manage";
 }
 export interface SchoolApiServerOptions { serverFactory?: (handler:(req:IncomingMessage,res:ServerResponse)=>void) => Server; }
@@ -264,7 +267,10 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
          const group=await client.query("SELECT id,currency FROM tontine_groups WHERE organization_id=$1 AND id=$2",[organizationId,groupId]);
          if(!group.rows[0])throw new Error("TONTINE_GROUP_NOT_FOUND");
          const payload=body as any;
-         if(r[0]==="tontine-commission"){
+         if(r[0]==="tontine-commission"&&method==="GET"){
+           const listed=await client.query("SELECT * FROM community_tontine_commission_policies WHERE organization_id=$1 AND group_id=$2 ORDER BY created_at DESC,id DESC LIMIT 100",[organizationId,groupId]);
+           data={items:listed.rows};
+         } else if(r[0]==="tontine-commission"){
            const version=String(payload.version??"").trim(),transactionLevel=String(payload.transactionLevel??"");
            const currency=String(payload.currency??"").toUpperCase(),payer=String(payload.payer??"");
            const memberShareBps=Number(payload.memberShareBps),effectiveFrom=String(payload.effectiveFrom??"");
@@ -291,6 +297,9 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
              [randomUUID(),organizationId,groupId,policyId,auth.principal.userId,now]
            );
            data={policy};
+         } else if(r[0]==="tontine-role"&&method==="GET"){
+           const listed=await client.query("SELECT id,actor_id,role,permissions,granted_by,valid_from,expires_at,revoked_at FROM community_tontine_role_grants WHERE organization_id=$1 AND group_id=$2 ORDER BY created_at DESC,id DESC LIMIT 100",[organizationId,groupId]);
+           data={items:listed.rows};
          } else if(r[0]==="tontine-role"){
            const grantor=await client.query("SELECT role FROM community_tontine_role_grants WHERE organization_id=$1 AND group_id=$2 AND actor_id=$3 AND revoked_at IS NULL AND expires_at>$4::timestamptz ORDER BY created_at DESC LIMIT 1",[organizationId,groupId,auth.principal.userId,now]);
            const grantorRole=String(grantor.rows[0]?.role??"FOUNDER");
@@ -313,6 +322,9 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
              [randomUUID(),organizationId,groupId,randomUUID(),auth.principal.userId,JSON.stringify({actorId:payload.actorId,role:targetRole,permissions,validFrom,expiresAt}),now]
            );
            data={role:targetRole,actorId:payload.actorId,permissions,validFrom,expiresAt};
+         } else if(r[0]==="tontine-promotion"&&method==="GET"){
+           const listed=await client.query("SELECT * FROM community_tontine_promotion_campaigns WHERE organization_id=$1 AND group_id=$2 ORDER BY created_at DESC,id DESC LIMIT 100",[organizationId,groupId]);
+           data={items:listed.rows};
          } else if(r[0]==="tontine-promotion"){
            const code=String(payload.code??"").trim().toUpperCase(),title=String(payload.title??"").trim();
            const startsAt=String(payload.startsAt??""),endsAt=String(payload.endsAt??"");
@@ -334,6 +346,9 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
              [randomUUID(),organizationId,groupId,campaignId,auth.principal.userId,JSON.stringify({code,currency,rewardMinor:reward,maxRedemptions,maxBudgetMinor:budget,allowedChannels:channels}),now]
            );
            data={id:campaignId,state:"DRAFT",code,title};
+         } else if(r[0]==="tontine-protection"&&method==="GET"){
+           const listed=await client.query("SELECT * FROM community_tontine_protection_policies WHERE organization_id=$1 AND group_id=$2 ORDER BY created_at DESC,id DESC LIMIT 100",[organizationId,groupId]);
+           data={items:listed.rows};
          } else if(r[0]==="tontine-protection"){
            const tiers=Array.isArray(payload.tiers)?payload.tiers:[];
            if(tiers.length!==3)throw new Error("TONTINE_PROTECTION_THREE_TIERS_REQUIRED");
