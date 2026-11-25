@@ -262,7 +262,13 @@ test("CT-042 policy proposal is tenant-scoped, draft-only and never writes a led
         insurerPartnerId: "88888888-8888-4888-8888-888888888888",
         insurerLicenseReference: "CIMA-REF-TO-VERIFY",
         insurerContractReference: "CONTRACT-REF-TO-VERIFY",
-        effectiveFrom: "2026-11-18T08:00:00.000Z"
+        effectiveFrom: "2026-11-18T08:00:00.000Z",
+        // Test-only proposed terms. They are not approved actuarial rates or an active contract.
+        tiers: [
+          { tier: "ESSENTIEL", premiumRateBps: 100, coveredInstallments: 1, gracePeriodDays: 7, waitingPeriodDays: 30, maxClaimMinor: "10000" },
+          { tier: "EQUILIBRE", premiumRateBps: 200, coveredInstallments: 2, gracePeriodDays: 14, waitingPeriodDays: 30, maxClaimMinor: "20000" },
+          { tier: "RENFORCE", premiumRateBps: 300, coveredInstallments: 3, gracePeriodDays: 21, waitingPeriodDays: 30, maxClaimMinor: "30000" }
+        ]
       })
     });
     const body = await response.json() as any;
