@@ -39,8 +39,8 @@ export class PostgresCommunityTontineMfSettlementRepository implements Community
       const inserted = await tx.query(
         `INSERT INTO community_tontine_mf_settlement_instructions
          (id,organization_id,tontine_group_id,microfinance_id,payout_id,beneficiary_client_id,
-          amount_minor,currency,destination_ref,requires_human_approval,prepared_by,approved_by,state)
-         SELECT $1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7::numeric,$8::text::char(3),$9::text,$10::boolean,$11::uuid,NULL,'prepared'
+          amount_minor,currency,destination_ref,requires_human_approval,prepared_by,approved_by,last_actor_id,state)
+         SELECT $1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7::numeric,$8::text::char(3),$9::text,$10::boolean,$11::uuid,NULL,$11::uuid,'prepared'
          FROM payout_intents pi
          JOIN tontine_beneficiary_slots slot
            ON slot.id=pi.tontine_slot_id AND slot.organization_id=pi.organization_id
