@@ -356,6 +356,11 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
            data={...policy,tiers:policy.tiers.map((x:any)=>({...x,maxClaimMinor:x.maxClaimMinor.toString()})),insurerVerificationRequired:true};
          } else throw new Error("TONTINE_ROUTE_NOT_IMPLEMENTED");
        }
+       if(method!=="GET"){
+         const aggregateId=String((data as any)?.group?.id??(data as any)?.policy?.id??(data as any)?.id??groupId??"");
+         if(!aggregateId)throw new Error("TONTINE_OUTBOX_AGGREGATE_REQUIRED");
+         await client.query("INSERT INTO outbox_events (id,organization_id,event_type,aggregate_id,occurred_at,payload) VALUES ($1,$2,$3,$4,$5::timestamptz,$6::jsonb)",[randomUUID(),organizationId,"community_tontine."+r[0]+".created",aggregateId,now,JSON.stringify({actorId:auth.principal.userId,route:path,correlationId,idempotencyKey:idem})]);
+       }
        await client.query("COMMIT");
      }catch(error){
        try{await client.query("ROLLBACK");}catch{}
