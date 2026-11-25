@@ -75,7 +75,7 @@ function fixture() {
     principal: {
       userId: "55555555-5555-4555-8555-555555555555",
       organizationId: "33333333-3333-4333-8333-333333333333",
-      permissions: ["community.tontine.read", "community.groups.manage", "community.members.manage"] as const,
+      permissions: ["community.tontine.read", "community.groups.manage", "community.members.manage", "community.commission.propose.admin", "community.governance.propose"] as const,
       sessionId: "11111111-1111-4111-8111-111111111111"
     },
     tenantId: "tenant-alpha",
