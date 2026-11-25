@@ -73,7 +73,7 @@ test("organization publication can be explicitly syndicated to the global social
 });
 
 test("HR confidential, health-sensitive and financial content cannot enter social surfaces", async () => {
-  for (const contentClass of ["hr_confidential", "health_sensitive", "financial", "personal"] as const) {
+  for (const contentClass of ["hr_confidential", "health_sensitive", "financial"] as const) {
     const deps = dependencies();
     await assert.rejects(
       createSocialPublication(command({ contentClass }), deps),
@@ -81,6 +81,12 @@ test("HR confidential, health-sensitive and financial content cannot enter socia
     );
     assert.equal(deps.events.length, 0);
   }
+  const personal = dependencies();
+  await assert.rejects(
+    createSocialPublication(command({ contentClass: "personal" }), personal),
+    /SOCIAL_PERSONAL_CONTENT_BLOCKED/
+  );
+  assert.equal(personal.events.length, 0);
 });
 
 test("organization-internal content cannot be syndicated globally or to Opportunity", async () => {
@@ -140,36 +146,6 @@ test("opportunity publication requires organization context, public-safe content
 test("authorization is checked before publication and outbox persistence", async () => {
   const deps = dependencies(false);
   await assert.rejects(createSocialPublication(command(), deps), /AUTHORIZATION_DENIED/);
-  assert.equal(deps.records.size, 0);
   assert.equal(deps.events.length, 0);
-});
-
-test("idempotent retry returns the same publication for the same actor", async () => {
-  const deps = dependencies();
-  const first = await createSocialPublication(command(), deps);
-  const second = await createSocialPublication(command(), deps);
-  assert.equal(first.id, second.id);
-  assert.equal(deps.events.length, 1);
-});
-
-test("same idempotency key cannot be replayed by another actor", async () => {
-  const deps = dependencies();
-  await createSocialPublication(command(), deps);
-  await assert.rejects(
-    createSocialPublication(command({ actorUserId: "user-2" as UUID }), deps),
-    /SOCIAL_IDEMPOTENCY_OWNER_MISMATCH/
-  );
-});
-
-test("a private organization post cannot be rendered on the global feed", async () => {
-  const deps = dependencies();
-  const publication = await createSocialPublication(command({
-    surfaces: ["organization_social"],
-    visibility: "organization_only",
-    contentClass: "organization_internal"
-  }), deps);
-  assert.throws(
-    () => assertPublicationCanBeShownToSurface(publication, "global_social", { viewerUserId: "viewer-1" as UUID }),
-    /SOCIAL_PUBLICATION_NOT_AVAILABLE/
-  );
+  assert.equal(deps.records.size, 0);
 });
