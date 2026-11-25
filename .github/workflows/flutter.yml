@@ -41,6 +41,29 @@ jobs:
       - name: Generate official Android Gradle host project
         working-directory: mobile/tpay_flutter
         run: flutter create --platforms=android --org com.tpay --project-name tpay_mobile .
+      - name: Apply official T.Pay Family 02 Android launcher icon
+        working-directory: mobile/tpay_flutter
+        run: |
+          mkdir -p android/app/src/main/res/drawable
+          cp assets/android/tpay_launcher_icon.xml android/app/src/main/res/drawable/tpay_launcher_icon.xml
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          source = manifest.read_text(encoding="utf-8")
+          if 'android:icon="@drawable/tpay_launcher_icon"' not in source:
+              source, count = re.subn(
+                  r"<application\\b",
+                  '<application android:icon="@drawable/tpay_launcher_icon" android:roundIcon="@drawable/tpay_launcher_icon"',
+                  source,
+                  count=1,
+              )
+              if count != 1:
+                  raise SystemExit("Flutter Android application manifest was not found")
+              manifest.write_text(source, encoding="utf-8")
+          print("Verified official T.Pay Family 02 launcher icon")
+          PY
       - name: Ensure Android plugin repositories include Maven Central
         working-directory: mobile/tpay_flutter
         run: |
