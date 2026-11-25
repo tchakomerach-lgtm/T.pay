@@ -353,7 +353,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
               VALUES ($1,$2,$3,$4,'POLICY_PROPOSED',$5::jsonb,$6::timestamptz)`.trim(),
              [randomUUID(),organizationId,groupId,auth.principal.userId,JSON.stringify({policyId,version:policy.version,policyHash:policy.policyHash}),now]
            );
-           data={...policy,insurerVerificationRequired:true};
+           data={...policy,tiers:policy.tiers.map((x:any)=>({...x,maxClaimMinor:x.maxClaimMinor.toString()})),insurerVerificationRequired:true};
          } else throw new Error("TONTINE_ROUTE_NOT_IMPLEMENTED");
        }
        await client.query("COMMIT");
