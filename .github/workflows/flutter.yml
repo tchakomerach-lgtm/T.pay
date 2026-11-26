@@ -3,9 +3,11 @@ on:
   push:
     branches: [main]
     paths: ["mobile/tpay_flutter/**", "packages/identity/**", "packages/security/src/policy.ts", ".github/workflows/flutter.yml"]
+  # Flutter is a release gate for every pull request targeting main.
+  # Do not path-filter PRs: shared API, security, identity and design-contract
+  # changes can affect mobile compatibility even when mobile files are untouched.
   pull_request:
-    branches: [main, feat/community-tontine-protection-ct042]
-    paths: ["mobile/tpay_flutter/**", ".github/workflows/flutter.yml"]
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -58,11 +60,9 @@ jobs:
           application = root.find("application")
           if application is None:
               raise SystemExit("Flutter Android application manifest was not found")
-          # Replace Flutter's default mipmap icon; do not append duplicate XML attributes.
           application.set(f"{{{android_ns}}}icon", "@drawable/tpay_launcher_icon")
           application.set(f"{{{android_ns}}}roundIcon", "@drawable/tpay_launcher_icon")
           tree.write(manifest, encoding="utf-8", xml_declaration=True)
-          # Parse again so malformed XML fails before Gradle starts.
           ET.parse(manifest)
           print("Verified official T.Pay Family 02 launcher icon and valid AndroidManifest.xml")
           PY
@@ -75,11 +75,11 @@ jobs:
 
           settings = Path("android/settings.gradle.kts")
           source = settings.read_text(encoding="utf-8")
-          match = re.search(r"pluginManagement\s*\{[\s\S]*?repositories\s*\{", source)
+          match = re.search(r"pluginManagement\\s*\\{[\\s\\S]*?repositories\\s*\\{", source)
           if match is None:
               raise SystemExit("Flutter Android settings has no pluginManagement.repositories block")
           block_start = match.end()
-          plugin_end = source.find("\n}", match.start())
+          plugin_end = source.find("\\n}", match.start())
           if plugin_end < 0:
               raise SystemExit("Unterminated pluginManagement block")
           plugin_block = source[match.start():plugin_end]
@@ -88,7 +88,7 @@ jobs:
               if repository not in plugin_block:
                   additions.append("          " + repository)
           if additions:
-              source = source[:block_start] + "\n" + "\n".join(additions) + source[block_start:]
+              source = source[:block_start] + "\\n" + "\\n".join(additions) + source[block_start:]
               settings.write_text(source, encoding="utf-8")
           print("Verified plugin repositories: google, mavenCentral, gradlePluginPortal")
           PY
