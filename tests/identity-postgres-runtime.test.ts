@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   resolveCommunityTontineIdentity,
+  resolveOrganizationDomainIdentity,
   type IdentityRuntimeClient,
   type IdentityRuntimePool
 } from "../packages/identity/src/postgres-runtime.js";
@@ -107,4 +108,43 @@ test("identity resolver denies a session without a Community permission grant", 
     /COMMUNITY_TONTINE_PERMISSIONS_EMPTY/
   );
   assert.ok(calls.some(x => x.sql === "ROLLBACK"));
+});
+
+
+test("domain identity resolver applies an explicit non-Education domain and permission allowlist", async () => {
+  const { pool, calls } = fakePool({
+    grants: [
+      { permission: "health.record.read" },
+      { permission: "community.tontine.read" },
+      { permission: "finance.read" }
+    ]
+  });
+  const context = await resolveOrganizationDomainIdentity(
+    pool,
+    apiSession,
+    "health",
+    new Set(["health.record.read", "health.record.write"]),
+    now
+  );
+  assert.deepEqual(context.permissions, ["health.record.read"]);
+  const membershipQuery = calls.find(x => x.sql.includes("FROM identity_sessions s"));
+  const grantQuery = calls.find(x => x.sql.includes("FROM identity_permission_grants"));
+  assert.equal(membershipQuery?.values?.[3], "health");
+  assert.equal(grantQuery?.values?.[3], "health");
+});
+
+test("domain identity resolver rejects an empty permission allowlist", async () => {
+  const { pool } = fakePool();
+  await assert.rejects(
+    resolveOrganizationDomainIdentity(pool, apiSession, "health", new Set(), now),
+    /IDENTITY_DOMAIN_PERMISSION_ALLOWLIST_REQUIRED/
+  );
+});
+
+test("domain identity resolver rejects malformed domain codes", async () => {
+  const { pool } = fakePool();
+  await assert.rejects(
+    resolveOrganizationDomainIdentity(pool, apiSession, "../education", new Set(["health.record.read"]), now),
+    /IDENTITY_DOMAIN_CODE_INVALID/
+  );
 });

@@ -58,11 +58,19 @@ function requiredString(row: Record<string, unknown>, key: string): string {
  * The bootstrap GUC is set only from a session already validated by DeviceTrustRepository.
  * All subsequent reads run under transaction-local tenant + organization RLS context.
  */
-export async function resolveCommunityTontineIdentity(
+export async function resolveOrganizationDomainIdentity(
   pool: IdentityRuntimePool,
   apiSession: VerifiedApiSession,
+  domainCode: string,
+  allowedPermissions: ReadonlySet<Permission>,
   now = new Date()
 ): Promise<ResolvedIdentityRuntimeContext> {
+  if (!/^[a-z][a-z0-9_]{1,63}$/.test(domainCode)) {
+    throw new Error("IDENTITY_DOMAIN_CODE_INVALID");
+  }
+  if (allowedPermissions.size === 0) {
+    throw new Error("IDENTITY_DOMAIN_PERMISSION_ALLOWLIST_REQUIRED");
+  }
   const client = await pool.connect();
   const nowIso = now.toISOString();
   let transactionOpen = false;
@@ -137,24 +145,24 @@ export async function resolveCommunityTontineIdentity(
         WHERE s.id = $1
           AND s.api_session_id = $2
           AND l.actor_id = $3
-          AND l.domain_code = 'community_tontine'
+          AND l.domain_code = $4
           AND l.status = 'active'
           AND sub.status = 'active'
           AND tm.status = 'active'
           AND tm.revoked_at IS NULL
-          AND tm.valid_from <= $4::timestamptz
-          AND (tm.valid_until IS NULL OR tm.valid_until > $4::timestamptz)
+          AND tm.valid_from <= $5::timestamptz
+          AND (tm.valid_until IS NULL OR tm.valid_until > $5::timestamptz)
           AND om.status = 'active'
           AND om.revoked_at IS NULL
-          AND om.valid_from <= $4::timestamptz
-          AND (om.valid_until IS NULL OR om.valid_until > $4::timestamptz)
+          AND om.valid_from <= $5::timestamptz
+          AND (om.valid_until IS NULL OR om.valid_until > $5::timestamptz)
           AND t.status = 'active'
           AND ot.status = 'active'
           AND s.revoked_at IS NULL
-          AND s.issued_at <= $4::timestamptz
-          AND s.expires_at > $4::timestamptz
+          AND s.issued_at <= $5::timestamptz
+          AND s.expires_at > $5::timestamptz
         LIMIT 1`,
-      [requiredString(session, "id"), apiSession.sessionId, apiSession.actorId, nowIso]
+      [requiredString(session, "id"), apiSession.sessionId, apiSession.actorId, domainCode, nowIso]
     );
     const row = resolved.rows[0];
     if (!row) throw new Error("COMMUNITY_TONTINE_MEMBERSHIP_NOT_ACTIVE");
@@ -165,21 +173,21 @@ export async function resolveCommunityTontineIdentity(
         WHERE membership_id = $1
           AND tenant_id = $2
           AND organization_id = $3
-          AND domain_code = 'community_tontine'
+          AND domain_code = $4
           AND revoked_at IS NULL
-          AND valid_from <= $4::timestamptz
-          AND valid_until > $4::timestamptz`,
-      [requiredString(row, "membership_id"), tenantId, organizationId, nowIso]
+          AND valid_from <= $5::timestamptz
+          AND valid_until > $5::timestamptz`,
+      [requiredString(row, "membership_id"), tenantId, organizationId, domainCode, nowIso]
     );
     const permissions = [...new Set(
       grantRows.rows
         .map(grant => String(grant.permission))
         .filter((permission): permission is Permission =>
-          COMMUNITY_PERMISSIONS.has(permission as Permission)
+          allowedPermissions.has(permission as Permission)
         )
     )].sort();
 
-    if (permissions.length === 0) throw new Error("COMMUNITY_TONTINE_PERMISSIONS_EMPTY");
+    if (permissions.length === 0) throw new Error("IDENTITY_DOMAIN_PERMISSIONS_EMPTY");
     const assurance = requiredString(row, "assurance");
     if (assurance !== "standard" && assurance !== "step_up" && assurance !== "hardware") {
       throw new Error("IDENTITY_ASSURANCE_INVALID");
@@ -207,4 +215,23 @@ export async function resolveCommunityTontineIdentity(
   } finally {
     client.release?.();
   }
+}
+
+
+/**
+ * Community Tontine compatibility entry point. Domain callers must provide an
+ * explicit permission allowlist; permissions from another domain are discarded.
+ */
+export async function resolveCommunityTontineIdentity(
+  pool: IdentityRuntimePool,
+  apiSession: VerifiedApiSession,
+  now = new Date()
+): Promise<ResolvedIdentityRuntimeContext> {
+  return resolveOrganizationDomainIdentity(
+    pool,
+    apiSession,
+    "community_tontine",
+    COMMUNITY_PERMISSIONS,
+    now
+  );
 }
