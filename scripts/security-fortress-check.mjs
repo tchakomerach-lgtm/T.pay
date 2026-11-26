@@ -28,6 +28,12 @@ const forbidden=[
   [/X-XSS-Protection/i,"DEPRECATED_XSS_HEADER"]
 ];
 
+// Guard the guard: fail closed if either secret-leak detector stops matching its intended syntax.
+const forbiddenPatternSelfTests=[
+  [forbidden[0][0],'console.error("plaintext accessToken", value)',"SECRET_LOGGING_PATTERN_SELF_TEST"],
+  [forbidden[1][0],"JSON.stringify({refreshToken})","SECRET_SERIALIZATION_PATTERN_SELF_TEST"]
+];
+
 const required=[
   ["apps/api-server/src/main.ts",/TPAY_DATABASE_TLS_REQUIRED/,"DATABASE_TLS_FAIL_CLOSED"],
   ["migrations/047_tpay_vault_fortress.sql",/CREATE TABLE IF NOT EXISTS tpay_vaults/,"VAULT_SCHEMA_REQUIRED"],
@@ -50,6 +56,7 @@ const required=[
 ];
 
 const problems=[];
+for(const [pattern,sample,code] of forbiddenPatternSelfTests)if(!pattern.test(sample))problems.push(code);
 for(const rel of files){
   const text=await readFile(resolve(root,rel),"utf8");
   for(const [pattern,code] of forbidden)if(pattern.test(text))problems.push(code+":"+rel);
