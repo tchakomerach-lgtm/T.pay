@@ -31,7 +31,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for v in TPAY_TERRAIN_WEB_URL TPAY_TERRAIN_API_URL TPAY_TERRAIN_CA_FILE TPAY_DATABASE_URL TPAY_TLS_KEY_FILE TPAY_TLS_CERT_FILE TPAY_WEB_TLS_KEY_FILE TPAY_WEB_TLS_CERT_FILE; do
+          for v in TPAY_TERRAIN_WEB_URL TPAY_TERRAIN_API_URL TPAY_TERRAIN_CA_FILE TPAY_DATABASE_URL TPAY_MIGRATION_DATABASE_URL TPAY_TLS_KEY_FILE TPAY_TLS_CERT_FILE TPAY_WEB_TLS_KEY_FILE TPAY_WEB_TLS_CERT_FILE; do
             test -n "${!v}" || { echo "Missing runner environment variable: $v"; exit 1; }
           done
           test -f "$TPAY_TERRAIN_CA_FILE"
@@ -43,6 +43,10 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Apply migrations with dedicated credential
+        shell: bash
+        run: npm run db:migrate
 
       - name: Build web and Android
         shell: bash
