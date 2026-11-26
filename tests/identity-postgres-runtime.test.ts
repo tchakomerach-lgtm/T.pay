@@ -148,3 +148,42 @@ test("domain identity resolver rejects malformed domain codes", async () => {
     /IDENTITY_DOMAIN_CODE_INVALID/
   );
 });
+
+
+test("identity resolver rejects malformed verified session identifiers before opening a database connection", async () => {
+  let connections = 0;
+  const pool: IdentityRuntimePool = {
+    async connect() {
+      connections += 1;
+      throw new Error("DATABASE_CONNECTION_SHOULD_NOT_BE_OPENED");
+    }
+  };
+  await assert.rejects(
+    resolveCommunityTontineIdentity(pool, { ...apiSession, sessionId: "not-a-uuid" }, now),
+    /IDENTITY_API_SESSION_IDENTIFIER_INVALID/
+  );
+  assert.equal(connections, 0);
+});
+
+test("identity resolver rejects invalid, expired, and not-yet-valid session time bounds before database access", async () => {
+  let connections = 0;
+  const pool: IdentityRuntimePool = {
+    async connect() {
+      connections += 1;
+      throw new Error("DATABASE_CONNECTION_SHOULD_NOT_BE_OPENED");
+    }
+  };
+  const invalidCases = [
+    { ...apiSession, issuedAt: "not-a-date" },
+    { ...apiSession, issuedAt: "2026-11-17T07:00:00.000Z", expiresAt: "2026-11-17T08:00:00.000Z" },
+    { ...apiSession, issuedAt: "2026-11-17T05:00:00.000Z", expiresAt: "2026-11-17T06:00:00.000Z" },
+    { ...apiSession, issuedAt: "2026-11-17T07:00:00.000Z", expiresAt: "2026-11-17T06:00:00.000Z" }
+  ];
+  for (const session of invalidCases) {
+    await assert.rejects(
+      resolveCommunityTontineIdentity(pool, session, now),
+      /IDENTITY_API_SESSION_TIME_INVALID/
+    );
+  }
+  assert.equal(connections, 0);
+});
