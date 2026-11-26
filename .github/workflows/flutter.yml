@@ -1,8 +1,8 @@
 name: T.Pay Flutter Mobile
 on:
   # Always validate the Flutter renderer after a change lands on main.
-  # PRs already run this workflow without path filters; a push path allowlist
-  # can silently omit shared-domain and DB-074 contract changes.
+  # PRs run this workflow without path filters; a push path allowlist can
+  # silently omit shared-domain and DB-074 contract changes.
   push:
     branches: [main]
   pull_request:
@@ -74,11 +74,11 @@ jobs:
 
           settings = Path("android/settings.gradle.kts")
           source = settings.read_text(encoding="utf-8")
-          match = re.search(r"pluginManagement\\s*\\{[\\s\\S]*?repositories\\s*\\{", source)
+          match = re.search(r"pluginManagement\s*\{[\s\S]*?repositories\s*\{", source)
           if match is None:
               raise SystemExit("Flutter Android settings has no pluginManagement.repositories block")
           block_start = match.end()
-          plugin_end = source.find("\\n}", match.start())
+          plugin_end = source.find("\n}", match.start())
           if plugin_end < 0:
               raise SystemExit("Unterminated pluginManagement block")
           plugin_block = source[match.start():plugin_end]
@@ -87,7 +87,7 @@ jobs:
               if repository not in plugin_block:
                   additions.append("          " + repository)
           if additions:
-              source = source[:block_start] + "\\n" + "\\n".join(additions) + source[block_start:]
+              source = source[:block_start] + "\n" + "\n".join(additions) + source[block_start:]
               settings.write_text(source, encoding="utf-8")
           print("Verified plugin repositories: google, mavenCentral, gradlePluginPortal")
           PY
