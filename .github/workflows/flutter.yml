@@ -1,11 +1,10 @@
 name: T.Pay Flutter Mobile
 on:
+  # Always validate the Flutter renderer after a change lands on main.
+  # PRs run this workflow without path filters; a push path allowlist can
+  # silently omit shared-domain and DB-074 contract changes.
   push:
     branches: [main]
-    paths: ["mobile/tpay_flutter/**", "packages/identity/**", "packages/security/src/policy.ts", ".github/workflows/flutter.yml"]
-  # Flutter is a release gate for every pull request targeting main.
-  # Do not path-filter PRs: shared API, security, identity and design-contract
-  # changes can affect mobile compatibility even when mobile files are untouched.
   pull_request:
     branches: [main]
   workflow_dispatch:
