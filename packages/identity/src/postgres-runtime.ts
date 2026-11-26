@@ -54,7 +54,7 @@ function requiredString(row: Record<string, unknown>, key: string): string {
 }
 
 /**
- * Resolves only an explicitly provisioned Community Tontine identity.
+ * Resolves an explicitly provisioned organization-domain identity.
  * The bootstrap GUC is set only from a session already validated by DeviceTrustRepository.
  * All subsequent reads run under transaction-local tenant + organization RLS context.
  */
@@ -165,7 +165,7 @@ export async function resolveOrganizationDomainIdentity(
       [requiredString(session, "id"), apiSession.sessionId, apiSession.actorId, domainCode, nowIso]
     );
     const row = resolved.rows[0];
-    if (!row) throw new Error("COMMUNITY_TONTINE_MEMBERSHIP_NOT_ACTIVE");
+    if (!row) throw new Error("ORGANIZATION_DOMAIN_MEMBERSHIP_NOT_ACTIVE");
 
     const grantRows = await client.query(
       `SELECT permission
@@ -217,21 +217,27 @@ export async function resolveOrganizationDomainIdentity(
   }
 }
 
-
-/**
- * Community Tontine compatibility entry point. Domain callers must provide an
- * explicit permission allowlist; permissions from another domain are discarded.
- */
+/** Community Tontine compatibility entry point preserving its legacy errors. */
 export async function resolveCommunityTontineIdentity(
   pool: IdentityRuntimePool,
   apiSession: VerifiedApiSession,
   now = new Date()
 ): Promise<ResolvedIdentityRuntimeContext> {
-  return resolveOrganizationDomainIdentity(
-    pool,
-    apiSession,
-    "community_tontine",
-    COMMUNITY_PERMISSIONS,
-    now
-  );
+  try {
+    return await resolveOrganizationDomainIdentity(
+      pool,
+      apiSession,
+      "community_tontine",
+      COMMUNITY_PERMISSIONS,
+      now
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message === "IDENTITY_DOMAIN_PERMISSIONS_EMPTY") {
+      throw new Error("COMMUNITY_TONTINE_PERMISSIONS_EMPTY");
+    }
+    if (error instanceof Error && error.message === "ORGANIZATION_DOMAIN_MEMBERSHIP_NOT_ACTIVE") {
+      throw new Error("COMMUNITY_TONTINE_MEMBERSHIP_NOT_ACTIVE");
+    }
+    throw error;
+  }
 }

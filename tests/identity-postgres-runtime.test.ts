@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { Permission } from "../packages/security/src/policy.js";
 import {
   resolveCommunityTontineIdentity,
   resolveOrganizationDomainIdentity,
@@ -110,7 +111,6 @@ test("identity resolver denies a session without a Community permission grant", 
   assert.ok(calls.some(x => x.sql === "ROLLBACK"));
 });
 
-
 test("domain identity resolver applies an explicit non-Education domain and permission allowlist", async () => {
   const { pool, calls } = fakePool({
     grants: [
@@ -123,7 +123,7 @@ test("domain identity resolver applies an explicit non-Education domain and perm
     pool,
     apiSession,
     "health",
-    new Set(["health.record.read", "health.record.write"]),
+    new Set<Permission>(["health.record.read", "health.record.write"]),
     now
   );
   assert.deepEqual(context.permissions, ["health.record.read"]);
@@ -136,7 +136,7 @@ test("domain identity resolver applies an explicit non-Education domain and perm
 test("domain identity resolver rejects an empty permission allowlist", async () => {
   const { pool } = fakePool();
   await assert.rejects(
-    resolveOrganizationDomainIdentity(pool, apiSession, "health", new Set(), now),
+    resolveOrganizationDomainIdentity(pool, apiSession, "health", new Set<Permission>(), now),
     /IDENTITY_DOMAIN_PERMISSION_ALLOWLIST_REQUIRED/
   );
 });
@@ -144,7 +144,7 @@ test("domain identity resolver rejects an empty permission allowlist", async () 
 test("domain identity resolver rejects malformed domain codes", async () => {
   const { pool } = fakePool();
   await assert.rejects(
-    resolveOrganizationDomainIdentity(pool, apiSession, "../education", new Set(["health.record.read"]), now),
+    resolveOrganizationDomainIdentity(pool, apiSession, "../education", new Set<Permission>(["health.record.read"]), now),
     /IDENTITY_DOMAIN_CODE_INVALID/
   );
 });
