@@ -30,6 +30,24 @@ export interface ResolvedIdentityRuntimeContext {
   expiresAt: number;
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function assertVerifiedApiSession(apiSession: VerifiedApiSession, now: Date): void {
+  if (!UUID_PATTERN.test(apiSession.sessionId)
+    || !UUID_PATTERN.test(apiSession.actorId)
+    || !UUID_PATTERN.test(apiSession.organizationId)) {
+    throw new Error("IDENTITY_API_SESSION_IDENTIFIER_INVALID");
+  }
+  const issuedAt = Date.parse(apiSession.issuedAt);
+  const expiresAt = Date.parse(apiSession.expiresAt);
+  const currentTime = now.getTime();
+  if (!Number.isFinite(issuedAt) || !Number.isFinite(expiresAt)
+    || !Number.isFinite(currentTime) || expiresAt <= issuedAt
+    || issuedAt > currentTime || expiresAt <= currentTime) {
+    throw new Error("IDENTITY_API_SESSION_TIME_INVALID");
+  }
+}
+
 const COMMUNITY_PERMISSIONS = new Set<Permission>([
   "community.tontine.read",
   "community.groups.manage",
@@ -65,6 +83,7 @@ export async function resolveOrganizationDomainIdentity(
   allowedPermissions: ReadonlySet<Permission>,
   now = new Date()
 ): Promise<ResolvedIdentityRuntimeContext> {
+  assertVerifiedApiSession(apiSession, now);
   if (!/^[a-z][a-z0-9_]{1,63}$/.test(domainCode)) {
     throw new Error("IDENTITY_DOMAIN_CODE_INVALID");
   }
