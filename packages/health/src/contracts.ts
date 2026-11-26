@@ -71,10 +71,21 @@ export function classifyDutyListing(
   const confirmed = Date.parse(listing.lastConfirmedAt);
   if (![current, start, end, confirmed].every(Number.isFinite) || !Number.isFinite(maxConfirmationAgeMs)
     || maxConfirmationAgeMs < 0 || start >= end || current < start || current >= end
-    || confirmed > current || current - confirmed > maxConfirmationAgeMs) {
+    || confirmed > current || current - confirmed > maxConfirmationAgeMs
+    || typeof listing.timezone !== "string" || !listing.timezone.trim()) {
+    return "not_publishable";
+  }
+  // Timezone is part of the public duty contract: an invalid IANA zone must
+  // never escape into clients that format opening hours or duty windows.
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: listing.timezone }).format(current);
+  } catch {
     return "not_publishable";
   }
   if (listing.verification !== "verified") return "not_publishable";
+  if (listing.source !== "competent_authority" && listing.source !== "verified_facility") {
+    return "not_publishable";
+  }
   if (listing.source === "competent_authority") return "officially_verified";
   if (listing.source === "verified_facility") return "facility_declared";
   return "not_publishable";
