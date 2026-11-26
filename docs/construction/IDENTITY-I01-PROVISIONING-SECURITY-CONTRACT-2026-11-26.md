@@ -160,3 +160,40 @@ I-01 is complete only when:
 - no existing Education route is cut over without I-02/I-03/I-04 evidence.
 
 Until then, legacy actor records remain unlinked and the legacy compatibility path remains active. This is the required fail-closed state.
+
+
+## 10. Concrete runtime-boundary findings — verified 2026-11-26
+
+The following observations were verified against the repository at commit `87052667842530f576a8d4658a8f755f0ccc3416`. They are implementation blockers, not assumptions about an external deployment.
+
+### 10.1 Bootstrap policy trusts a caller-settable GUC
+
+`migrations/131_identity_session_bootstrap_rls.sql` adds a permissive SELECT policy whose predicate is only:
+
+```sql
+api_session_id = NULLIF(current_setting('tpay.api_session_id', true), '')::uuid
+```
+
+`packages/identity/src/postgres-runtime.ts` sets this value using transaction-local `set_config` after the TypeScript DeviceTrust validation. PostgreSQL does not know that the GUC value came from that validation. Any database principal with SELECT access to `identity_sessions` can set the same custom GUC itself; the current policy therefore proves row selection by identifier, not authentication of the bearer credential.
+
+The existing RLS test sets this GUC directly while executing as its constrained test role. It verifies exact-row visibility, but does not prove that the GUC was issued by a trusted authentication boundary. The test name/comment must not be interpreted as proof of credential validation inside PostgreSQL.
+
+**Required correction before production adoption:** remove the implication that the GUC is an authentication factor. Establish a database-verifiable bootstrap mechanism bound to a validated session credential, or a separately authenticated database principal with a narrowly scoped operation. Test that a normal runtime role cannot impersonate another session merely by setting a custom GUC. Do not replace this with a SECURITY DEFINER function owned by a superuser or unrestricted table owner.
+
+### 10.2 API pool currently applies migrations and serves requests
+
+`apps/api-server/src/main.ts` constructs one `pg.Pool` from `TPAY_DATABASE_URL`, calls `applyMigrations` through a client from that pool during server startup, and then reuses the same pool for DeviceTrust, Identity, Education, and domain API queries.
+
+The repository code therefore does not demonstrate a distinct least-privilege runtime credential and migration credential. The actual privileges of `TPAY_DATABASE_URL` depend on deployment configuration that is not present in this source audit; do not assume the runtime role is non-owner or NOBYPASSRLS.
+
+**Required correction before production adoption:** split migration execution from API runtime. Use a controlled migration job/credential for schema changes and a separate runtime credential whose database role is NOLOGIN only if used as a role target, NOSUPERUSER, NOBYPASSRLS, non-owner, and granted only the required runtime privileges. Prove the connected role attributes and denied DDL/DML in PostgreSQL CI. Do not expose migration credentials to request-serving processes.
+
+### 10.3 Runtime identity adoption remains partial
+
+The API currently routes only `/v1/tontine/*` through `resolveCommunityTontineIdentity`. Other authenticated routes continue to resolve actors and permissions through `education_actors` and `api_actor_permissions`. This compatibility path must remain until a verified crosswalk, authorization parity, and route-by-route cutover are demonstrated.
+
+### 10.4 Release disposition
+
+These findings do not establish that a production deployment is exploitable; deployment role attributes and network exposure were not available in this repository review. They do establish that the source does not yet prove the required database trust boundary.
+
+Do not enable global Identity provisioning, broaden the bootstrap policy, or cut over Education while these findings remain open. The next implementation must first split migration/runtime credentials and redesign bootstrap authentication, then add adversarial PostgreSQL tests using the actual constrained runtime role. CI success on a documentation-only change does not close these security gates.
