@@ -45,6 +45,10 @@ jobs:
       - name: Apply full migration chain and run live PostgreSQL integration
         env:
           TPAY_DATABASE_URL: postgresql://postgres:tpay_ci@127.0.0.1:5432/tpay_ci
+          TPAY_MIGRATION_DATABASE_URL: postgresql://postgres:tpay_ci@127.0.0.1:5432/tpay_ci
+          TPAY_MIGRATION_DATABASE_SSL: disable
+          TPAY_ALLOW_INSECURE_LOCAL_DB: "true"
+          TPAY_ALLOW_LOCAL_TEST_SEED: "true"
         run: npm run test:postgres
       - name: Security fortress checks
         run: npm run security:fortress
