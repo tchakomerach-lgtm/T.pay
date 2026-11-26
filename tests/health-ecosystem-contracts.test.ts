@@ -124,6 +124,8 @@ test("only verified authority-sourced duty is labelled official", () => {
   assert.equal(classifyDutyListing({ ...base, source: "competent_authority" }, "2026-11-18T09:00:00.000Z"), "officially_verified");
   assert.equal(classifyDutyListing({ ...base, source: "verified_facility" }, "2026-11-18T09:00:00.000Z"), "facility_declared");
   assert.equal(classifyDutyListing({ ...base, source: "facility_self_declared" }, "2026-11-18T09:00:00.000Z"), "not_publishable");
+  assert.equal(classifyDutyListing({ ...base, timezone: "Invalid/Timezone", source: "competent_authority" }, "2026-11-18T09:00:00.000Z"), "not_publishable");
+  assert.equal(classifyDutyListing({ ...base, timezone: " ", source: "competent_authority" }, "2026-11-18T09:00:00.000Z"), "not_publishable");
   assert.equal(classifyDutyListing({ ...base, source: "competent_authority" }, "2026-11-20T09:00:00.000Z"), "not_publishable");
   assert.equal(classifyDutyListing({ ...base, source: "competent_authority" }, "2026-11-18T12:00:00.000Z"), "not_publishable");
 });
