@@ -1,14 +1,12 @@
 import { createServer as createHttpsServer } from "node:https";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import pg, { type Pool, type PoolClient, type QueryResultRow } from "pg";
 import type { IncomingMessage, Server, RequestListener } from "node:http";
-import { applyMigrations } from "../../../packages/finance/src/postgres-migrations.js";
 import { DeviceTrustRepository } from "../../../packages/api-gateway/src/auth-device.js";
 import { resolveCommunityTontineIdentity } from "../../../packages/identity/src/postgres-runtime.js";
 import { createSchoolApiServer } from "../../../packages/education/src/education-http.js";
-import { PostgresEducationSyncStore, type PostgresTransactionClient } from "../../../packages/education/src/postgres-sync-fabric.js";
+import { PostgresTransactionClient } from "../../../packages/education/src/postgres-sync-fabric.js";
 import { PostgresSchoolRealtimeStore } from "../../../packages/education/src/postgres-realtime-store.js";
 import { SchoolRealtimeHub } from "../../../packages/education/src/school-realtime.js";
 import type { Permission } from "../../../packages/security/src/policy.js";
@@ -22,12 +20,6 @@ const permissionSet=new Set<Permission>([
   "community.payout.approve","community.dispute.manage",
   "community.commission.propose.tpay","community.commission.propose.microfinance","community.commission.propose.admin"
 ]);
-
-function env(name:string):string{
-  const value=process.env[name]?.trim();
-  if(!value)throw new Error(`TPAY_ENV_REQUIRED:${name}`);
-  return value;
-}
 
 export interface RuntimeConfig{
   databaseUrl:string;
@@ -67,7 +59,7 @@ export class PooledTransactionClient implements PostgresTransactionClient{
     if(!this.client)this.client=await this.pool.connect();
     try{
       const result=await this.client.query<T>(sql,values);
-      const command=sql.trim().replace(/;+\s*$/, "").split(/\s+/)[0]?.toUpperCase();
+      const command=sql.trim().replace(/;+\\s*$/, "").split(/\\s+/)[0]?.toUpperCase();
       if(command==="COMMIT"||command==="ROLLBACK"){this.client.release();this.client=undefined;}
       return {rows:result.rows,rowCount:result.rowCount};
     }catch(error){
@@ -149,6 +141,11 @@ async function authenticateFactory(pool:Pool){
   };
 }
 
+/**
+ * The API runtime intentionally never applies schema migrations.
+ * Provision TPAY_DATABASE_URL as a least-privilege runtime credential.
+ * Apply schema changes separately with TPAY_MIGRATION_DATABASE_URL via npm run db:migrate.
+ */
 export async function buildProductionApiServer(config:RuntimeConfig):Promise<{server:Server;pool:Pool}>{
   const tlsKey=await readFile(config.tlsKeyFile);
   const tlsCert=await readFile(config.tlsCertFile);
@@ -159,47 +156,49 @@ export async function buildProductionApiServer(config:RuntimeConfig):Promise<{se
     max:20,
     ssl:process.env.TPAY_DATABASE_SSL==="require"?{rejectUnauthorized:true}:undefined
   });
-  const migrationClient=await pool.connect();
-  try{await applyMigrations(migrationClient, pathToFileURL(join(process.cwd(),"migrations")+"/"));}
-  finally{migrationClient.release();}
-  const authenticate=await authenticateFactory(pool);
-  const realtime=new SchoolRealtimeHub(Number(process.env.TPAY_REALTIME_QUEUE_LIMIT??"100"));
-  const server=createSchoolApiServer({
-    db:pool,
-    authenticate,
-    syncClient:()=>new PooledTransactionClient(pool),
-    realtime,
-    corsOrigins:config.webOrigins,
-    realtimeStore:{
-      append:async(event)=>{
-        const client=new PooledTransactionClient(pool);
-        try{return await new PostgresSchoolRealtimeStore(client).append(event);}
-        finally{client.release();}
-      },
-      replay:async(tenantId:string,organizationId:string,afterSequence:bigint)=>{
-        const client=new PooledTransactionClient(pool);
-        try{return await new PostgresSchoolRealtimeStore(client).replay(tenantId,organizationId,afterSequence);}
-        finally{client.release();}
+  try{
+    await pool.query("SELECT 1");
+    const authenticate=await authenticateFactory(pool);
+    const realtime=new SchoolRealtimeHub(Number(process.env.TPAY_REALTIME_QUEUE_LIMIT??"100"));
+    const server=createSchoolApiServer({
+      db:pool,
+      authenticate,
+      syncClient:()=>new PooledTransactionClient(pool),
+      realtime,
+      corsOrigins:config.webOrigins,
+      realtimeStore:{
+        append:async(event)=>{
+          const client=new PooledTransactionClient(pool);
+          try{return await new PostgresSchoolRealtimeStore(client).append(event);}
+          finally{client.release();}
+        },
+        replay:async(tenantId:string,organizationId:string,afterSequence:bigint)=>{
+          const client=new PooledTransactionClient(pool);
+          try{return await new PostgresSchoolRealtimeStore(client).replay(tenantId,organizationId,afterSequence);}
+          finally{client.release();}
+        }
       }
-    }
-  },{
-    serverFactory:(handler:RequestListener)=>{
-      const server=createHttpsServer({
-        key:tlsKey,
-        cert:tlsCert,
-        minVersion:"TLSv1.3"
-      },handler);
-      server.requestTimeout=30000;
-      server.headersTimeout=10000;
-      server.keepAliveTimeout=5000;
-      server.maxHeadersCount=100;
-      server.maxRequestsPerSocket=100;
-      return server;
-    }
-  });
-  return {server,pool};
+    },{
+      serverFactory:(handler:RequestListener)=>{
+        const server=createHttpsServer({
+          key:tlsKey,
+          cert:tlsCert,
+          minVersion:"TLSv1.3"
+        },handler);
+        server.requestTimeout=30000;
+        server.headersTimeout=10000;
+        server.keepAliveTimeout=5000;
+        server.maxHeadersCount=100;
+        server.maxRequestsPerSocket=100;
+        return server;
+      }
+    });
+    return {server,pool};
+  }catch(error){
+    await pool.end();
+    throw error;
+  }
 }
-
 
 export async function startProductionApi():Promise<void>{
   const config=readRuntimeConfig();
