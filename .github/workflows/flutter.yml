@@ -1,8 +1,8 @@
 name: T.Pay Flutter Mobile
 on:
   # Always validate the Flutter renderer after a change lands on main.
-  # PRs run this workflow without path filters; a push path allowlist can
-  # silently omit shared-domain and DB-074 contract changes.
+  # PRs run this workflow without path filters so every PR head receives
+  # a Flutter validation result on the exact commit proposed for merge.
   push:
     branches: [main]
   pull_request:
