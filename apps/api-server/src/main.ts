@@ -6,7 +6,7 @@ import type { IncomingMessage, Server, RequestListener } from "node:http";
 import { DeviceTrustRepository } from "../../../packages/api-gateway/src/auth-device.js";
 import { resolveCommunityTontineIdentity } from "../../../packages/identity/src/postgres-runtime.js";
 import { createSchoolApiServer } from "../../../packages/education/src/education-http.js";
-import { PostgresTransactionClient } from "../../../packages/education/src/postgres-sync-fabric.js";
+import type { PostgresTransactionClient } from "../../../packages/education/src/postgres-sync-fabric.js";
 import { PostgresSchoolRealtimeStore } from "../../../packages/education/src/postgres-realtime-store.js";
 import { SchoolRealtimeHub } from "../../../packages/education/src/school-realtime.js";
 import type { Permission } from "../../../packages/security/src/policy.js";
