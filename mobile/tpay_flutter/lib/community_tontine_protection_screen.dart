@@ -98,6 +98,15 @@ class _CommunityTontineProtectionScreenState extends State<CommunityTontineProte
         'version':version.text.trim(),'insurerPartnerId':insurer.text.trim(),
         'insurerLicenseReference':license.text.trim(),'insurerContractReference':contract.text.trim(),
         'currency':'XOF','effectiveFrom':DateTime.now().add(const Duration(minutes:1)).toUtc().toIso8601String(),
+        // Indicative draft terms only; never commercialize or collect premiums from these defaults.
+        'tiers':_protectionTiers.map((tier)=> <String,Object>{
+          'tier':tier['tier'] as String,
+          'premiumRateBps':(tier['rate'] as int)*100,
+          'coveredInstallments':tier['covered'] as int,
+          'gracePeriodDays':tier['grace'] as int,
+          'waitingPeriodDays':tier['waiting'] as int,
+          'maxClaimMinor':tier['cap'] as String,
+        }).toList(),
       });
       if(mounted)setState(()=>_notice='Brouillon créé. Aucun prélèvement n’est activé.');
       await _load();
