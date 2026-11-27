@@ -50,7 +50,7 @@ export function CommunityTontineProtectionPanel({api,groupId}:{api:TPayApi|null;
  const create=(event:FormEvent<HTMLFormElement>)=>{
   event.preventDefault();
   if(!validUuid(insurerPartnerId)){setError("L'identifiant partenaire assureur doit être un UUID valide.");return;}
-  void command(base,{version,insurerPartnerId,insurerLicenseReference:licenseReference,insurerContractReference:contractReference,currency:"XOF",effectiveFrom:new Date(effectiveFrom).toISOString()});
+  void command(base,{version,insurerPartnerId,insurerLicenseReference:licenseReference,insurerContractReference:contractReference,currency:"XOF",effectiveFrom:new Date(effectiveFrom).toISOString(),tiers:defaultTiers});
  };
  if(!api)return <section className="tontine-protection"><p>Une session API authentifiée est requise. Aucun contrat ni montant fictif n'est affiché.</p></section>;
  return <section className="tontine-protection" aria-busy={loading||busy}>
