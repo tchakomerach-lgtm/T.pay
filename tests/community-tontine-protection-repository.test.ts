@@ -162,3 +162,43 @@ test("insurer verification rejects missing or malformed evidence fingerprints be
   }),/TONTINE_PROTECTION_VERIFICATION_EVIDENCE_INVALID/);
   assert.equal(calls.length,0);
 });
+
+
+test("policy approval requires two latest independently verified evidence records",async()=>{
+  const verified=makePolicy({insurerLicenseVerified:true,insurerContractVerified:true});
+  const row={
+    id:verified.id,organization_id:org,group_id:group,version:verified.version,currency:verified.currency,state:"DRAFT",
+    proposal_origin:verified.proposalOrigin,risk_bearer:verified.riskBearer,insurer_partner_id:insurer,
+    insurer_license_reference:verified.insurerLicenseReference,insurer_contract_reference:verified.insurerContractReference,
+    insurer_license_verified:true,insurer_contract_verified:true,effective_from:verified.effectiveFrom,effective_until:null,
+    tiers:verified.tiers.map(t=>({...t,maxClaimMinor:t.maxClaimMinor.toString()})),policy_hash:verified.policyHash,
+    created_by:maker,approved_by:null
+  };
+  const {db,calls}=executor(sql=>sql.startsWith("SELECT * FROM community_tontine_protection_policies")
+    ?{rows:[row],rowCount:1}
+    :sql.includes("SELECT COUNT(*)::integer AS total")
+      ?{rows:[{total:2,independent:true}],rowCount:1}:{rows:[],rowCount:1});
+  const repo=new PostgresCommunityTontineProtectionRepository(db);
+  await repo.approvePolicy({organizationId:org,groupId:group,policyId:verified.id,actorId:checker,now});
+  assert.equal(calls.some(call=>call.sql.includes("SELECT DISTINCT ON (document_type)")),true);
+  assert.equal(calls.some(call=>call.sql.includes("SET state='APPROVED'")),true);
+});
+
+test("policy approval fails closed when independent document evidence is incomplete",async()=>{
+  const verified=makePolicy({insurerLicenseVerified:true,insurerContractVerified:true});
+  const row={
+    id:verified.id,organization_id:org,group_id:group,version:verified.version,currency:verified.currency,state:"DRAFT",
+    proposal_origin:verified.proposalOrigin,risk_bearer:verified.riskBearer,insurer_partner_id:insurer,
+    insurer_license_reference:verified.insurerLicenseReference,insurer_contract_reference:verified.insurerContractReference,
+    insurer_license_verified:true,insurer_contract_verified:true,effective_from:verified.effectiveFrom,effective_until:null,
+    tiers:verified.tiers.map(t=>({...t,maxClaimMinor:t.maxClaimMinor.toString()})),policy_hash:verified.policyHash,
+    created_by:maker,approved_by:null
+  };
+  const {db,calls}=executor(sql=>sql.startsWith("SELECT * FROM community_tontine_protection_policies")
+    ?{rows:[row],rowCount:1}
+    :sql.includes("SELECT COUNT(*)::integer AS total")
+      ?{rows:[{total:1,independent:false}],rowCount:1}:{rows:[],rowCount:1});
+  const repo=new PostgresCommunityTontineProtectionRepository(db);
+  await assert.rejects(repo.approvePolicy({organizationId:org,groupId:group,policyId:verified.id,actorId:checker,now}),/TONTINE_PROTECTION_PARTNER_VERIFICATION_REQUIRED/);
+  assert.equal(calls.some(call=>call.sql.includes("SET state='APPROVED'")),false);
+});
