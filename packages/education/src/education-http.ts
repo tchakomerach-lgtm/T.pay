@@ -446,7 +446,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
            );
            data={id:campaignId,state:"DRAFT",code,title};
          } else if(r[0]==="tontine-protection"&&method==="GET"){
-           const listed=await client.query("SELECT * FROM community_tontine_protection_policies WHERE organization_id=$1 AND group_id=$2 ORDER BY created_at DESC,id DESC LIMIT 100",[organizationId,groupId]);
+           const listed=await client.query("SELECT id,version,state,currency,proposal_origin AS \"proposalOrigin\",insurer_partner_id AS \"insurerPartnerId\",insurer_license_reference AS \"insurerLicenseReference\",insurer_contract_reference AS \"insurerContractReference\",insurer_license_verified AS \"insurerLicenseVerified\",insurer_contract_verified AS \"insurerContractVerified\",effective_from AS \"effectiveFrom\",effective_until AS \"effectiveUntil\",tiers,policy_hash AS \"policyHash\",created_by AS \"createdBy\",approved_by AS \"approvedBy\" FROM community_tontine_protection_policies WHERE organization_id=$1 AND group_id=$2 ORDER BY created_at DESC,id DESC LIMIT 100",[organizationId,groupId]);
            data={items:listed.rows};
          } else if(r[0]==="tontine-protection"){
            const tiers=Array.isArray(payload.tiers)?payload.tiers:[];
