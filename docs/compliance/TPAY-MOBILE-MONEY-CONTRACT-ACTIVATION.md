@@ -60,3 +60,26 @@ Every adapter stores contract version, effective date, hash and activation state
 
 ## Important non-assumption
 Public articles, SDKs, reverse-engineered repositories and aggregator documentation can be used for discovery and test planning, but never become the authoritative production wire contract.
+
+## Candidate aggregator discovered — PayGate Global (BHK Konsulting SARL)
+
+Public provider materials currently advertise Togo collection for Flooz and T-Money, payment-status notifications, transaction lookup, refunds/transfers, and a merchant dashboard. The public API example shows a payment initiation route, but the complete API documentation is available only after merchant account creation. Public terms identify PayGate Global as an intermediary and require a Togo merchant to be registered, have a website/application, email, RCCM, and a Flooz and/or T-Money merchant account. The terms also allow reserves and disclaim service-continuity guarantees.
+
+Public contact details published by PayGate Global:
+- BHK Konsulting SARL, 26 Boulevard de la Kara, Tokoin Forever, Lomé, Togo
+- info@paygateglobal.com
+- +228 93 70 83 15 / +228 91 36 73 06 / +228 97 93 68 20
+- Merchant account: https://www.paygateglobal.com/nouveau-compte
+- Public terms: https://www.paygateglobal.com/cgu
+
+This is a lead for contractual onboarding, not evidence that T.Pay has a signed agreement or that PayGate Global is an API-Business PI-SPI participant or BCEAO-licensed payment institution. Before routing live funds, obtain written confirmation of its legal/regulatory capacity, operator mandates, settlement account ownership, safeguarding/segregation arrangements where applicable, refund/reversal liability, fees, reserve rules, data-processing terms, and incident/SLA commitments. Do not infer authorization from its public product page.
+
+The code now contains a `PayGateGlobalAdapter` contract-bound adapter using the existing normalized transport. It deliberately does not hard-code the public example into production: the authenticated merchant dashboard documentation must define the actual request, callback signature, status mapping, refunds, and reconciliation. Register only after a signed aggregator agreement, verified provider mandate, sandbox test vectors, and callback/security certification. The existing `ProviderContractRegistry` accepts `authorized_aggregator_signed` evidence and now rejects invalid/future/expired contract validity windows.
+
+## Onboarding sequence for T.Pay
+1. Confirm T.Pay's legal entity, RCCM, CFE and fiscal card; if unavailable, do not submit an application as an incorporated company.
+2. Open a merchant account with PayGate Global and request the full current API guide, sandbox, callback signing scheme, IP restrictions, status mapping, refund/reversal rules, limits, and settlement schedule in writing.
+3. Separately request merchant terms and API specifications directly from Yas/Mixx and Moov/Flooz if T.Pay needs direct operator connections rather than aggregator routing.
+4. Validate all signed terms with counsel and verify the aggregator's authority to route each operator rail.
+5. Implement the transport from the authenticated versioned documentation; test callback signature, raw-body verification, replay, amount/reference correlation, double payment, reversal, delayed/unknown status, settlement reports and concurrent ledger posting.
+6. Activate a restricted pilot only after all provider and Financial Core gates pass.
