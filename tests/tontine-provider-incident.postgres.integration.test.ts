@@ -48,7 +48,7 @@ test("P057.3 live PostgreSQL atomically creates one system incident, immutable e
       const input={
         organizationId:organizationId as never,cycleId,provider:"tmoney",providerEventId,
         rawBody:"provider callback body that must not be stored",
-        occurredAt:now,reason:"PAYOUT_NOT_APPROVED" as const
+        occurredAt:now,reason:"PAYOUT_NOT_INITIATED" as const
       };
       const first=await recordTontineProviderIncident(tx,input);
       const replay=await recordTontineProviderIncident(tx,input);

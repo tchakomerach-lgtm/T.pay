@@ -10,7 +10,7 @@ const caseId="33333333-3333-4333-8333-333333333333" as UUID;
 const input={
   organizationId:org,cycleId:"44444444-4444-4444-8444-444444444444",
   provider:"tmoney",providerEventId:"evt-incident-1",rawBody:"signed-provider-payload",
-  occurredAt:"2026-11-08T12:00:00.000Z",reason:"PAYOUT_NOT_APPROVED" as const
+  occurredAt:"2026-11-08T12:00:00.000Z",reason:"PAYOUT_NOT_INITIATED" as const
 };
 
 function harness(inserted=true) {
