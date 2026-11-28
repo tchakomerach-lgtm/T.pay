@@ -48,3 +48,35 @@ test("community tontine durably quarantines same provider event replay with subs
   assert.equal(replay.state, "rejected");
   assert.equal(settlementCalls, 1);
 });
+
+
+test("already confirmed payout callback is acknowledged without repeating Financial Core settlement", async () => {
+  const db = {
+    async query<Row = Record<string, unknown>>(sql: string) {
+      if (sql.includes("SELECT provider_event_id")) return { rows: [] as Row[], rowCount: 0 };
+      if (sql.includes("SELECT payout_id,organization_id,state,idempotency_key")) {
+        return { rows: [{ payout_id: id, organization_id: id, state: "confirmed", idempotency_key: "payout-1" }] as Row[], rowCount: 1 };
+      }
+      return { rows: [] as Row[], rowCount: 1 };
+    },
+    async transaction<T>(work: (tx: any) => Promise<T>): Promise<T> { return work(this); }
+  } as any;
+  const verifier = {
+    async verifyAndNormalize(input: any) {
+      return { provider: input.provider, providerEventId: "evt-confirmed", payoutId: id, organizationId: id,
+        providerReference: "ref-confirmed", amountMinor: 1000n, currency: "XOF",
+        receivedAt: "2026-10-05T10:02:00Z", rawBody: input.rawBody };
+    }
+  };
+  let settlementCalls = 0;
+  const bridge = { async settle() { settlementCalls += 1; return undefined; } };
+  const result = await processVerifiedTontinePayoutCallback(
+    db, verifier,
+    { provider: "mf", rawBody: "confirmed-body", signature: "sig", receivedAt: "2026-10-05T10:02:00Z" },
+    id, payout,
+    { tontineClearingAccountId: "a", microfinanceSettlementAccountId: "b" },
+    "tx-confirmed", bridge
+  );
+  assert.equal(result.state, "processed");
+  assert.equal(settlementCalls, 0);
+});
