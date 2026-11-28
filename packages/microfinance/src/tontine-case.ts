@@ -54,7 +54,7 @@ export interface TontineCase {
   readonly groupId: UUID;
   readonly type: TontineCaseType;
   readonly state: TontineCaseState;
-  readonly openedBy: UUID;
+  readonly openedBy?: UUID;
   readonly payoutId?: UUID;
   readonly contributionId?: UUID;
   readonly severity: "low" | "medium" | "high" | "critical";
@@ -68,7 +68,7 @@ export interface TontineCaseEvidence {
   readonly type: "receipt" | "provider_callback" | "statement" | "photo" | "document" | "participant_declaration" | "system_event";
   readonly contentHash: string;
   readonly objectReference?: string;
-  readonly capturedBy: UUID;
+  readonly capturedBy?: UUID;
   readonly capturedAt: string;
 }
 
