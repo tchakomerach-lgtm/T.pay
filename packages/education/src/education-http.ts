@@ -279,7 +279,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
            const action=String(r[3]??"");
            if(!/^[0-9a-f-]{36}$/i.test(policyId))throw new Error("TONTINE_PROTECTION_POLICY_ID_INVALID");
            const found=await client.query(
-             "SELECT id,state,created_by,approved_by,insurer_license_verified,insurer_contract_verified,effective_from FROM community_tontine_protection_policies WHERE organization_id=$1 AND group_id=$2 AND id=$3 FOR UPDATE",
+             "SELECT * FROM community_tontine_protection_policies WHERE organization_id=$1 AND group_id=$2 AND id=$3 FOR UPDATE",
              [organizationId,groupId,policyId]
            );
            const policyRow=found.rows[0];
@@ -293,6 +293,20 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
              const contractHash=String(payload.contractEvidenceSha256??"").toLowerCase();
              const validReference=(value:string)=>value.length>=1&&value.length<=512&&/^[A-Za-z0-9._:/-]+$/.test(value);
              if(!validReference(licenseReference)||!validReference(contractReference)||! /^[a-f0-9]{64}$/.test(licenseHash)||! /^[a-f0-9]{64}$/.test(contractHash))throw new Error("TONTINE_PROTECTION_VERIFICATION_EVIDENCE_INVALID");
+             const {computeTontineProtectionPolicyHash}=await import("../../microfinance/src/community-tontine-protection.js");
+             const rawTiers=typeof policyRow.tiers==="string"?JSON.parse(policyRow.tiers):policyRow.tiers;
+             if(!Array.isArray(rawTiers)||rawTiers.length!==3)throw new Error("TONTINE_PROTECTION_TIERS_INCOMPLETE");
+             const verifiedPolicy={
+               id:String(policyRow.id),organizationId,groupId,version:String(policyRow.version),currency:String(policyRow.currency),
+               state:"DRAFT" as const,proposalOrigin:String(policyRow.proposal_origin) as "TPAY"|"MICROFINANCE"|"COMMUNITY_ADMIN",
+               riskBearer:"LICENSED_INSURER" as const,insurerPartnerId:String(policyRow.insurer_partner_id),
+               insurerLicenseReference:String(policyRow.insurer_license_reference),insurerContractReference:String(policyRow.insurer_contract_reference),
+               insurerLicenseVerified:true,insurerContractVerified:true,effectiveFrom:new Date(String(policyRow.effective_from)).toISOString(),
+               ...(policyRow.effective_until?{effectiveUntil:new Date(String(policyRow.effective_until)).toISOString()}:{}),
+               tiers:rawTiers.map((tier:any)=>({tier:String(tier.tier),premiumRateBps:Number(tier.premiumRateBps),coveredInstallments:Number(tier.coveredInstallments),gracePeriodDays:Number(tier.gracePeriodDays),waitingPeriodDays:Number(tier.waitingPeriodDays),maxClaimMinor:BigInt(String(tier.maxClaimMinor))})),
+               createdBy:String(policyRow.created_by),policyHash:String(policyRow.policy_hash)
+             };
+             const verifiedPolicyHash=computeTontineProtectionPolicyHash(verifiedPolicy as any);
              const evidence=[
                {id:randomUUID(),type:"INSURER_LICENSE",reference:licenseReference,hash:licenseHash},
                {id:randomUUID(),type:"EXECUTED_CONTRACT",reference:contractReference,hash:contractHash}
@@ -304,8 +318,8 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
                );
              }
              const updated=await client.query(
-               "UPDATE community_tontine_protection_policies SET insurer_license_verified=true,insurer_contract_verified=true WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND state='DRAFT' AND created_by<>$4",
-               [organizationId,groupId,policyId,auth.principal.userId]
+               "UPDATE community_tontine_protection_policies SET insurer_license_verified=true,insurer_contract_verified=true,policy_hash=$5 WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND state='DRAFT' AND created_by<>$4",
+               [organizationId,groupId,policyId,auth.principal.userId,verifiedPolicyHash]
              );
              if((updated.rowCount??0)!==1)throw new Error("TONTINE_PROTECTION_PARTNER_VERIFICATION_CONFLICT");
              await client.query(
