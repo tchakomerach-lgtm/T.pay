@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { authorizeRoute, resolveRoutePolicy } from "../packages/api-gateway/src/policy.js";
+import { assertAuthorized } from "../packages/security/src/authorization.js";
 
 test("parameterized API routes resolve against concrete paths",()=>{
  const policy=resolveRoutePolicy("GET","/v1/education/actors/teacher-1");
@@ -26,4 +27,17 @@ test("CT-042 governance and schedule endpoints are explicitly allowlisted withou
   assert.equal(result.allowed,true,route);
   assert.equal(result.policy?.financial,false,route);
  }
+});
+
+
+test("CT-042 verification, approval, and activation require separate explicit permissions",()=>{
+ const base={userId:"20000000-0000-4000-8000-000000000001",organizationId:"20000000-0000-4000-8000-000000000002",sessionId:"session-ct042"};
+ const verifier={...base,permissions:["community.protection.verify"]} as const;
+ assert.doesNotThrow(()=>assertAuthorized(verifier,{organizationId:base.organizationId,requestedPermission:"community.protection.verify"}));
+ assert.throws(()=>assertAuthorized(verifier,{organizationId:base.organizationId,requestedPermission:"community.protection.approve"}),/FORBIDDEN/);
+ assert.throws(()=>assertAuthorized(verifier,{organizationId:"20000000-0000-4000-8000-000000000099",requestedPermission:"community.protection.verify"}),/ORGANIZATION_CONTEXT_REQUIRED/);
+ const approver={...base,permissions:["community.protection.approve"]} as const;
+ assert.doesNotThrow(()=>assertAuthorized(approver,{organizationId:base.organizationId,requestedPermission:"community.protection.approve"}));
+ const activator={...base,permissions:["community.protection.activate"]} as const;
+ assert.doesNotThrow(()=>assertAuthorized(activator,{organizationId:base.organizationId,requestedPermission:"community.protection.activate"}));
 });
