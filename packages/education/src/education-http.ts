@@ -284,6 +284,22 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
            );
            const policyRow=found.rows[0];
            if(!policyRow)throw new Error("TONTINE_PROTECTION_POLICY_NOT_FOUND");
+           const {computeTontineProtectionPolicyHash,validateTontineProtectionPolicy}=await import("../../microfinance/src/community-tontine-protection.js");
+           const rawPolicyTiers=typeof policyRow.tiers==="string"?JSON.parse(policyRow.tiers):policyRow.tiers;
+           if(!Array.isArray(rawPolicyTiers)||rawPolicyTiers.length!==3)throw new Error("TONTINE_PROTECTION_TIERS_INCOMPLETE");
+           const policySnapshot={
+             id:String(policyRow.id),organizationId,groupId,version:String(policyRow.version),currency:String(policyRow.currency),
+             state:String(policyRow.state) as "DRAFT"|"APPROVED"|"ACTIVE"|"RETIRED",
+             proposalOrigin:String(policyRow.proposal_origin) as "TPAY"|"MICROFINANCE"|"COMMUNITY_ADMIN",
+             riskBearer:"LICENSED_INSURER" as const,insurerPartnerId:String(policyRow.insurer_partner_id),
+             insurerLicenseReference:String(policyRow.insurer_license_reference),insurerContractReference:String(policyRow.insurer_contract_reference),
+             insurerLicenseVerified:policyRow.insurer_license_verified===true,insurerContractVerified:policyRow.insurer_contract_verified===true,
+             effectiveFrom:new Date(String(policyRow.effective_from)).toISOString(),
+             ...(policyRow.effective_until?{effectiveUntil:new Date(String(policyRow.effective_until)).toISOString()}:{}),
+             tiers:rawPolicyTiers.map((tier:any)=>({tier:String(tier.tier),premiumRateBps:Number(tier.premiumRateBps),coveredInstallments:Number(tier.coveredInstallments),gracePeriodDays:Number(tier.gracePeriodDays),waitingPeriodDays:Number(tier.waitingPeriodDays),maxClaimMinor:BigInt(String(tier.maxClaimMinor))})),
+             createdBy:String(policyRow.created_by),...(policyRow.approved_by?{approvedBy:String(policyRow.approved_by)}:{}),policyHash:String(policyRow.policy_hash)
+           };
+           validateTontineProtectionPolicy(policySnapshot as any);
            if(action==="verify-insurer"){
              if(String(policyRow.state)!=="DRAFT")throw new Error("TONTINE_PROTECTION_POLICY_NOT_DRAFT");
              if(String(policyRow.created_by)===auth.principal.userId)throw new Error("TONTINE_PROTECTION_VERIFIER_SEPARATION_REQUIRED");
@@ -293,19 +309,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
              const contractHash=String(payload.contractEvidenceSha256??"").toLowerCase();
              const validReference=(value:string)=>value.length>=1&&value.length<=512&&/^[A-Za-z0-9._:/-]+$/.test(value);
              if(!validReference(licenseReference)||!validReference(contractReference)||! /^[a-f0-9]{64}$/.test(licenseHash)||! /^[a-f0-9]{64}$/.test(contractHash))throw new Error("TONTINE_PROTECTION_VERIFICATION_EVIDENCE_INVALID");
-             const {computeTontineProtectionPolicyHash}=await import("../../microfinance/src/community-tontine-protection.js");
-             const rawTiers=typeof policyRow.tiers==="string"?JSON.parse(policyRow.tiers):policyRow.tiers;
-             if(!Array.isArray(rawTiers)||rawTiers.length!==3)throw new Error("TONTINE_PROTECTION_TIERS_INCOMPLETE");
-             const verifiedPolicy={
-               id:String(policyRow.id),organizationId,groupId,version:String(policyRow.version),currency:String(policyRow.currency),
-               state:"DRAFT" as const,proposalOrigin:String(policyRow.proposal_origin) as "TPAY"|"MICROFINANCE"|"COMMUNITY_ADMIN",
-               riskBearer:"LICENSED_INSURER" as const,insurerPartnerId:String(policyRow.insurer_partner_id),
-               insurerLicenseReference:String(policyRow.insurer_license_reference),insurerContractReference:String(policyRow.insurer_contract_reference),
-               insurerLicenseVerified:true,insurerContractVerified:true,effectiveFrom:new Date(String(policyRow.effective_from)).toISOString(),
-               ...(policyRow.effective_until?{effectiveUntil:new Date(String(policyRow.effective_until)).toISOString()}:{}),
-               tiers:rawTiers.map((tier:any)=>({tier:String(tier.tier),premiumRateBps:Number(tier.premiumRateBps),coveredInstallments:Number(tier.coveredInstallments),gracePeriodDays:Number(tier.gracePeriodDays),waitingPeriodDays:Number(tier.waitingPeriodDays),maxClaimMinor:BigInt(String(tier.maxClaimMinor))})),
-               createdBy:String(policyRow.created_by),policyHash:String(policyRow.policy_hash)
-             };
+             const verifiedPolicy={...policySnapshot,insurerLicenseVerified:true,insurerContractVerified:true};
              const verifiedPolicyHash=computeTontineProtectionPolicyHash(verifiedPolicy as any);
              const evidence=[
                {id:randomUUID(),type:"INSURER_LICENSE",reference:licenseReference,hash:licenseHash},
