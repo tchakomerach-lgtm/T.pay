@@ -31,7 +31,9 @@ function harness(inserted=true) {
 test("provider incident atomically persists case, hashed evidence and outbox",async()=>{
   const h=harness();
   const result=await recordTontineProviderIncident(h.db,input);
-  assert.deepEqual(result,{caseId,created:true});
+  assert.ok(result.caseId);
+  assert.match(result.caseId,/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  assert.equal(result.created,true);
   assert.equal(h.calls.length,4);
   assert.match(h.calls[1]!.sql,/opened_by_system,source_event_key/);
   assert.match(h.calls[1]!.sql,/ON CONFLICT \(organization_id,source_event_key\)/);
