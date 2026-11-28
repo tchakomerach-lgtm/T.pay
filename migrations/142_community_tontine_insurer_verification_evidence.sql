@@ -25,6 +25,10 @@ ALTER TABLE community_tontine_insurer_verification_evidence ENABLE ROW LEVEL SEC
 ALTER TABLE community_tontine_insurer_verification_evidence FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS community_tontine_insurer_evidence_tenant_fence
   ON community_tontine_insurer_verification_evidence;
+CREATE POLICY community_tontine_insurer_evidence_organization_scope
+  ON community_tontine_insurer_verification_evidence AS PERMISSIVE FOR ALL
+  USING (organization_id = public.tpay_current_organization_id())
+  WITH CHECK (organization_id = public.tpay_current_organization_id());
 CREATE POLICY community_tontine_insurer_evidence_tenant_fence
   ON community_tontine_insurer_verification_evidence AS RESTRICTIVE FOR ALL
   USING (organization_id = public.tpay_current_organization_id())
