@@ -131,7 +131,7 @@ function fixture() {
     syncClient: async () => syncClient as any,
     now: () => new Date("2026-11-17T07:00:00.000Z")
   });
-  return { server, sqlCalls };
+  return { server, sqlCalls, setActor:(id:string)=>{auth.principal.userId=id;auth.session.userId=id;} };
 }
 
 test("Community Tontine group create, idempotent replay and list use scoped PostgreSQL transactions", async () => {
@@ -325,11 +325,9 @@ test("CT-042 policy proposal is tenant-scoped, draft-only and never writes a led
 
 
 test("CT-042 insurer evidence, independent approval and activation use distinct permissions and atomic policy transitions",async()=>{
-  const {server,sqlCalls}=fixture();
+  const {server,sqlCalls,setActor}=fixture();
   await new Promise<void>(resolve=>server.listen(0,resolve));
   const port=(server.address() as any).port;
-  const groupId="33333333-3333-4333-8333-333333333333";
-  const policyId="99999999-9999-4999-8999-999999999999";
   try{
     const groupResponse=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups`,{
       method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"ct042-gov-group-001"},
@@ -356,6 +354,7 @@ test("CT-042 insurer evidence, independent approval and activation use distinct 
     assert.equal(proposalBody.data.state,"DRAFT");
     const actualPolicyId=String(proposalBody.data.id);
 
+    setActor("66666666-6666-4666-8666-666666666666");
     const verify=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${actualGroupId}/protection-policies/${actualPolicyId}/verify-insurer`,{
       method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"ct042-gov-verify-001"},
       body:JSON.stringify({
@@ -368,6 +367,7 @@ test("CT-042 insurer evidence, independent approval and activation use distinct 
     assert.equal(verifyBody.data.evidenceRecorded,true);
     assert.ok(sqlCalls.filter(call=>call.sql.startsWith("INSERT INTO community_tontine_insurer_verification_evidence")).length===2);
 
+    setActor("77777777-7777-4777-8777-777777777777");
     const approve=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${actualGroupId}/protection-policies/${actualPolicyId}/approve`,{
       method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"ct042-gov-approve-001"},body:"{}"
     });
@@ -375,6 +375,7 @@ test("CT-042 insurer evidence, independent approval and activation use distinct 
     assert.equal(approve.status,200,JSON.stringify(approveBody));
     assert.equal(approveBody.data.state,"APPROVED");
 
+    setActor("88888888-8888-4888-8888-888888888888");
     const activate=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${actualGroupId}/protection-policies/${actualPolicyId}/activate`,{
       method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"ct042-gov-activate-001"},body:"{}"
     });
