@@ -126,13 +126,36 @@ export class PostgresCommunityTontineProtectionRepository {
 
   async verifyInsurerDocuments(input: {
     organizationId: UUID; groupId: UUID; policyId: UUID; actorId: UUID;
-    verificationReference: string; now: string;
+    licenseEvidenceReference: string; licenseEvidenceSha256: string;
+    contractEvidenceReference: string; contractEvidenceSha256: string; now: string;
   }): Promise<void> {
-    if (!input.verificationReference.trim()) throw new Error("TONTINE_PROTECTION_VERIFICATION_REFERENCE_REQUIRED");
+    const validReference = (value: string): boolean =>
+      value.length >= 1 && value.length <= 512 && /^[A-Za-z0-9._:/-]+$/.test(value);
+    const licenseHash = input.licenseEvidenceSha256.toLowerCase();
+    const contractHash = input.contractEvidenceSha256.toLowerCase();
+    if (!validReference(input.licenseEvidenceReference) ||
+        !validReference(input.contractEvidenceReference) ||
+        !/^[a-f0-9]{64}$/.test(licenseHash) ||
+        !/^[a-f0-9]{64}$/.test(contractHash)) {
+      throw new Error("TONTINE_PROTECTION_VERIFICATION_EVIDENCE_INVALID");
+    }
     await this.db.transaction(async (tx) => {
       const policy = await this.getPolicyForUpdate(tx, input.organizationId, input.groupId, input.policyId);
       if (policy.state !== "DRAFT") throw new Error("TONTINE_PROTECTION_POLICY_NOT_DRAFT");
       if (policy.createdBy === input.actorId) throw new Error("TONTINE_PROTECTION_VERIFIER_SEPARATION_REQUIRED");
+      const evidence = [
+        { id: randomUUID(), type: "INSURER_LICENSE", reference: input.licenseEvidenceReference, hash: licenseHash },
+        { id: randomUUID(), type: "EXECUTED_CONTRACT", reference: input.contractEvidenceReference, hash: contractHash }
+      ];
+      for (const item of evidence) {
+        await tx.query(
+          `INSERT INTO community_tontine_insurer_verification_evidence
+           (id,organization_id,group_id,policy_id,document_type,evidence_reference,evidence_sha256,verified_by,verified_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+          [item.id, input.organizationId, input.groupId, input.policyId, item.type,
+            item.reference, item.hash, input.actorId, input.now]
+        );
+      }
       const verified = { ...policy, insurerLicenseVerified: true, insurerContractVerified: true };
       const policyHash = computeTontineProtectionPolicyHash(verified);
       const updated = await tx.query(
@@ -145,7 +168,13 @@ export class PostgresCommunityTontineProtectionRepository {
       await appendEvent(tx, {
         organizationId: input.organizationId, groupId: input.groupId, actorId: input.actorId,
         eventType: "POLICY_INSURER_PARTNER_VERIFIED",
-        payload: { policyId: input.policyId, verificationReference: input.verificationReference, policyHash },
+        payload: {
+          policyId: input.policyId,
+          evidenceIds: evidence.map((item) => item.id),
+          licenseEvidenceSha256: licenseHash,
+          contractEvidenceSha256: contractHash,
+          policyHash
+        },
         now: input.now
       });
     });
