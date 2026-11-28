@@ -119,27 +119,49 @@ class _CommunityTontineProtectionScreenState extends State<CommunityTontineProte
     final licenseSha256=TextEditingController();
     final contractReference=TextEditingController();
     final contractSha256=TextEditingController();
-    final accepted=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
-      title:const Text('Vérification documentaire indépendante'),
-      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-        TextField(controller:licenseReference,decoration:const InputDecoration(labelText:'Référence privée du justificatif d’agrément')),
-        TextField(controller:licenseSha256,decoration:const InputDecoration(labelText:'SHA-256 agrément (64 caractères)')),
-        TextField(controller:contractReference,decoration:const InputDecoration(labelText:'Référence privée du contrat signé')),
-        TextField(controller:contractSha256,decoration:const InputDecoration(labelText:'SHA-256 contrat (64 caractères)')),
-        const SizedBox(height:8),
-        const Text('Vérifier les documents originaux dans le coffre documentaire avant de confirmer. Cette action enregistre l’attestation du contrôleur, pas une validation automatique par T.Pay.',style:TextStyle(fontSize:12)),
-      ])),
-      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Annuler')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Enregistrer la vérification'))],
-    ));
-    final payload={
+    final accepted=await showDialog<bool>(
+      context:context,
+      builder:(ctx)=>AlertDialog(
+        title:const Text('Vérification documentaire indépendante'),
+        content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+          TextField(controller:licenseReference,decoration:const InputDecoration(labelText:'Référence privée du justificatif d’agrément')),
+          TextField(controller:licenseSha256,decoration:const InputDecoration(labelText:'SHA-256 agrément (64 caractères)')),
+          TextField(controller:contractReference,decoration:const InputDecoration(labelText:'Référence privée du contrat signé')),
+          TextField(controller:contractSha256,decoration:const InputDecoration(labelText:'SHA-256 contrat (64 caractères)')),
+          const SizedBox(height:8),
+          const Text('Vérifier les documents originaux dans le coffre documentaire avant de confirmer. Cette action enregistre l’attestation du contrôleur, pas une validation automatique par T.Pay.',style:TextStyle(fontSize:12)),
+        ])),
+        actions:[
+          TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Annuler')),
+          FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Enregistrer la vérification')),
+        ],
+      ),
+    );
+    final payload=<String,dynamic>{
       'licenseEvidenceReference':licenseReference.text.trim(),
       'licenseEvidenceSha256':licenseSha256.text.trim().toLowerCase(),
       'contractEvidenceReference':contractReference.text.trim(),
       'contractEvidenceSha256':contractSha256.text.trim().toLowerCase(),
     };
-    licenseReference.dispose();licenseSha256.dispose();contractReference.dispose();contractSha256.dispose();
+    licenseReference.dispose();
+    licenseSha256.dispose();
+    contractReference.dispose();
+    contractSha256.dispose();
     if(accepted!=true)return;
-    final hashPattern=RegExp(r'^[a-f0-9]{64}
+    final hashPattern=RegExp(r'^[a-f0-9]{64}$');
+    if((payload['licenseEvidenceReference'] as String).isEmpty||
+      !hashPattern.hasMatch(payload['licenseEvidenceSha256'] as String)||
+      (payload['contractEvidenceReference'] as String).isEmpty||
+      !hashPattern.hasMatch(payload['contractEvidenceSha256'] as String)){
+      if(mounted)setState(()=>_error='Les deux références privées et leurs empreintes SHA-256 valides sont obligatoires.');
+      return;
+    }
+    await _runAction(
+      '/v1/tontine/groups/${Uri.encodeComponent(widget.groupId)}/protection-policies/${Uri.encodeComponent(policyId)}/verify-insurer',
+      payload,
+      'Attestation documentaire enregistrée.',
+    );
+  }
 
   Future<void> _runAction(String path,Map<String,dynamic> payload,String success) async {
     setState(()=>_busy=true);_error=null;_notice=null;
