@@ -92,3 +92,23 @@ La branche ajoute :
 - Portail développeur PI-SPI : https://developer.pispi.bceao.int/home
 - Yas Togo, accepter les paiements Mixx : https://togocom.zendesk.com/hc/fr/articles/40486059403410-Accepter-les-paiements-Mixx-sur-votre-site-ou-votre-application
 - Procédure marchande Flooz publique historique, à revalider auprès de Moov : https://github.com/Tech228/FloozAPI/blob/master/Procedures.md
+
+## Contact d'onboarding PI-SPI au Togo — Ecobank
+
+La liste officielle BCEAO au 9 novembre 2026 comporte 34 API-Business homologuées; la rubrique TOGO ne cite qu'ECOBANK. La demande d'accès PI-SPI de T.Pay doit donc être adressée à Ecobank Togo, en précisant explicitement qu'il s'agit de son API-Business homologuée PI-SPI, et non de demander une API bancaire générique ou un produit e-commerce non équivalent.
+
+Coordonnées publiques Corporate & Investment Banking Ecobank Togo :
+- Email : edc-clientservice-uemoa@ecobank.com
+- Adresse : 2365, Boulevard du Mono, Lomé, Togo
+- Téléphone : +228 22 21 03 03
+- Portail développeur Ecobank (sandbox API bancaire généraliste) : https://apimuat-developer.ecobank.com/documentation
+
+Le portail développeur généraliste présente notamment des APIs de compte, collecte, paiement domestique/interbancaire, notification et prélèvement. Il ne doit pas être assimilé à l'API-Business PI-SPI homologuée. Obtenir du service Corporate une confirmation écrite de l'API PI-SPI concernée, sa version homologuée, le processus d'enrôlement, les certificats et les jeux de tests.
+
+Demande à transmettre :
+1. Confirmation que l'API-Business PI-SPI Ecobank Togo homologuée BCEAO est ouverte aux entreprises/éditeurs de logiciels tiers et sous quelles conditions.
+2. Contrat d'accès et modèle de partenariat, frais, limites, délais de règlement et responsabilités.
+3. Spécification API-Business PI-SPI versionnée, endpoints sandbox/production, schémas exacts et machine d'état.
+4. Authentification, certificats, mTLS, signatures, rotation/révocation et procédure d'incident.
+5. Webhooks, identifiants d'événements, anti-rejeu, retries, idempotence, rapprochement et réversals.
+6. Procédure de recette/homologation marchand et autorisation de mise en production.
