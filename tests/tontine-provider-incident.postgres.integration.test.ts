@@ -22,7 +22,7 @@ test("P057.3 live PostgreSQL atomically creates one system incident, immutable e
     const providerEventId="evt-"+randomUUID();
     const tx:TontineSqlExecutor={
       async query<Row=Record<string,unknown>>(sql:string,values:readonly unknown[]=[]){
-        const result=await client.query(sql,values);
+        const result=await client.query(sql,[...values]);
         return {rows:result.rows as Row[],rowCount:result.rowCount??0};
       },
       async transaction<T>(work:(executor:TontineSqlExecutor)=>Promise<T>){return work(this);}
