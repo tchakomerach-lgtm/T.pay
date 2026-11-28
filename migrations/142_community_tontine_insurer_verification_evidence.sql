@@ -22,6 +22,8 @@ CREATE INDEX IF NOT EXISTS idx_tontine_insurer_evidence_policy
 
 ALTER TABLE community_tontine_insurer_verification_evidence ENABLE ROW LEVEL SECURITY;
 ALTER TABLE community_tontine_insurer_verification_evidence FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS community_tontine_insurer_evidence_organization_scope
+  ON community_tontine_insurer_verification_evidence;
 DROP POLICY IF EXISTS community_tontine_insurer_evidence_tenant_fence
   ON community_tontine_insurer_verification_evidence;
 CREATE POLICY community_tontine_insurer_evidence_organization_scope
