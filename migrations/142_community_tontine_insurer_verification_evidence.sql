@@ -14,7 +14,6 @@ CREATE TABLE IF NOT EXISTS community_tontine_insurer_verification_evidence (
   created_at timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (organization_id,group_id,policy_id)
     REFERENCES community_tontine_protection_policies(organization_id,group_id,id) ON DELETE RESTRICT,
-  UNIQUE (organization_id,group_id,policy_id,document_type),
   UNIQUE (organization_id,group_id,id)
 );
 
