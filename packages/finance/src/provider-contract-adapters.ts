@@ -58,3 +58,21 @@ export class MicrofinanceAdapter extends ContractOnlyProviderAdapter {
     );
   }
 }
+
+/**
+ * PayGate Global is a public-facing aggregator candidate for Togo mobile-money
+ * acceptance (Flooz and T-Money). This adapter intentionally delegates all
+ * wire behavior to a transport built from the merchant's authenticated,
+ * versioned PayGate documentation. It does not embed credentials or guess
+ * callback signatures, status mappings, refund semantics or settlement rules.
+ *
+ * A signed aggregator agreement and sandbox certification are mandatory.
+ */
+export class PayGateGlobalAdapter extends ContractOnlyProviderAdapter {
+  constructor(transport: ProviderAdapterTransport) {
+    super(
+      { id: "paygate-global", version: "contract-v1", capabilities: new Set(["initiate", "query", "callback"]) },
+      transport
+    );
+  }
+}
