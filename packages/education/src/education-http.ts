@@ -82,6 +82,7 @@ function route(path:string){
    if(parts.length===5&&parts[3]&&parts[4]==="commission-policies")return ["tontine-commission",parts[3]] as const;
    if(parts.length===5&&parts[3]&&parts[4]==="roles")return ["tontine-role",parts[3]] as const;
    if(parts.length===5&&parts[3]&&parts[4]==="promotions")return ["tontine-promotion",parts[3]] as const;
+   if(parts.length===7&&parts[3]&&parts[4]==="protection-policies"&&parts[5]&&["verify-insurer","approve","activate"].includes(parts[6]??""))return ["tontine-protection-governance",parts[3],parts[5],parts[6]] as const;
    if(parts.length===5&&parts[3]&&parts[4]==="protection-policies")return ["tontine-protection",parts[3]] as const;
  }
  if(parts[1]!=="education")return null;
@@ -95,12 +96,18 @@ function route(path:string){
  if(parts[2]==="events"&&parts[3]==="stream"&&parts.length===4)return ["stream"] as const;
  return null;
 }
-function permissionFor(kind:string,method="POST"):Permission{
+function permissionFor(kind:string,method="POST",action=""):Permission{
  if(kind==="actor")return "org.read";
  if(kind.startsWith("tontine-")&&method==="GET")return "community.tontine.read";
  if(kind==="tontine-groups")return "community.groups.manage";
  if(kind==="tontine-commission")return "community.commission.propose.admin";
  if(kind==="tontine-role")return "community.members.manage";
+ if(kind==="tontine-protection-governance"){
+   if(action==="verify-insurer")return "community.protection.verify";
+   if(action==="approve")return "community.protection.approve";
+   if(action==="activate")return "community.protection.activate";
+   throw new Error("TONTINE_PROTECTION_ACTION_REQUIRED");
+ }
  if(kind==="tontine-promotion"||kind==="tontine-protection")return "community.governance.propose";
  return "member.manage";
 }
@@ -141,7 +148,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
    if(!routeAuth.allowed)throw new Error(routeAuth.reason);
    const organizationId=auth.principal.organizationId; if(!auth.tenantId)throw new Error("TENANT_CONTEXT_REQUIRED");
    if(!organizationId)throw new Error("ORGANIZATION_CONTEXT_REQUIRED");
-   assertAuthorized(auth.principal,{organizationId,requestedPermission:permissionFor(r[0],method)});
+   assertAuthorized(auth.principal,{organizationId,requestedPermission:permissionFor(r[0],method,r[3]??"")});
    if(r[0]==="stream"){
     if(method!=="GET")throw new Error("REALTIME_METHOD_NOT_ALLOWED");
     if(!deps.realtime)throw new Error("REALTIME_NOT_CONFIGURED");
@@ -267,7 +274,85 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
          const group=await client.query("SELECT id,currency FROM tontine_groups WHERE organization_id=$1 AND id=$2",[organizationId,groupId]);
          if(!group.rows[0])throw new Error("TONTINE_GROUP_NOT_FOUND");
          const payload=body as any;
-         if(r[0]==="tontine-commission"&&method==="GET"){
+         if(r[0]==="tontine-protection-governance"){
+           const policyId=String(r[2]??"");
+           const action=String(r[3]??"");
+           if(!/^[0-9a-f-]{36}$/i.test(policyId))throw new Error("TONTINE_PROTECTION_POLICY_ID_INVALID");
+           const found=await client.query(
+             "SELECT id,state,created_by,approved_by,insurer_license_verified,insurer_contract_verified,effective_from FROM community_tontine_protection_policies WHERE organization_id=$1 AND group_id=$2 AND id=$3 FOR UPDATE",
+             [organizationId,groupId,policyId]
+           );
+           const policyRow=found.rows[0];
+           if(!policyRow)throw new Error("TONTINE_PROTECTION_POLICY_NOT_FOUND");
+           if(action==="verify-insurer"){
+             if(String(policyRow.state)!=="DRAFT")throw new Error("TONTINE_PROTECTION_POLICY_NOT_DRAFT");
+             if(String(policyRow.created_by)===auth.principal.userId)throw new Error("TONTINE_PROTECTION_VERIFIER_SEPARATION_REQUIRED");
+             const licenseReference=String(payload.licenseEvidenceReference??"").trim();
+             const licenseHash=String(payload.licenseEvidenceSha256??"").toLowerCase();
+             const contractReference=String(payload.contractEvidenceReference??"").trim();
+             const contractHash=String(payload.contractEvidenceSha256??"").toLowerCase();
+             const validReference=(value:string)=>value.length>=1&&value.length<=512&&/^[A-Za-z0-9._:/-]+$/.test(value);
+             if(!validReference(licenseReference)||!validReference(contractReference)||! /^[a-f0-9]{64}$/.test(licenseHash)||! /^[a-f0-9]{64}$/.test(contractHash))throw new Error("TONTINE_PROTECTION_VERIFICATION_EVIDENCE_INVALID");
+             const evidence=[
+               {id:randomUUID(),type:"INSURER_LICENSE",reference:licenseReference,hash:licenseHash},
+               {id:randomUUID(),type:"EXECUTED_CONTRACT",reference:contractReference,hash:contractHash}
+             ];
+             for(const item of evidence){
+               await client.query(
+                 "INSERT INTO community_tontine_insurer_verification_evidence (id,organization_id,group_id,policy_id,document_type,evidence_reference,evidence_sha256,verified_by,verified_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::timestamptz)",
+                 [item.id,organizationId,groupId,policyId,item.type,item.reference,item.hash,auth.principal.userId,now]
+               );
+             }
+             const updated=await client.query(
+               "UPDATE community_tontine_protection_policies SET insurer_license_verified=true,insurer_contract_verified=true WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND state='DRAFT' AND created_by<>$4",
+               [organizationId,groupId,policyId,auth.principal.userId]
+             );
+             if((updated.rowCount??0)!==1)throw new Error("TONTINE_PROTECTION_PARTNER_VERIFICATION_CONFLICT");
+             await client.query(
+               "INSERT INTO community_tontine_protection_events (id,organization_id,group_id,actor_id,event_type,payload,occurred_at) VALUES ($1,$2,$3,$4,'POLICY_INSURER_PARTNER_VERIFIED',$5::jsonb,$6::timestamptz)",
+               [randomUUID(),organizationId,groupId,auth.principal.userId,JSON.stringify({policyId,evidenceIds:evidence.map(x=>x.id),licenseEvidenceSha256:licenseHash,contractEvidenceSha256:contractHash}),now]
+             );
+             data={policyId,state:"DRAFT",insurerLicenseVerified:true,insurerContractVerified:true,evidenceRecorded:true};
+           } else if(action==="approve"){
+             if(String(policyRow.state)!=="DRAFT")throw new Error("TONTINE_PROTECTION_POLICY_NOT_DRAFT");
+             if(String(policyRow.created_by)===auth.principal.userId)throw new Error("TONTINE_PROTECTION_MAKER_CHECKER_REQUIRED");
+             const evidence=await client.query(
+               "SELECT COUNT(*)::integer AS total,BOOL_AND(verified_by<>$4) AS independent FROM community_tontine_insurer_verification_evidence WHERE organization_id=$1 AND group_id=$2 AND policy_id=$3",
+               [organizationId,groupId,policyId,auth.principal.userId]
+             );
+             if(Number(evidence.rows[0]?.total??0)!==2||evidence.rows[0]?.independent!==true||policyRow.insurer_license_verified!==true||policyRow.insurer_contract_verified!==true)throw new Error("TONTINE_PROTECTION_PARTNER_VERIFICATION_REQUIRED");
+             const updated=await client.query(
+               "UPDATE community_tontine_protection_policies SET state='APPROVED',approved_by=$4 WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND state='DRAFT' AND created_by<>$4",
+               [organizationId,groupId,policyId,auth.principal.userId]
+             );
+             if((updated.rowCount??0)!==1)throw new Error("TONTINE_PROTECTION_POLICY_APPROVAL_CONFLICT");
+             await client.query(
+               "INSERT INTO community_tontine_protection_events (id,organization_id,group_id,actor_id,event_type,payload,occurred_at) VALUES ($1,$2,$3,$4,'POLICY_APPROVED',$5::jsonb,$6::timestamptz)",
+               [randomUUID(),organizationId,groupId,auth.principal.userId,JSON.stringify({policyId}),now]
+             );
+             data={policyId,state:"APPROVED",approvedBy:auth.principal.userId};
+           } else if(action==="activate"){
+             if(String(policyRow.state)!=="APPROVED"||!policyRow.approved_by)throw new Error("TONTINE_PROTECTION_APPROVAL_REQUIRED");
+             if(String(policyRow.created_by)===auth.principal.userId||String(policyRow.approved_by)===auth.principal.userId)throw new Error("TONTINE_PROTECTION_ACTIVATION_SEPARATION_REQUIRED");
+             if(Date.parse(String(policyRow.effective_from))>Date.parse(now))throw new Error("TONTINE_PROTECTION_EFFECTIVE_DATE_NOT_REACHED");
+             const evidence=await client.query(
+               "SELECT COUNT(*)::integer AS total,BOOL_AND(verified_by<>$4) AS independent FROM community_tontine_insurer_verification_evidence WHERE organization_id=$1 AND group_id=$2 AND policy_id=$3",
+               [organizationId,groupId,policyId,auth.principal.userId]
+             );
+             if(Number(evidence.rows[0]?.total??0)!==2||evidence.rows[0]?.independent!==true||policyRow.insurer_license_verified!==true||policyRow.insurer_contract_verified!==true)throw new Error("TONTINE_PROTECTION_PARTNER_VERIFICATION_REQUIRED");
+             await client.query("UPDATE community_tontine_protection_policies SET state='RETIRED' WHERE organization_id=$1 AND group_id=$2 AND state='ACTIVE'",[organizationId,groupId]);
+             const updated=await client.query(
+               "UPDATE community_tontine_protection_policies SET state='ACTIVE',activated_at=$4::timestamptz WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND state='APPROVED'",
+               [organizationId,groupId,policyId,now]
+             );
+             if((updated.rowCount??0)!==1)throw new Error("TONTINE_PROTECTION_POLICY_ACTIVATION_CONFLICT");
+             await client.query(
+               "INSERT INTO community_tontine_protection_events (id,organization_id,group_id,actor_id,event_type,payload,occurred_at) VALUES ($1,$2,$3,$4,'POLICY_ACTIVATED',$5::jsonb,$6::timestamptz)",
+               [randomUUID(),organizationId,groupId,auth.principal.userId,JSON.stringify({policyId}),now]
+             );
+             data={policyId,state:"ACTIVE",activatedAt:now};
+           } else throw new Error("TONTINE_PROTECTION_ACTION_INVALID");
+         } else if(r[0]==="tontine-commission"&&method==="GET"){
            const listed=await client.query("SELECT * FROM community_tontine_commission_policies WHERE organization_id=$1 AND group_id=$2 ORDER BY created_at DESC,id DESC LIMIT 100",[organizationId,groupId]);
            data={items:listed.rows};
          } else if(r[0]==="tontine-commission"){
