@@ -217,6 +217,7 @@ export class PostgresCommunityTontineProtectionRepository {
       validateTontineProtectionPolicy(policy);
       if (policy.state !== "APPROVED" || !policy.approvedBy) throw new Error("TONTINE_PROTECTION_APPROVAL_REQUIRED");
       if (policy.approvedBy === input.actorId || policy.createdBy === input.actorId) throw new Error("TONTINE_PROTECTION_ACTIVATION_SEPARATION_REQUIRED");
+      if (Date.parse(policy.effectiveFrom) > Date.parse(input.now)) throw new Error("TONTINE_PROTECTION_EFFECTIVE_DATE_NOT_REACHED");
       if (!policy.insurerLicenseVerified || !policy.insurerContractVerified) throw new Error("TONTINE_PROTECTION_PARTNER_VERIFICATION_REQUIRED");
       const evidence = await tx.query<ProtectionRow>(
         `SELECT COUNT(*)::integer AS total,BOOL_AND(verified_by<>$4) AS independent
