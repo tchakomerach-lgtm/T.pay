@@ -5,6 +5,8 @@ import { createSchoolApiServer } from "../packages/education/src/education-http.
 function fixture() {
   const groups = new Map<string, Record<string, unknown>>();
   const idempotency = new Map<string, Record<string, unknown>>();
+  let protectionPolicy: Record<string,unknown>|null=null;
+  const protectionEvidence: Array<Record<string,unknown>>=[];
   const sqlCalls: Array<{ sql: string; values?: unknown[] }> = [];
   const db = {
     async query(sql: string, values?: unknown[]) {
@@ -42,6 +44,43 @@ function fixture() {
       if (sql.startsWith("SELECT role FROM community_tontine_role_grants")) {
         return { rows: [{ role: "FOUNDER" }], rowCount: 1 };
       }
+      if (sql.startsWith("INSERT INTO community_tontine_protection_policies")) {
+        protectionPolicy={
+          id:values?.[0],organization_id:values?.[1],group_id:values?.[2],version:values?.[3],currency:values?.[4],
+          state:"DRAFT",proposal_origin:"COMMUNITY_ADMIN",risk_bearer:"LICENSED_INSURER",insurer_partner_id:values?.[5],
+          insurer_license_reference:values?.[6],insurer_contract_reference:values?.[7],
+          insurer_license_verified:false,insurer_contract_verified:false,effective_from:values?.[8],effective_until:values?.[9],
+          tiers:JSON.parse(String(values?.[10])),policy_hash:values?.[11],created_by:values?.[12],approved_by:null
+        };
+        return {rows:[],rowCount:1};
+      }
+      if (sql.startsWith("SELECT * FROM community_tontine_protection_policies")) {
+        return {rows:protectionPolicy?[protectionPolicy]:[],rowCount:protectionPolicy?1:0};
+      }
+      if (sql.startsWith("INSERT INTO community_tontine_insurer_verification_evidence")) {
+        protectionEvidence.push({id:values?.[0],document_type:values?.[4],verified_by:values?.[7],evidence_sha256:values?.[6]});
+        return {rows:[],rowCount:1};
+      }
+      if (sql.startsWith("UPDATE community_tontine_protection_policies SET insurer_license_verified")) {
+        if(protectionPolicy){protectionPolicy.insurer_license_verified=true;protectionPolicy.insurer_contract_verified=true;protectionPolicy.policy_hash=values?.[4];}
+        return {rows:[],rowCount:1};
+      }
+      if (sql.startsWith("SELECT COUNT(*)::integer AS total")) {
+        const latestTypes=new Set(protectionEvidence.map(item=>item.document_type));
+        return {rows:[{total:latestTypes.size,independent:protectionEvidence.every(item=>item.verified_by!=="55555555-5555-4555-8555-555555555555")}],rowCount:1};
+      }
+      if (sql.startsWith("UPDATE community_tontine_protection_policies SET state='APPROVED'")) {
+        if(protectionPolicy){protectionPolicy.state="APPROVED";protectionPolicy.approved_by=values?.[3];}
+        return {rows:[],rowCount:1};
+      }
+      if (sql.startsWith("UPDATE community_tontine_protection_policies SET state='RETIRED'")) {
+        if(protectionPolicy?.state==="ACTIVE")protectionPolicy.state="RETIRED";
+        return {rows:[],rowCount:1};
+      }
+      if (sql.startsWith("UPDATE community_tontine_protection_policies SET state='ACTIVE'")) {
+        if(protectionPolicy){protectionPolicy.state="ACTIVE";protectionPolicy.activated_at=values?.[3];}
+        return {rows:[],rowCount:1};
+      }
       if (sql.startsWith("SELECT id FROM tontine_memberships WHERE organization_id=$1 AND group_id=$2 AND client_id=$3 AND status='active' LIMIT 1")) {
         return { rows: [{ id: "77777777-7777-4777-8777-777777777777" }], rowCount: 1 };
       }
@@ -75,7 +114,7 @@ function fixture() {
     principal: {
       userId: "55555555-5555-4555-8555-555555555555",
       organizationId: "33333333-3333-4333-8333-333333333333",
-      permissions: ["community.tontine.read", "community.groups.manage", "community.members.manage", "community.commission.propose.admin", "community.governance.propose"] as const,
+      permissions: ["community.tontine.read", "community.groups.manage", "community.members.manage", "community.commission.propose.admin", "community.governance.propose", "community.protection.verify", "community.protection.approve", "community.protection.activate"] as const,
       sessionId: "11111111-1111-4111-8111-111111111111"
     },
     tenantId: "tenant-alpha",
@@ -281,5 +320,70 @@ test("CT-042 policy proposal is tenant-scoped, draft-only and never writes a led
   } finally {
     server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve()));
+  }
+});
+
+
+test("CT-042 insurer evidence, independent approval and activation use distinct permissions and atomic policy transitions",async()=>{
+  const {server,sqlCalls}=fixture();
+  await new Promise<void>(resolve=>server.listen(0,resolve));
+  const port=(server.address() as any).port;
+  const groupId="33333333-3333-4333-8333-333333333333";
+  const policyId="99999999-9999-4999-8999-999999999999";
+  try{
+    const groupResponse=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups`,{
+      method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"ct042-gov-group-001"},
+      body:JSON.stringify({name:"CT042 Governance",countryCode:"TG",currency:"XOF",frequency:"weekly",contributionMode:"fixed",minimumAmountMinor:"1000",fixedAmountMinor:"1000"})
+    });
+    const groupBody=await groupResponse.json() as any;
+    assert.equal(groupResponse.status,200,JSON.stringify(groupBody));
+    const actualGroupId=String(groupBody.data.group.id);
+    const proposal=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${actualGroupId}/protection-policies`,{
+      method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"ct042-gov-policy-001"},
+      body:JSON.stringify({
+        version:"ct042-gov-v1",currency:"XOF",insurerPartnerId:"88888888-8888-4888-8888-888888888888",
+        insurerLicenseReference:"LICENCE-REF",insurerContractReference:"CONTRACT-REF",
+        effectiveFrom:"2026-11-17T06:00:00.000Z",
+        tiers:[
+          {tier:"ESSENTIEL",premiumRateBps:100,coveredInstallments:1,gracePeriodDays:7,waitingPeriodDays:14,maxClaimMinor:"10000"},
+          {tier:"EQUILIBRE",premiumRateBps:200,coveredInstallments:2,gracePeriodDays:14,waitingPeriodDays:14,maxClaimMinor:"20000"},
+          {tier:"RENFORCE",premiumRateBps:300,coveredInstallments:3,gracePeriodDays:21,waitingPeriodDays:30,maxClaimMinor:"30000"}
+        ]
+      })
+    });
+    const proposalBody=await proposal.json() as any;
+    assert.equal(proposal.status,200,JSON.stringify(proposalBody));
+    assert.equal(proposalBody.data.state,"DRAFT");
+    const actualPolicyId=String(proposalBody.data.id);
+
+    const verify=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${actualGroupId}/protection-policies/${actualPolicyId}/verify-insurer`,{
+      method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"ct042-gov-verify-001"},
+      body:JSON.stringify({
+        licenseEvidenceReference:"vault://insurer/licence/1",licenseEvidenceSha256:"a".repeat(64),
+        contractEvidenceReference:"vault://insurer/contract/1",contractEvidenceSha256:"b".repeat(64)
+      })
+    });
+    const verifyBody=await verify.json() as any;
+    assert.equal(verify.status,200,JSON.stringify(verifyBody));
+    assert.equal(verifyBody.data.evidenceRecorded,true);
+    assert.ok(sqlCalls.filter(call=>call.sql.startsWith("INSERT INTO community_tontine_insurer_verification_evidence")).length===2);
+
+    const approve=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${actualGroupId}/protection-policies/${actualPolicyId}/approve`,{
+      method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"ct042-gov-approve-001"},body:"{}"
+    });
+    const approveBody=await approve.json() as any;
+    assert.equal(approve.status,200,JSON.stringify(approveBody));
+    assert.equal(approveBody.data.state,"APPROVED");
+
+    const activate=await fetch(`http://127.0.0.1:${port}/v1/tontine/groups/${actualGroupId}/protection-policies/${actualPolicyId}/activate`,{
+      method:"POST",headers:{"content-type":"application/json","x-idempotency-key":"ct042-gov-activate-001"},body:"{}"
+    });
+    const activateBody=await activate.json() as any;
+    assert.equal(activate.status,200,JSON.stringify(activateBody));
+    assert.equal(activateBody.data.state,"ACTIVE");
+    assert.equal(sqlCalls.some(call=>/INSERT INTO .*ledger|UPDATE .*ledger/i.test(call.sql)),false);
+  }finally{
+    server.closeAllConnections();
+    await new Promise<void>(resolve=>server.close(()=>resolve()));
   }
 });
