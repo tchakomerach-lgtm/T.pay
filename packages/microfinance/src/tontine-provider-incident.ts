@@ -9,7 +9,7 @@ export interface TontineProviderIncidentInput {
   readonly providerEventId: string;
   readonly rawBody: string;
   readonly occurredAt: string;
-  readonly reason: "CALLBACK_PAYLOAD_MISMATCH" | "PAYOUT_INTENT_NOT_FOUND" | "PAYOUT_NOT_APPROVED";
+  readonly reason: "CALLBACK_PAYLOAD_MISMATCH" | "PAYOUT_INTENT_NOT_FOUND" | "PAYOUT_NOT_INITIATED";
 }
 
 export interface TontineProviderIncidentResult {

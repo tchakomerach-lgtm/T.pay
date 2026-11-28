@@ -138,7 +138,7 @@ export async function processVerifiedTontinePayoutCallback(
     const intent = await tx.query<{
       payout_id: UUID;
       organization_id: UUID;
-      state: "initiated" | "approved" | "blocked" | "settled";
+      state: "draft" | "pending_kyc" | "pending_approval" | "approved" | "initiated" | "confirmed" | "failed" | "reversed" | "cancelled";
       idempotency_key: string;
     }>(
       `SELECT payout_id,organization_id,state,idempotency_key
@@ -164,10 +164,10 @@ export async function processVerifiedTontinePayoutCallback(
       return { state: "rejected", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
     }
 
-    if (row.state !== "approved" && row.state !== "settled") {
+    if (row.state !== "initiated") {
       await tx.query(
         `UPDATE tontine_provider_callback_receipts
-         SET state='rejected', failure_code='PAYOUT_NOT_APPROVED'
+         SET state='rejected', failure_code='PAYOUT_NOT_INITIATED'
          WHERE organization_id=$1 AND provider=$2 AND provider_event_id=$3`,
         [callback.organizationId, callback.provider, callback.providerEventId]
       );
@@ -175,12 +175,12 @@ export async function processVerifiedTontinePayoutCallback(
         organizationId: callback.organizationId, cycleId: payout.cycleId,
         provider: callback.provider, providerEventId: callback.providerEventId,
         rawBody: callback.rawBody, occurredAt: callback.receivedAt,
-        reason: "PAYOUT_NOT_APPROVED"
+        reason: "PAYOUT_NOT_INITIATED"
       });
       return { state: "rejected", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
     }
 
-    if (row.state === "settled") {
+    if (row.state === "confirmed") {
       await tx.query(
         `UPDATE tontine_provider_callback_receipts
          SET state='processed', processed_at=now()

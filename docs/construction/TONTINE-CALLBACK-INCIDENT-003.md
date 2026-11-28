@@ -18,7 +18,7 @@ A verified provider callback rejected by the payout state machine now opens one 
 4. One incident case is created per provider + event identity. Concurrent/replayed callbacks converge on the existing case.
 5. Evidence stores SHA-256 of the raw callback body and an opaque provider-event reference. The raw body, signatures and credentials are not copied into case or outbox payloads.
 6. Case, evidence and `tontine.provider_incident.opened` outbox event are written through the callback's existing transaction.
-7. Callback payload mismatch, missing payout intent and payout-not-approved outcomes invoke this workflow. A rejected callback never calls the Financial Core settlement bridge.
+7. Callback payload mismatch, missing payout intent and payout-not-initiated outcomes invoke this workflow. A rejected callback never calls the Financial Core settlement bridge.
 8. If the referenced cycle cannot be resolved, the callback rejection remains durable but no group/case is fabricated; the unresolved cycle is an explicit follow-up reconciliation gap.
 
 ## Failure and concurrency

@@ -23,6 +23,8 @@ test("community tontine durably quarantines same provider event replay with subs
       if (sql.includes("SELECT payout_id,organization_id,state,idempotency_key")) {
         return { rows: [{ payout_id: id, organization_id: id, state: "initiated", idempotency_key: "payout-1" }] as Row[], rowCount: 1 };
       }
+      if (sql.includes("SELECT group_id FROM tontine_cycles")) return { rows: [{ group_id: id }] as Row[], rowCount: 1 };
+      if (sql.includes("INSERT INTO tontine_cases")) return { rows: [{ id }] as Row[], rowCount: 1 };
       if (sql.includes("INSERT INTO tontine_provider_callback_receipts")) {
         receipt = { hash: String(values?.[4]), payoutId: values?.[6] as UUID };
         return { rows: [], rowCount: 1 };
@@ -38,9 +40,11 @@ test("community tontine durably quarantines same provider event replay with subs
         receivedAt: "2026-10-05T10:00:00Z", rawBody: input.rawBody };
     }
   };
-  const bridge = { async settle() { return undefined; } };
+  let settlementCalls = 0;
+  const bridge = { async settle() { settlementCalls += 1; return undefined; } };
   const first = await processVerifiedTontinePayoutCallback(db, verifier, { provider:"mf", rawBody:"body-A", signature:"sig", receivedAt:"2026-10-05T10:00:00Z" }, id, payout, { tontineClearingAccountId:"a", microfinanceSettlementAccountId:"b" }, "tx-1", bridge);
-  assert.equal(first.state, "rejected");
+  assert.equal(first.state, "processed");
   const replay = await processVerifiedTontinePayoutCallback(db, verifier, { provider:"mf", rawBody:"body-B", signature:"sig", receivedAt:"2026-10-05T10:01:00Z" }, id, payout, { tontineClearingAccountId:"a", microfinanceSettlementAccountId:"b" }, "tx-2", bridge);
   assert.equal(replay.state, "rejected");
+  assert.equal(settlementCalls, 1);
 });
