@@ -32,3 +32,20 @@ test("PI-SPI batch refuses empty batches and delegates validated batch idempoten
   await assert.rejects(() => gateway.sendBulkPayments([], "batch-001"), /PI_SPI_BATCH_EMPTY/);
   assert.equal((await gateway.sendBulkPayments([payment], "batch-001")).length, 1);
 });
+
+test("PI-SPI gateway rejects a response from a different participant or payment", async () => {
+  const wrongParticipant = transport();
+  wrongParticipant.sendPayment = async (command) => ({ participantId: "unapproved-bank", providerReference: "ref-1", endToEndId: command.endToEndId, status: "pending", observedAt: "2026-11-28T00:00:00Z" });
+  const gateway = new PiSpiBusinessGateway("org-1", evidence, wrongParticipant);
+  await assert.rejects(() => gateway.sendPayment(payment), /PI_SPI_PARTICIPANT_MISMATCH/);
+  const wrongPayment = transport();
+  wrongPayment.sendPayment = async () => ({ participantId: "participant-tg", providerReference: "ref-1", endToEndId: "another-payment", status: "pending", observedAt: "2026-11-28T00:00:00Z" });
+  await assert.rejects(() => new PiSpiBusinessGateway("org-1", evidence, wrongPayment).sendPayment(payment), /PI_SPI_END_TO_END_MISMATCH/);
+});
+test("PI-SPI gateway rejects malformed contract expiry and mismatched bulk responses", async () => {
+  assert.throws(() => assertPiSpiContractEvidence({ ...evidence, expiresAt: "not-a-date" }, "SANDBOX_VALIDATED", "2026-11-28T00:00:00Z"), /PI_SPI_CONTRACT_EXPIRY_INVALID/);
+  const badBatch = transport();
+  badBatch.sendBulkPayments = async () => [];
+  const gateway = new PiSpiBusinessGateway("org-1", evidence, badBatch);
+  await assert.rejects(() => gateway.sendBulkPayments([payment], "batch-001"), /PI_SPI_BATCH_RESULT_COUNT_MISMATCH/);
+});
