@@ -187,11 +187,23 @@ export class PostgresCommunityTontineProtectionRepository {
       if (policy.createdBy === input.actorId) throw new Error("TONTINE_PROTECTION_MAKER_CHECKER_REQUIRED");
       if (policy.state !== "DRAFT") throw new Error("TONTINE_PROTECTION_POLICY_NOT_DRAFT");
       if (!policy.insurerLicenseVerified || !policy.insurerContractVerified) throw new Error("TONTINE_PROTECTION_PARTNER_VERIFICATION_REQUIRED");
-      await tx.query(
+      const evidence = await tx.query<ProtectionRow>(
+        `SELECT COUNT(*)::integer AS total,BOOL_AND(verified_by<>$4) AS independent
+         FROM (SELECT DISTINCT ON (document_type) document_type,verified_by
+               FROM community_tontine_insurer_verification_evidence
+               WHERE organization_id=$1 AND group_id=$2 AND policy_id=$3
+               ORDER BY document_type,verified_at DESC,id DESC) latest`,
+        [input.organizationId, input.groupId, input.policyId, input.actorId]
+      );
+      if (Number(evidence.rows[0]?.total ?? 0) !== 2 || evidence.rows[0]?.independent !== true) {
+        throw new Error("TONTINE_PROTECTION_PARTNER_VERIFICATION_REQUIRED");
+      }
+      const updated = await tx.query(
         `UPDATE community_tontine_protection_policies SET state='APPROVED',approved_by=$4
          WHERE organization_id=$1 AND group_id=$2 AND id=$3 AND state='DRAFT'`,
         [input.organizationId, input.groupId, input.policyId, input.actorId]
       );
+      if ((updated.rowCount ?? 0) !== 1) throw new Error("TONTINE_PROTECTION_POLICY_APPROVAL_CONFLICT");
       await appendEvent(tx, {
         organizationId: input.organizationId, groupId: input.groupId, actorId: input.actorId,
         eventType: "POLICY_APPROVED", payload: { policyId: input.policyId }, now: input.now
@@ -206,6 +218,17 @@ export class PostgresCommunityTontineProtectionRepository {
       if (policy.state !== "APPROVED" || !policy.approvedBy) throw new Error("TONTINE_PROTECTION_APPROVAL_REQUIRED");
       if (policy.approvedBy === input.actorId || policy.createdBy === input.actorId) throw new Error("TONTINE_PROTECTION_ACTIVATION_SEPARATION_REQUIRED");
       if (!policy.insurerLicenseVerified || !policy.insurerContractVerified) throw new Error("TONTINE_PROTECTION_PARTNER_VERIFICATION_REQUIRED");
+      const evidence = await tx.query<ProtectionRow>(
+        `SELECT COUNT(*)::integer AS total,BOOL_AND(verified_by<>$4) AS independent
+         FROM (SELECT DISTINCT ON (document_type) document_type,verified_by
+               FROM community_tontine_insurer_verification_evidence
+               WHERE organization_id=$1 AND group_id=$2 AND policy_id=$3
+               ORDER BY document_type,verified_at DESC,id DESC) latest`,
+        [input.organizationId, input.groupId, input.policyId, input.actorId]
+      );
+      if (Number(evidence.rows[0]?.total ?? 0) !== 2 || evidence.rows[0]?.independent !== true) {
+        throw new Error("TONTINE_PROTECTION_PARTNER_VERIFICATION_REQUIRED");
+      }
       await tx.query(
         `UPDATE community_tontine_protection_policies SET state='RETIRED'
          WHERE organization_id=$1 AND group_id=$2 AND state='ACTIVE'`,
