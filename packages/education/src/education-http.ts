@@ -331,7 +331,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
              if(String(policyRow.state)!=="DRAFT")throw new Error("TONTINE_PROTECTION_POLICY_NOT_DRAFT");
              if(String(policyRow.created_by)===auth.principal.userId)throw new Error("TONTINE_PROTECTION_MAKER_CHECKER_REQUIRED");
              const evidence=await client.query(
-               "SELECT COUNT(*)::integer AS total,BOOL_AND(verified_by<>$4) AS independent FROM community_tontine_insurer_verification_evidence WHERE organization_id=$1 AND group_id=$2 AND policy_id=$3",
+               "SELECT COUNT(*)::integer AS total,BOOL_AND(verified_by<>$4) AS independent FROM (SELECT DISTINCT ON (document_type) document_type,verified_by FROM community_tontine_insurer_verification_evidence WHERE organization_id=$1 AND group_id=$2 AND policy_id=$3 ORDER BY document_type,verified_at DESC,id DESC) latest",
                [organizationId,groupId,policyId,auth.principal.userId]
              );
              if(Number(evidence.rows[0]?.total??0)!==2||evidence.rows[0]?.independent!==true||policyRow.insurer_license_verified!==true||policyRow.insurer_contract_verified!==true)throw new Error("TONTINE_PROTECTION_PARTNER_VERIFICATION_REQUIRED");
@@ -350,7 +350,7 @@ export function createSchoolApiServer(deps:SchoolApiDependencies, options:School
              if(String(policyRow.created_by)===auth.principal.userId||String(policyRow.approved_by)===auth.principal.userId)throw new Error("TONTINE_PROTECTION_ACTIVATION_SEPARATION_REQUIRED");
              if(Date.parse(String(policyRow.effective_from))>Date.parse(now))throw new Error("TONTINE_PROTECTION_EFFECTIVE_DATE_NOT_REACHED");
              const evidence=await client.query(
-               "SELECT COUNT(*)::integer AS total,BOOL_AND(verified_by<>$4) AS independent FROM community_tontine_insurer_verification_evidence WHERE organization_id=$1 AND group_id=$2 AND policy_id=$3",
+               "SELECT COUNT(*)::integer AS total,BOOL_AND(verified_by<>$4) AS independent FROM (SELECT DISTINCT ON (document_type) document_type,verified_by FROM community_tontine_insurer_verification_evidence WHERE organization_id=$1 AND group_id=$2 AND policy_id=$3 ORDER BY document_type,verified_at DESC,id DESC) latest",
                [organizationId,groupId,policyId,auth.principal.userId]
              );
              if(Number(evidence.rows[0]?.total??0)!==2||evidence.rows[0]?.independent!==true||policyRow.insurer_license_verified!==true||policyRow.insurer_contract_verified!==true)throw new Error("TONTINE_PROTECTION_PARTNER_VERIFICATION_REQUIRED");
