@@ -164,7 +164,7 @@ export async function processVerifiedTontinePayoutCallback(
       return { state: "rejected", providerEventId: callback.providerEventId, payoutId: callback.payoutId };
     }
 
-    if (row.state !== "initiated") {
+    if (row.state !== "initiated" && row.state !== "confirmed") {
       await tx.query(
         `UPDATE tontine_provider_callback_receipts
          SET state='rejected', failure_code='PAYOUT_NOT_INITIATED'
