@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { FloozAdapter, MicrofinanceAdapter, TMoneyAdapter, type ProviderAdapterTransport } from "../packages/finance/src/provider-contract-adapters.js";
+import { FloozAdapter, MicrofinanceAdapter, PayGateGlobalAdapter, TMoneyAdapter, type ProviderAdapterTransport } from "../packages/finance/src/provider-contract-adapters.js";
 import type { ProviderPaymentCommand, ProviderPaymentResult, VerifiedProviderEvent, ProviderCallback } from "../packages/finance/src/provider-contract.js";
 import { ProviderAdapterRegistry } from "../packages/finance/src/provider-registry.js";
 import { ProviderCircuitBreaker, boundedBackoffMs, executeProviderCall } from "../packages/finance/src/provider-resilience.js";
@@ -118,4 +118,16 @@ test("non-retryable provider failure is not repeated", async () => {
     /INVALID_REFERENCE/
   );
   assert.equal(calls, 1);
+});
+
+test("PayGate Global aggregator adapter is registered separately from direct operator rails", async () => {
+  const registry = new ProviderAdapterRegistry();
+  const paygateResult: ProviderPaymentResult = { ...result, providerId: "paygate-global" };
+  const adapter = new PayGateGlobalAdapter(transportFor(paygateResult));
+  registry.register(adapter);
+  assert.equal(registry.resolve("paygate-global").identity.version, "contract-v1");
+  assert.equal(registry.resolve("paygate-global").identity.capabilities.has("callback"), true);
+  const response = await registry.resolve("paygate-global").initiate(command);
+  assert.equal(response.providerId, "paygate-global");
+  assert.equal(response.correlationId, command.correlationId);
 });
