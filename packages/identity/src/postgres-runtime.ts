@@ -60,7 +60,10 @@ const COMMUNITY_PERMISSIONS = new Set<Permission>([
   "community.dispute.manage",
   "community.commission.propose.tpay",
   "community.commission.propose.microfinance",
-  "community.commission.propose.admin"
+  "community.commission.propose.admin",
+  "community.protection.verify",
+  "community.protection.approve",
+  "community.protection.activate"
 ]);
 
 function requiredString(row: Record<string, unknown>, key: string): string {
