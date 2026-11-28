@@ -24,7 +24,7 @@ Liste de la Commission Bancaire UMOA, mise à jour au 29 juin 2026 : T-Money est
 
 Liste des participants PI-SPI publiée au 30 septembre 2026 : au Togo, elle comprend notamment des banques, Mixx Togo, Moov Money et COFINA. Être participant PI-SPI ne prouve pas à lui seul qu'une API-Business donnée est homologuée ni qu'un contrat marchand avec T.Pay existe.
 
-La BCEAO a publié une liste actualisée des API-Business PI-SPI homologuées au 9 novembre 2026. T.Pay doit obtenir cette liste, identifier les participants/API pertinents, puis obtenir leur documentation contractuelle.
+La liste officielle BCEAO des API-Business PI-SPI homologuées au 9 novembre 2026 recense 34 API dans l'UEMOA. Pour le Togo, elle ne nomme qu'un participant : ECOBANK. C'est donc le premier interlocuteur PI-SPI à solliciter pour le Togo. Cette homologation de l'API-Business ne signifie pas que T.Pay dispose déjà d'un contrat, d'un accès sandbox, de certificats ou d'identifiants.
 
 ## Partenaires à approcher — aucun contrat n'est réputé signé
 
@@ -35,7 +35,8 @@ La BCEAO a publié une liste actualisée des API-Business PI-SPI homologuées au
 | INTOUCH Togo | EP agréé EP.TG.001/2025 | Mandat, produits/canaux, contrat, API, preuves de conformité et sous-traitants |
 | OLLO AFRICA | EP agréé EP.TG.002/2025; communication publique mentionne PIS/AIS | Contrat, périmètre autorisé, API et statut PI-SPI homologué applicable |
 | SEMOA Togo | EP agréé EP.TG.003/2026 | Offre entreprise, contrat, API, sandbox, responsabilités de règlement et statut PI-SPI |
-| Banques, COFINA et autres participants PI-SPI togolais | Présence dans la liste publique PI-SPI du 30 septembre 2026 | API-Business homologuée, contrat entreprise, onboarding, certificats et sandbox |
+| ECOBANK Togo | Seule API-Business PI-SPI explicitement listée pour le Togo au 9 novembre 2026 | Contrat API-Business entreprise, dossier marchand, accès sandbox, certificats, clés, webhooks et règles de règlement |
+| Autres participants PI-SPI au Togo (banques, Mixx, Moov Money, COFINA) | Participants autorisés au public selon la liste du 30 septembre 2026; leur présence ne vaut pas homologation API-Business au 9 novembre | Vérifier l'homologation API-Business exacte et le contrat avant intégration |
 
 Les agréments publics ne remplacent ni le contrat commercial ni l'autorisation contractuelle d'utiliser une API.
 
@@ -86,7 +87,8 @@ La branche ajoute :
 - BCEAO, Instruction n°001-01-2024 : https://www.bceao.int/sites/default/files/inline-files/Instruction-No001-01-2024_relative_aux_services_de_paiement_dans_l-UMOA.pdf
 - BCEAO, liste EP agréés au 31 août 2026 : https://downloads.bceao.int/index.php/fr/communique-presse/liste-des-etablissements-de-paiement-agrees-dans-lumoa-au-31-aout-2026
 - Commission Bancaire UMOA, établissements assujettis : https://www.cb-umoa.org/fr/etablissements-assujettis-au-controle-de-la-commission-bancaire-de-lumoa
-- BCEAO, API-Business PI-SPI homologuées au 9 novembre 2026 : https://www.bceao.int/fr/documents/liste-actualisee-des-api-business-pi-spi-homologuees-par-la-bceao
+- BCEAO, liste PDF des API-Business PI-SPI homologuées au 9 novembre 2026 : https://downloads.bceao.int/sites/default/files/2026-11/liste_des_api-business_pi-spi_homologuees_Nov_2026-11-09.pdf
+- BCEAO, participants PI-SPI autorisés au public au 30 septembre 2026 : https://downloads.bceao.int/index.php/fr/communique-presse/liste-des-participants-autorises-ouvrir-les-services-de-pi-spi-au-public-au-30
 - Portail développeur PI-SPI : https://developer.pispi.bceao.int/home
 - Yas Togo, accepter les paiements Mixx : https://togocom.zendesk.com/hc/fr/articles/40486059403410-Accepter-les-paiements-Mixx-sur-votre-site-ou-votre-application
 - Procédure marchande Flooz publique historique, à revalider auprès de Moov : https://github.com/Tech228/FloozAPI/blob/master/Procedures.md
